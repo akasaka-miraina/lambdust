@@ -1,6 +1,6 @@
 //! Example demonstrating the Lambdust bridge API
 
-use lambdust::{LambdustBridge, Value, Result};
+use lambdust::{LambdustBridge, Result, Value};
 use std::collections::HashMap;
 
 // Example external struct that we want to expose to Scheme
@@ -69,9 +69,17 @@ fn main() -> Result<()> {
             Value::Number(num) => match num {
                 lambdust::lexer::SchemeNumber::Integer(i) => *i as f64,
                 lambdust::lexer::SchemeNumber::Real(r) => *r,
-                _ => return Err(lambdust::error::LambdustError::TypeError("Expected number".to_string())),
+                _ => {
+                    return Err(lambdust::error::LambdustError::TypeError(
+                        "Expected number".to_string(),
+                    ));
+                }
             },
-            _ => return Err(lambdust::error::LambdustError::TypeError("Expected number".to_string())),
+            _ => {
+                return Err(lambdust::error::LambdustError::TypeError(
+                    "Expected number".to_string(),
+                ));
+            }
         };
         Ok(Value::from(n * n))
     });
@@ -80,58 +88,84 @@ fn main() -> Result<()> {
         let n = match &args[0] {
             Value::Number(num) => match num {
                 lambdust::lexer::SchemeNumber::Integer(i) => *i,
-                _ => return Err(lambdust::error::LambdustError::TypeError("Expected integer".to_string())),
+                _ => {
+                    return Err(lambdust::error::LambdustError::TypeError(
+                        "Expected integer".to_string(),
+                    ));
+                }
             },
-            _ => return Err(lambdust::error::LambdustError::TypeError("Expected integer".to_string())),
+            _ => {
+                return Err(lambdust::error::LambdustError::TypeError(
+                    "Expected integer".to_string(),
+                ));
+            }
         };
-        
+
         if n < 0 {
-            return Err(lambdust::error::LambdustError::RuntimeError("Factorial of negative number".to_string()));
+            return Err(lambdust::error::LambdustError::RuntimeError(
+                "Factorial of negative number".to_string(),
+            ));
         }
-        
+
         let mut result = 1i64;
         for i in 1..=n {
             result *= i;
         }
-        
+
         Ok(Value::from(result))
     });
 
     // Register string manipulation functions
-    bridge.register_function("string-upper", Some(1), |args| {
-        match &args[0] {
-            Value::String(s) => Ok(Value::from(s.to_uppercase())),
-            _ => Err(lambdust::error::LambdustError::TypeError("Expected string".to_string())),
-        }
+    bridge.register_function("string-upper", Some(1), |args| match &args[0] {
+        Value::String(s) => Ok(Value::from(s.to_uppercase())),
+        _ => Err(lambdust::error::LambdustError::TypeError(
+            "Expected string".to_string(),
+        )),
     });
 
-    bridge.register_function("string-reverse", Some(1), |args| {
-        match &args[0] {
-            Value::String(s) => Ok(Value::from(s.chars().rev().collect::<String>())),
-            _ => Err(lambdust::error::LambdustError::TypeError("Expected string".to_string())),
-        }
+    bridge.register_function("string-reverse", Some(1), |args| match &args[0] {
+        Value::String(s) => Ok(Value::from(s.chars().rev().collect::<String>())),
+        _ => Err(lambdust::error::LambdustError::TypeError(
+            "Expected string".to_string(),
+        )),
     });
 
     // Register a function that creates external objects
     bridge.register_function("make-user", Some(3), |args| {
         let name = match &args[0] {
             Value::String(s) => s.clone(),
-            _ => return Err(lambdust::error::LambdustError::TypeError("Expected string for name".to_string())),
+            _ => {
+                return Err(lambdust::error::LambdustError::TypeError(
+                    "Expected string for name".to_string(),
+                ));
+            }
         };
-        
+
         let age = match &args[1] {
             Value::Number(num) => match num {
                 lambdust::lexer::SchemeNumber::Integer(i) => *i as u32,
-                _ => return Err(lambdust::error::LambdustError::TypeError("Expected integer for age".to_string())),
+                _ => {
+                    return Err(lambdust::error::LambdustError::TypeError(
+                        "Expected integer for age".to_string(),
+                    ));
+                }
             },
-            _ => return Err(lambdust::error::LambdustError::TypeError("Expected integer for age".to_string())),
+            _ => {
+                return Err(lambdust::error::LambdustError::TypeError(
+                    "Expected integer for age".to_string(),
+                ));
+            }
         };
-        
+
         let email = match &args[2] {
             Value::String(s) => s.clone(),
-            _ => return Err(lambdust::error::LambdustError::TypeError("Expected string for email".to_string())),
+            _ => {
+                return Err(lambdust::error::LambdustError::TypeError(
+                    "Expected string for email".to_string(),
+                ));
+            }
         };
-        
+
         let user = User::new(name, age, email);
         // In a real implementation, we'd register this object and return its ID
         Ok(Value::from(format!("User created: {:?}", user)))
@@ -158,10 +192,16 @@ fn main() -> Result<()> {
     println!("(call-external \"factorial\" 6) = {}", result);
 
     let result = bridge.eval("(call-external \"string-upper\" \"hello world\")")?;
-    println!("(call-external \"string-upper\" \"hello world\") = {}", result);
+    println!(
+        "(call-external \"string-upper\" \"hello world\") = {}",
+        result
+    );
 
     let result = bridge.eval("(call-external \"string-reverse\" \"lambdust\")")?;
-    println!("(call-external \"string-reverse\" \"lambdust\") = {}", result);
+    println!(
+        "(call-external \"string-reverse\" \"lambdust\") = {}",
+        result
+    );
 
     // Test user creation
     println!("\n=== Object Creation ===");
@@ -174,7 +214,10 @@ fn main() -> Result<()> {
     println!("(let ((x 10) (y 20)) (+ x y)) = {}", result);
 
     let result = bridge.eval("(cond ((< 5 3) 'less) ((> 5 3) 'greater) (else 'equal))")?;
-    println!("(cond ((< 5 3) 'less) ((> 5 3) 'greater) (else 'equal)) = {}", result);
+    println!(
+        "(cond ((< 5 3) 'less) ((> 5 3) 'greater) (else 'equal)) = {}",
+        result
+    );
 
     // Test function definition
     println!("\n=== Function Definition ===");
@@ -198,14 +241,22 @@ mod tests {
     #[test]
     fn test_external_functions() -> Result<()> {
         let mut bridge = LambdustBridge::new();
-        
+
         bridge.register_function("add-one", Some(1), |args| {
             let n = match &args[0] {
                 Value::Number(num) => match num {
                     lambdust::lexer::SchemeNumber::Integer(i) => *i,
-                    _ => return Err(lambdust::error::LambdustError::TypeError("Expected integer".to_string())),
+                    _ => {
+                        return Err(lambdust::error::LambdustError::TypeError(
+                            "Expected integer".to_string(),
+                        ));
+                    }
                 },
-                _ => return Err(lambdust::error::LambdustError::TypeError("Expected number".to_string())),
+                _ => {
+                    return Err(lambdust::error::LambdustError::TypeError(
+                        "Expected number".to_string(),
+                    ));
+                }
             };
             Ok(Value::from(n + 1))
         });

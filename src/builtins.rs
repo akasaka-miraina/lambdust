@@ -2,7 +2,7 @@
 
 use crate::error::{LambdustError, Result};
 use crate::lexer::SchemeNumber;
-use crate::value::{Value, Procedure};
+use crate::value::{Procedure, Value};
 use std::collections::HashMap;
 
 /// Create a map of all built-in procedures
@@ -78,7 +78,10 @@ fn arithmetic_add() -> Value {
                 if let Some(num) = arg.as_number() {
                     result = add_numbers(&result, num)?;
                 } else {
-                    return Err(LambdustError::TypeError(format!("+ expects numbers, got {}", arg)));
+                    return Err(LambdustError::TypeError(format!(
+                        "+ expects numbers, got {}",
+                        arg
+                    )));
                 }
             }
             Ok(Value::Number(result))
@@ -92,12 +95,16 @@ fn arithmetic_sub() -> Value {
         arity: None, // Variadic
         func: |args| {
             if args.is_empty() {
-                return Err(LambdustError::ArityError { expected: 1, actual: 0 });
+                return Err(LambdustError::ArityError {
+                    expected: 1,
+                    actual: 0,
+                });
             }
-            
-            let first = args[0].as_number()
-                .ok_or_else(|| LambdustError::TypeError(format!("- expects numbers, got {}", args[0])))?;
-            
+
+            let first = args[0].as_number().ok_or_else(|| {
+                LambdustError::TypeError(format!("- expects numbers, got {}", args[0]))
+            })?;
+
             if args.len() == 1 {
                 // Unary minus
                 Ok(Value::Number(negate_number(first)?))
@@ -107,7 +114,10 @@ fn arithmetic_sub() -> Value {
                     if let Some(num) = arg.as_number() {
                         result = sub_numbers(&result, num)?;
                     } else {
-                        return Err(LambdustError::TypeError(format!("- expects numbers, got {}", arg)));
+                        return Err(LambdustError::TypeError(format!(
+                            "- expects numbers, got {}",
+                            arg
+                        )));
                     }
                 }
                 Ok(Value::Number(result))
@@ -126,7 +136,10 @@ fn arithmetic_mul() -> Value {
                 if let Some(num) = arg.as_number() {
                     result = mul_numbers(&result, num)?;
                 } else {
-                    return Err(LambdustError::TypeError(format!("* expects numbers, got {}", arg)));
+                    return Err(LambdustError::TypeError(format!(
+                        "* expects numbers, got {}",
+                        arg
+                    )));
                 }
             }
             Ok(Value::Number(result))
@@ -140,22 +153,32 @@ fn arithmetic_div() -> Value {
         arity: None, // Variadic
         func: |args| {
             if args.is_empty() {
-                return Err(LambdustError::ArityError { expected: 1, actual: 0 });
+                return Err(LambdustError::ArityError {
+                    expected: 1,
+                    actual: 0,
+                });
             }
-            
-            let first = args[0].as_number()
-                .ok_or_else(|| LambdustError::TypeError(format!("/ expects numbers, got {}", args[0])))?;
-            
+
+            let first = args[0].as_number().ok_or_else(|| {
+                LambdustError::TypeError(format!("/ expects numbers, got {}", args[0]))
+            })?;
+
             if args.len() == 1 {
                 // Reciprocal
-                Ok(Value::Number(div_numbers(&SchemeNumber::Integer(1), first)?))
+                Ok(Value::Number(div_numbers(
+                    &SchemeNumber::Integer(1),
+                    first,
+                )?))
             } else {
                 let mut result = first.clone();
                 for arg in &args[1..] {
                     if let Some(num) = arg.as_number() {
                         result = div_numbers(&result, num)?;
                     } else {
-                        return Err(LambdustError::TypeError(format!("/ expects numbers, got {}", arg)));
+                        return Err(LambdustError::TypeError(format!(
+                            "/ expects numbers, got {}",
+                            arg
+                        )));
                     }
                 }
                 Ok(Value::Number(result))
@@ -170,19 +193,26 @@ fn arithmetic_eq() -> Value {
         arity: None, // Variadic
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError { expected: 2, actual: args.len() });
+                return Err(LambdustError::ArityError {
+                    expected: 2,
+                    actual: args.len(),
+                });
             }
-            
-            let first = args[0].as_number()
-                .ok_or_else(|| LambdustError::TypeError(format!("= expects numbers, got {}", args[0])))?;
-            
+
+            let first = args[0].as_number().ok_or_else(|| {
+                LambdustError::TypeError(format!("= expects numbers, got {}", args[0]))
+            })?;
+
             for arg in &args[1..] {
                 if let Some(num) = arg.as_number() {
                     if !numbers_equal(first, num) {
                         return Ok(Value::Boolean(false));
                     }
                 } else {
-                    return Err(LambdustError::TypeError(format!("= expects numbers, got {}", arg)));
+                    return Err(LambdustError::TypeError(format!(
+                        "= expects numbers, got {}",
+                        arg
+                    )));
                 }
             }
             Ok(Value::Boolean(true))
@@ -196,15 +226,20 @@ fn arithmetic_lt() -> Value {
         arity: None, // Variadic
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError { expected: 2, actual: args.len() });
+                return Err(LambdustError::ArityError {
+                    expected: 2,
+                    actual: args.len(),
+                });
             }
-            
+
             for i in 0..args.len() - 1 {
-                let a = args[i].as_number()
-                    .ok_or_else(|| LambdustError::TypeError(format!("< expects numbers, got {}", args[i])))?;
-                let b = args[i + 1].as_number()
-                    .ok_or_else(|| LambdustError::TypeError(format!("< expects numbers, got {}", args[i + 1])))?;
-                
+                let a = args[i].as_number().ok_or_else(|| {
+                    LambdustError::TypeError(format!("< expects numbers, got {}", args[i]))
+                })?;
+                let b = args[i + 1].as_number().ok_or_else(|| {
+                    LambdustError::TypeError(format!("< expects numbers, got {}", args[i + 1]))
+                })?;
+
                 if !number_lt(a, b) {
                     return Ok(Value::Boolean(false));
                 }
@@ -220,15 +255,20 @@ fn arithmetic_le() -> Value {
         arity: None,
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError { expected: 2, actual: args.len() });
+                return Err(LambdustError::ArityError {
+                    expected: 2,
+                    actual: args.len(),
+                });
             }
-            
+
             for i in 0..args.len() - 1 {
-                let a = args[i].as_number()
-                    .ok_or_else(|| LambdustError::TypeError(format!("<= expects numbers, got {}", args[i])))?;
-                let b = args[i + 1].as_number()
-                    .ok_or_else(|| LambdustError::TypeError(format!("<= expects numbers, got {}", args[i + 1])))?;
-                
+                let a = args[i].as_number().ok_or_else(|| {
+                    LambdustError::TypeError(format!("<= expects numbers, got {}", args[i]))
+                })?;
+                let b = args[i + 1].as_number().ok_or_else(|| {
+                    LambdustError::TypeError(format!("<= expects numbers, got {}", args[i + 1]))
+                })?;
+
                 if !number_le(a, b) {
                     return Ok(Value::Boolean(false));
                 }
@@ -244,15 +284,20 @@ fn arithmetic_gt() -> Value {
         arity: None,
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError { expected: 2, actual: args.len() });
+                return Err(LambdustError::ArityError {
+                    expected: 2,
+                    actual: args.len(),
+                });
             }
-            
+
             for i in 0..args.len() - 1 {
-                let a = args[i].as_number()
-                    .ok_or_else(|| LambdustError::TypeError(format!("> expects numbers, got {}", args[i])))?;
-                let b = args[i + 1].as_number()
-                    .ok_or_else(|| LambdustError::TypeError(format!("> expects numbers, got {}", args[i + 1])))?;
-                
+                let a = args[i].as_number().ok_or_else(|| {
+                    LambdustError::TypeError(format!("> expects numbers, got {}", args[i]))
+                })?;
+                let b = args[i + 1].as_number().ok_or_else(|| {
+                    LambdustError::TypeError(format!("> expects numbers, got {}", args[i + 1]))
+                })?;
+
                 if !number_gt(a, b) {
                     return Ok(Value::Boolean(false));
                 }
@@ -268,15 +313,20 @@ fn arithmetic_ge() -> Value {
         arity: None,
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError { expected: 2, actual: args.len() });
+                return Err(LambdustError::ArityError {
+                    expected: 2,
+                    actual: args.len(),
+                });
             }
-            
+
             for i in 0..args.len() - 1 {
-                let a = args[i].as_number()
-                    .ok_or_else(|| LambdustError::TypeError(format!(">= expects numbers, got {}", args[i])))?;
-                let b = args[i + 1].as_number()
-                    .ok_or_else(|| LambdustError::TypeError(format!(">= expects numbers, got {}", args[i + 1])))?;
-                
+                let a = args[i].as_number().ok_or_else(|| {
+                    LambdustError::TypeError(format!(">= expects numbers, got {}", args[i]))
+                })?;
+                let b = args[i + 1].as_number().ok_or_else(|| {
+                    LambdustError::TypeError(format!(">= expects numbers, got {}", args[i + 1]))
+                })?;
+
                 if !number_ge(a, b) {
                     return Ok(Value::Boolean(false));
                 }
@@ -292,12 +342,10 @@ fn list_car() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "car".to_string(),
         arity: Some(1),
-        func: |args| {
-            match &args[0] {
-                Value::Pair(car, _) => Ok((**car).clone()),
-                Value::Nil => Err(LambdustError::TypeError("car: empty list".to_string())),
-                _ => Err(LambdustError::TypeError("car: not a pair".to_string())),
-            }
+        func: |args| match &args[0] {
+            Value::Pair(car, _) => Ok((**car).clone()),
+            Value::Nil => Err(LambdustError::TypeError("car: empty list".to_string())),
+            _ => Err(LambdustError::TypeError("car: not a pair".to_string())),
         },
     })
 }
@@ -306,12 +354,10 @@ fn list_cdr() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "cdr".to_string(),
         arity: Some(1),
-        func: |args| {
-            match &args[0] {
-                Value::Pair(_, cdr) => Ok((**cdr).clone()),
-                Value::Nil => Err(LambdustError::TypeError("cdr: empty list".to_string())),
-                _ => Err(LambdustError::TypeError("cdr: not a pair".to_string())),
-            }
+        func: |args| match &args[0] {
+            Value::Pair(_, cdr) => Ok((**cdr).clone()),
+            Value::Nil => Err(LambdustError::TypeError("cdr: empty list".to_string())),
+            _ => Err(LambdustError::TypeError("cdr: not a pair".to_string())),
         },
     })
 }
@@ -320,9 +366,7 @@ fn list_cons() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "cons".to_string(),
         arity: Some(2),
-        func: |args| {
-            Ok(Value::cons(args[0].clone(), args[1].clone()))
-        },
+        func: |args| Ok(Value::cons(args[0].clone(), args[1].clone())),
     })
 }
 
@@ -330,9 +374,7 @@ fn list_list() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "list".to_string(),
         arity: None, // Variadic
-        func: |args| {
-            Ok(Value::from_vector(args.to_vec()))
-        },
+        func: |args| Ok(Value::from_vector(args.to_vec())),
     })
 }
 
@@ -340,11 +382,11 @@ fn list_length() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "length".to_string(),
         arity: Some(1),
-        func: |args| {
-            match args[0].list_length() {
-                Some(len) => Ok(Value::from(len as i64)),
-                None => Err(LambdustError::TypeError("length: not a proper list".to_string())),
-            }
+        func: |args| match args[0].list_length() {
+            Some(len) => Ok(Value::from(len as i64)),
+            None => Err(LambdustError::TypeError(
+                "length: not a proper list".to_string(),
+            )),
         },
     })
 }
@@ -357,7 +399,7 @@ fn list_append() -> Value {
             if args.is_empty() {
                 return Ok(Value::Nil);
             }
-            
+
             let mut result = Vec::new();
             for (i, arg) in args.iter().enumerate() {
                 if i == args.len() - 1 {
@@ -394,14 +436,14 @@ fn list_reverse() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "reverse".to_string(),
         arity: Some(1),
-        func: |args| {
-            match args[0].to_vector() {
-                Some(mut vec) => {
-                    vec.reverse();
-                    Ok(Value::from_vector(vec))
-                }
-                None => Err(LambdustError::TypeError("reverse: not a proper list".to_string())),
+        func: |args| match args[0].to_vector() {
+            Some(mut vec) => {
+                vec.reverse();
+                Ok(Value::from_vector(vec))
             }
+            None => Err(LambdustError::TypeError(
+                "reverse: not a proper list".to_string(),
+            )),
         },
     })
 }
@@ -478,7 +520,7 @@ fn equality_eq() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "eq?".to_string(),
         arity: Some(2),
-        func: |args| Ok(Value::Boolean(args[0].eq(&args[1]))),
+        func: |args| Ok(Value::Boolean(args[0].scheme_eq(&args[1]))),
     })
 }
 
@@ -508,7 +550,9 @@ fn string_length() -> Value {
             if let Some(s) = args[0].as_string() {
                 Ok(Value::from(s.len() as i64))
             } else {
-                Err(LambdustError::TypeError("string-length: not a string".to_string()))
+                Err(LambdustError::TypeError(
+                    "string-length: not a string".to_string(),
+                ))
             }
         },
     })
@@ -519,23 +563,31 @@ fn string_ref() -> Value {
         name: "string-ref".to_string(),
         arity: Some(2),
         func: |args| {
-            let s = args[0].as_string()
+            let s = args[0]
+                .as_string()
                 .ok_or_else(|| LambdustError::TypeError("string-ref: not a string".to_string()))?;
-            let n = args[1].as_number()
+            let n = args[1]
+                .as_number()
                 .ok_or_else(|| LambdustError::TypeError("string-ref: not a number".to_string()))?;
-            
+
             if let SchemeNumber::Integer(i) = n {
                 if *i >= 0 && (*i as usize) < s.len() {
                     if let Some(c) = s.chars().nth(*i as usize) {
                         Ok(Value::Character(c))
                     } else {
-                        Err(LambdustError::RuntimeError("string-ref: index out of bounds".to_string()))
+                        Err(LambdustError::RuntimeError(
+                            "string-ref: index out of bounds".to_string(),
+                        ))
                     }
                 } else {
-                    Err(LambdustError::RuntimeError("string-ref: index out of bounds".to_string()))
+                    Err(LambdustError::RuntimeError(
+                        "string-ref: index out of bounds".to_string(),
+                    ))
                 }
             } else {
-                Err(LambdustError::TypeError("string-ref: index must be an integer".to_string()))
+                Err(LambdustError::TypeError(
+                    "string-ref: index must be an integer".to_string(),
+                ))
             }
         },
     })
@@ -551,7 +603,9 @@ fn string_append() -> Value {
                 if let Some(s) = arg.as_string() {
                     result.push_str(s);
                 } else {
-                    return Err(LambdustError::TypeError("string-append: not a string".to_string()));
+                    return Err(LambdustError::TypeError(
+                        "string-append: not a string".to_string(),
+                    ));
                 }
             }
             Ok(Value::String(result))
@@ -564,23 +618,31 @@ fn string_substring() -> Value {
         name: "substring".to_string(),
         arity: Some(3),
         func: |args| {
-            let s = args[0].as_string()
+            let s = args[0]
+                .as_string()
                 .ok_or_else(|| LambdustError::TypeError("substring: not a string".to_string()))?;
-            let start = args[1].as_number()
-                .ok_or_else(|| LambdustError::TypeError("substring: start not a number".to_string()))?;
-            let end = args[2].as_number()
-                .ok_or_else(|| LambdustError::TypeError("substring: end not a number".to_string()))?;
-            
+            let start = args[1].as_number().ok_or_else(|| {
+                LambdustError::TypeError("substring: start not a number".to_string())
+            })?;
+            let end = args[2].as_number().ok_or_else(|| {
+                LambdustError::TypeError("substring: end not a number".to_string())
+            })?;
+
             if let (SchemeNumber::Integer(start_i), SchemeNumber::Integer(end_i)) = (start, end) {
                 if *start_i >= 0 && *end_i >= *start_i && (*end_i as usize) <= s.len() {
                     let chars: Vec<char> = s.chars().collect();
-                    let substring: String = chars[*start_i as usize..*end_i as usize].iter().collect();
+                    let substring: String =
+                        chars[*start_i as usize..*end_i as usize].iter().collect();
                     Ok(Value::String(substring))
                 } else {
-                    Err(LambdustError::RuntimeError("substring: invalid indices".to_string()))
+                    Err(LambdustError::RuntimeError(
+                        "substring: invalid indices".to_string(),
+                    ))
                 }
             } else {
-                Err(LambdustError::TypeError("substring: indices must be integers".to_string()))
+                Err(LambdustError::TypeError(
+                    "substring: indices must be integers".to_string(),
+                ))
             }
         },
     })
@@ -596,7 +658,9 @@ fn convert_number_to_string() -> Value {
             if let Some(n) = args[0].as_number() {
                 Ok(Value::String(format!("{}", n)))
             } else {
-                Err(LambdustError::TypeError("number->string: not a number".to_string()))
+                Err(LambdustError::TypeError(
+                    "number->string: not a number".to_string(),
+                ))
             }
         },
     })
@@ -617,7 +681,9 @@ fn convert_string_to_number() -> Value {
                     Ok(Value::Boolean(false))
                 }
             } else {
-                Err(LambdustError::TypeError("string->number: not a string".to_string()))
+                Err(LambdustError::TypeError(
+                    "string->number: not a string".to_string(),
+                ))
             }
         },
     })
@@ -631,7 +697,9 @@ fn convert_symbol_to_string() -> Value {
             if let Some(s) = args[0].as_symbol() {
                 Ok(Value::String(s.to_string()))
             } else {
-                Err(LambdustError::TypeError("symbol->string: not a symbol".to_string()))
+                Err(LambdustError::TypeError(
+                    "symbol->string: not a symbol".to_string(),
+                ))
             }
         },
     })
@@ -645,7 +713,9 @@ fn convert_string_to_symbol() -> Value {
             if let Some(s) = args[0].as_string() {
                 Ok(Value::Symbol(s.to_string()))
             } else {
-                Err(LambdustError::TypeError("string->symbol: not a string".to_string()))
+                Err(LambdustError::TypeError(
+                    "string->symbol: not a string".to_string(),
+                ))
             }
         },
     })
@@ -681,9 +751,7 @@ fn logical_not() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "not".to_string(),
         arity: Some(1),
-        func: |args| {
-            Ok(Value::Boolean(!args[0].is_truthy()))
-        },
+        func: |args| Ok(Value::Boolean(!args[0].is_truthy())),
     })
 }
 
@@ -695,7 +763,9 @@ fn add_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Integer(a), SchemeNumber::Real(b)) => Ok(SchemeNumber::Real(*a as f64 + b)),
         (SchemeNumber::Real(a), SchemeNumber::Integer(b)) => Ok(SchemeNumber::Real(a + *b as f64)),
         (SchemeNumber::Real(a), SchemeNumber::Real(b)) => Ok(SchemeNumber::Real(a + b)),
-        _ => Err(LambdustError::RuntimeError("Unsupported number types".to_string())),
+        _ => Err(LambdustError::RuntimeError(
+            "Unsupported number types".to_string(),
+        )),
     }
 }
 
@@ -705,7 +775,9 @@ fn sub_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Integer(a), SchemeNumber::Real(b)) => Ok(SchemeNumber::Real(*a as f64 - b)),
         (SchemeNumber::Real(a), SchemeNumber::Integer(b)) => Ok(SchemeNumber::Real(a - *b as f64)),
         (SchemeNumber::Real(a), SchemeNumber::Real(b)) => Ok(SchemeNumber::Real(a - b)),
-        _ => Err(LambdustError::RuntimeError("Unsupported number types".to_string())),
+        _ => Err(LambdustError::RuntimeError(
+            "Unsupported number types".to_string(),
+        )),
     }
 }
 
@@ -715,7 +787,9 @@ fn mul_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Integer(a), SchemeNumber::Real(b)) => Ok(SchemeNumber::Real(*a as f64 * b)),
         (SchemeNumber::Real(a), SchemeNumber::Integer(b)) => Ok(SchemeNumber::Real(a * *b as f64)),
         (SchemeNumber::Real(a), SchemeNumber::Real(b)) => Ok(SchemeNumber::Real(a * b)),
-        _ => Err(LambdustError::RuntimeError("Unsupported number types".to_string())),
+        _ => Err(LambdustError::RuntimeError(
+            "Unsupported number types".to_string(),
+        )),
     }
 }
 
@@ -751,7 +825,9 @@ fn div_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
                 Ok(SchemeNumber::Real(a / b))
             }
         }
-        _ => Err(LambdustError::RuntimeError("Unsupported number types".to_string())),
+        _ => Err(LambdustError::RuntimeError(
+            "Unsupported number types".to_string(),
+        )),
     }
 }
 

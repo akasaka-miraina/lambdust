@@ -49,7 +49,7 @@ pub enum Template {
 }
 
 /// Syntax rule (pattern -> template)
-/// 
+///
 /// Represents a single transformation rule in a syntax-rules macro definition.
 /// Each rule consists of a pattern that matches input expressions and a template
 /// that specifies how to transform the matched input.
@@ -74,7 +74,7 @@ impl MacroExpander {
         let mut expander = MacroExpander {
             macros: HashMap::new(),
         };
-        
+
         // Add built-in macros
         expander.add_builtin_macros();
         expander
@@ -83,64 +83,83 @@ impl MacroExpander {
     /// Add built-in macros
     fn add_builtin_macros(&mut self) {
         // let macro
-        self.macros.insert("let".to_string(), Macro {
-            name: "let".to_string(),
-            transformer: expand_let,
-            is_syntax_rules: false,
-        });
+        self.macros.insert(
+            "let".to_string(),
+            Macro {
+                name: "let".to_string(),
+                transformer: expand_let,
+                is_syntax_rules: false,
+            },
+        );
 
         // let* macro
-        self.macros.insert("let*".to_string(), Macro {
-            name: "let*".to_string(),
-            transformer: expand_let_star,
-            is_syntax_rules: false,
-        });
+        self.macros.insert(
+            "let*".to_string(),
+            Macro {
+                name: "let*".to_string(),
+                transformer: expand_let_star,
+                is_syntax_rules: false,
+            },
+        );
 
         // letrec macro
-        self.macros.insert("letrec".to_string(), Macro {
-            name: "letrec".to_string(),
-            transformer: expand_letrec,
-            is_syntax_rules: false,
-        });
+        self.macros.insert(
+            "letrec".to_string(),
+            Macro {
+                name: "letrec".to_string(),
+                transformer: expand_letrec,
+                is_syntax_rules: false,
+            },
+        );
 
         // cond macro
-        self.macros.insert("cond".to_string(), Macro {
-            name: "cond".to_string(),
-            transformer: expand_cond,
-            is_syntax_rules: false,
-        });
+        self.macros.insert(
+            "cond".to_string(),
+            Macro {
+                name: "cond".to_string(),
+                transformer: expand_cond,
+                is_syntax_rules: false,
+            },
+        );
 
         // case macro
-        self.macros.insert("case".to_string(), Macro {
-            name: "case".to_string(),
-            transformer: expand_case,
-            is_syntax_rules: false,
-        });
+        self.macros.insert(
+            "case".to_string(),
+            Macro {
+                name: "case".to_string(),
+                transformer: expand_case,
+                is_syntax_rules: false,
+            },
+        );
 
         // when macro
-        self.macros.insert("when".to_string(), Macro {
-            name: "when".to_string(),
-            transformer: expand_when,
-            is_syntax_rules: false,
-        });
+        self.macros.insert(
+            "when".to_string(),
+            Macro {
+                name: "when".to_string(),
+                transformer: expand_when,
+                is_syntax_rules: false,
+            },
+        );
 
         // unless macro
-        self.macros.insert("unless".to_string(), Macro {
-            name: "unless".to_string(),
-            transformer: expand_unless,
-            is_syntax_rules: false,
-        });
+        self.macros.insert(
+            "unless".to_string(),
+            Macro {
+                name: "unless".to_string(),
+                transformer: expand_unless,
+                is_syntax_rules: false,
+            },
+        );
     }
 
     /// Check if an expression is a macro call
     pub fn is_macro_call(&self, expr: &Expr) -> bool {
         match expr {
-            Expr::List(exprs) if !exprs.is_empty() => {
-                match &exprs[0] {
-                    Expr::Variable(name) => self.macros.contains_key(name),
-                    _ => false,
-                }
-            }
+            Expr::List(exprs) if !exprs.is_empty() => match &exprs[0] {
+                Expr::Variable(name) => self.macros.contains_key(name),
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -194,7 +213,9 @@ impl MacroExpander {
                 Ok(Expr::Quasiquote(Box::new(self.expand_all(*expr)?)))
             }
             Expr::Unquote(expr) => Ok(Expr::Unquote(Box::new(self.expand_all(*expr)?))),
-            Expr::UnquoteSplicing(expr) => Ok(Expr::UnquoteSplicing(Box::new(self.expand_all(*expr)?))),
+            Expr::UnquoteSplicing(expr) => {
+                Ok(Expr::UnquoteSplicing(Box::new(self.expand_all(*expr)?)))
+            }
             Expr::DottedList(exprs, tail) => {
                 let mut expanded_exprs = Vec::new();
                 for expr in exprs {
@@ -209,11 +230,14 @@ impl MacroExpander {
 
     /// Define a new macro
     pub fn define_macro(&mut self, name: String, transformer: MacroTransformer) {
-        self.macros.insert(name.clone(), Macro {
-            name,
-            transformer,
-            is_syntax_rules: false,
-        });
+        self.macros.insert(
+            name.clone(),
+            Macro {
+                name,
+                transformer,
+                is_syntax_rules: false,
+            },
+        );
     }
 }
 
@@ -228,7 +252,9 @@ impl Default for MacroExpander {
 /// Expand let macro: (let ((var val) ...) body ...) -> ((lambda (var ...) body ...) val ...)
 fn expand_let(args: &[Expr]) -> Result<Expr> {
     if args.len() < 2 {
-        return Err(LambdustError::SyntaxError("let: too few arguments".to_string()));
+        return Err(LambdustError::SyntaxError(
+            "let: too few arguments".to_string(),
+        ));
     }
 
     let bindings = &args[0];
@@ -237,7 +263,11 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
     // Parse bindings
     let binding_list = match bindings {
         Expr::List(bindings) => bindings,
-        _ => return Err(LambdustError::SyntaxError("let: bindings must be a list".to_string())),
+        _ => {
+            return Err(LambdustError::SyntaxError(
+                "let: bindings must be a list".to_string(),
+            ));
+        }
     };
 
     let mut vars = Vec::new();
@@ -245,25 +275,28 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
 
     for binding in binding_list {
         match binding {
-            Expr::List(parts) if parts.len() == 2 => {
-                match &parts[0] {
-                    Expr::Variable(var) => {
-                        vars.push(Expr::Variable(var.clone()));
-                        vals.push(parts[1].clone());
-                    }
-                    _ => return Err(LambdustError::SyntaxError("let: binding variable must be a symbol".to_string())),
+            Expr::List(parts) if parts.len() == 2 => match &parts[0] {
+                Expr::Variable(var) => {
+                    vars.push(Expr::Variable(var.clone()));
+                    vals.push(parts[1].clone());
                 }
+                _ => {
+                    return Err(LambdustError::SyntaxError(
+                        "let: binding variable must be a symbol".to_string(),
+                    ));
+                }
+            },
+            _ => {
+                return Err(LambdustError::SyntaxError(
+                    "let: each binding must be (var val)".to_string(),
+                ));
             }
-            _ => return Err(LambdustError::SyntaxError("let: each binding must be (var val)".to_string())),
         }
     }
 
     // Create lambda expression
     let lambda = Expr::List({
-        let mut lambda_expr = vec![
-            Expr::Variable("lambda".to_string()),
-            Expr::List(vars),
-        ];
+        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(vars)];
         lambda_expr.extend(body.iter().cloned());
         lambda_expr
     });
@@ -278,7 +311,9 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
 /// Expand let* macro: (let* ((var val) ...) body ...) -> nested lets
 fn expand_let_star(args: &[Expr]) -> Result<Expr> {
     if args.len() < 2 {
-        return Err(LambdustError::SyntaxError("let*: too few arguments".to_string()));
+        return Err(LambdustError::SyntaxError(
+            "let*: too few arguments".to_string(),
+        ));
     }
 
     let bindings = &args[0];
@@ -286,7 +321,11 @@ fn expand_let_star(args: &[Expr]) -> Result<Expr> {
 
     let binding_list = match bindings {
         Expr::List(bindings) => bindings,
-        _ => return Err(LambdustError::SyntaxError("let*: bindings must be a list".to_string())),
+        _ => {
+            return Err(LambdustError::SyntaxError(
+                "let*: bindings must be a list".to_string(),
+            ));
+        }
     };
 
     if binding_list.is_empty() {
@@ -316,11 +355,13 @@ fn expand_let_star(args: &[Expr]) -> Result<Expr> {
     Ok(result)
 }
 
-/// Expand letrec macro: (letrec ((var val) ...) body ...) -> 
+/// Expand letrec macro: (letrec ((var val) ...) body ...) ->
 /// ((lambda (var ...) (set! var val) ... body ...) #f ...)
 fn expand_letrec(args: &[Expr]) -> Result<Expr> {
     if args.len() < 2 {
-        return Err(LambdustError::SyntaxError("letrec: too few arguments".to_string()));
+        return Err(LambdustError::SyntaxError(
+            "letrec: too few arguments".to_string(),
+        ));
     }
 
     let bindings = &args[0];
@@ -328,7 +369,11 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
 
     let binding_list = match bindings {
         Expr::List(bindings) => bindings,
-        _ => return Err(LambdustError::SyntaxError("letrec: bindings must be a list".to_string())),
+        _ => {
+            return Err(LambdustError::SyntaxError(
+                "letrec: bindings must be a list".to_string(),
+            ));
+        }
     };
 
     let mut vars = Vec::new();
@@ -348,10 +393,18 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
                         ]));
                         undefined_vals.push(Expr::Variable("#f".to_string())); // Use #f as undefined
                     }
-                    _ => return Err(LambdustError::SyntaxError("letrec: binding variable must be a symbol".to_string())),
+                    _ => {
+                        return Err(LambdustError::SyntaxError(
+                            "letrec: binding variable must be a symbol".to_string(),
+                        ));
+                    }
                 }
             }
-            _ => return Err(LambdustError::SyntaxError("letrec: each binding must be (var val)".to_string())),
+            _ => {
+                return Err(LambdustError::SyntaxError(
+                    "letrec: each binding must be (var val)".to_string(),
+                ));
+            }
         }
     }
 
@@ -360,10 +413,7 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
     lambda_body.extend(body.iter().cloned());
 
     let lambda = Expr::List({
-        let mut lambda_expr = vec![
-            Expr::Variable("lambda".to_string()),
-            Expr::List(vars),
-        ];
+        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(vars)];
         lambda_expr.extend(lambda_body);
         lambda_expr
     });
@@ -401,7 +451,9 @@ fn expand_cond_clauses(clauses: &[Expr]) -> Result<Expr> {
             if let Expr::Variable(name) = test {
                 if name == "else" {
                     if !rest.is_empty() {
-                        return Err(LambdustError::SyntaxError("cond: else clause must be last".to_string()));
+                        return Err(LambdustError::SyntaxError(
+                            "cond: else clause must be last".to_string(),
+                        ));
                     }
                     return if exprs.is_empty() {
                         Ok(Expr::Variable("#t".to_string()))
@@ -435,14 +487,18 @@ fn expand_cond_clauses(clauses: &[Expr]) -> Result<Expr> {
                 else_expr,
             ]))
         }
-        _ => Err(LambdustError::SyntaxError("cond: clause must be a list".to_string())),
+        _ => Err(LambdustError::SyntaxError(
+            "cond: clause must be a list".to_string(),
+        )),
     }
 }
 
 /// Expand case macro
 fn expand_case(args: &[Expr]) -> Result<Expr> {
     if args.len() < 2 {
-        return Err(LambdustError::SyntaxError("case: too few arguments".to_string()));
+        return Err(LambdustError::SyntaxError(
+            "case: too few arguments".to_string(),
+        ));
     }
 
     let key = &args[0];
@@ -455,12 +511,10 @@ fn expand_case(args: &[Expr]) -> Result<Expr> {
 
     Ok(Expr::List(vec![
         Expr::Variable("let".to_string()),
-        Expr::List(vec![
-            Expr::List(vec![
-                Expr::Variable(key_var.to_string()),
-                key.clone(),
-            ])
-        ]),
+        Expr::List(vec![Expr::List(vec![
+            Expr::Variable(key_var.to_string()),
+            key.clone(),
+        ])]),
         cond_clauses,
     ]))
 }
@@ -482,7 +536,9 @@ fn expand_case_clauses(key_var: &str, clauses: &[Expr]) -> Result<Expr> {
             if let Expr::Variable(name) = datum_list {
                 if name == "else" {
                     if !rest.is_empty() {
-                        return Err(LambdustError::SyntaxError("case: else clause must be last".to_string()));
+                        return Err(LambdustError::SyntaxError(
+                            "case: else clause must be last".to_string(),
+                        ));
                     }
                     return Ok(Expr::List({
                         let mut begin_expr = vec![Expr::Variable("begin".to_string())];
@@ -505,13 +561,11 @@ fn expand_case_clauses(key_var: &str, clauses: &[Expr]) -> Result<Expr> {
                     }
                     Expr::List(or_expr)
                 }
-                single_datum => {
-                    Expr::List(vec![
-                        Expr::Variable("eqv?".to_string()),
-                        Expr::Variable(key_var.to_string()),
-                        Expr::Quote(Box::new(single_datum.clone())),
-                    ])
-                }
+                single_datum => Expr::List(vec![
+                    Expr::Variable("eqv?".to_string()),
+                    Expr::Variable(key_var.to_string()),
+                    Expr::Quote(Box::new(single_datum.clone())),
+                ]),
             };
 
             let then_expr = Expr::List({
@@ -529,14 +583,18 @@ fn expand_case_clauses(key_var: &str, clauses: &[Expr]) -> Result<Expr> {
                 else_expr,
             ]))
         }
-        _ => Err(LambdustError::SyntaxError("case: clause must be a list".to_string())),
+        _ => Err(LambdustError::SyntaxError(
+            "case: clause must be a list".to_string(),
+        )),
     }
 }
 
 /// Expand when macro: (when test body ...) -> (if test (begin body ...))
 fn expand_when(args: &[Expr]) -> Result<Expr> {
     if args.is_empty() {
-        return Err(LambdustError::SyntaxError("when: too few arguments".to_string()));
+        return Err(LambdustError::SyntaxError(
+            "when: too few arguments".to_string(),
+        ));
     }
 
     let test = &args[0];
@@ -564,16 +622,15 @@ fn expand_when(args: &[Expr]) -> Result<Expr> {
 /// Expand unless macro: (unless test body ...) -> (if (not test) (begin body ...))
 fn expand_unless(args: &[Expr]) -> Result<Expr> {
     if args.is_empty() {
-        return Err(LambdustError::SyntaxError("unless: too few arguments".to_string()));
+        return Err(LambdustError::SyntaxError(
+            "unless: too few arguments".to_string(),
+        ));
     }
 
     let test = &args[0];
     let body = &args[1..];
 
-    let negated_test = Expr::List(vec![
-        Expr::Variable("not".to_string()),
-        test.clone(),
-    ]);
+    let negated_test = Expr::List(vec![Expr::Variable("not".to_string()), test.clone()]);
 
     if body.is_empty() {
         Ok(Expr::List(vec![
@@ -610,7 +667,7 @@ mod tests {
         let expander = MacroExpander::new();
         let expr = parse_expr("(let ((x 1) (y 2)) (+ x y))");
         let expanded = expander.expand_macro(expr).unwrap();
-        
+
         // Should expand to ((lambda (x y) (+ x y)) 1 2)
         match expanded {
             Expr::List(exprs) => {
@@ -626,7 +683,7 @@ mod tests {
         let expander = MacroExpander::new();
         let expr = parse_expr("(cond ((< x 0) 'negative) ((> x 0) 'positive) (else 'zero))");
         let expanded = expander.expand_macro(expr).unwrap();
-        
+
         // Should expand to nested if expressions
         match expanded {
             Expr::List(exprs) => {
@@ -641,7 +698,7 @@ mod tests {
         let expander = MacroExpander::new();
         let expr = parse_expr("(when (> x 0) (display x) (newline))");
         let expanded = expander.expand_macro(expr).unwrap();
-        
+
         // Should expand to (if (> x 0) (begin (display x) (newline)))
         match expanded {
             Expr::List(exprs) => {
@@ -657,7 +714,7 @@ mod tests {
         let expander = MacroExpander::new();
         let let_expr = parse_expr("(let ((x 1)) x)");
         let regular_expr = parse_expr("(+ 1 2)");
-        
+
         assert!(expander.is_macro_call(&let_expr));
         assert!(!expander.is_macro_call(&regular_expr));
     }

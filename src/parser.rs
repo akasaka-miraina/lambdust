@@ -2,7 +2,7 @@
 
 use crate::ast::{Expr, Literal};
 use crate::error::{LambdustError, Result};
-use crate::lexer::{Token, SchemeNumber};
+use crate::lexer::Token;
 
 /// Parser for Scheme tokens
 pub struct Parser {
@@ -13,7 +13,10 @@ pub struct Parser {
 impl Parser {
     /// Create a new parser with the given tokens
     pub fn new(tokens: Vec<Token>) -> Self {
-        Parser { tokens, position: 0 }
+        Parser {
+            tokens,
+            position: 0,
+        }
     }
 
     /// Get the current token without consuming it
@@ -35,11 +38,11 @@ impl Parser {
     /// Parse all tokens into a list of expressions
     pub fn parse_all(&mut self) -> Result<Vec<Expr>> {
         let mut expressions = Vec::new();
-        
+
         while self.position < self.tokens.len() {
             expressions.push(self.parse_expression()?);
         }
-        
+
         Ok(expressions)
     }
 
@@ -52,7 +55,9 @@ impl Parser {
             Some(Token::Unquote) => self.parse_unquote(),
             Some(Token::UnquoteSplicing) => self.parse_unquote_splicing(),
             Some(token) => self.parse_atom(token.clone()),
-            None => Err(LambdustError::ParseError("Unexpected end of input".to_string())),
+            None => Err(LambdustError::ParseError(
+                "Unexpected end of input".to_string(),
+            )),
         }
     }
 
@@ -72,7 +77,7 @@ impl Parser {
                             return Ok(Expr::DottedList(elements, Box::new(tail_expr)));
                         } else {
                             return Err(LambdustError::ParseError(
-                                "Missing tail after dot".to_string()
+                                "Missing tail after dot".to_string(),
                             ));
                         }
                     } else {
@@ -82,12 +87,12 @@ impl Parser {
                 Token::Dot => {
                     if has_dot {
                         return Err(LambdustError::ParseError(
-                            "Multiple dots in list".to_string()
+                            "Multiple dots in list".to_string(),
                         ));
                     }
                     if elements.is_empty() {
                         return Err(LambdustError::ParseError(
-                            "Dot at beginning of list".to_string()
+                            "Dot at beginning of list".to_string(),
                         ));
                     }
                     has_dot = true;
@@ -97,7 +102,7 @@ impl Parser {
                 _ => {
                     if has_dot && tail.is_some() {
                         return Err(LambdustError::ParseError(
-                            "Multiple expressions after dot".to_string()
+                            "Multiple expressions after dot".to_string(),
                         ));
                     }
                     elements.push(self.parse_expression()?);
@@ -139,7 +144,7 @@ impl Parser {
     /// Parse an atomic expression (literal or symbol)
     fn parse_atom(&mut self, token: Token) -> Result<Expr> {
         self.consume_token(); // consume the token
-        
+
         match token {
             Token::Boolean(b) => Ok(Expr::Literal(Literal::Boolean(b))),
             Token::Number(n) => Ok(Expr::Literal(Literal::Number(n))),
@@ -147,14 +152,15 @@ impl Parser {
             Token::Character(c) => Ok(Expr::Literal(Literal::Character(c))),
             Token::Symbol(s) => Ok(Expr::Variable(s)),
             Token::RightParen => Err(LambdustError::ParseError(
-                "Unexpected right parenthesis".to_string()
+                "Unexpected right parenthesis".to_string(),
             )),
             Token::Dot => Err(LambdustError::ParseError(
-                "Unexpected dot outside of list".to_string()
+                "Unexpected dot outside of list".to_string(),
             )),
-            _ => Err(LambdustError::ParseError(
-                format!("Unexpected token: {}", token)
-            )),
+            _ => Err(LambdustError::ParseError(format!(
+                "Unexpected token: {}",
+                token
+            ))),
         }
     }
 }
@@ -164,10 +170,10 @@ pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
     if tokens.is_empty() {
         return Ok(Expr::Literal(Literal::Nil));
     }
-    
+
     let mut parser = Parser::new(tokens);
     let expressions = parser.parse_all()?;
-    
+
     if expressions.len() == 1 {
         Ok(expressions.into_iter().next().unwrap())
     } else if expressions.is_empty() {
@@ -187,7 +193,7 @@ pub fn parse_multiple(tokens: Vec<Token>) -> Result<Vec<Expr>> {
     if tokens.is_empty() {
         return Ok(vec![]);
     }
-    
+
     let mut parser = Parser::new(tokens);
     parser.parse_all()
 }
@@ -195,17 +201,23 @@ pub fn parse_multiple(tokens: Vec<Token>) -> Result<Vec<Expr>> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::lexer::tokenize;
+    use crate::lexer::{SchemeNumber, tokenize};
 
     #[test]
     fn test_parse_atoms() {
         let tokens = tokenize("42 #t \"hello\" x").unwrap();
         let expressions = parse_multiple(tokens).unwrap();
-        
+
         assert_eq!(expressions.len(), 4);
-        assert_eq!(expressions[0], Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
+        assert_eq!(
+            expressions[0],
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))
+        );
         assert_eq!(expressions[1], Expr::Literal(Literal::Boolean(true)));
-        assert_eq!(expressions[2], Expr::Literal(Literal::String("hello".to_string())));
+        assert_eq!(
+            expressions[2],
+            Expr::Literal(Literal::String("hello".to_string()))
+        );
         assert_eq!(expressions[3], Expr::Variable("x".to_string()));
     }
 
@@ -213,13 +225,19 @@ mod tests {
     fn test_parse_simple_list() {
         let tokens = tokenize("(+ 1 2)").unwrap();
         let expr = parse(tokens).unwrap();
-        
+
         match expr {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
                 assert_eq!(exprs[0], Expr::Variable("+".to_string()));
-                assert_eq!(exprs[1], Expr::Literal(Literal::Number(SchemeNumber::Integer(1))));
-                assert_eq!(exprs[2], Expr::Literal(Literal::Number(SchemeNumber::Integer(2))));
+                assert_eq!(
+                    exprs[1],
+                    Expr::Literal(Literal::Number(SchemeNumber::Integer(1)))
+                );
+                assert_eq!(
+                    exprs[2],
+                    Expr::Literal(Literal::Number(SchemeNumber::Integer(2)))
+                );
             }
             _ => panic!("Expected list expression"),
         }
@@ -229,12 +247,12 @@ mod tests {
     fn test_parse_nested_list() {
         let tokens = tokenize("(+ (* 2 3) 4)").unwrap();
         let expr = parse(tokens).unwrap();
-        
+
         match expr {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
                 assert_eq!(exprs[0], Expr::Variable("+".to_string()));
-                
+
                 match &exprs[1] {
                     Expr::List(inner) => {
                         assert_eq!(inner.len(), 3);
@@ -251,7 +269,7 @@ mod tests {
     fn test_parse_quote() {
         let tokens = tokenize("'x").unwrap();
         let expr = parse(tokens).unwrap();
-        
+
         match expr {
             Expr::Quote(inner) => {
                 assert_eq!(*inner, Expr::Variable("x".to_string()));
@@ -264,7 +282,7 @@ mod tests {
     fn test_parse_dotted_list() {
         let tokens = tokenize("(a b . c)").unwrap();
         let expr = parse(tokens).unwrap();
-        
+
         match expr {
             Expr::DottedList(exprs, tail) => {
                 assert_eq!(exprs.len(), 2);
@@ -280,7 +298,7 @@ mod tests {
     fn test_parse_empty_list() {
         let tokens = tokenize("()").unwrap();
         let expr = parse(tokens).unwrap();
-        
+
         assert_eq!(expr, Expr::List(vec![]));
     }
 
@@ -288,18 +306,16 @@ mod tests {
     fn test_parse_quasiquote() {
         let tokens = tokenize("`(,x ,@y)").unwrap();
         let expr = parse(tokens).unwrap();
-        
+
         match expr {
-            Expr::Quasiquote(inner) => {
-                match inner.as_ref() {
-                    Expr::List(exprs) => {
-                        assert_eq!(exprs.len(), 2);
-                        assert!(matches!(exprs[0], Expr::Unquote(_)));
-                        assert!(matches!(exprs[1], Expr::UnquoteSplicing(_)));
-                    }
-                    _ => panic!("Expected list inside quasiquote"),
+            Expr::Quasiquote(inner) => match inner.as_ref() {
+                Expr::List(exprs) => {
+                    assert_eq!(exprs.len(), 2);
+                    assert!(matches!(exprs[0], Expr::Unquote(_)));
+                    assert!(matches!(exprs[1], Expr::UnquoteSplicing(_)));
                 }
-            }
+                _ => panic!("Expected list inside quasiquote"),
+            },
             _ => panic!("Expected quasiquote expression"),
         }
     }

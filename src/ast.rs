@@ -107,8 +107,8 @@ impl Expr {
 
     /// Check if this expression is an empty list
     pub fn is_empty_list(&self) -> bool {
-        matches!(self, Expr::List(exprs) if exprs.is_empty()) ||
-        matches!(self, Expr::Literal(Literal::Nil))
+        matches!(self, Expr::List(exprs) if exprs.is_empty())
+            || matches!(self, Expr::Literal(Literal::Nil))
     }
 
     /// Get the symbol name if this is a variable
@@ -147,16 +147,30 @@ impl Expr {
     /// Check if this is a special form (list starting with a known special form symbol)
     pub fn is_special_form(&self) -> bool {
         match self {
-            Expr::List(exprs) if !exprs.is_empty() => {
-                match &exprs[0] {
-                    Expr::Variable(name) => matches!(name.as_str(),
-                        "define" | "lambda" | "if" | "cond" | "case" | "and" | "or" |
-                        "let" | "let*" | "letrec" | "begin" | "do" | "delay" |
-                        "set!" | "quote" | "quasiquote" | "unquote" | "unquote-splicing"
-                    ),
-                    _ => false,
-                }
-            }
+            Expr::List(exprs) if !exprs.is_empty() => match &exprs[0] {
+                Expr::Variable(name) => matches!(
+                    name.as_str(),
+                    "define"
+                        | "lambda"
+                        | "if"
+                        | "cond"
+                        | "case"
+                        | "and"
+                        | "or"
+                        | "let"
+                        | "let*"
+                        | "letrec"
+                        | "begin"
+                        | "do"
+                        | "delay"
+                        | "set!"
+                        | "quote"
+                        | "quasiquote"
+                        | "unquote"
+                        | "unquote-splicing"
+                ),
+                _ => false,
+            },
             _ => false,
         }
     }
@@ -164,9 +178,7 @@ impl Expr {
     /// Get the operator of a list expression
     pub fn get_operator(&self) -> Option<&str> {
         match self {
-            Expr::List(exprs) if !exprs.is_empty() => {
-                exprs[0].as_symbol()
-            }
+            Expr::List(exprs) if !exprs.is_empty() => exprs[0].as_symbol(),
             _ => None,
         }
     }
@@ -174,9 +186,7 @@ impl Expr {
     /// Get the operands of a list expression
     pub fn get_operands(&self) -> Option<&[Expr]> {
         match self {
-            Expr::List(exprs) if !exprs.is_empty() => {
-                Some(&exprs[1..])
-            }
+            Expr::List(exprs) if !exprs.is_empty() => Some(&exprs[1..]),
             _ => None,
         }
     }
@@ -236,8 +246,14 @@ mod tests {
     fn test_literal_display() {
         assert_eq!(format!("{}", Literal::Boolean(true)), "#t");
         assert_eq!(format!("{}", Literal::Boolean(false)), "#f");
-        assert_eq!(format!("{}", Literal::Number(SchemeNumber::Integer(42))), "42");
-        assert_eq!(format!("{}", Literal::String("hello".to_string())), "\"hello\"");
+        assert_eq!(
+            format!("{}", Literal::Number(SchemeNumber::Integer(42))),
+            "42"
+        );
+        assert_eq!(
+            format!("{}", Literal::String("hello".to_string())),
+            "\"hello\""
+        );
         assert_eq!(format!("{}", Literal::Character('a')), "#\\a");
         assert_eq!(format!("{}", Literal::Character(' ')), "#\\space");
         assert_eq!(format!("{}", Literal::Nil), "()");
@@ -284,7 +300,7 @@ mod tests {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
         ]);
-        
+
         assert_eq!(expr.get_operator(), Some("+"));
         assert_eq!(expr.get_operands().unwrap().len(), 2);
     }

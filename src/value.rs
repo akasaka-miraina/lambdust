@@ -111,7 +111,9 @@ impl fmt::Display for Value {
             }
             Value::Nil => write!(f, "()"),
             Value::Procedure(proc) => match proc {
-                Procedure::Lambda { params, variadic, .. } => {
+                Procedure::Lambda {
+                    params, variadic, ..
+                } => {
                     write!(f, "#<procedure (")?;
                     for (i, param) in params.iter().enumerate() {
                         if i > 0 {
@@ -232,7 +234,7 @@ impl Value {
     pub fn to_vector(&self) -> Option<Vec<Value>> {
         let mut result = Vec::new();
         let mut current = self;
-        
+
         loop {
             match current {
                 Value::Nil => return Some(result),
@@ -277,7 +279,7 @@ impl Value {
     pub fn list_length(&self) -> Option<usize> {
         let mut length = 0;
         let mut current = self;
-        
+
         loop {
             match current {
                 Value::Nil => return Some(length),
@@ -323,7 +325,7 @@ impl Value {
     }
 
     /// Check if two values are the same object (eq?)
-    pub fn eq(&self, other: &Value) -> bool {
+    pub fn scheme_eq(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Boolean(a), Value::Boolean(b)) => a == b,
             (Value::Number(a), Value::Number(b)) => a == b,
@@ -391,8 +393,14 @@ mod tests {
     fn test_value_display() {
         assert_eq!(format!("{}", Value::Boolean(true)), "#t");
         assert_eq!(format!("{}", Value::Boolean(false)), "#f");
-        assert_eq!(format!("{}", Value::Number(SchemeNumber::Integer(42))), "42");
-        assert_eq!(format!("{}", Value::String("hello".to_string())), "\"hello\"");
+        assert_eq!(
+            format!("{}", Value::Number(SchemeNumber::Integer(42))),
+            "42"
+        );
+        assert_eq!(
+            format!("{}", Value::String("hello".to_string())),
+            "\"hello\""
+        );
         assert_eq!(format!("{}", Value::Character('a')), "#\\a");
         assert_eq!(format!("{}", Value::Symbol("foo".to_string())), "foo");
         assert_eq!(format!("{}", Value::Nil), "()");
@@ -405,10 +413,10 @@ mod tests {
             Value::from(2i64),
             Value::from(3i64),
         ]);
-        
+
         assert!(list.is_list());
         assert_eq!(list.list_length(), Some(3));
-        
+
         let vec = list.to_vector().unwrap();
         assert_eq!(vec.len(), 3);
         assert_eq!(vec[0], Value::from(1i64));
@@ -417,7 +425,7 @@ mod tests {
     #[test]
     fn test_pair_operations() {
         let pair = Value::cons(Value::from(1i64), Value::from(2i64));
-        
+
         assert!(pair.is_pair());
         assert_eq!(pair.car(), Some(&Value::from(1i64)));
         assert_eq!(pair.cdr(), Some(&Value::from(2i64)));
@@ -428,7 +436,7 @@ mod tests {
         let a = Value::from(42i64);
         let b = Value::from(42i64);
         let c = Value::from(43i64);
-        
+
         assert!(a.equal(&b));
         assert!(!a.equal(&c));
         assert!(a.eqv(&b));

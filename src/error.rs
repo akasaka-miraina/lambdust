@@ -30,11 +30,11 @@ pub enum LambdustError {
 
     /// Arity errors (wrong number of arguments)
     #[error("Arity error: expected {expected}, got {actual}")]
-    ArityError { 
+    ArityError {
         /// Expected number of arguments
-        expected: usize, 
+        expected: usize,
         /// Actual number of arguments provided
-        actual: usize 
+        actual: usize,
     },
 
     /// Division by zero

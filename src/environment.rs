@@ -2,9 +2,9 @@
 
 use crate::error::{LambdustError, Result};
 use crate::value::Value;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 /// Environment for variable bindings
 #[derive(Debug, Clone)]
@@ -78,8 +78,8 @@ impl Environment {
 
     /// Check if a variable exists in this environment or a parent
     pub fn contains(&self, name: &str) -> bool {
-        self.bindings.borrow().contains_key(name) ||
-        self.parent.as_ref().map_or(false, |p| p.contains(name))
+        self.bindings.borrow().contains_key(name)
+            || self.parent.as_ref().is_some_and(|p| p.contains(name))
     }
 
     /// Create a new child environment
@@ -88,7 +88,12 @@ impl Environment {
     }
 
     /// Create a new environment with parameter bindings
-    pub fn bind_parameters(&self, params: &[String], args: &[Value], variadic: bool) -> Result<Environment> {
+    pub fn bind_parameters(
+        &self,
+        params: &[String],
+        args: &[Value],
+        variadic: bool,
+    ) -> Result<Environment> {
         let mut bindings = HashMap::new();
 
         if variadic {
@@ -153,7 +158,7 @@ impl Environment {
     /// Create a new environment with built-in procedures
     pub fn with_builtins() -> Self {
         let env = Environment::new();
-        
+
         // Load all built-in procedures from the builtins module
         let builtins = crate::builtins::create_builtins();
         for (name, value) in builtins {
@@ -185,7 +190,7 @@ mod tests {
     fn test_environment_define_get() {
         let env = Environment::new();
         env.define("x".to_string(), Value::from(42i64));
-        
+
         assert_eq!(env.get("x").unwrap(), Value::from(42i64));
         assert!(env.get("y").is_err());
     }
@@ -194,10 +199,10 @@ mod tests {
     fn test_environment_set() {
         let env = Environment::new();
         env.define("x".to_string(), Value::from(42i64));
-        
+
         env.set("x", Value::from(100i64)).unwrap();
         assert_eq!(env.get("x").unwrap(), Value::from(100i64));
-        
+
         assert!(env.set("y", Value::from(200i64)).is_err());
     }
 
@@ -205,14 +210,14 @@ mod tests {
     fn test_environment_scoping() {
         let parent = Environment::new();
         parent.define("x".to_string(), Value::from(42i64));
-        
+
         let child = Environment::with_parent(Rc::new(parent.clone()));
         child.define("y".to_string(), Value::from(100i64));
-        
+
         // Child can access parent's variables
         assert_eq!(child.get("x").unwrap(), Value::from(42i64));
         assert_eq!(child.get("y").unwrap(), Value::from(100i64));
-        
+
         // Parent cannot access child's variables
         assert!(parent.get("y").is_err());
     }
@@ -221,10 +226,10 @@ mod tests {
     fn test_environment_shadowing() {
         let parent = Environment::new();
         parent.define("x".to_string(), Value::from(42i64));
-        
+
         let child = Environment::with_parent(Rc::new(parent.clone()));
         child.define("x".to_string(), Value::from(100i64));
-        
+
         // Child's binding shadows parent's
         assert_eq!(child.get("x").unwrap(), Value::from(100i64));
         assert_eq!(parent.get("x").unwrap(), Value::from(42i64));
@@ -235,9 +240,9 @@ mod tests {
         let env = Environment::new();
         let params = vec!["x".to_string(), "y".to_string()];
         let args = vec![Value::from(1i64), Value::from(2i64)];
-        
+
         let new_env = env.bind_parameters(&params, &args, false).unwrap();
-        
+
         assert_eq!(new_env.get("x").unwrap(), Value::from(1i64));
         assert_eq!(new_env.get("y").unwrap(), Value::from(2i64));
     }
@@ -247,9 +252,9 @@ mod tests {
         let env = Environment::new();
         let params = vec!["x".to_string(), "rest".to_string()];
         let args = vec![Value::from(1i64), Value::from(2i64), Value::from(3i64)];
-        
+
         let new_env = env.bind_parameters(&params, &args, true).unwrap();
-        
+
         assert_eq!(new_env.get("x").unwrap(), Value::from(1i64));
         let rest = new_env.get("rest").unwrap();
         assert!(rest.is_list());
@@ -261,16 +266,19 @@ mod tests {
         let env = Environment::new();
         let params = vec!["x".to_string(), "y".to_string()];
         let args = vec![Value::from(1i64)];
-        
+
         let result = env.bind_parameters(&params, &args, false);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), LambdustError::ArityError { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            LambdustError::ArityError { .. }
+        ));
     }
 
     #[test]
     fn test_builtin_environment() {
         let env = Environment::with_builtins();
-        
+
         assert!(env.contains("car"));
         assert!(env.contains("cdr"));
         assert!(env.contains("cons"));

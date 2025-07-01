@@ -4,7 +4,7 @@ use crate::ast::{Expr, Literal};
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::macros::MacroExpander;
-use crate::value::{Value, Procedure};
+use crate::value::{Procedure, Value};
 use std::rc::Rc;
 
 /// Maximum recursion depth to prevent stack overflow
@@ -69,10 +69,10 @@ impl Evaluator {
             Expr::Quote(expr) => self.eval_quote(*expr),
             Expr::Quasiquote(expr) => self.eval_quasiquote(*expr, env),
             Expr::Unquote(_) => Err(LambdustError::SyntaxError(
-                "unquote outside of quasiquote".to_string()
+                "unquote outside of quasiquote".to_string(),
             )),
             Expr::UnquoteSplicing(_) => Err(LambdustError::SyntaxError(
-                "unquote-splicing outside of quasiquote".to_string()
+                "unquote-splicing outside of quasiquote".to_string(),
             )),
             Expr::DottedList(exprs, tail) => self.eval_dotted_list(exprs, *tail, env),
         }
@@ -128,7 +128,12 @@ impl Evaluator {
     }
 
     /// Apply a procedure to arguments
-    fn apply_procedure(&mut self, proc: Value, args: Vec<Value>, _env: Rc<Environment>) -> Result<Value> {
+    fn apply_procedure(
+        &mut self,
+        proc: Value,
+        args: Vec<Value>,
+        _env: Rc<Environment>,
+    ) -> Result<Value> {
         match proc {
             Value::Procedure(procedure) => match procedure {
                 Procedure::Builtin { func, arity, .. } => {
@@ -143,10 +148,15 @@ impl Evaluator {
                     }
                     func(&args)
                 }
-                Procedure::Lambda { params, variadic, body, closure } => {
+                Procedure::Lambda {
+                    params,
+                    variadic,
+                    body,
+                    closure,
+                } => {
                     // Create new environment with parameter bindings
                     let new_env = closure.bind_parameters(&params, &args, variadic)?;
-                    
+
                     // Evaluate body expressions
                     let mut result = Value::Undefined;
                     for expr in body {
@@ -156,10 +166,15 @@ impl Evaluator {
                 }
                 Procedure::Continuation { .. } => {
                     // TODO: Implement continuations
-                    Err(LambdustError::RuntimeError("Continuations not yet implemented".to_string()))
+                    Err(LambdustError::RuntimeError(
+                        "Continuations not yet implemented".to_string(),
+                    ))
                 }
-            }
-            _ => Err(LambdustError::TypeError(format!("Not a procedure: {}", proc))),
+            },
+            _ => Err(LambdustError::TypeError(format!(
+                "Not a procedure: {}",
+                proc
+            ))),
         }
     }
 
@@ -185,14 +200,22 @@ impl Evaluator {
     }
 
     /// Internal quasiquote evaluation with nesting level
-    fn eval_quasiquote_impl(&mut self, expr: Expr, env: Rc<Environment>, level: usize) -> Result<Value> {
+    fn eval_quasiquote_impl(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>,
+        level: usize,
+    ) -> Result<Value> {
         match expr {
             Expr::Unquote(inner) => {
                 if level == 0 {
                     self.eval_impl(*inner, env)
                 } else {
                     let inner_result = self.eval_quasiquote_impl(*inner, env, level - 1)?;
-                    Ok(Value::from_vector(vec![Value::Symbol("unquote".to_string()), inner_result]))
+                    Ok(Value::from_vector(vec![
+                        Value::Symbol("unquote".to_string()),
+                        inner_result,
+                    ]))
                 }
             }
             Expr::UnquoteSplicing(inner) => {
@@ -201,12 +224,18 @@ impl Evaluator {
                     self.eval_impl(*inner, env)
                 } else {
                     let inner_result = self.eval_quasiquote_impl(*inner, env, level - 1)?;
-                    Ok(Value::from_vector(vec![Value::Symbol("unquote-splicing".to_string()), inner_result]))
+                    Ok(Value::from_vector(vec![
+                        Value::Symbol("unquote-splicing".to_string()),
+                        inner_result,
+                    ]))
                 }
             }
             Expr::Quasiquote(inner) => {
                 let inner_result = self.eval_quasiquote_impl(*inner, env, level + 1)?;
-                Ok(Value::from_vector(vec![Value::Symbol("quasiquote".to_string()), inner_result]))
+                Ok(Value::from_vector(vec![
+                    Value::Symbol("quasiquote".to_string()),
+                    inner_result,
+                ]))
             }
             Expr::List(exprs) => {
                 let mut result = Vec::new();
@@ -238,19 +267,26 @@ impl Evaluator {
                 }
                 Ok(result)
             }
-            _ => Err(LambdustError::RuntimeError("Cannot quote this expression".to_string())),
+            _ => Err(LambdustError::RuntimeError(
+                "Cannot quote this expression".to_string(),
+            )),
         }
     }
 
     /// Evaluate a dotted list
-    fn eval_dotted_list(&mut self, exprs: Vec<Expr>, tail: Expr, env: Rc<Environment>) -> Result<Value> {
+    fn eval_dotted_list(
+        &mut self,
+        exprs: Vec<Expr>,
+        tail: Expr,
+        env: Rc<Environment>,
+    ) -> Result<Value> {
         // Evaluate all expressions and create an improper list
         let mut values = Vec::new();
         for expr in exprs {
             values.push(self.eval_impl(expr, env.clone())?);
         }
         let tail_value = self.eval_impl(tail, env)?;
-        
+
         let mut result = tail_value;
         for value in values.into_iter().rev() {
             result = Value::cons(value, result);
@@ -261,14 +297,18 @@ impl Evaluator {
     /// Evaluate define special form
     fn eval_define(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
         if operands.len() < 2 {
-            return Err(LambdustError::SyntaxError("define: too few arguments".to_string()));
+            return Err(LambdustError::SyntaxError(
+                "define: too few arguments".to_string(),
+            ));
         }
 
         match &operands[0] {
             // (define var value)
             Expr::Variable(name) => {
                 if operands.len() != 2 {
-                    return Err(LambdustError::SyntaxError("define: too many arguments".to_string()));
+                    return Err(LambdustError::SyntaxError(
+                        "define: too many arguments".to_string(),
+                    ));
                 }
                 let value = self.eval_impl(operands[1].clone(), env.clone())?;
                 env.define(name.clone(), value);
@@ -277,18 +317,27 @@ impl Evaluator {
             // (define (name params...) body...)
             Expr::List(def_exprs) => {
                 if def_exprs.is_empty() {
-                    return Err(LambdustError::SyntaxError("define: empty function definition".to_string()));
+                    return Err(LambdustError::SyntaxError(
+                        "define: empty function definition".to_string(),
+                    ));
                 }
-                
+
                 let name = match &def_exprs[0] {
                     Expr::Variable(n) => n.clone(),
-                    _ => return Err(LambdustError::SyntaxError("define: invalid function name".to_string())),
+                    _ => {
+                        return Err(LambdustError::SyntaxError(
+                            "define: invalid function name".to_string(),
+                        ));
+                    }
                 };
 
-                let params: Result<Vec<String>> = def_exprs[1..].iter()
+                let params: Result<Vec<String>> = def_exprs[1..]
+                    .iter()
                     .map(|expr| match expr {
                         Expr::Variable(param) => Ok(param.clone()),
-                        _ => Err(LambdustError::SyntaxError("define: invalid parameter".to_string())),
+                        _ => Err(LambdustError::SyntaxError(
+                            "define: invalid parameter".to_string(),
+                        )),
                     })
                     .collect();
 
@@ -305,7 +354,9 @@ impl Evaluator {
                 env.define(name, lambda);
                 Ok(Value::Undefined)
             }
-            _ => Err(LambdustError::SyntaxError("define: invalid syntax".to_string())),
+            _ => Err(LambdustError::SyntaxError(
+                "define: invalid syntax".to_string(),
+            )),
         }
     }
 
@@ -320,7 +371,11 @@ impl Evaluator {
 
         let name = match &operands[0] {
             Expr::Variable(n) => n,
-            _ => return Err(LambdustError::SyntaxError("set!: not a variable".to_string())),
+            _ => {
+                return Err(LambdustError::SyntaxError(
+                    "set!: not a variable".to_string(),
+                ));
+            }
         };
 
         let value = self.eval_impl(operands[1].clone(), env.clone())?;
@@ -331,16 +386,21 @@ impl Evaluator {
     /// Evaluate lambda special form
     fn eval_lambda(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
         if operands.len() < 2 {
-            return Err(LambdustError::SyntaxError("lambda: too few arguments".to_string()));
+            return Err(LambdustError::SyntaxError(
+                "lambda: too few arguments".to_string(),
+            ));
         }
 
         // Parse parameters
         let (params, variadic) = match &operands[0] {
             Expr::List(param_exprs) => {
-                let params: Result<Vec<String>> = param_exprs.iter()
+                let params: Result<Vec<String>> = param_exprs
+                    .iter()
                     .map(|expr| match expr {
                         Expr::Variable(param) => Ok(param.clone()),
-                        _ => Err(LambdustError::SyntaxError("lambda: invalid parameter".to_string())),
+                        _ => Err(LambdustError::SyntaxError(
+                            "lambda: invalid parameter".to_string(),
+                        )),
                     })
                     .collect();
                 (params?, false)
@@ -350,22 +410,33 @@ impl Evaluator {
                 (vec![param.clone()], true)
             }
             Expr::DottedList(param_exprs, rest) => {
-                let mut params: Vec<String> = param_exprs.iter()
+                let mut params: Vec<String> = param_exprs
+                    .iter()
                     .map(|expr| match expr {
                         Expr::Variable(param) => Ok(param.clone()),
-                        _ => Err(LambdustError::SyntaxError("lambda: invalid parameter".to_string())),
+                        _ => Err(LambdustError::SyntaxError(
+                            "lambda: invalid parameter".to_string(),
+                        )),
                     })
                     .collect::<Result<Vec<_>>>()?;
-                
+
                 match rest.as_ref() {
                     Expr::Variable(rest_param) => {
                         params.push(rest_param.clone());
                         (params, true)
                     }
-                    _ => return Err(LambdustError::SyntaxError("lambda: invalid rest parameter".to_string())),
+                    _ => {
+                        return Err(LambdustError::SyntaxError(
+                            "lambda: invalid rest parameter".to_string(),
+                        ));
+                    }
                 }
             }
-            _ => return Err(LambdustError::SyntaxError("lambda: invalid parameter list".to_string())),
+            _ => {
+                return Err(LambdustError::SyntaxError(
+                    "lambda: invalid parameter list".to_string(),
+                ));
+            }
         };
 
         let body = operands[1..].to_vec();
@@ -439,9 +510,10 @@ impl Evaluator {
         Ok(Value::Boolean(false))
     }
 
-
     fn eval_do(&mut self, _operands: &[Expr], _env: Rc<Environment>) -> Result<Value> {
-        Err(LambdustError::RuntimeError("do not yet implemented".to_string()))
+        Err(LambdustError::RuntimeError(
+            "do not yet implemented".to_string(),
+        ))
     }
 }
 
@@ -475,8 +547,14 @@ mod tests {
     #[test]
     fn test_eval_quote() {
         assert_eq!(eval_str("'x").unwrap(), Value::Symbol("x".to_string()));
-        assert_eq!(eval_str("'(1 2 3)").unwrap(), 
-                   Value::from_vector(vec![Value::from(1i64), Value::from(2i64), Value::from(3i64)]));
+        assert_eq!(
+            eval_str("'(1 2 3)").unwrap(),
+            Value::from_vector(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64)
+            ])
+        );
     }
 
     #[test]
@@ -492,7 +570,7 @@ mod tests {
         let tokens = tokenize("(define x 42)").unwrap();
         let ast = parse(tokens).unwrap();
         evaluator.eval(ast).unwrap();
-        
+
         let tokens = tokenize("x").unwrap();
         let ast = parse(tokens).unwrap();
         assert_eq!(evaluator.eval(ast).unwrap(), Value::from(42i64));

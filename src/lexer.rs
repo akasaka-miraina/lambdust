@@ -33,7 +33,7 @@ pub enum Token {
 }
 
 /// Number types in Scheme
-/// 
+///
 /// Represents the different numeric types supported by the Scheme language
 /// according to the R7RS specification.
 #[derive(Debug, Clone, PartialEq)]
@@ -145,7 +145,7 @@ impl<'a> Lexer<'a> {
                 has_slash = true;
                 number_str.push(ch);
                 self.advance();
-            } else if ch == 'i' && number_str.len() > 0 {
+            } else if ch == 'i' && !number_str.is_empty() {
                 // Complex number
                 number_str.push(ch);
                 self.advance();
@@ -161,8 +161,7 @@ impl<'a> Lexer<'a> {
     /// Parse a number string into a SchemeNumber
     fn parse_number(&self, s: &str) -> Result<Token> {
         // Handle complex numbers
-        if s.ends_with('i') {
-            let real_part = &s[..s.len() - 1];
+        if let Some(real_part) = s.strip_suffix('i') {
             if let Ok(r) = real_part.parse::<f64>() {
                 return Ok(Token::Number(SchemeNumber::Complex(0.0, r)));
             }
@@ -174,7 +173,9 @@ impl<'a> Lexer<'a> {
             let denominator = &s[slash_pos + 1..];
             if let (Ok(n), Ok(d)) = (numerator.parse::<i64>(), denominator.parse::<i64>()) {
                 if d == 0 {
-                    return Err(LambdustError::LexerError("Division by zero in rational".to_string()));
+                    return Err(LambdustError::LexerError(
+                        "Division by zero in rational".to_string(),
+                    ));
                 }
                 return Ok(Token::Number(SchemeNumber::Rational(n, d)));
             }
@@ -213,7 +214,9 @@ impl<'a> Lexer<'a> {
                     Some('\\') => string_value.push('\\'),
                     Some('"') => string_value.push('"'),
                     Some(c) => string_value.push(c),
-                    None => return Err(LambdustError::LexerError("Unterminated string".to_string())),
+                    None => {
+                        return Err(LambdustError::LexerError("Unterminated string".to_string()));
+                    }
                 }
                 self.advance();
             } else {
@@ -229,23 +232,29 @@ impl<'a> Lexer<'a> {
     fn read_character(&mut self) -> Result<Token> {
         self.advance(); // Skip #
         self.advance(); // Skip \
-        
+
         match self.current_char {
             Some('s') if self.input[self.position..].starts_with("space") => {
                 // Skip "pace"
-                for _ in 0..4 { self.advance(); }
+                for _ in 0..4 {
+                    self.advance();
+                }
                 self.advance();
                 Ok(Token::Character(' '))
             }
             Some('n') if self.input[self.position..].starts_with("newline") => {
                 // Skip "ewline"
-                for _ in 0..6 { self.advance(); }
+                for _ in 0..6 {
+                    self.advance();
+                }
                 self.advance();
                 Ok(Token::Character('\n'))
             }
             Some('t') if self.input[self.position..].starts_with("tab") => {
                 // Skip "ab"
-                for _ in 0..2 { self.advance(); }
+                for _ in 0..2 {
+                    self.advance();
+                }
                 self.advance();
                 Ok(Token::Character('\t'))
             }
@@ -253,7 +262,9 @@ impl<'a> Lexer<'a> {
                 self.advance();
                 Ok(Token::Character(ch))
             }
-            None => Err(LambdustError::LexerError("Incomplete character literal".to_string())),
+            None => Err(LambdustError::LexerError(
+                "Incomplete character literal".to_string(),
+            )),
         }
     }
 
@@ -309,7 +320,7 @@ impl<'a> Lexer<'a> {
                 }
             }
             Some('.') => {
-                if self.peek().map_or(false, |c| c.is_ascii_digit()) {
+                if self.peek().is_some_and(|c| c.is_ascii_digit()) {
                     self.read_number().map(Some)
                 } else {
                     self.advance();
@@ -326,8 +337,9 @@ impl<'a> Lexer<'a> {
             }
             Some(ch) if ch.is_ascii_digit() || ch == '+' || ch == '-' => {
                 // Check if it's a number or a symbol
-                if ch.is_ascii_digit() || 
-                   (ch == '+' || ch == '-') && self.peek().map_or(false, |c| c.is_ascii_digit()) {
+                if ch.is_ascii_digit()
+                    || (ch == '+' || ch == '-') && self.peek().is_some_and(|c| c.is_ascii_digit())
+                {
                     self.read_number().map(Some)
                 } else {
                     self.read_symbol().map(Some)
@@ -363,11 +375,14 @@ mod tests {
     #[test]
     fn test_numbers() {
         let tokens = tokenize("42 3.14 1/2").unwrap();
-        assert_eq!(tokens, vec![
-            Token::Number(SchemeNumber::Integer(42)),
-            Token::Number(SchemeNumber::Real(3.14)),
-            Token::Number(SchemeNumber::Rational(1, 2)),
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Number(SchemeNumber::Integer(42)),
+                Token::Number(SchemeNumber::Real(3.14)),
+                Token::Number(SchemeNumber::Rational(1, 2)),
+            ]
+        );
     }
 
     #[test]
@@ -379,11 +394,14 @@ mod tests {
     #[test]
     fn test_symbols() {
         let tokens = tokenize("+ define lambda").unwrap();
-        assert_eq!(tokens, vec![
-            Token::Symbol("+".to_string()),
-            Token::Symbol("define".to_string()),
-            Token::Symbol("lambda".to_string()),
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Symbol("+".to_string()),
+                Token::Symbol("define".to_string()),
+                Token::Symbol("lambda".to_string()),
+            ]
+        );
     }
 
     #[test]
@@ -395,28 +413,34 @@ mod tests {
     #[test]
     fn test_quote_tokens() {
         let tokens = tokenize("'x `(,y ,@z)").unwrap();
-        assert_eq!(tokens, vec![
-            Token::Quote,
-            Token::Symbol("x".to_string()),
-            Token::Quasiquote,
-            Token::LeftParen,
-            Token::Unquote,
-            Token::Symbol("y".to_string()),
-            Token::UnquoteSplicing,
-            Token::Symbol("z".to_string()),
-            Token::RightParen,
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::Quote,
+                Token::Symbol("x".to_string()),
+                Token::Quasiquote,
+                Token::LeftParen,
+                Token::Unquote,
+                Token::Symbol("y".to_string()),
+                Token::UnquoteSplicing,
+                Token::Symbol("z".to_string()),
+                Token::RightParen,
+            ]
+        );
     }
 
     #[test]
     fn test_comments() {
         let tokens = tokenize("; This is a comment\n(+ 1 2)").unwrap();
-        assert_eq!(tokens, vec![
-            Token::LeftParen,
-            Token::Symbol("+".to_string()),
-            Token::Number(SchemeNumber::Integer(1)),
-            Token::Number(SchemeNumber::Integer(2)),
-            Token::RightParen,
-        ]);
+        assert_eq!(
+            tokens,
+            vec![
+                Token::LeftParen,
+                Token::Symbol("+".to_string()),
+                Token::Number(SchemeNumber::Integer(1)),
+                Token::Number(SchemeNumber::Integer(2)),
+                Token::RightParen,
+            ]
+        );
     }
 }
