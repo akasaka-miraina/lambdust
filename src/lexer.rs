@@ -193,7 +193,7 @@ impl<'a> Lexer<'a> {
             return Ok(Token::Number(SchemeNumber::Integer(i)));
         }
 
-        Err(LambdustError::LexerError(format!("Invalid number: {}", s)))
+        Err(LambdustError::LexerError(format!("Invalid number: {s}")))
     }
 
     /// Read a string token

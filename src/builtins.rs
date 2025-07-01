@@ -79,8 +79,7 @@ fn arithmetic_add() -> Value {
                     result = add_numbers(&result, num)?;
                 } else {
                     return Err(LambdustError::TypeError(format!(
-                        "+ expects numbers, got {}",
-                        arg
+                        "+ expects numbers, got {arg}"
                     )));
                 }
             }
@@ -115,8 +114,7 @@ fn arithmetic_sub() -> Value {
                         result = sub_numbers(&result, num)?;
                     } else {
                         return Err(LambdustError::TypeError(format!(
-                            "- expects numbers, got {}",
-                            arg
+                            "- expects numbers, got {arg}"
                         )));
                     }
                 }
@@ -137,8 +135,7 @@ fn arithmetic_mul() -> Value {
                     result = mul_numbers(&result, num)?;
                 } else {
                     return Err(LambdustError::TypeError(format!(
-                        "* expects numbers, got {}",
-                        arg
+                        "* expects numbers, got {arg}"
                     )));
                 }
             }
@@ -176,8 +173,7 @@ fn arithmetic_div() -> Value {
                         result = div_numbers(&result, num)?;
                     } else {
                         return Err(LambdustError::TypeError(format!(
-                            "/ expects numbers, got {}",
-                            arg
+                            "/ expects numbers, got {arg}"
                         )));
                     }
                 }
@@ -210,8 +206,7 @@ fn arithmetic_eq() -> Value {
                     }
                 } else {
                     return Err(LambdustError::TypeError(format!(
-                        "= expects numbers, got {}",
-                        arg
+                        "= expects numbers, got {arg}"
                     )));
                 }
             }
@@ -656,7 +651,7 @@ fn convert_number_to_string() -> Value {
         arity: Some(1),
         func: |args| {
             if let Some(n) = args[0].as_number() {
-                Ok(Value::String(format!("{}", n)))
+                Ok(Value::String(format!("{n}")))
             } else {
                 Err(LambdustError::TypeError(
                     "number->string: not a number".to_string(),
