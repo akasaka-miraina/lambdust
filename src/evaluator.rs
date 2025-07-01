@@ -171,9 +171,7 @@ impl Evaluator {
                     ))
                 }
             },
-            _ => Err(LambdustError::TypeError(format!(
-                "Not a procedure: {proc}"
-            ))),
+            _ => Err(LambdustError::TypeError(format!("Not a procedure: {proc}"))),
         }
     }
 

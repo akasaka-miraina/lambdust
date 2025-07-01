@@ -158,8 +158,7 @@ impl Parser {
                 "Unexpected dot outside of list".to_string(),
             )),
             _ => Err(LambdustError::ParseError(format!(
-                "Unexpected token: {}",
-                token
+                "Unexpected token: {token}"
             ))),
         }
     }
