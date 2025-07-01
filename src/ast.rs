@@ -42,31 +42,31 @@ pub enum Literal {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Literal(lit) => write!(f, "{}", lit),
-            Expr::Variable(name) => write!(f, "{}", name),
+            Expr::Literal(lit) => write!(f, "{lit}"),
+            Expr::Variable(name) => write!(f, "{name}"),
             Expr::List(exprs) => {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    write!(f, "{}", expr)?;
+                    write!(f, "{expr}")?;
                 }
                 write!(f, ")")
             }
-            Expr::Quote(expr) => write!(f, "'{}", expr),
-            Expr::Quasiquote(expr) => write!(f, "`{}", expr),
-            Expr::Unquote(expr) => write!(f, ",{}", expr),
-            Expr::UnquoteSplicing(expr) => write!(f, ",@{}", expr),
+            Expr::Quote(expr) => write!(f, "'{expr}"),
+            Expr::Quasiquote(expr) => write!(f, "`{expr}"),
+            Expr::Unquote(expr) => write!(f, ",{expr}"),
+            Expr::UnquoteSplicing(expr) => write!(f, ",@{expr}"),
             Expr::DottedList(exprs, tail) => {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    write!(f, "{}", expr)?;
+                    write!(f, "{expr}")?;
                 }
-                write!(f, " . {})", tail)
+                write!(f, " . {tail})")
             }
         }
     }
@@ -76,13 +76,13 @@ impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Literal::Boolean(b) => write!(f, "#{}", if *b { "t" } else { "f" }),
-            Literal::Number(n) => write!(f, "{}", n),
-            Literal::String(s) => write!(f, "\"{}\"", s),
+            Literal::Number(n) => write!(f, "{n}"),
+            Literal::String(s) => write!(f, "\"{s}\""),
             Literal::Character(c) => match c {
                 ' ' => write!(f, "#\\space"),
                 '\n' => write!(f, "#\\newline"),
                 '\t' => write!(f, "#\\tab"),
-                _ => write!(f, "#\\{}", c),
+                _ => write!(f, "#\\{c}"),
             },
             Literal::Nil => write!(f, "()"),
         }

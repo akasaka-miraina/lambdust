@@ -59,10 +59,10 @@ impl fmt::Display for Token {
             Token::UnquoteSplicing => write!(f, ",@"),
             Token::Dot => write!(f, "."),
             Token::Boolean(b) => write!(f, "#{}", if *b { "t" } else { "f" }),
-            Token::Number(n) => write!(f, "{}", n),
-            Token::String(s) => write!(f, "\"{}\"", s),
-            Token::Character(c) => write!(f, "#\\{}", c),
-            Token::Symbol(s) => write!(f, "{}", s),
+            Token::Number(n) => write!(f, "{n}"),
+            Token::String(s) => write!(f, "\"{s}\""),
+            Token::Character(c) => write!(f, "#\\{c}"),
+            Token::Symbol(s) => write!(f, "{s}"),
         }
     }
 }
@@ -70,10 +70,10 @@ impl fmt::Display for Token {
 impl fmt::Display for SchemeNumber {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SchemeNumber::Integer(i) => write!(f, "{}", i),
-            SchemeNumber::Rational(n, d) => write!(f, "{}/{}", n, d),
-            SchemeNumber::Real(r) => write!(f, "{}", r),
-            SchemeNumber::Complex(r, i) => write!(f, "{}+{}i", r, i),
+            SchemeNumber::Integer(i) => write!(f, "{i}"),
+            SchemeNumber::Rational(n, d) => write!(f, "{n}/{d}"),
+            SchemeNumber::Real(r) => write!(f, "{r}"),
+            SchemeNumber::Complex(r, i) => write!(f, "{r}+{i}i"),
         }
     }
 }

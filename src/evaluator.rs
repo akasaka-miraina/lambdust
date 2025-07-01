@@ -172,8 +172,7 @@ impl Evaluator {
                 }
             },
             _ => Err(LambdustError::TypeError(format!(
-                "Not a procedure: {}",
-                proc
+                "Not a procedure: {proc}"
             ))),
         }
     }

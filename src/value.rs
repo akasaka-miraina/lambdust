@@ -81,28 +81,28 @@ impl fmt::Display for Value {
         match self {
             Value::Undefined => write!(f, "#<undefined>"),
             Value::Boolean(b) => write!(f, "#{}", if *b { "t" } else { "f" }),
-            Value::Number(n) => write!(f, "{}", n),
-            Value::String(s) => write!(f, "\"{}\"", s),
+            Value::Number(n) => write!(f, "{n}"),
+            Value::String(s) => write!(f, "\"{s}\""),
             Value::Character(c) => match c {
                 ' ' => write!(f, "#\\space"),
                 '\n' => write!(f, "#\\newline"),
                 '\t' => write!(f, "#\\tab"),
-                _ => write!(f, "#\\{}", c),
+                _ => write!(f, "#\\{c}"),
             },
-            Value::Symbol(s) => write!(f, "{}", s),
+            Value::Symbol(s) => write!(f, "{s}"),
             Value::Pair(car, cdr) => {
                 write!(f, "(")?;
-                write!(f, "{}", car)?;
+                write!(f, "{car}")?;
                 let mut current = cdr.as_ref();
                 loop {
                     match current {
                         Value::Nil => break,
                         Value::Pair(car, cdr) => {
-                            write!(f, " {}", car)?;
+                            write!(f, " {car}")?;
                             current = cdr.as_ref();
                         }
                         _ => {
-                            write!(f, " . {}", current)?;
+                            write!(f, " . {current}")?;
                             break;
                         }
                     }
@@ -119,14 +119,14 @@ impl fmt::Display for Value {
                         if i > 0 {
                             write!(f, " ")?;
                         }
-                        write!(f, "{}", param)?;
+                        write!(f, "{param}")?;
                     }
                     if *variadic {
                         write!(f, " ...")?;
                     }
                     write!(f, ")>")
                 }
-                Procedure::Builtin { name, .. } => write!(f, "#<builtin {}>", name),
+                Procedure::Builtin { name, .. } => write!(f, "#<builtin {name}>"),
                 Procedure::Continuation { .. } => write!(f, "#<continuation>"),
             },
             Value::Vector(values) => {
@@ -135,7 +135,7 @@ impl fmt::Display for Value {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    write!(f, "{}", value)?;
+                    write!(f, "{value}")?;
                 }
                 write!(f, ")")
             }
