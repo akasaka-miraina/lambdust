@@ -85,41 +85,38 @@ impl TypeSafeMarshaller {
 
     /// Register built-in type converters
     fn register_builtin_converters(&mut self) {
-        // i64 converter
-        self.register_converter::<i64>(Box::new(|any| {
-            if let Ok(value) = any.downcast::<i64>() {
-                Ok(Value::Number(SchemeNumber::Integer(*value)))
-            } else {
-                Err(LambdustError::TypeError("Expected i64".to_string()))
-            }
-        }));
+        self.register_converter::<i64>(Box::new(Self::convert_i64));
+        self.register_converter::<f64>(Box::new(Self::convert_f64));
+        self.register_converter::<String>(Box::new(Self::convert_string));
+        self.register_converter::<bool>(Box::new(Self::convert_bool));
+    }
 
-        // f64 converter
-        self.register_converter::<f64>(Box::new(|any| {
-            if let Ok(value) = any.downcast::<f64>() {
-                Ok(Value::Number(SchemeNumber::Real(*value)))
-            } else {
-                Err(LambdustError::TypeError("Expected f64".to_string()))
-            }
-        }));
+    /// Convert i64 to Scheme value
+    fn convert_i64(any: Box<dyn Any>) -> Result<Value> {
+        any.downcast::<i64>()
+            .map(|value| Value::Number(SchemeNumber::Integer(*value)))
+            .map_err(|_| LambdustError::TypeError("Expected i64".to_string()))
+    }
 
-        // String converter
-        self.register_converter::<String>(Box::new(|any| {
-            if let Ok(value) = any.downcast::<String>() {
-                Ok(Value::String(*value))
-            } else {
-                Err(LambdustError::TypeError("Expected String".to_string()))
-            }
-        }));
+    /// Convert f64 to Scheme value
+    fn convert_f64(any: Box<dyn Any>) -> Result<Value> {
+        any.downcast::<f64>()
+            .map(|value| Value::Number(SchemeNumber::Real(*value)))
+            .map_err(|_| LambdustError::TypeError("Expected f64".to_string()))
+    }
 
-        // bool converter
-        self.register_converter::<bool>(Box::new(|any| {
-            if let Ok(value) = any.downcast::<bool>() {
-                Ok(Value::Boolean(*value))
-            } else {
-                Err(LambdustError::TypeError("Expected bool".to_string()))
-            }
-        }));
+    /// Convert String to Scheme value
+    fn convert_string(any: Box<dyn Any>) -> Result<Value> {
+        any.downcast::<String>()
+            .map(|value| Value::String(*value))
+            .map_err(|_| LambdustError::TypeError("Expected String".to_string()))
+    }
+
+    /// Convert bool to Scheme value
+    fn convert_bool(any: Box<dyn Any>) -> Result<Value> {
+        any.downcast::<bool>()
+            .map(|value| Value::Boolean(*value))
+            .map_err(|_| LambdustError::TypeError("Expected bool".to_string()))
     }
 
     /// Register a type converter

@@ -73,27 +73,45 @@ impl LambdustInterpreter {
 
     /// Extract function name from define form using AST
     fn extract_function_name(&self, code: &str) -> Option<String> {
-        // Parse the code into an AST
-        if let Ok(crate::ast::Expr::List(exprs)) = parse(tokenize(code).ok()?) {
-            if !exprs.is_empty() {
-                if let crate::ast::Expr::Variable(op) = &exprs[0] {
-                    if op == "define" && exprs.len() >= 2 {
-                        match &exprs[1] {
-                            // (define var value)
-                            crate::ast::Expr::Variable(name) => return Some(name.clone()),
-                            // (define (name params...) body...)
-                            crate::ast::Expr::List(def_exprs) if !def_exprs.is_empty() => {
-                                if let crate::ast::Expr::Variable(name) = &def_exprs[0] {
-                                    return Some(name.clone());
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
+        let ast = self.parse_define_form(code)?;
+        self.extract_name_from_define(&ast)
+    }
+
+    /// Parse code and check if it's a define form
+    fn parse_define_form(&self, code: &str) -> Option<Vec<crate::ast::Expr>> {
+        let tokens = tokenize(code).ok()?;
+        if let Ok(crate::ast::Expr::List(exprs)) = parse(tokens) {
+            if self.is_define_form(&exprs) {
+                return Some(exprs);
             }
         }
         None
+    }
+
+    /// Check if expressions form a define statement
+    fn is_define_form(&self, exprs: &[crate::ast::Expr]) -> bool {
+        if exprs.len() < 2 {
+            return false;
+        }
+        
+        matches!(&exprs[0], crate::ast::Expr::Variable(op) if op == "define")
+    }
+
+    /// Extract name from define form AST
+    fn extract_name_from_define(&self, exprs: &[crate::ast::Expr]) -> Option<String> {
+        match &exprs[1] {
+            // (define var value)
+            crate::ast::Expr::Variable(name) => Some(name.clone()),
+            // (define (name params...) body...)
+            crate::ast::Expr::List(def_exprs) if !def_exprs.is_empty() => {
+                if let crate::ast::Expr::Variable(name) = &def_exprs[0] {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        }
     }
 
     /// Register a host function that can be called from Scheme
