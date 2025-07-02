@@ -263,14 +263,6 @@ impl LambdustError {
         }
     }
 
-    /// Legacy constructor for RuntimeError (for easier migration)
-    pub fn runtime_error(message: String) -> Self {
-        Self::RuntimeError {
-            message,
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
-        }
-    }
 
     /// Legacy constructor for TypeError (for easier migration)
     pub fn type_error_old(message: String) -> Self {
