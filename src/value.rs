@@ -7,7 +7,7 @@ use std::fmt;
 use std::rc::Rc;
 
 /// Runtime values in Scheme
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub enum Value {
     /// Undefined value (used for uninitialized variables)
     Undefined,
