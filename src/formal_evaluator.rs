@@ -538,15 +538,15 @@ impl FormalEvaluator {
         let producer_expr = operands[0].clone();
         let consumer_expr = operands[1].clone();
 
-        // Create a continuation for step 1: after consumer is evaluated, evaluate producer
+        // Create a continuation for step 1: after producer is evaluated, evaluate consumer
         let step1_cont = Continuation::CallWithValuesStep1 {
-            producer_expr,
+            consumer_expr,
             env: env.clone(),
             parent: Box::new(cont),
         };
 
-        // First evaluate the consumer
-        self.eval(consumer_expr, env, step1_cont)
+        // First evaluate the producer
+        self.eval(producer_expr, env, step1_cont)
     }
 
     /// Evaluate dynamic-wind
