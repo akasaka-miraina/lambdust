@@ -258,7 +258,7 @@ impl MacroExpander {
         );
     }
 
-// Removed the `has_nested_ellipsis` method as it was dead code.
+    // Removed the `has_nested_ellipsis` method as it was dead code.
 
     /// SRFI 46: Count ellipsis nesting level
     #[allow(clippy::only_used_in_recursion)]

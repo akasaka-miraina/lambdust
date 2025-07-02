@@ -933,7 +933,7 @@ impl Evaluator {
 
         // Chain the original continuation into the new continuation
         let chained_continuation = Continuation {
-            stack: current_continuation.stack, // Preserve the current stack
+            stack: current_continuation.stack,     // Preserve the current stack
             env: current_continuation.env.clone(), // Preserve the current environment
         };
 
