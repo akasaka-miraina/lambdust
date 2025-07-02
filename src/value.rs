@@ -424,15 +424,20 @@ impl PartialEq for Procedure {
                     params: l_params,
                     variadic: l_variadic,
                     body: l_body,
-                    ..
+                    closure: l_closure,
                 },
                 Self::Lambda {
                     params: r_params,
                     variadic: r_variadic,
                     body: r_body,
-                    ..
+                    closure: r_closure,
                 },
-            ) => l_params == r_params && l_variadic == r_variadic && l_body == r_body,
+            ) => {
+                l_params == r_params
+                    && l_variadic == r_variadic
+                    && l_body == r_body
+                    && std::ptr::eq(l_closure.as_ref(), r_closure.as_ref())
+            }
             (
                 Self::Builtin {
                     name: l_name,

@@ -52,7 +52,7 @@ pub trait Marshallable: 'static {
 }
 
 /// Type converter function signature
-pub type TypeConverter = Box<dyn Fn(&dyn Any) -> Result<Value>>;
+pub type TypeConverter = Box<dyn Fn(Box<dyn Any>) -> Result<Value>>;
 
 /// Type-safe marshaller for Rust-Scheme value conversion
 pub struct TypeSafeMarshaller {
@@ -87,7 +87,7 @@ impl TypeSafeMarshaller {
     fn register_builtin_converters(&mut self) {
         // i64 converter
         self.register_converter::<i64>(Box::new(|any| {
-            if let Some(value) = any.downcast_ref::<i64>() {
+            if let Ok(value) = any.downcast::<i64>() {
                 Ok(Value::Number(SchemeNumber::Integer(*value)))
             } else {
                 Err(LambdustError::TypeError("Expected i64".to_string()))
@@ -96,7 +96,7 @@ impl TypeSafeMarshaller {
 
         // f64 converter
         self.register_converter::<f64>(Box::new(|any| {
-            if let Some(value) = any.downcast_ref::<f64>() {
+            if let Ok(value) = any.downcast::<f64>() {
                 Ok(Value::Number(SchemeNumber::Real(*value)))
             } else {
                 Err(LambdustError::TypeError("Expected f64".to_string()))
@@ -105,8 +105,8 @@ impl TypeSafeMarshaller {
 
         // String converter
         self.register_converter::<String>(Box::new(|any| {
-            if let Some(value) = any.downcast_ref::<String>() {
-                Ok(Value::String(value.clone()))
+            if let Ok(value) = any.downcast::<String>() {
+                Ok(Value::String(*value))
             } else {
                 Err(LambdustError::TypeError("Expected String".to_string()))
             }
@@ -114,7 +114,7 @@ impl TypeSafeMarshaller {
 
         // bool converter
         self.register_converter::<bool>(Box::new(|any| {
-            if let Some(value) = any.downcast_ref::<bool>() {
+            if let Ok(value) = any.downcast::<bool>() {
                 Ok(Value::Boolean(*value))
             } else {
                 Err(LambdustError::TypeError("Expected bool".to_string()))
@@ -131,7 +131,7 @@ impl TypeSafeMarshaller {
     pub fn rust_to_scheme<T: 'static>(&self, value: T) -> Result<Value> {
         let type_id = TypeId::of::<T>();
         if let Some(converter) = self.type_registry.get(&type_id) {
-            converter(&value)
+            converter(Box::new(value))
         } else {
             Err(MarshalError::UnsupportedType(format!("No converter for type {type_id:?}")).into())
         }
