@@ -1167,6 +1167,40 @@ mod tests {
     }
 
     #[test]
+    fn test_call_with_values_errors() {
+        // Test call-with-values with wrong arity
+        let result = eval_str("(call-with-values)");
+        assert!(result.is_err());
+        
+        let result = eval_str("(call-with-values (lambda () 1))");
+        assert!(result.is_err());
+
+        let result = eval_str("(call-with-values (lambda () 1) (lambda (x) x) extra)");
+        assert!(result.is_err());
+
+        // Test call-with-values with non-procedure arguments  
+        let result = eval_str("(call-with-values 42 (lambda (x) x))");
+        assert!(result.is_err());
+
+        let result = eval_str("(call-with-values (lambda () 1) 42)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_call_cc_errors() {
+        // Test call/cc with wrong arity
+        let result = eval_str("(call/cc)");
+        assert!(result.is_err());
+
+        let result = eval_str("(call/cc (lambda (k) k) extra)");
+        assert!(result.is_err());
+
+        // Test call/cc with non-procedure argument
+        let result = eval_str("(call/cc 42)");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_call_cc_basic() {
         // Test basic call/cc that doesn't use the continuation
         let result = eval_str("(call/cc (lambda (k) 42))").unwrap();

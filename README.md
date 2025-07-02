@@ -199,16 +199,7 @@ The project maintains high test coverage across all modules:
 - **Integration Tests**: End-to-end testing of the complete interpreter
 - **Coverage Reports**: Automatically generated and uploaded to Codecov
 
-Current test coverage (Overall: **52.94%**):
-- ✅ Parser (83.26%)
-- ✅ Environment (84.86%)  
-- ✅ Lexer (72.14%)
-- ✅ Interpreter (71.43%)
-- ✅ Marshal (71.92%)
-- ✅ Evaluator (65.75%)
-- ✅ Macro System (62.15%)
-- ⚠️ Built-in Functions (35% avg - needs improvement)
-- ⚠️ Error Handling (21.32% - needs improvement)
+Test coverage is automatically tracked and reported via Codecov. The project maintains comprehensive test coverage across all modules with targets of ≥85% overall and ≥80% for patches. Coverage reports are updated on each commit and pull request.
 
 ### Generating Documentation
 

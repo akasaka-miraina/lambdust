@@ -927,6 +927,26 @@ mod tests {
     }
 
     #[test]
+    fn test_formal_call_with_values_errors() {
+        // Test call-with-values with wrong arity
+        let result = eval_str_formal("(call-with-values)");
+        assert!(result.is_err());
+        
+        let result = eval_str_formal("(call-with-values (lambda () 1))");
+        assert!(result.is_err());
+
+        let result = eval_str_formal("(call-with-values (lambda () 1) (lambda (x) x) extra)");
+        assert!(result.is_err());
+
+        // Test call-with-values with non-procedure arguments  
+        let result = eval_str_formal("(call-with-values 42 (lambda (x) x))");
+        assert!(result.is_err());
+
+        let result = eval_str_formal("(call-with-values (lambda () 1) 42)");
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn test_formal_multi_value_continuations() {
         // Test that the formal evaluator properly handles multiple values in continuations
         // This ensures that the CPS implementation correctly propagates multi-value contexts
