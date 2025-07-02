@@ -71,22 +71,13 @@ impl LambdustInterpreter {
         Ok(result)
     }
 
-    /// Extract function name from define form (simplified)
+    /// Extract function name from define form using AST
     fn extract_function_name(&self, code: &str) -> Option<String> {
-        // Simple regex-like parsing for function names
-        // In practice, this should use proper AST analysis
-        let code = code.trim();
-        if code.starts_with("(define") {
-            let parts: Vec<&str> = code.split_whitespace().collect();
-            if parts.len() >= 3 {
-                let name_part = parts[1];
-                if let Some(name) = name_part.strip_prefix('(') {
-                    // Function definition: (define (name params...) body...)
-                    return Some(name.to_string());
-                } else {
-                    // Variable definition: (define name value)
-                    return Some(name_part.to_string());
-                }
+        // Parse the code into an AST
+        if let Ok(ast) = parse(tokenize(code).ok()?) {
+            // Check if the AST represents a define form
+            if let Value::Procedure(Procedure::Lambda { name: Some(name), .. }) = ast {
+                return Some(name);
             }
         }
         None
