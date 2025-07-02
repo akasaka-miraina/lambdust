@@ -76,8 +76,11 @@ pub mod builtins;
 pub mod environment;
 pub mod error;
 pub mod evaluator;
+pub mod host;
+pub mod interpreter;
 pub mod lexer;
 pub mod macros;
+pub mod marshal;
 pub mod parser;
 pub mod value;
 

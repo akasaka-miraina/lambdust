@@ -10,6 +10,20 @@ use std::rc::Rc;
 /// Maximum recursion depth to prevent stack overflow
 const MAX_RECURSION_DEPTH: usize = 1000;
 
+/// 末尾呼び出し最適化のための継続情報
+#[derive(Debug, Clone)]
+pub enum TailCallInfo {
+    /// 通常の評価（末尾呼び出しでない）
+    None,
+    /// 末尾呼び出し（手続きと引数）
+    Call { 
+        /// 呼び出す手続き
+        proc: Value, 
+        /// 引数リスト
+        args: Vec<Value> 
+    },
+}
+
 /// The main evaluator for Scheme expressions
 #[derive(Debug)]
 pub struct Evaluator {
@@ -55,9 +69,82 @@ impl Evaluator {
         }
 
         self.recursion_depth += 1;
-        let result = self.eval_impl(expr, env);
+        let result = self.eval_with_tail_optimization(expr, env);
         self.recursion_depth -= 1;
         result
+    }
+
+    /// 末尾呼び出し最適化を使用した評価
+    fn eval_with_tail_optimization(&mut self, mut expr: Expr, mut env: Rc<Environment>) -> Result<Value> {
+        loop {
+            match self.eval_impl_tail(expr.clone(), env.clone())? {
+                TailCallInfo::None => {
+                    // 通常の評価
+                    return self.eval_impl(expr, env);
+                }
+                TailCallInfo::Call { proc, args } => {
+                    // 末尾呼び出し最適化: ループで実行
+                    match proc {
+                        Value::Procedure(Procedure::Lambda {
+                            params,
+                            variadic,
+                            body,
+                            closure,
+                        }) => {
+                            // 新しい環境でパラメータを束縛
+                            let new_env = closure.bind_parameters(&params, &args, variadic)?;
+                            
+                            // 最後の式以外を評価
+                            for expr in &body[..body.len() - 1] {
+                                self.eval_impl(expr.clone(), Rc::new(new_env.clone()))?;
+                            }
+                            
+                            // 最後の式で継続（末尾呼び出し最適化）
+                            if let Some(last_expr) = body.last() {
+                                expr = last_expr.clone();
+                                env = Rc::new(new_env);
+                                continue;
+                            } else {
+                                return Ok(Value::Undefined);
+                            }
+                        }
+                        _ => {
+                            // 組み込み関数などの場合は直接実行
+                            return self.apply_procedure(proc, args, env);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// 末尾呼び出し判定を含む評価実装
+    fn eval_impl_tail(&mut self, expr: Expr, env: Rc<Environment>) -> Result<TailCallInfo> {
+        match expr {
+            Expr::List(exprs) if !exprs.is_empty() => {
+                let operator = &exprs[0];
+                let operands = &exprs[1..];
+
+                // 特殊形式のチェック
+                if let Expr::Variable(name) = operator {
+                    match name.as_str() {
+                        "if" => return self.eval_if_tail(operands, env),
+                        "begin" => return self.eval_begin_tail(operands, env),
+                        _ => {} // 通常の手続き呼び出しとして処理
+                    }
+                }
+
+                // 手続き呼び出しの場合、末尾呼び出し最適化の対象
+                let proc = self.eval_impl(operator.clone(), env.clone())?;
+                let mut args = Vec::new();
+                for operand in operands {
+                    args.push(self.eval_impl(operand.clone(), env.clone())?);
+                }
+                
+                Ok(TailCallInfo::Call { proc, args })
+            }
+            _ => Ok(TailCallInfo::None), // その他の式は末尾呼び出し最適化の対象外
+        }
     }
 
     /// Internal evaluation implementation
@@ -128,7 +215,7 @@ impl Evaluator {
     }
 
     /// Apply a procedure to arguments
-    fn apply_procedure(
+    pub fn apply_procedure(
         &mut self,
         proc: Value,
         args: Vec<Value>,
@@ -157,12 +244,34 @@ impl Evaluator {
                     // Create new environment with parameter bindings
                     let new_env = closure.bind_parameters(&params, &args, variadic)?;
 
-                    // Evaluate body expressions
-                    let mut result = Value::Undefined;
-                    for expr in body {
-                        result = self.eval_impl(expr, Rc::new(new_env.clone()))?;
+                    // Evaluate body expressions with tail call optimization
+                    if body.is_empty() {
+                        return Ok(Value::Undefined);
                     }
-                    Ok(result)
+                    
+                    // Evaluate all expressions except the last one
+                    for expr in &body[..body.len() - 1] {
+                        self.eval_impl(expr.clone(), Rc::new(new_env.clone()))?;
+                    }
+                    
+                    // The last expression is in tail position
+                    if let Some(last_expr) = body.last() {
+                        self.eval_with_tail_optimization(last_expr.clone(), Rc::new(new_env))
+                    } else {
+                        Ok(Value::Undefined)
+                    }
+                }
+                Procedure::HostFunction { func, arity, .. } => {
+                    // Check arity for host functions
+                    if let Some(expected) = arity {
+                        if args.len() != expected {
+                            return Err(LambdustError::ArityError {
+                                expected,
+                                actual: args.len(),
+                            });
+                        }
+                    }
+                    func(&args)
                 }
                 Procedure::Continuation { .. } => {
                     // TODO: Implement continuations
@@ -472,6 +581,29 @@ impl Evaluator {
         }
     }
 
+    /// if特殊形式の末尾呼び出し版
+    fn eval_if_tail(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<TailCallInfo> {
+        match operands.len() {
+            2 => {
+                let test = self.eval_impl(operands[0].clone(), env.clone())?;
+                if test.is_truthy() {
+                    self.eval_impl_tail(operands[1].clone(), env)
+                } else {
+                    Ok(TailCallInfo::None)
+                }
+            }
+            3 => {
+                let test = self.eval_impl(operands[0].clone(), env.clone())?;
+                if test.is_truthy() {
+                    self.eval_impl_tail(operands[1].clone(), env)
+                } else {
+                    self.eval_impl_tail(operands[2].clone(), env)
+                }
+            }
+            _ => Ok(TailCallInfo::None),
+        }
+    }
+
     /// Evaluate begin special form
     fn eval_begin(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
         if operands.is_empty() {
@@ -483,6 +615,25 @@ impl Evaluator {
             result = self.eval_impl(expr.clone(), env.clone())?;
         }
         Ok(result)
+    }
+
+    /// begin特殊形式の末尾呼び出し版
+    fn eval_begin_tail(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<TailCallInfo> {
+        if operands.is_empty() {
+            return Ok(TailCallInfo::None);
+        }
+
+        // 最後の式以外を通常評価
+        for expr in &operands[..operands.len() - 1] {
+            self.eval_impl(expr.clone(), env.clone())?;
+        }
+
+        // 最後の式は末尾呼び出し最適化の対象
+        if let Some(last_expr) = operands.last() {
+            self.eval_impl_tail(last_expr.clone(), env)
+        } else {
+            Ok(TailCallInfo::None)
+        }
     }
 
     // Note: cond, case, let, let*, letrec are now handled by macros
