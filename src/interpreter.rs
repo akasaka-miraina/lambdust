@@ -1,5 +1,5 @@
 //! Main interpreter interface for host applications
-//! 
+//!
 //! This module provides the primary interface for integrating Lambdust
 //! into host applications, allowing bidirectional function calls.
 
@@ -7,14 +7,14 @@ use crate::error::{LambdustError, Result};
 use crate::evaluator::Evaluator;
 use crate::host::{FunctionSignature, HostFunctionRegistry, ValueType};
 use crate::lexer::tokenize;
-use crate::marshal::{Marshallable, TypeSafeMarshaller};
+use crate::marshal::Marshallable;
 use crate::parser::parse;
 use crate::value::{Procedure, Value};
 use std::collections::HashMap;
 use std::rc::Rc;
 
 /// Main interpreter for Lambdust Scheme
-/// 
+///
 /// This provides a high-level interface for executing Scheme code
 /// and managing host function integration.
 pub struct LambdustInterpreter {
@@ -22,8 +22,6 @@ pub struct LambdustInterpreter {
     evaluator: Evaluator,
     /// Host function registry
     host_registry: HostFunctionRegistry,
-    /// Type marshaller
-    marshaller: TypeSafeMarshaller,
     /// Defined Scheme functions available to host
     scheme_functions: HashMap<String, Value>,
 }
@@ -34,10 +32,9 @@ impl LambdustInterpreter {
         let mut interpreter = Self {
             evaluator: Evaluator::new(),
             host_registry: HostFunctionRegistry::default(),
-            marshaller: TypeSafeMarshaller::new(),
             scheme_functions: HashMap::new(),
         };
-        
+
         // Register host functions in the global environment
         interpreter.register_host_functions();
         interpreter
@@ -46,7 +43,7 @@ impl LambdustInterpreter {
     /// Register host functions in the Scheme environment
     fn register_host_functions(&mut self) {
         let function_names = self.host_registry.list_functions().clone();
-        
+
         for name in function_names {
             if let Some(procedure) = self.host_registry.get_procedure(name) {
                 self.evaluator.global_env.define(name.clone(), procedure);
@@ -59,7 +56,7 @@ impl LambdustInterpreter {
         let tokens = tokenize(code)?;
         let ast = parse(tokens)?;
         let result = self.evaluator.eval(ast)?;
-        
+
         // Check if the result is a procedure and cache it for host access
         if let Value::Procedure(Procedure::Lambda { .. }) = &result {
             // Extract function name if this was a define form
@@ -70,7 +67,7 @@ impl LambdustInterpreter {
                 }
             }
         }
-        
+
         Ok(result)
     }
 
@@ -83,9 +80,8 @@ impl LambdustInterpreter {
             let parts: Vec<&str> = code.split_whitespace().collect();
             if parts.len() >= 3 {
                 let name_part = parts[1];
-                if name_part.starts_with('(') {
+                if let Some(name) = name_part.strip_prefix('(') {
                     // Function definition: (define (name params...) body...)
-                    let name = &name_part[1..];
                     return Some(name.to_string());
                 } else {
                     // Variable definition: (define name value)
@@ -101,8 +97,9 @@ impl LambdustInterpreter {
     where
         F: Fn(&[Value]) -> Result<Value> + 'static,
     {
-        self.host_registry.register_function(name.clone(), func, signature);
-        
+        self.host_registry
+            .register_function(name.clone(), func, signature);
+
         // Register in the Scheme environment
         if let Some(procedure) = self.host_registry.get_procedure(&name) {
             self.evaluator.global_env.define(name, procedure);
@@ -124,14 +121,16 @@ impl LambdustInterpreter {
         if let Some(procedure) = self.scheme_functions.get(name) {
             return self.apply_procedure(procedure.clone(), args.to_vec());
         }
-        
+
         // Try to get from global environment
         match self.evaluator.global_env.get(name) {
             Ok(value) => {
                 if let Value::Procedure(_) = value {
                     self.apply_procedure(value, args.to_vec())
                 } else {
-                    Err(LambdustError::TypeError(format!("{} is not a procedure", name)))
+                    Err(LambdustError::TypeError(format!(
+                        "{name} is not a procedure"
+                    )))
                 }
             }
             Err(_) => Err(LambdustError::UndefinedVariable(name.to_string())),
@@ -154,7 +153,8 @@ impl LambdustInterpreter {
         // Create a temporary function call expression and evaluate it
         match &procedure {
             Value::Procedure(_) => {
-                self.evaluator.apply_procedure(procedure, args, self.evaluator.global_env.clone())
+                self.evaluator
+                    .apply_procedure(procedure, args, self.evaluator.global_env.clone())
             }
             _ => Err(LambdustError::TypeError("Not a procedure".to_string())),
         }
@@ -172,8 +172,13 @@ impl LambdustInterpreter {
 
     /// Check if a Scheme function exists
     pub fn has_scheme_function(&self, name: &str) -> bool {
-        self.scheme_functions.contains_key(name) || 
-        self.evaluator.global_env.get(name).map(|v| v.is_procedure()).unwrap_or(false)
+        self.scheme_functions.contains_key(name)
+            || self
+                .evaluator
+                .global_env
+                .get(name)
+                .map(|v| v.is_procedure())
+                .unwrap_or(false)
     }
 
     /// Get the global environment (for advanced usage)
@@ -184,19 +189,18 @@ impl LambdustInterpreter {
     /// Execute multiple Scheme expressions and return the last result
     pub fn eval_expressions(&mut self, expressions: &[&str]) -> Result<Value> {
         let mut last_result = Value::Undefined;
-        
+
         for expr in expressions {
             last_result = self.eval_string(expr)?;
         }
-        
+
         Ok(last_result)
     }
 
     /// Load and execute Scheme code from a string with error context
     pub fn load_string(&mut self, code: &str, context: &str) -> Result<Value> {
-        self.eval_string(code).map_err(|e| {
-            LambdustError::RuntimeError(format!("Error in {}: {}", context, e))
-        })
+        self.eval_string(code)
+            .map_err(|e| LambdustError::RuntimeError(format!("Error in {context}: {e}")))
     }
 }
 
@@ -254,7 +258,7 @@ mod tests {
     #[test]
     fn test_interpreter_basic() {
         let mut interpreter = LambdustInterpreter::new();
-        
+
         // Test basic evaluation
         let _result = interpreter.eval_string("(+ 1 2 3)").unwrap();
         // Note: This will fail until arithmetic is implemented
@@ -264,26 +268,26 @@ mod tests {
     #[test]
     fn test_function_definition_and_call() {
         let mut interpreter = LambdustInterpreter::new();
-        
+
         // Test simple literal evaluation first
         let result = interpreter.eval_string("42");
         assert!(result.is_ok());
-        
+
         // Test simple variable definition first
         let result = interpreter.eval_string("(define x 42)");
         if let Err(e) = result {
             panic!("Failed to define variable: {:?}", e);
         }
-        
+
         // Define a simple function
         let result = interpreter.eval_string("(define (identity x) x)");
         if let Err(e) = result {
             panic!("Failed to define function: {:?}", e);
         }
-        
+
         // Check if function is available
         assert!(interpreter.has_scheme_function("identity"));
-        
+
         // Call the function (will fail until arithmetic is implemented)
         // let result = interpreter.call_scheme_function("square", &[Value::Number(SchemeNumber::Integer(5))]).unwrap();
         // assert_eq!(result, Value::Number(SchemeNumber::Integer(25)));
@@ -292,7 +296,7 @@ mod tests {
     #[test]
     fn test_host_function_registration() {
         let mut interpreter = LambdustInterpreter::new();
-        
+
         // Register a host function
         interpreter.register_simple_host_function(
             "test-add".to_string(),
@@ -303,19 +307,24 @@ mod tests {
                         actual: args.len(),
                     });
                 }
-                
+
                 match (&args[0], &args[1]) {
-                    (Value::Number(SchemeNumber::Integer(a)), Value::Number(SchemeNumber::Integer(b))) => {
-                        Ok(Value::Number(SchemeNumber::Integer(a + b)))
-                    }
+                    (
+                        Value::Number(SchemeNumber::Integer(a)),
+                        Value::Number(SchemeNumber::Integer(b)),
+                    ) => Ok(Value::Number(SchemeNumber::Integer(a + b))),
                     _ => Err(LambdustError::TypeError("Expected numbers".to_string())),
                 }
             },
         );
 
         // Test that the function is registered
-        assert!(interpreter.list_host_functions().contains(&&"test-add".to_string()));
-        
+        assert!(
+            interpreter
+                .list_host_functions()
+                .contains(&&"test-add".to_string())
+        );
+
         // Test calling the host function from Scheme
         let result = interpreter.eval_string("(test-add 10 20)").unwrap();
         assert_eq!(result, Value::Number(SchemeNumber::Integer(30)));
@@ -324,7 +333,7 @@ mod tests {
     #[test]
     fn test_typed_function_calls() {
         let mut interpreter = LambdustInterpreter::new();
-        
+
         // Register a typed host function
         interpreter.register_simple_host_function(
             "string-length".to_string(),
@@ -335,7 +344,7 @@ mod tests {
                         actual: args.len(),
                     });
                 }
-                
+
                 match &args[0] {
                     Value::String(s) => Ok(Value::Number(SchemeNumber::Integer(s.len() as i64))),
                     _ => Err(LambdustError::TypeError("Expected string".to_string())),
@@ -353,15 +362,11 @@ mod tests {
     #[test]
     fn test_multiple_expressions() {
         let mut interpreter = LambdustInterpreter::new();
-        
-        let expressions = vec![
-            "(define x 10)",
-            "(define y 20)", 
-            "(define (get-x) x)",
-        ];
-        
+
+        let expressions = vec!["(define x 10)", "(define y 20)", "(define (get-x) x)"];
+
         interpreter.eval_expressions(&expressions).unwrap();
-        
+
         // Check that functions and variables are defined
         assert!(interpreter.has_scheme_function("get-x"));
     }
@@ -369,11 +374,11 @@ mod tests {
     #[test]
     fn test_error_handling() {
         let mut interpreter = LambdustInterpreter::new();
-        
+
         // Test undefined function call
         let result = interpreter.call_scheme_function("undefined-function", &[]);
         assert!(result.is_err());
-        
+
         // Test malformed code
         let result = interpreter.eval_string("(invalid syntax");
         assert!(result.is_err());

@@ -65,7 +65,7 @@ pub enum Procedure {
         /// Arity (number of arguments, None for variadic)
         arity: Option<usize>,
         /// Function closure
-        func: std::rc::Rc<dyn Fn(&[Value]) -> crate::Result<Value>>,
+        func: crate::host::HostFunc,
     },
     /// Continuation (for call/cc)
     Continuation {
@@ -136,7 +136,7 @@ impl fmt::Display for Value {
                     write!(f, ")>")
                 }
                 Procedure::Builtin { name, .. } => write!(f, "#<builtin {name}>"),
-                Procedure::HostFunction { name, .. } => write!(f, "#<host-function {}>", name),
+                Procedure::HostFunction { name, .. } => write!(f, "#<host-function {name}>"),
                 Procedure::Continuation { .. } => write!(f, "#<continuation>"),
             },
             Value::Vector(values) => {
@@ -387,20 +387,29 @@ impl PartialEq for Value {
 impl std::fmt::Debug for Procedure {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Lambda { params, variadic, body, .. } => f.debug_struct("Lambda")
+            Self::Lambda {
+                params,
+                variadic,
+                body,
+                ..
+            } => f
+                .debug_struct("Lambda")
                 .field("params", params)
                 .field("variadic", variadic)
                 .field("body", body)
                 .finish(),
-            Self::Builtin { name, arity, .. } => f.debug_struct("Builtin")
+            Self::Builtin { name, arity, .. } => f
+                .debug_struct("Builtin")
                 .field("name", name)
                 .field("arity", arity)
                 .finish(),
-            Self::HostFunction { name, arity, .. } => f.debug_struct("HostFunction")
+            Self::HostFunction { name, arity, .. } => f
+                .debug_struct("HostFunction")
                 .field("name", name)
                 .field("arity", arity)
                 .finish(),
-            Self::Continuation { stack } => f.debug_struct("Continuation")
+            Self::Continuation { stack } => f
+                .debug_struct("Continuation")
                 .field("stack", stack)
                 .finish(),
         }
@@ -410,19 +419,47 @@ impl std::fmt::Debug for Procedure {
 impl PartialEq for Procedure {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (Self::Lambda { params: l_params, variadic: l_variadic, body: l_body, .. },
-             Self::Lambda { params: r_params, variadic: r_variadic, body: r_body, .. }) => {
-                l_params == r_params && l_variadic == r_variadic && l_body == r_body
-            },
-            (Self::Builtin { name: l_name, arity: l_arity, .. },
-             Self::Builtin { name: r_name, arity: r_arity, .. }) => {
-                l_name == r_name && l_arity == r_arity
-            },
-            (Self::HostFunction { name: l_name, arity: l_arity, .. },
-             Self::HostFunction { name: r_name, arity: r_arity, .. }) => {
-                l_name == r_name && l_arity == r_arity
-            },
-            (Self::Continuation { stack: l_stack }, Self::Continuation { stack: r_stack }) => l_stack == r_stack,
+            (
+                Self::Lambda {
+                    params: l_params,
+                    variadic: l_variadic,
+                    body: l_body,
+                    ..
+                },
+                Self::Lambda {
+                    params: r_params,
+                    variadic: r_variadic,
+                    body: r_body,
+                    ..
+                },
+            ) => l_params == r_params && l_variadic == r_variadic && l_body == r_body,
+            (
+                Self::Builtin {
+                    name: l_name,
+                    arity: l_arity,
+                    ..
+                },
+                Self::Builtin {
+                    name: r_name,
+                    arity: r_arity,
+                    ..
+                },
+            ) => l_name == r_name && l_arity == r_arity,
+            (
+                Self::HostFunction {
+                    name: l_name,
+                    arity: l_arity,
+                    ..
+                },
+                Self::HostFunction {
+                    name: r_name,
+                    arity: r_arity,
+                    ..
+                },
+            ) => l_name == r_name && l_arity == r_arity,
+            (Self::Continuation { stack: l_stack }, Self::Continuation { stack: r_stack }) => {
+                l_stack == r_stack
+            }
             _ => false,
         }
     }
@@ -562,4 +599,3 @@ mod tests {
         assert!(Value::String("".to_string()).is_truthy());
     }
 }
-

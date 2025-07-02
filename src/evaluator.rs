@@ -16,11 +16,11 @@ pub enum TailCallInfo {
     /// 通常の評価（末尾呼び出しでない）
     None,
     /// 末尾呼び出し（手続きと引数）
-    Call { 
+    Call {
         /// 呼び出す手続き
-        proc: Value, 
+        proc: Value,
         /// 引数リスト
-        args: Vec<Value> 
+        args: Vec<Value>,
     },
 }
 
@@ -75,7 +75,11 @@ impl Evaluator {
     }
 
     /// 末尾呼び出し最適化を使用した評価
-    fn eval_with_tail_optimization(&mut self, mut expr: Expr, mut env: Rc<Environment>) -> Result<Value> {
+    fn eval_with_tail_optimization(
+        &mut self,
+        mut expr: Expr,
+        mut env: Rc<Environment>,
+    ) -> Result<Value> {
         loop {
             match self.eval_impl_tail(expr.clone(), env.clone())? {
                 TailCallInfo::None => {
@@ -93,12 +97,12 @@ impl Evaluator {
                         }) => {
                             // 新しい環境でパラメータを束縛
                             let new_env = closure.bind_parameters(&params, &args, variadic)?;
-                            
+
                             // 最後の式以外を評価
                             for expr in &body[..body.len() - 1] {
                                 self.eval_impl(expr.clone(), Rc::new(new_env.clone()))?;
                             }
-                            
+
                             // 最後の式で継続（末尾呼び出し最適化）
                             if let Some(last_expr) = body.last() {
                                 expr = last_expr.clone();
@@ -140,7 +144,7 @@ impl Evaluator {
                 for operand in operands {
                     args.push(self.eval_impl(operand.clone(), env.clone())?);
                 }
-                
+
                 Ok(TailCallInfo::Call { proc, args })
             }
             _ => Ok(TailCallInfo::None), // その他の式は末尾呼び出し最適化の対象外
@@ -248,12 +252,12 @@ impl Evaluator {
                     if body.is_empty() {
                         return Ok(Value::Undefined);
                     }
-                    
+
                     // Evaluate all expressions except the last one
                     for expr in &body[..body.len() - 1] {
                         self.eval_impl(expr.clone(), Rc::new(new_env.clone()))?;
                     }
-                    
+
                     // The last expression is in tail position
                     if let Some(last_expr) = body.last() {
                         self.eval_with_tail_optimization(last_expr.clone(), Rc::new(new_env))

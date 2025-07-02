@@ -1,5 +1,5 @@
 //! Type-safe marshalling between Rust and Scheme values
-//! 
+//!
 //! This module provides safe conversion between Rust types and Scheme values,
 //! isolating unsafe operations to ensure memory safety.
 
@@ -15,11 +15,11 @@ use std::os::raw::{c_char, c_int};
 #[derive(Debug, Clone)]
 pub enum MarshalError {
     /// Type mismatch between expected and actual types
-    TypeMismatch { 
+    TypeMismatch {
         /// Expected type name
-        expected: String, 
+        expected: String,
         /// Actual type name
-        found: String 
+        found: String,
     },
     /// Conversion failed for a specific reason
     ConversionFailed(String),
@@ -60,7 +60,10 @@ pub struct TypeSafeMarshaller {
 impl std::fmt::Debug for TypeSafeMarshaller {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("TypeSafeMarshaller")
-            .field("type_registry", &format!("HashMap with {} entries", self.type_registry.len()))
+            .field(
+                "type_registry",
+                &format!("HashMap with {} entries", self.type_registry.len()),
+            )
             .finish()
     }
 }
@@ -71,7 +74,7 @@ impl TypeSafeMarshaller {
         let mut marshaller = Self {
             type_registry: HashMap::new(),
         };
-        
+
         // Register built-in type converters
         marshaller.register_builtin_converters();
         marshaller
@@ -127,9 +130,7 @@ impl TypeSafeMarshaller {
         if let Some(converter) = self.type_registry.get(&type_id) {
             converter(&value)
         } else {
-            Err(MarshalError::UnsupportedType(
-                format!("No converter for type {type_id:?}")
-            ).into())
+            Err(MarshalError::UnsupportedType(format!("No converter for type {type_id:?}")).into())
         }
     }
 
@@ -157,7 +158,8 @@ impl Marshallable for i64 {
             _ => Err(MarshalError::TypeMismatch {
                 expected: "Number".to_string(),
                 found: format!("{value:?}"),
-            }.into()),
+            }
+            .into()),
         }
     }
 
@@ -176,7 +178,8 @@ impl Marshallable for f64 {
             _ => Err(MarshalError::TypeMismatch {
                 expected: "Number".to_string(),
                 found: format!("{value:?}"),
-            }.into()),
+            }
+            .into()),
         }
     }
 
@@ -193,7 +196,8 @@ impl Marshallable for String {
             _ => Err(MarshalError::TypeMismatch {
                 expected: "String or Symbol".to_string(),
                 found: format!("{value:?}"),
-            }.into()),
+            }
+            .into()),
         }
     }
 
@@ -209,7 +213,8 @@ impl Marshallable for bool {
             _ => Err(MarshalError::TypeMismatch {
                 expected: "Boolean".to_string(),
                 found: format!("{value:?}"),
-            }.into()),
+            }
+            .into()),
         }
     }
 
@@ -230,7 +235,8 @@ impl<T: Marshallable> Marshallable for Vec<T> {
             Err(MarshalError::TypeMismatch {
                 expected: "List".to_string(),
                 found: format!("{value:?}"),
-            }.into())
+            }
+            .into())
         }
     }
 
@@ -244,41 +250,39 @@ impl<T: Marshallable> Marshallable for Vec<T> {
 }
 
 /// C-compatible marshalling functions for FFI
-/// 
+///
 /// These functions provide safe C FFI interface while isolating unsafe operations
-
 /// Convert C string to Scheme string
-/// 
+///
 /// # Safety
 /// The input pointer must be a valid null-terminated C string
 pub unsafe fn c_string_to_scheme(c_str: *const c_char) -> Result<Value> {
     if c_str.is_null() {
         return Err(MarshalError::NullPointer.into());
     }
-    
+
     let c_str = unsafe { CStr::from_ptr(c_str) };
-    let rust_str = c_str.to_str()
-        .map_err(|_| MarshalError::InvalidUtf8)?;
-    
+    let rust_str = c_str.to_str().map_err(|_| MarshalError::InvalidUtf8)?;
+
     Ok(Value::String(rust_str.to_string()))
 }
 
 /// Convert Scheme string to C string
-/// 
+///
 /// Returns a newly allocated C string that must be freed by the caller
 pub fn scheme_string_to_c(value: &Value) -> Result<*mut c_char> {
     match value {
         Value::String(s) | Value::Symbol(s) => {
-            let c_string = CString::new(s.as_str())
-                .map_err(|_| MarshalError::ConversionFailed(
-                    "String contains null bytes".to_string()
-                ))?;
+            let c_string = CString::new(s.as_str()).map_err(|_| {
+                MarshalError::ConversionFailed("String contains null bytes".to_string())
+            })?;
             Ok(c_string.into_raw())
         }
         _ => Err(MarshalError::TypeMismatch {
             expected: "String or Symbol".to_string(),
             found: format!("{value:?}"),
-        }.into()),
+        }
+        .into()),
     }
 }
 
@@ -297,12 +301,13 @@ pub fn scheme_to_c_int(value: &Value) -> Result<c_int> {
         _ => Err(MarshalError::TypeMismatch {
             expected: "Number".to_string(),
             found: format!("{value:?}"),
-        }.into()),
+        }
+        .into()),
     }
 }
 
 /// Free C string allocated by scheme_string_to_c
-/// 
+///
 /// # Safety
 /// The pointer must have been allocated by scheme_string_to_c
 pub unsafe fn free_c_string(ptr: *mut c_char) {
@@ -343,7 +348,7 @@ mod tests {
     fn test_marshallable_vec() {
         let vec_data = vec![1i64, 2, 3];
         let scheme_val = vec_data.to_scheme().unwrap();
-        
+
         // Should create a proper list
         let back: Vec<i64> = Vec::from_scheme(&scheme_val).unwrap();
         assert_eq!(back, vec![1, 2, 3]);
@@ -352,11 +357,11 @@ mod tests {
     #[test]
     fn test_type_safe_marshaller() {
         let marshaller = TypeSafeMarshaller::new();
-        
+
         // Test with registered types
         let value = marshaller.rust_to_scheme(42i64).unwrap();
         assert_eq!(value, Value::Number(SchemeNumber::Integer(42)));
-        
+
         let string_val = marshaller.rust_to_scheme("test".to_string()).unwrap();
         assert_eq!(string_val, Value::String("test".to_string()));
     }
@@ -366,7 +371,7 @@ mod tests {
         // Test C int conversion
         let c_val = c_int_to_scheme(100).unwrap();
         assert_eq!(c_val, Value::Number(SchemeNumber::Integer(100)));
-        
+
         let back = scheme_to_c_int(&c_val).unwrap();
         assert_eq!(back, 100);
     }

@@ -1,10 +1,10 @@
 //! Host function registration and management
-//! 
+//!
 //! This module provides functionality for registering host functions
 //! that can be called from Scheme code safely.
 
 use crate::error::{LambdustError, Result};
-use crate::marshal::{Marshallable, TypeSafeMarshaller};
+use crate::marshal::Marshallable;
 use crate::value::{Procedure, Value};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -122,16 +122,15 @@ impl FunctionSignature {
                 args.len()
             };
 
-            for (i, (param_type, arg)) in params[..check_count].iter().zip(args.iter()).enumerate() {
+            for (i, (param_type, arg)) in params[..check_count].iter().zip(args.iter()).enumerate()
+            {
                 if !param_type.matches(arg) {
-                    return Err(LambdustError::TypeError(
-                        format!(
-                            "Parameter {}: expected {}, got {:?}",
-                            i + 1,
-                            param_type.name(),
-                            arg
-                        )
-                    ));
+                    return Err(LambdustError::TypeError(format!(
+                        "Parameter {}: expected {}, got {:?}",
+                        i + 1,
+                        param_type.name(),
+                        arg
+                    )));
                 }
             }
         }
@@ -139,12 +138,13 @@ impl FunctionSignature {
     }
 }
 
+/// Host function type alias to reduce complexity
+pub type HostFunc = std::rc::Rc<dyn Fn(&[Value]) -> Result<Value>>;
+
 /// Host function registry
 pub struct HostFunctionRegistry {
     /// Registered functions
-    functions: HashMap<String, (std::rc::Rc<dyn Fn(&[Value]) -> Result<Value>>, FunctionSignature)>,
-    /// Type marshaller
-    marshaller: TypeSafeMarshaller,
+    functions: HashMap<String, (HostFunc, FunctionSignature)>,
 }
 
 impl HostFunctionRegistry {
@@ -152,7 +152,6 @@ impl HostFunctionRegistry {
     pub fn new() -> Self {
         Self {
             functions: HashMap::new(),
-            marshaller: TypeSafeMarshaller::new(),
         }
     }
 
@@ -186,13 +185,13 @@ impl HostFunctionRegistry {
             let result = func(typed_args);
             result.to_scheme()
         };
-        
+
         // Create signature based on types
         let signature = FunctionSignature::new(
             Args::parameter_types(),
             ValueType::Any, // Will be refined in future versions
         );
-        
+
         self.register_function(name, wrapper, signature);
     }
 
@@ -202,16 +201,14 @@ impl HostFunctionRegistry {
             let name_clone = name.to_string();
             let signature_clone = signature.clone();
             let func_clone = func.clone();
-            
+
             // Create a wrapper that validates arguments
             let wrapper = move |args: &[Value]| -> Result<Value> {
                 signature_clone.validate_args(args)?;
                 func_clone(args)
             };
 
-            Some(
-
-            Value::Procedure(Procedure::HostFunction {
+            Some(Value::Procedure(Procedure::HostFunction {
                 name: name_clone,
                 func: Rc::new(wrapper),
                 arity: signature.parameters.as_ref().map(|p| p.len()),
@@ -238,7 +235,7 @@ impl HostFunctionRegistry {
             "host-print".to_string(),
             |args: &[Value]| -> Result<Value> {
                 for arg in args {
-                    print!("{} ", arg);
+                    print!("{arg} ");
                 }
                 println!();
                 Ok(Value::Nil)
@@ -255,17 +252,16 @@ impl HostFunctionRegistry {
                     match arg {
                         Value::String(s) => result.push_str(s),
                         Value::Symbol(s) => result.push_str(s),
-                        _ => return Err(LambdustError::TypeError(
-                            "host-string-append: all arguments must be strings".to_string()
-                        )),
+                        _ => {
+                            return Err(LambdustError::TypeError(
+                                "host-string-append: all arguments must be strings".to_string(),
+                            ));
+                        }
                     }
                 }
                 Ok(Value::String(result))
             },
-            FunctionSignature::new(
-                vec![ValueType::String],
-                ValueType::String,
-            ),
+            FunctionSignature::new(vec![ValueType::String], ValueType::String),
         );
 
         // Length function
@@ -278,25 +274,26 @@ impl HostFunctionRegistry {
                         actual: args.len(),
                     });
                 }
-                
+
                 match &args[0] {
-                    Value::String(s) => Ok(Value::Number(crate::lexer::SchemeNumber::Integer(s.len() as i64))),
+                    Value::String(s) => Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+                        s.len() as i64,
+                    ))),
                     value if value.is_list() => {
                         if let Some(vec) = value.to_vector() {
-                            Ok(Value::Number(crate::lexer::SchemeNumber::Integer(vec.len() as i64)))
+                            Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+                                vec.len() as i64,
+                            )))
                         } else {
                             Err(LambdustError::TypeError("Invalid list".to_string()))
                         }
                     }
                     _ => Err(LambdustError::TypeError(
-                        "host-length: argument must be a string or list".to_string()
+                        "host-length: argument must be a string or list".to_string(),
                     )),
                 }
             },
-            FunctionSignature::new(
-                vec![ValueType::Any],
-                ValueType::Number,
-            ),
+            FunctionSignature::new(vec![ValueType::Any], ValueType::Number),
         );
     }
 }
@@ -315,7 +312,7 @@ pub trait FromSchemeArgs {
     fn from_scheme_args(args: &[Value]) -> Result<Self>
     where
         Self: Sized;
-    
+
     /// Get parameter types for signature
     fn parameter_types() -> Vec<ValueType>;
 }
@@ -332,7 +329,7 @@ impl FromSchemeArgs for () {
             })
         }
     }
-    
+
     fn parameter_types() -> Vec<ValueType> {
         vec![]
     }
@@ -348,7 +345,7 @@ impl<T: Marshallable> FromSchemeArgs for (T,) {
         }
         Ok((T::from_scheme(&args[0])?,))
     }
-    
+
     fn parameter_types() -> Vec<ValueType> {
         vec![ValueType::Any] // Will be refined with more type information
     }
@@ -364,7 +361,7 @@ impl<T1: Marshallable, T2: Marshallable> FromSchemeArgs for (T1, T2) {
         }
         Ok((T1::from_scheme(&args[0])?, T2::from_scheme(&args[1])?))
     }
-    
+
     fn parameter_types() -> Vec<ValueType> {
         vec![ValueType::Any, ValueType::Any] // Will be refined
     }
@@ -384,7 +381,7 @@ impl<T1: Marshallable, T2: Marshallable, T3: Marshallable> FromSchemeArgs for (T
             T3::from_scheme(&args[2])?,
         ))
     }
-    
+
     fn parameter_types() -> Vec<ValueType> {
         vec![ValueType::Any, ValueType::Any, ValueType::Any] // Will be refined
     }
@@ -423,17 +420,14 @@ mod tests {
         assert!(sig.validate_args(&invalid_arity).is_err());
 
         // Invalid type
-        let invalid_type = vec![
-            Value::Boolean(true),
-            Value::String("test".to_string()),
-        ];
+        let invalid_type = vec![Value::Boolean(true), Value::String("test".to_string())];
         assert!(sig.validate_args(&invalid_type).is_err());
     }
 
     #[test]
     fn test_host_function_registry() {
         let mut registry = HostFunctionRegistry::new();
-        
+
         // Register a simple function
         registry.register_simple_function(
             "test-add".to_string(),
@@ -444,11 +438,12 @@ mod tests {
                         actual: args.len(),
                     });
                 }
-                
+
                 match (&args[0], &args[1]) {
-                    (Value::Number(SchemeNumber::Integer(a)), Value::Number(SchemeNumber::Integer(b))) => {
-                        Ok(Value::Number(SchemeNumber::Integer(a + b)))
-                    }
+                    (
+                        Value::Number(SchemeNumber::Integer(a)),
+                        Value::Number(SchemeNumber::Integer(b)),
+                    ) => Ok(Value::Number(SchemeNumber::Integer(a + b))),
                     _ => Err(LambdustError::TypeError("Expected numbers".to_string())),
                 }
             },
@@ -466,7 +461,7 @@ mod tests {
     #[test]
     fn test_builtin_functions() {
         let registry = HostFunctionRegistry::default();
-        
+
         // Test that builtins are registered
         assert!(registry.get_procedure("host-print").is_some());
         assert!(registry.get_procedure("host-string-append").is_some());
@@ -476,12 +471,11 @@ mod tests {
     #[test]
     fn test_typed_function_registration() {
         let mut registry = HostFunctionRegistry::new();
-        
+
         // Register a typed function
-        registry.register_typed_function(
-            "add-numbers".to_string(),
-            |(a, b): (i64, i64)| -> i64 { a + b }
-        );
+        registry.register_typed_function("add-numbers".to_string(), |(a, b): (i64, i64)| -> i64 {
+            a + b
+        });
 
         let proc = registry.get_procedure("add-numbers").unwrap();
         assert!(proc.is_procedure());
