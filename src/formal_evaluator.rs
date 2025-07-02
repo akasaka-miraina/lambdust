@@ -538,16 +538,15 @@ impl FormalEvaluator {
         let producer_expr = operands[0].clone();
         let consumer_expr = operands[1].clone();
 
-        // Create a continuation for step 1: after producer is evaluated, evaluate consumer
+        // Create a continuation for step 1: after consumer is evaluated, evaluate producer
         let step1_cont = Continuation::CallWithValuesStep1 {
             producer_expr,
-            consumer_expr: consumer_expr.clone(),
             env: env.clone(),
             parent: Box::new(cont),
         };
 
-        // First evaluate the producer
-        self.eval(producer_expr, env, step1_cont)
+        // First evaluate the consumer
+        self.eval(consumer_expr, env, step1_cont)
     }
 
     /// Evaluate dynamic-wind
@@ -675,27 +674,12 @@ impl FormalEvaluator {
                     single_value => vec![single_value],
                 };
 
-                // Apply the consumer with the producer's values in the correct environment
-                self.apply_procedure_with_env(consumer, consumer_args, env, *parent)
+                // Apply the consumer with the producer's values
+                self.apply_procedure(consumer, consumer_args, *parent)
             }
         }
     }
 
-    /// Apply a procedure in a specific environment
-    fn apply_procedure_with_env(
-        &mut self,
-        procedure: Value,
-        args: Vec<Value>,
-        env: Rc<Environment>,
-        cont: Continuation,
-    ) -> Result<Value> {
-        // Temporarily set the environment for the procedure application
-        let previous_env = self.current_env.clone();
-        self.current_env = env;
-        let result = self.apply_procedure(procedure, args, cont);
-        self.current_env = previous_env; // Restore the previous environment
-        result
-    }
     /// Evaluate arguments for function application
     /// Implements unspecified evaluation order per R7RS semantics
     fn eval_args(
