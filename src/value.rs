@@ -423,8 +423,9 @@ impl Value {
             (Value::Character(a), Value::Character(b)) => a == b,
             (Value::Symbol(a), Value::Symbol(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
-            (Value::Record(_), Value::Record(_)) => std::ptr::eq(self, other),
-            (Value::Values(_), Value::Values(_)) => std::ptr::eq(self, other),
+            (Value::Record(_), Value::Record(_)) | (Value::Values(_), Value::Values(_)) => {
+                std::ptr::eq(self, other)
+            }
             _ => std::ptr::eq(self, other),
         }
     }
@@ -437,8 +438,9 @@ impl Value {
             (Value::Character(a), Value::Character(b)) => a == b,
             (Value::Symbol(a), Value::Symbol(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
-            (Value::Record(_), Value::Record(_)) => std::ptr::eq(self, other),
-            (Value::Values(_), Value::Values(_)) => std::ptr::eq(self, other),
+            (Value::Record(_), Value::Record(_)) | (Value::Values(_), Value::Values(_)) => {
+                std::ptr::eq(self, other)
+            }
             _ => std::ptr::eq(self, other),
         }
     }

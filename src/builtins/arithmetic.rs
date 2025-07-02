@@ -62,7 +62,9 @@ fn sub_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Real(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(x - y)),
         (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(*x as f64 - y)),
         (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Real(x - *y as f64)),
-        _ => Err(LambdustError::type_error(format!("Cannot subtract {b} from {a}"))),
+        _ => Err(LambdustError::type_error(format!(
+            "Cannot subtract {b} from {a}"
+        ))),
     }
 }
 
@@ -73,7 +75,9 @@ fn mul_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Real(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(x * y)),
         (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(*x as f64 * y)),
         (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Real(x * *y as f64)),
-        _ => Err(LambdustError::type_error(format!("Cannot multiply {a} and {b}"))),
+        _ => Err(LambdustError::type_error(format!(
+            "Cannot multiply {a} and {b}"
+        ))),
     }
 }
 
