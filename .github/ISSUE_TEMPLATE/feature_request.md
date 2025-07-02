@@ -1,96 +1,96 @@
 ---
 name: Feature Request
-about: 新機能や改善の提案
+about: Suggest an idea for this project
 title: '[FEATURE] '
 labels: ['enhancement']
 assignees: ''
 
 ---
 
-## 概要
+## Summary
 
-<!-- 実装したい機能や改善内容を簡潔に説明してください -->
+<!-- Provide a clear and concise description of the feature you want to implement -->
 
-## 背景・動機
+## Motivation
 
-<!-- なぜこの機能が必要なのか、現状の問題点を説明してください -->
+<!-- Explain why this feature is needed and what problem it solves -->
 
-## 詳細仕様
+## Detailed Specification
 
-<!-- 実装する機能の詳細な仕様を記述してください -->
+<!-- Describe the detailed specification of the feature -->
 
-### 要件
+### Requirements
 
-- [ ] 要件1
-- [ ] 要件2
-- [ ] 要件3
+- [ ] Requirement 1
+- [ ] Requirement 2
+- [ ] Requirement 3
 
-### 仕様詳細
+### Implementation Details
 
 <!-- 
-具体的な実装内容を記述してください
-- API設計
-- データ構造
-- アルゴリズム
-- パフォーマンス要件
-- エラーハンドリング
+Describe the specific implementation content:
+- API design
+- Data structures
+- Algorithms
+- Performance requirements
+- Error handling
 -->
 
-## R7RS準拠
+## R7RS Compliance
 
-<!-- R7RS仕様の一部である場合、関連セクションを記載してください -->
+<!-- If this feature is part of the R7RS specification, provide a reference to the relevant section -->
 
-## 使用例
+## Usage Examples
 
-### Schemeコード例
+### Scheme Code Example
 
 ```scheme
-;; 提案する機能の使用例
+;; Example usage of the proposed feature
 (your-proposed-syntax-here)
 ```
 
-### Rust統合例
+### Rust Integration Example
 
 ```rust
-// Rustでの統合例
-// 提案するAPI
+// Example Rust integration
+// Your proposed API here
 ```
 
-## 実装計画
+## Implementation Plan
 
-### Phase 1: 基本実装
-- [ ] タスク1
-- [ ] タスク2
+### Phase 1: Basic Implementation
+- [ ] Task 1
+- [ ] Task 2
 
-### Phase 2: 拡張機能（オプション）
-- [ ] タスク3
-- [ ] タスク4
+### Phase 2: Extended Features (Optional)
+- [ ] Task 3
+- [ ] Task 4
 
-## テスト計画
+## Test Plan
 
-<!-- どのようなテストを追加するか記述してください -->
+<!-- Describe what tests should be added -->
 
-- [ ] 単体テスト
-- [ ] 統合テスト
-- [ ] パフォーマンステスト
-- [ ] 境界値テスト
+- [ ] Unit tests
+- [ ] Integration tests
+- [ ] Performance tests
+- [ ] Edge case tests
 
-## 関連Issue・PR
+## Related Issues/PRs
 
-<!-- 関連するIssueやPRがあれば記載してください -->
+<!-- Link related issues or PRs if any -->
 
 - Related to #
 - Depends on #
 
-## 追加情報
+## Additional Information
 
-<!-- その他、実装に関する補足情報があれば記載してください -->
+<!-- Any other information relevant to the implementation -->
 
-### 参考資料
+### References
 
-- [R7RS仕様書](https://small.r7rs.org/)
-- [SRFI文書](https://srfi.schemers.org/)
+- [R7RS Specification](https://small.r7rs.org/)
+- [SRFI Documents](https://srfi.schemers.org/)
 
-### 注意事項
+### Notes
 
-<!-- 実装時の注意点があれば記載してください -->
+<!-- Any implementation notes or considerations -->

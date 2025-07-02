@@ -1,95 +1,95 @@
 ---
 name: Bug Report
-about: バグの報告
+about: Create a report to help us improve
 title: '[BUG] '
 labels: ['bug']
 assignees: ''
 
 ---
 
-## バグの概要
+## Bug Description
 
-<!-- バグの内容を簡潔に説明してください -->
+<!-- Provide a clear and concise description of the bug -->
 
-## 再現手順
+## Steps to Reproduce
 
-<!-- バグを再現するための手順を記述してください -->
+<!-- Describe the steps to reproduce the bug -->
 
-1. 手順1
-2. 手順2
-3. 手順3
+1. Step 1
+2. Step 2
+3. Step 3
 
-## 期待される動作
+## Expected Behavior
 
-<!-- 本来期待される正しい動作を説明してください -->
+<!-- Describe what should happen -->
 
-## 実際の動作
+## Actual Behavior
 
-<!-- 実際に発生している問題のある動作を説明してください -->
+<!-- Describe what actually happens -->
 
-## 再現コード
+## Reproduction Code
 
-### Schemeコード
+### Scheme Code
 
 ```scheme
-;; バグを再現するSchemeコード
+;; Scheme code that reproduces the bug
 (problematic-code-here)
 ```
 
-### Rustコード（該当する場合）
+### Rust Code (if applicable)
 
 ```rust
-// バグを再現するRustコード
+// Rust code that reproduces the bug
 // problematic code here
 ```
 
-## エラーメッセージ
+## Error Messages
 
 ```
-エラーメッセージがあれば貼り付けてください
+Paste any error messages here
 ```
 
-## 環境情報
+## Environment
 
-- OS: [例: macOS 14.0, Ubuntu 22.04, Windows 11]
-- Rustバージョン: [例: 1.70.0]
-- Lambdustバージョン: [例: 0.1.1]
+- OS: [e.g. macOS 14.0, Ubuntu 22.04, Windows 11]
+- Rust version: [e.g. 1.70.0]
+- Lambdust version: [e.g. 0.1.1]
 
-## 追加情報
+## Additional Information
 
-<!-- その他、バグの調査に役立つ情報があれば記載してください -->
+<!-- Any other information that helps with investigating the bug -->
 
-### スタックトレース
-
-```
-スタックトレースがあれば貼り付けてください
-```
-
-### 関連するログ
+### Stack Trace
 
 ```
-関連するログ出力があれば貼り付けてください
+Paste stack trace if available
 ```
 
-## 影響範囲
+### Related Logs
 
-- [ ] 機能が全く動作しない
-- [ ] 一部の機能で問題が発生
-- [ ] パフォーマンスに影響
-- [ ] メモリリーク
-- [ ] その他: [詳細]
+```
+Paste related log output if available
+```
 
-## 緊急度
+## Impact
 
-- [ ] 緊急（システムが動作しない）
-- [ ] 高（主要機能に影響）
-- [ ] 中（一部機能に影響）
-- [ ] 低（軽微な問題）
+- [ ] Feature completely broken
+- [ ] Partial functionality affected
+- [ ] Performance impact
+- [ ] Memory leak
+- [ ] Other: [details]
 
-## R7RS仕様との関連
+## Severity
 
-<!-- R7RS仕様に関連するバグの場合、該当セクションを記載してください -->
+- [ ] Critical (system doesn't work)
+- [ ] High (major feature affected)
+- [ ] Medium (some features affected)
+- [ ] Low (minor issue)
 
-## 回避策
+## R7RS Specification Relation
 
-<!-- 一時的な回避策があれば記載してください -->
+<!-- If this bug is related to R7RS specification, provide reference to relevant section -->
+
+## Workaround
+
+<!-- Describe any temporary workaround if available -->

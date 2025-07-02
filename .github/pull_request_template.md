@@ -22,128 +22,128 @@
 </details>
 <!-- for GitHub Copilot review rule -->
 
-## 概要
+## Summary
 
-<!-- このPRで実装した内容を簡潔に説明してください -->
+<!-- Provide a clear and concise description of what this PR implements -->
 
-## 関連Issue
+## Related Issue
 
-<!-- 対応するIssueを記載してください -->
+<!-- Link the corresponding issue -->
 Closes #
 
-## 変更内容
+## Changes
 
-<!-- 変更した内容を詳細に記述してください -->
+<!-- Describe the changes made in detail -->
 
-### 追加機能
+### Added Features
 
-- [ ] 機能1: 説明
-- [ ] 機能2: 説明
+- [ ] Feature 1: Description
+- [ ] Feature 2: Description
 
-### 修正内容
+### Bug Fixes
 
-- [ ] 修正1: 説明
-- [ ] 修正2: 説明
+- [ ] Fix 1: Description
+- [ ] Fix 2: Description
 
-### 変更されたファイル
+### Modified Files
 
-<!-- 主要な変更ファイルとその変更理由 -->
+<!-- List major changed files and reasons for changes -->
 
-- `src/file1.rs`: 変更理由
-- `src/file2.rs`: 変更理由
-- `tests/test_file.rs`: 新規テストの追加
+- `src/file1.rs`: Reason for change
+- `src/file2.rs`: Reason for change
+- `tests/test_file.rs`: Added new tests
 
-## テスト
+## Testing
 
-### 追加されたテスト
+### Added Tests
 
-<!-- 新しく追加したテストについて説明してください -->
+<!-- Describe the new tests added -->
 
-- [ ] 単体テスト: `test_function_name`
-- [ ] 統合テスト: `test_integration_scenario`
-- [ ] パフォーマンステスト: 実行時間計測
+- [ ] Unit test: `test_function_name`
+- [ ] Integration test: `test_integration_scenario`
+- [ ] Performance test: Execution time measurement
 
-### テスト結果
+### Test Results
 
 ```bash
-# ローカルでのテスト実行結果
+# Local test execution results
 cargo test
-# 結果: XX passed; 0 failed
+# Result: XX passed; 0 failed
 ```
 
-### テストカバレッジ
+### Test Coverage
 
-<!-- 新機能のテストカバレッジについて -->
+<!-- Describe test coverage for new features -->
 
-- [ ] 正常系のテスト
-- [ ] エラー系のテスト  
-- [ ] 境界値のテスト
-- [ ] パフォーマンステスト（必要に応じて）
+- [ ] Happy path tests
+- [ ] Error case tests
+- [ ] Edge case tests
+- [ ] Performance tests (if applicable)
 
-## チェックリスト
+## Checklist
 
-### 実装
+### Implementation
 
-- [ ] コードが正常に動作する
-- [ ] エラーハンドリングが適切に実装されている
-- [ ] パフォーマンスへの影響を考慮している
-- [ ] メモリリークやリソースリークがない
+- [ ] Code works correctly
+- [ ] Error handling is properly implemented
+- [ ] Performance impact has been considered
+- [ ] No memory leaks or resource leaks
 
-### テスト
+### Testing
 
-- [ ] 新機能に対するテストを追加した
-- [ ] 既存のテストが全て通る
-- [ ] テストケースが適切にエラーケースをカバーしている
+- [ ] Added tests for new features
+- [ ] All existing tests pass
+- [ ] Test cases properly cover error scenarios
 
-### ドキュメント
+### Documentation
 
-- [ ] 必要に応じてCLAUDE.mdを更新した
-- [ ] 新しいAPIがあればドキュメントコメントを追加した
+- [ ] Updated CLAUDE.md if necessary
+- [ ] Added documentation comments for new APIs
 
-### R7RS準拠
+### R7RS Compliance
 
-- [ ] R7RS仕様に準拠している（該当する場合）
-- [ ] SRFI仕様に準拠している（該当する場合）
+- [ ] Complies with R7RS specification (if applicable)
+- [ ] Complies with SRFI specification (if applicable)
 
-## パフォーマンス影響
+## Performance Impact
 
-<!-- パフォーマンスへの影響があれば記載してください -->
+<!-- Describe any performance impact -->
 
-- [ ] パフォーマンス影響なし
-- [ ] パフォーマンス向上: XX%改善
-- [ ] パフォーマンス低下: XX%低下（理由: XXX）
+- [ ] No performance impact
+- [ ] Performance improvement: XX% better
+- [ ] Performance degradation: XX% slower (reason: XXX)
 
-## 破壊的変更
+## Breaking Changes
 
-<!-- 既存APIに影響する変更があれば記載してください -->
+<!-- Describe any breaking changes to existing APIs -->
 
-- [ ] 破壊的変更なし
-- [ ] 破壊的変更あり（詳細: XXX）
+- [ ] No breaking changes
+- [ ] Breaking changes present (details: XXX)
 
-## スクリーンショット・デモ
+## Demo/Screenshots
 
-<!-- 新機能のデモがあれば貼り付けてください -->
+<!-- Provide demo of new features if applicable -->
 
 ```scheme
-;; 使用例
+;; Usage example
 (example-code-here)
 ```
 
-## 追加情報
+## Additional Information
 
-<!-- その他、レビュアーに伝えたい情報があれば記載してください -->
+<!-- Any other information you want to share with reviewers -->
 
-### 設計判断
+### Design Decisions
 
-<!-- 重要な設計判断があれば説明してください -->
+<!-- Explain important design decisions -->
 
-### 既知の制限
+### Known Limitations
 
-<!-- 既知の制限や今後の改善点があれば記載してください -->
+<!-- Describe any known limitations or future improvements -->
 
-### 参考資料
+### References
 
-<!-- 実装時に参考にした資料があれば記載してください -->
+<!-- List any references used during implementation -->
 
-- [R7RS仕様書](https://small.r7rs.org/)
-- [SRFI文書](https://srfi.schemers.org/)
+- [R7RS Specification](https://small.r7rs.org/)
+- [SRFI Documents](https://srfi.schemers.org/)
