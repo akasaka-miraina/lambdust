@@ -4,10 +4,12 @@ use lambdust::{LambdustBridge, Result, Value};
 
 // Example external struct that we want to expose to Scheme
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct Calculator {
     memory: f64,
 }
 
+#[allow(dead_code)]
 impl Calculator {
     fn new() -> Self {
         Calculator { memory: 0.0 }
@@ -35,12 +37,14 @@ impl Calculator {
 
 // Example user data structure
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct User {
     name: String,
     age: u32,
     email: String,
 }
 
+#[allow(dead_code)]
 impl User {
     fn new(name: String, age: u32, email: String) -> Self {
         User { name, age, email }
@@ -85,14 +89,7 @@ fn main() -> Result<()> {
 
     bridge.register_function("factorial", Some(1), |args| {
         let n = match &args[0] {
-            Value::Number(num) => match num {
-                lambdust::lexer::SchemeNumber::Integer(i) => *i,
-                _ => {
-                    return Err(lambdust::error::LambdustError::type_error(
-                        "Expected integer".to_string(),
-                    ));
-                }
-            },
+            Value::Number(lambdust::lexer::SchemeNumber::Integer(i)) => *i,
             _ => {
                 return Err(lambdust::error::LambdustError::type_error(
                     "Expected integer".to_string(),
@@ -141,14 +138,7 @@ fn main() -> Result<()> {
         };
 
         let age = match &args[1] {
-            Value::Number(num) => match num {
-                lambdust::lexer::SchemeNumber::Integer(i) => *i as u32,
-                _ => {
-                    return Err(lambdust::error::LambdustError::type_error(
-                        "Expected integer for age".to_string(),
-                    ));
-                }
-            },
+            Value::Number(lambdust::lexer::SchemeNumber::Integer(i)) => *i as u32,
             _ => {
                 return Err(lambdust::error::LambdustError::type_error(
                     "Expected integer for age".to_string(),
@@ -171,7 +161,7 @@ fn main() -> Result<()> {
     });
 
     // Define some variables
-    bridge.define("pi", Value::from(3.14159265359));
+    bridge.define("pi", Value::from(std::f64::consts::PI));
     bridge.define("greeting", Value::from("Hello from Lambdust!"));
 
     // Test basic arithmetic
@@ -243,17 +233,10 @@ mod tests {
 
         bridge.register_function("add-one", Some(1), |args| {
             let n = match &args[0] {
-                Value::Number(num) => match num {
-                    lambdust::lexer::SchemeNumber::Integer(i) => *i,
-                    _ => {
-                        return Err(lambdust::error::LambdustError::type_error(
-                            "Expected integer".to_string(),
-                        ));
-                    }
-                },
+                Value::Number(lambdust::lexer::SchemeNumber::Integer(i)) => *i,
                 _ => {
                     return Err(lambdust::error::LambdustError::type_error(
-                        "Expected number".to_string(),
+                        "Expected integer".to_string(),
                     ));
                 }
             };

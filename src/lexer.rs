@@ -377,6 +377,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn test_numbers() {
         let tokens = tokenize("42 3.14 1/2").unwrap();
         assert_eq!(
