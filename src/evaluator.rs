@@ -10,6 +10,20 @@ use std::rc::Rc;
 /// Maximum recursion depth to prevent stack overflow
 const MAX_RECURSION_DEPTH: usize = 1000;
 
+/// Continuation information for tail call optimization
+#[derive(Debug, Clone)]
+pub enum TailCallInfo {
+    /// Normal evaluation (not a tail call)
+    None,
+    /// Tail call (procedure and arguments)
+    Call {
+        /// Procedure to be called
+        proc: Value,
+        /// List of arguments
+        args: Vec<Value>,
+    },
+}
+
 /// The main evaluator for Scheme expressions
 #[derive(Debug)]
 pub struct Evaluator {
@@ -55,9 +69,135 @@ impl Evaluator {
         }
 
         self.recursion_depth += 1;
-        let result = self.eval_impl(expr, env);
+        let result = self.eval_with_tail_optimization(expr, env);
         self.recursion_depth -= 1;
         result
+    }
+
+    /// Evaluation with tail call optimization
+    fn eval_with_tail_optimization(
+        &mut self,
+        mut expr: Expr,
+        mut env: Rc<Environment>,
+    ) -> Result<Value> {
+        loop {
+            let tail_info = self.eval_impl_tail(expr.clone(), env.clone())?;
+            
+            match tail_info {
+                TailCallInfo::None => return self.eval_impl(expr, env),
+                TailCallInfo::Call { proc, args } => {
+                    if let Some((new_expr, new_env)) = self.try_optimize_lambda_call(&proc, &args)? {
+                        expr = new_expr;
+                        env = new_env;
+                        continue;
+                    } else {
+                        return self.apply_procedure(proc, args, env);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Try to optimize lambda call for tail recursion
+    fn try_optimize_lambda_call(
+        &mut self,
+        proc: &Value,
+        args: &[Value],
+    ) -> Result<Option<(Expr, Rc<Environment>)>> {
+        let Value::Procedure(Procedure::Lambda {
+            params,
+            variadic,
+            body,
+            closure,
+        }) = proc else {
+            return Ok(None);
+        };
+
+        // Bind parameters in new environment
+        let new_env = closure.bind_parameters(params, args, *variadic)?;
+
+        // Evaluate all expressions except the last one
+        self.eval_body_except_last(body, &new_env)?;
+
+        // Return the last expression for tail call optimization
+        if let Some(last_expr) = body.last() {
+            Ok(Some((last_expr.clone(), Rc::new(new_env))))
+        } else {
+            // Empty body returns undefined, no optimization needed
+            Ok(None)
+        }
+    }
+
+    /// Evaluate all body expressions except the last one
+    fn eval_body_except_last(&mut self, body: &[Expr], env: &Environment) -> Result<()> {
+        for expr in &body[..body.len().saturating_sub(1)] {
+            self.eval_impl(expr.clone(), Rc::new(env.clone()))?;
+        }
+        Ok(())
+    }
+
+    /// Evaluation implementation including tail call determination
+    fn eval_impl_tail(&mut self, expr: Expr, env: Rc<Environment>) -> Result<TailCallInfo> {
+        let Expr::List(exprs) = expr else {
+            return Ok(TailCallInfo::None);
+        };
+
+        if exprs.is_empty() {
+            return Ok(TailCallInfo::None);
+        }
+
+        let operator = &exprs[0];
+        let operands = &exprs[1..];
+
+        // Check for special forms
+        if let Some(tail_info) = self.try_eval_special_form_tail(operator, operands, env.clone())? {
+            return Ok(tail_info);
+        }
+
+        // For procedure calls, eligible for tail call optimization
+        self.eval_procedure_call_tail(operator, operands, env)
+    }
+
+    /// Try to evaluate special forms for tail call optimization
+    fn try_eval_special_form_tail(
+        &mut self,
+        operator: &Expr,
+        operands: &[Expr],
+        env: Rc<Environment>,
+    ) -> Result<Option<TailCallInfo>> {
+        let Expr::Variable(name) = operator else {
+            return Ok(None);
+        };
+
+        match name.as_str() {
+            "if" => Ok(Some(self.eval_if_tail(operands, env)?)),
+            "begin" => Ok(Some(self.eval_begin_tail(operands, env)?)),
+            // Special forms that are not tail-call optimizable
+            "define" | "set!" | "lambda" | "quote" | "and" | "or" | "do" => {
+                Ok(Some(TailCallInfo::None))
+            }
+            _ => Ok(None), // Not a special form
+        }
+    }
+
+    /// Evaluate procedure call for tail call optimization
+    fn eval_procedure_call_tail(
+        &mut self,
+        operator: &Expr,
+        operands: &[Expr],
+        env: Rc<Environment>,
+    ) -> Result<TailCallInfo> {
+        let proc = self.eval_impl(operator.clone(), env.clone())?;
+        let args = self.eval_operands(operands, env)?;
+        Ok(TailCallInfo::Call { proc, args })
+    }
+
+    /// Evaluate a list of operands
+    fn eval_operands(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Vec<Value>> {
+        operands
+            .iter()
+            .map(|operand| self.eval_impl(operand.clone(), env.clone()))
+            .collect()
     }
 
     /// Internal evaluation implementation
@@ -98,33 +238,57 @@ impl Evaluator {
         let operator = &exprs[0];
         let operands = &exprs[1..];
 
-        // Check for special forms (note: macros are already expanded at this point)
-        if let Expr::Variable(name) = operator {
-            match name.as_str() {
-                "quote" => return self.eval_quote_special(operands),
-                "define" => return self.eval_define(operands, env),
-                "set!" => return self.eval_set(operands, env),
-                "lambda" => return self.eval_lambda(operands, env),
-                "if" => return self.eval_if(operands, env),
-                "and" => return self.eval_and(operands, env),
-                "or" => return self.eval_or(operands, env),
-                "begin" => return self.eval_begin(operands, env),
-                "do" => return self.eval_do(operands, env),
-                _ => {} // Not a special form, treat as procedure call
-            }
+        // Try to evaluate as special form first
+        if let Some(result) = self.try_eval_special_form(operator, operands, env.clone())? {
+            return Ok(result);
         }
 
-        // Evaluate operator
+        // Evaluate as procedure call
+        self.eval_procedure_call(operator, operands, env)
+    }
+
+    /// Try to evaluate as a special form
+    fn try_eval_special_form(
+        &mut self,
+        operator: &Expr,
+        operands: &[Expr],
+        env: Rc<Environment>,
+    ) -> Result<Option<Value>> {
+        let Expr::Variable(name) = operator else {
+            return Ok(None);
+        };
+
+        let result = match name.as_str() {
+            "quote" => self.eval_quote_special(operands)?,
+            "define" => self.eval_define(operands, env)?,
+            "set!" => self.eval_set(operands, env)?,
+            "lambda" => self.eval_lambda(operands, env)?,
+            "if" => self.eval_if(operands, env)?,
+            "and" => self.eval_and(operands, env)?,
+            "or" => self.eval_or(operands, env)?,
+            "begin" => self.eval_begin(operands, env)?,
+            "do" => self.eval_do(operands, env)?,
+            _ => return Ok(None), // Not a special form
+        };
+
+        Ok(Some(result))
+    }
+
+    /// Evaluate a regular procedure call
+    fn eval_procedure_call(
+        &mut self,
+        operator: &Expr,
+        operands: &[Expr],
+        env: Rc<Environment>,
+    ) -> Result<Value> {
         let proc = self.eval_impl(operator.clone(), env.clone())?;
-
-        // Evaluate operands
-        let mut args = Vec::new();
-        for operand in operands {
-            args.push(self.eval_impl(operand.clone(), env.clone())?);
-        }
-
-        // Apply procedure
+        let args = self.eval_operands(operands, env.clone())?;
         self.apply_procedure(proc, args, env)
+    }
+
+    /// Public interface for calling procedures from host code
+    pub fn call_procedure(&mut self, proc: Value, args: Vec<Value>) -> Result<Value> {
+        self.apply_procedure(proc, args, self.global_env.clone())
     }
 
     /// Apply a procedure to arguments
@@ -157,12 +321,26 @@ impl Evaluator {
                     // Create new environment with parameter bindings
                     let new_env = closure.bind_parameters(&params, &args, variadic)?;
 
-                    // Evaluate body expressions
-                    let mut result = Value::Undefined;
-                    for expr in body {
-                        result = self.eval_impl(expr, Rc::new(new_env.clone()))?;
+                    // Evaluate body expressions with tail call optimization
+                    if body.is_empty() {
+                        return Ok(Value::Undefined);
                     }
-                    Ok(result)
+
+                    // Evaluate all expressions except the last one
+                    for expr in &body[..body.len() - 1] {
+                        self.eval_impl(expr.clone(), Rc::new(new_env.clone()))?;
+                    }
+
+                    // The last expression is in tail position
+                    if let Some(last_expr) = body.last() {
+                        self.eval_with_tail_optimization(last_expr.clone(), Rc::new(new_env))
+                    } else {
+                        Ok(Value::Undefined)
+                    }
+                }
+                Procedure::HostFunction { func, .. } => {
+                    // Arity is already validated by HostFunctionRegistry wrapper
+                    func(&args)
                 }
                 Procedure::Continuation { .. } => {
                     // TODO: Implement continuations
@@ -472,6 +650,29 @@ impl Evaluator {
         }
     }
 
+    /// Tail call version of if special form
+    fn eval_if_tail(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<TailCallInfo> {
+        match operands.len() {
+            2 => {
+                let test = self.eval_impl(operands[0].clone(), env.clone())?;
+                if test.is_truthy() {
+                    self.eval_impl_tail(operands[1].clone(), env)
+                } else {
+                    Ok(TailCallInfo::None)
+                }
+            }
+            3 => {
+                let test = self.eval_impl(operands[0].clone(), env.clone())?;
+                if test.is_truthy() {
+                    self.eval_impl_tail(operands[1].clone(), env)
+                } else {
+                    self.eval_impl_tail(operands[2].clone(), env)
+                }
+            }
+            _ => Ok(TailCallInfo::None),
+        }
+    }
+
     /// Evaluate begin special form
     fn eval_begin(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
         if operands.is_empty() {
@@ -483,6 +684,25 @@ impl Evaluator {
             result = self.eval_impl(expr.clone(), env.clone())?;
         }
         Ok(result)
+    }
+
+    /// Tail call version of begin special form
+    fn eval_begin_tail(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<TailCallInfo> {
+        if operands.is_empty() {
+            return Ok(TailCallInfo::None);
+        }
+
+        // Normal evaluation for all expressions except the last one
+        for expr in &operands[..operands.len() - 1] {
+            self.eval_impl(expr.clone(), env.clone())?;
+        }
+
+        // The last expression is eligible for tail call optimization
+        if let Some(last_expr) = operands.last() {
+            self.eval_impl_tail(last_expr.clone(), env)
+        } else {
+            Ok(TailCallInfo::None)
+        }
     }
 
     // Note: cond, case, let, let*, letrec are now handled by macros

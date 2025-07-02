@@ -7,7 +7,7 @@ use std::fmt;
 use std::rc::Rc;
 
 /// Runtime values in Scheme
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub enum Value {
     /// Undefined value (used for uninitialized variables)
     Undefined,
@@ -36,7 +36,7 @@ pub enum Value {
 }
 
 /// Procedure representation
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub enum Procedure {
     /// User-defined procedure (lambda)
     Lambda {
@@ -58,6 +58,15 @@ pub enum Procedure {
         /// Function pointer
         func: fn(&[Value]) -> crate::Result<Value>,
     },
+    /// Host function (dynamic closure)
+    HostFunction {
+        /// Function name
+        name: String,
+        /// Arity (number of arguments, None for variadic)
+        arity: Option<usize>,
+        /// Function closure
+        func: crate::host::HostFunc,
+    },
     /// Continuation (for call/cc)
     Continuation {
         /// Captured continuation
@@ -66,7 +75,7 @@ pub enum Procedure {
 }
 
 /// Port types for I/O
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone)]
 pub enum Port {
     /// Input port
     Input,
@@ -127,6 +136,7 @@ impl fmt::Display for Value {
                     write!(f, ")>")
                 }
                 Procedure::Builtin { name, .. } => write!(f, "#<builtin {name}>"),
+                Procedure::HostFunction { name, .. } => write!(f, "#<host-function {name}>"),
                 Procedure::Continuation { .. } => write!(f, "#<continuation>"),
             },
             Value::Vector(values) => {
@@ -333,6 +343,148 @@ impl Value {
             (Value::Symbol(a), Value::Symbol(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
             _ => std::ptr::eq(self, other),
+        }
+    }
+}
+
+impl std::fmt::Debug for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Undefined => write!(f, "Undefined"),
+            Self::Boolean(arg0) => f.debug_tuple("Boolean").field(arg0).finish(),
+            Self::Number(arg0) => f.debug_tuple("Number").field(arg0).finish(),
+            Self::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
+            Self::Character(arg0) => f.debug_tuple("Character").field(arg0).finish(),
+            Self::Symbol(arg0) => f.debug_tuple("Symbol").field(arg0).finish(),
+            Self::Pair(arg0, arg1) => f.debug_tuple("Pair").field(arg0).field(arg1).finish(),
+            Self::Nil => write!(f, "Nil"),
+            Self::Procedure(arg0) => f.debug_tuple("Procedure").field(arg0).finish(),
+            Self::Vector(arg0) => f.debug_tuple("Vector").field(arg0).finish(),
+            Self::Port(arg0) => f.debug_tuple("Port").field(arg0).finish(),
+            Self::External(arg0) => f.debug_tuple("External").field(arg0).finish(),
+        }
+    }
+}
+
+impl PartialEq for Value {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Boolean(l0), Self::Boolean(r0)) => l0 == r0,
+            (Self::Number(l0), Self::Number(r0)) => l0 == r0,
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::Character(l0), Self::Character(r0)) => l0 == r0,
+            (Self::Symbol(l0), Self::Symbol(r0)) => l0 == r0,
+            (Self::Pair(l0, l1), Self::Pair(r0, r1)) => l0 == r0 && l1 == r1,
+            (Self::Procedure(l0), Self::Procedure(r0)) => l0 == r0,
+            (Self::Vector(l0), Self::Vector(r0)) => l0 == r0,
+            (Self::Port(l0), Self::Port(r0)) => l0 == r0,
+            (Self::External(l0), Self::External(r0)) => l0.id == r0.id,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
+}
+
+impl std::fmt::Debug for Procedure {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Lambda {
+                params,
+                variadic,
+                body,
+                ..
+            } => f
+                .debug_struct("Lambda")
+                .field("params", params)
+                .field("variadic", variadic)
+                .field("body", body)
+                .finish(),
+            Self::Builtin { name, arity, .. } => f
+                .debug_struct("Builtin")
+                .field("name", name)
+                .field("arity", arity)
+                .finish(),
+            Self::HostFunction { name, arity, .. } => f
+                .debug_struct("HostFunction")
+                .field("name", name)
+                .field("arity", arity)
+                .finish(),
+            Self::Continuation { stack } => f
+                .debug_struct("Continuation")
+                .field("stack", stack)
+                .finish(),
+        }
+    }
+}
+
+impl PartialEq for Procedure {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                Self::Lambda {
+                    params: l_params,
+                    variadic: l_variadic,
+                    body: l_body,
+                    closure: l_closure,
+                },
+                Self::Lambda {
+                    params: r_params,
+                    variadic: r_variadic,
+                    body: r_body,
+                    closure: r_closure,
+                },
+            ) => {
+                l_params == r_params
+                    && l_variadic == r_variadic
+                    && l_body == r_body
+                    && std::ptr::eq(l_closure.as_ref(), r_closure.as_ref())
+            }
+            (
+                Self::Builtin {
+                    name: l_name,
+                    arity: l_arity,
+                    ..
+                },
+                Self::Builtin {
+                    name: r_name,
+                    arity: r_arity,
+                    ..
+                },
+            ) => l_name == r_name && l_arity == r_arity,
+            (
+                Self::HostFunction {
+                    name: l_name,
+                    arity: l_arity,
+                    ..
+                },
+                Self::HostFunction {
+                    name: r_name,
+                    arity: r_arity,
+                    ..
+                },
+            ) => l_name == r_name && l_arity == r_arity,
+            (Self::Continuation { stack: l_stack }, Self::Continuation { stack: r_stack }) => {
+                l_stack == r_stack
+            }
+            _ => false,
+        }
+    }
+}
+
+impl std::fmt::Debug for Port {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Input => write!(f, "Input"),
+            Self::Output => write!(f, "Output"),
+            Self::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
+        }
+    }
+}
+
+impl PartialEq for Port {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::String(l0), Self::String(r0)) => l0 == r0,
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
 }
