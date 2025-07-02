@@ -584,7 +584,10 @@ mod tests {
     #[test]
     fn test_type_conversion() {
         assert_eq!(42i64.to_scheme().unwrap(), Value::from(42i64));
-        assert_eq!(std::f64::consts::PI.to_scheme().unwrap(), Value::from(std::f64::consts::PI));
+        assert_eq!(
+            std::f64::consts::PI.to_scheme().unwrap(),
+            Value::from(std::f64::consts::PI)
+        );
         assert_eq!(true.to_scheme().unwrap(), Value::from(true));
         assert_eq!("hello".to_scheme().unwrap(), Value::from("hello"));
 
