@@ -173,7 +173,7 @@ impl<'a> Lexer<'a> {
             let denominator = &s[slash_pos + 1..];
             if let (Ok(n), Ok(d)) = (numerator.parse::<i64>(), denominator.parse::<i64>()) {
                 if d == 0 {
-                    return Err(LambdustError::LexerError(
+                    return Err(LambdustError::lexer_error(
                         "Division by zero in rational".to_string(),
                     ));
                 }
@@ -193,7 +193,7 @@ impl<'a> Lexer<'a> {
             return Ok(Token::Number(SchemeNumber::Integer(i)));
         }
 
-        Err(LambdustError::LexerError(format!("Invalid number: {s}")))
+        Err(LambdustError::lexer_error(format!("Invalid number: {s}")))
     }
 
     /// Read a string token
@@ -215,7 +215,9 @@ impl<'a> Lexer<'a> {
                     Some('"') => string_value.push('"'),
                     Some(c) => string_value.push(c),
                     None => {
-                        return Err(LambdustError::LexerError("Unterminated string".to_string()));
+                        return Err(LambdustError::lexer_error(
+                            "Unterminated string".to_string(),
+                        ));
                     }
                 }
                 self.advance();
@@ -225,7 +227,9 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Err(LambdustError::LexerError("Unterminated string".to_string()))
+        Err(LambdustError::lexer_error(
+            "Unterminated string".to_string(),
+        ))
     }
 
     /// Read a character token
@@ -262,7 +266,7 @@ impl<'a> Lexer<'a> {
                 self.advance();
                 Ok(Token::Character(ch))
             }
-            None => Err(LambdustError::LexerError(
+            None => Err(LambdustError::lexer_error(
                 "Incomplete character literal".to_string(),
             )),
         }
@@ -373,6 +377,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::approx_constant)]
     fn test_numbers() {
         let tokens = tokenize("42 3.14 1/2").unwrap();
         assert_eq!(

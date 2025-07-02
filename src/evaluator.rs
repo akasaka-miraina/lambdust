@@ -65,7 +65,7 @@ impl Evaluator {
     pub fn eval_in_env(&mut self, expr: Expr, env: Rc<Environment>) -> Result<Value> {
         // Check recursion depth
         if self.recursion_depth > MAX_RECURSION_DEPTH {
-            return Err(LambdustError::StackOverflow);
+            return Err(LambdustError::stack_overflow());
         }
 
         self.recursion_depth += 1;
@@ -82,11 +82,13 @@ impl Evaluator {
     ) -> Result<Value> {
         loop {
             let tail_info = self.eval_impl_tail(expr.clone(), env.clone())?;
-            
+
             match tail_info {
                 TailCallInfo::None => return self.eval_impl(expr, env),
                 TailCallInfo::Call { proc, args } => {
-                    if let Some((new_expr, new_env)) = self.try_optimize_lambda_call(&proc, &args)? {
+                    if let Some((new_expr, new_env)) =
+                        self.try_optimize_lambda_call(&proc, &args)?
+                    {
                         expr = new_expr;
                         env = new_env;
                         continue;
@@ -109,7 +111,8 @@ impl Evaluator {
             variadic,
             body,
             closure,
-        }) = proc else {
+        }) = proc
+        else {
             return Ok(None);
         };
 
@@ -173,7 +176,8 @@ impl Evaluator {
             "if" => Ok(Some(self.eval_if_tail(operands, env)?)),
             "begin" => Ok(Some(self.eval_begin_tail(operands, env)?)),
             // Special forms that are not tail-call optimizable
-            "define" | "set!" | "lambda" | "quote" | "and" | "or" | "do" => {
+            "define" | "set!" | "lambda" | "quote" | "and" | "or" | "do" | "apply" | "map"
+            | "for-each" | "call-with-values" | "delay" | "lazy" | "force" | "syntax-rules" => {
                 Ok(Some(TailCallInfo::None))
             }
             _ => Ok(None), // Not a special form
@@ -208,10 +212,10 @@ impl Evaluator {
             Expr::List(exprs) => self.eval_list(exprs, env),
             Expr::Quote(expr) => self.eval_quote(*expr),
             Expr::Quasiquote(expr) => self.eval_quasiquote(*expr, env),
-            Expr::Unquote(_) => Err(LambdustError::SyntaxError(
+            Expr::Unquote(_) => Err(LambdustError::syntax_error(
                 "unquote outside of quasiquote".to_string(),
             )),
-            Expr::UnquoteSplicing(_) => Err(LambdustError::SyntaxError(
+            Expr::UnquoteSplicing(_) => Err(LambdustError::syntax_error(
                 "unquote-splicing outside of quasiquote".to_string(),
             )),
             Expr::DottedList(exprs, tail) => self.eval_dotted_list(exprs, *tail, env),
@@ -268,6 +272,14 @@ impl Evaluator {
             "or" => self.eval_or(operands, env)?,
             "begin" => self.eval_begin(operands, env)?,
             "do" => self.eval_do(operands, env)?,
+            "apply" => self.eval_apply(operands, env)?,
+            "map" => self.eval_map(operands, env)?,
+            "for-each" => self.eval_for_each(operands, env)?,
+            "call-with-values" => self.eval_call_with_values(operands, env)?,
+            "delay" => self.eval_delay(operands, env)?,
+            "lazy" => self.eval_lazy(operands, env)?,
+            "force" => self.eval_force(operands, env)?,
+            "syntax-rules" => self.eval_syntax_rules(operands, env)?,
             _ => return Ok(None), // Not a special form
         };
 
@@ -304,10 +316,7 @@ impl Evaluator {
                     // Check arity for built-in procedures
                     if let Some(expected) = arity {
                         if args.len() != expected {
-                            return Err(LambdustError::ArityError {
-                                expected,
-                                actual: args.len(),
-                            });
+                            return Err(LambdustError::arity_error(expected, args.len()));
                         }
                     }
                     func(&args)
@@ -344,12 +353,14 @@ impl Evaluator {
                 }
                 Procedure::Continuation { .. } => {
                     // TODO: Implement continuations
-                    Err(LambdustError::RuntimeError(
+                    Err(LambdustError::runtime_error(
                         "Continuations not yet implemented".to_string(),
                     ))
                 }
             },
-            _ => Err(LambdustError::TypeError(format!("Not a procedure: {proc}"))),
+            _ => Err(LambdustError::type_error(format!(
+                "Not a procedure: {proc}"
+            ))),
         }
     }
 
@@ -361,10 +372,7 @@ impl Evaluator {
     /// Evaluate quote special form
     fn eval_quote_special(&self, operands: &[Expr]) -> Result<Value> {
         if operands.len() != 1 {
-            return Err(LambdustError::ArityError {
-                expected: 1,
-                actual: operands.len(),
-            });
+            return Err(LambdustError::arity_error(1, operands.len()));
         }
         self.eval_quote(operands[0].clone())
     }
@@ -442,7 +450,7 @@ impl Evaluator {
                 }
                 Ok(result)
             }
-            _ => Err(LambdustError::RuntimeError(
+            _ => Err(LambdustError::runtime_error(
                 "Cannot quote this expression".to_string(),
             )),
         }
@@ -472,7 +480,7 @@ impl Evaluator {
     /// Evaluate define special form
     fn eval_define(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
         if operands.len() < 2 {
-            return Err(LambdustError::SyntaxError(
+            return Err(LambdustError::syntax_error(
                 "define: too few arguments".to_string(),
             ));
         }
@@ -481,7 +489,7 @@ impl Evaluator {
             // (define var value)
             Expr::Variable(name) => {
                 if operands.len() != 2 {
-                    return Err(LambdustError::SyntaxError(
+                    return Err(LambdustError::syntax_error(
                         "define: too many arguments".to_string(),
                     ));
                 }
@@ -492,7 +500,7 @@ impl Evaluator {
             // (define (name params...) body...)
             Expr::List(def_exprs) => {
                 if def_exprs.is_empty() {
-                    return Err(LambdustError::SyntaxError(
+                    return Err(LambdustError::syntax_error(
                         "define: empty function definition".to_string(),
                     ));
                 }
@@ -500,7 +508,7 @@ impl Evaluator {
                 let name = match &def_exprs[0] {
                     Expr::Variable(n) => n.clone(),
                     _ => {
-                        return Err(LambdustError::SyntaxError(
+                        return Err(LambdustError::syntax_error(
                             "define: invalid function name".to_string(),
                         ));
                     }
@@ -510,7 +518,7 @@ impl Evaluator {
                     .iter()
                     .map(|expr| match expr {
                         Expr::Variable(param) => Ok(param.clone()),
-                        _ => Err(LambdustError::SyntaxError(
+                        _ => Err(LambdustError::syntax_error(
                             "define: invalid parameter".to_string(),
                         )),
                     })
@@ -529,7 +537,7 @@ impl Evaluator {
                 env.define(name, lambda);
                 Ok(Value::Undefined)
             }
-            _ => Err(LambdustError::SyntaxError(
+            _ => Err(LambdustError::syntax_error(
                 "define: invalid syntax".to_string(),
             )),
         }
@@ -538,16 +546,13 @@ impl Evaluator {
     /// Evaluate set! special form
     fn eval_set(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
         if operands.len() != 2 {
-            return Err(LambdustError::ArityError {
-                expected: 2,
-                actual: operands.len(),
-            });
+            return Err(LambdustError::arity_error(2, operands.len()));
         }
 
         let name = match &operands[0] {
             Expr::Variable(n) => n,
             _ => {
-                return Err(LambdustError::SyntaxError(
+                return Err(LambdustError::syntax_error(
                     "set!: not a variable".to_string(),
                 ));
             }
@@ -561,7 +566,7 @@ impl Evaluator {
     /// Evaluate lambda special form
     fn eval_lambda(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
         if operands.len() < 2 {
-            return Err(LambdustError::SyntaxError(
+            return Err(LambdustError::syntax_error(
                 "lambda: too few arguments".to_string(),
             ));
         }
@@ -573,7 +578,7 @@ impl Evaluator {
                     .iter()
                     .map(|expr| match expr {
                         Expr::Variable(param) => Ok(param.clone()),
-                        _ => Err(LambdustError::SyntaxError(
+                        _ => Err(LambdustError::syntax_error(
                             "lambda: invalid parameter".to_string(),
                         )),
                     })
@@ -589,7 +594,7 @@ impl Evaluator {
                     .iter()
                     .map(|expr| match expr {
                         Expr::Variable(param) => Ok(param.clone()),
-                        _ => Err(LambdustError::SyntaxError(
+                        _ => Err(LambdustError::syntax_error(
                             "lambda: invalid parameter".to_string(),
                         )),
                     })
@@ -601,14 +606,14 @@ impl Evaluator {
                         (params, true)
                     }
                     _ => {
-                        return Err(LambdustError::SyntaxError(
+                        return Err(LambdustError::syntax_error(
                             "lambda: invalid rest parameter".to_string(),
                         ));
                     }
                 }
             }
             _ => {
-                return Err(LambdustError::SyntaxError(
+                return Err(LambdustError::syntax_error(
                     "lambda: invalid parameter list".to_string(),
                 ));
             }
@@ -643,10 +648,7 @@ impl Evaluator {
                     self.eval_impl(operands[2].clone(), env)
                 }
             }
-            _ => Err(LambdustError::ArityError {
-                expected: 2,
-                actual: operands.len(),
-            }),
+            _ => Err(LambdustError::arity_error(2, operands.len())),
         }
     }
 
@@ -728,9 +730,209 @@ impl Evaluator {
     }
 
     fn eval_do(&mut self, _operands: &[Expr], _env: Rc<Environment>) -> Result<Value> {
-        Err(LambdustError::RuntimeError(
+        Err(LambdustError::runtime_error(
             "do not yet implemented".to_string(),
         ))
+    }
+
+    /// Evaluate apply special form: (apply proc args)
+    fn eval_apply(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
+        if operands.len() != 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        let proc = self.eval_impl(operands[0].clone(), env.clone())?;
+        let args_value = self.eval_impl(operands[1].clone(), env.clone())?;
+
+        // Convert arguments to vector
+        let arguments = match args_value.to_vector() {
+            Some(vec) => vec,
+            None => {
+                return Err(LambdustError::type_error(format!(
+                    "apply: expected list of arguments, got {}",
+                    args_value
+                )));
+            }
+        };
+
+        // Apply the procedure to the arguments
+        self.apply_procedure(proc, arguments, env)
+    }
+
+    /// Evaluate map special form: (map proc list)
+    fn eval_map(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
+        if operands.len() != 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        let proc = self.eval_impl(operands[0].clone(), env.clone())?;
+        let list_value = self.eval_impl(operands[1].clone(), env.clone())?;
+
+        // Convert list to vector
+        let elements = match list_value.to_vector() {
+            Some(vec) => vec,
+            None => {
+                return Err(LambdustError::type_error(format!(
+                    "map: expected list, got {}",
+                    list_value
+                )));
+            }
+        };
+
+        let mut result = Vec::new();
+
+        // Apply procedure to each element
+        for element in elements {
+            let mapped_value = self.apply_procedure(proc.clone(), vec![element], env.clone())?;
+            result.push(mapped_value);
+        }
+
+        Ok(Value::from_vector(result))
+    }
+
+    /// Evaluate for-each special form: (for-each proc list)
+    fn eval_for_each(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
+        if operands.len() != 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        let proc = self.eval_impl(operands[0].clone(), env.clone())?;
+        let list_value = self.eval_impl(operands[1].clone(), env.clone())?;
+
+        // Convert list to vector
+        let elements = match list_value.to_vector() {
+            Some(vec) => vec,
+            None => {
+                return Err(LambdustError::type_error(format!(
+                    "for-each: expected list, got {}",
+                    list_value
+                )));
+            }
+        };
+
+        // Apply procedure to each element (for side effects)
+        for element in elements {
+            self.apply_procedure(proc.clone(), vec![element], env.clone())?;
+        }
+
+        Ok(Value::Undefined)
+    }
+
+    /// Evaluate call-with-values special form: (call-with-values producer consumer)
+    fn eval_call_with_values(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
+        if operands.len() != 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        let producer = self.eval_impl(operands[0].clone(), env.clone())?;
+        let consumer = self.eval_impl(operands[1].clone(), env.clone())?;
+
+        // Call the producer procedure with no arguments
+        let producer_result = self.apply_procedure(producer, vec![], env.clone())?;
+
+        // Convert the result to arguments for the consumer
+        let consumer_args = match producer_result {
+            Value::Values(values) => values,
+            single_value => vec![single_value],
+        };
+
+        // Call the consumer with the values from the producer
+        self.apply_procedure(consumer, consumer_args, env)
+    }
+
+    /// Evaluate delay special form: (delay expr)
+    fn eval_delay(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        // Create a lazy promise without evaluating the expression
+        Ok(crate::builtins::lazy::make_lazy_promise(
+            operands[0].clone(),
+            env,
+        ))
+    }
+
+    /// Evaluate lazy special form: (lazy expr)
+    fn eval_lazy(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        // lazy is similar to delay but for SRFI 45 semantics
+        // For now, treat it the same as delay
+        Ok(crate::builtins::lazy::make_lazy_promise(
+            operands[0].clone(),
+            env,
+        ))
+    }
+
+    /// Evaluate force special form: (force promise)
+    fn eval_force(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        let promise_value = self.eval_impl(operands[0].clone(), env)?;
+
+        match promise_value {
+            Value::Promise(promise) => crate::builtins::lazy::force_promise(&promise, self),
+            // If it's not a promise, just return the value (per SRFI 45)
+            value => Ok(value),
+        }
+    }
+
+    /// Evaluate syntax-rules special form: (syntax-rules (literals) (pattern template) ...)
+    fn eval_syntax_rules(&mut self, operands: &[Expr], _env: Rc<Environment>) -> Result<Value> {
+        if operands.len() < 2 {
+            return Err(LambdustError::syntax_error(
+                "syntax-rules: requires at least literals and one rule".to_string(),
+            ));
+        }
+
+        // Parse literals list
+        let _literals = match &operands[0] {
+            Expr::List(_) => {
+                // For now, we'll ignore literals processing
+                // A full implementation would parse and store these
+                &operands[0]
+            }
+            _ => {
+                return Err(LambdustError::syntax_error(
+                    "syntax-rules: literals must be a list".to_string(),
+                ));
+            }
+        };
+
+        // Parse rules (pattern template pairs)
+        let mut _rules: Vec<(crate::macros::Pattern, crate::macros::Template)> = Vec::new();
+        for rule in &operands[1..] {
+            match rule {
+                Expr::List(rule_parts) if rule_parts.len() == 2 => {
+                    // Parse pattern and template using SRFI 46 extensions
+                    let _pattern = self.macro_expander.parse_pattern_srfi46(&rule_parts[0])?;
+                    let _template = self.macro_expander.parse_template_srfi46(&rule_parts[1])?;
+                    // Store rules for later use
+                }
+                _ => {
+                    return Err(LambdustError::syntax_error(
+                        "syntax-rules: each rule must be (pattern template)".to_string(),
+                    ));
+                }
+            }
+        }
+
+        // For now, return a placeholder macro procedure
+        // A complete implementation would create a proper macro transformer
+        Ok(Value::Procedure(crate::value::Procedure::Builtin {
+            name: "syntax-rules-macro".to_string(),
+            arity: None,
+            func: |_args| {
+                Err(LambdustError::runtime_error(
+                    "syntax-rules macro not yet fully implemented".to_string(),
+                ))
+            },
+        }))
     }
 }
 
@@ -809,5 +1011,127 @@ mod tests {
     fn test_eval_begin() {
         let result = eval_str("(begin 1 2 3)").unwrap();
         assert_eq!(result, Value::from(3i64));
+    }
+
+    #[test]
+    fn test_eval_apply() {
+        // Test apply with built-in function
+        let result = eval_str("(apply + '(1 2 3))").unwrap();
+        assert_eq!(result, Value::from(6i64));
+
+        let result = eval_str("(apply * '(2 3 4))").unwrap();
+        assert_eq!(result, Value::from(24i64));
+    }
+
+    #[test]
+    fn test_eval_map() {
+        // Test map with built-in function (abs)
+        let result = eval_str("(map abs '(-1 -2 3 -4))").unwrap();
+        assert_eq!(
+            result,
+            Value::from_vector(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64),
+                Value::from(4i64)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_eval_for_each() {
+        // Test for-each - it should return undefined
+        let result = eval_str("(for-each abs '(1 2 3))").unwrap();
+        assert_eq!(result, Value::Undefined);
+    }
+
+    #[test]
+    fn test_higher_order_with_lambda() {
+        // Test apply with user-defined lambda
+        let result = eval_str("(apply (lambda (x y) (+ x y)) '(3 4))").unwrap();
+        assert_eq!(result, Value::from(7i64));
+
+        // Test map with user-defined lambda
+        let result = eval_str("(map (lambda (x) (* x x)) '(1 2 3 4))").unwrap();
+        assert_eq!(
+            result,
+            Value::from_vector(vec![
+                Value::from(1i64),
+                Value::from(4i64),
+                Value::from(9i64),
+                Value::from(16i64)
+            ])
+        );
+    }
+
+    #[test]
+    fn test_values_and_call_with_values() {
+        // Test values function
+        let result = eval_str("(values 1 2 3)").unwrap();
+        assert_eq!(
+            result,
+            Value::Values(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64)
+            ])
+        );
+
+        // Test call-with-values with single value
+        let result = eval_str("(call-with-values (lambda () 42) (lambda (x) x))").unwrap();
+        assert_eq!(result, Value::from(42i64));
+
+        // Test call-with-values with multiple values
+        let result =
+            eval_str("(call-with-values (lambda () (values 1 2 3)) (lambda (x y z) (+ x y z)))")
+                .unwrap();
+        assert_eq!(result, Value::from(6i64));
+
+        // Test call-with-values with values producer
+        let result =
+            eval_str("(call-with-values (lambda () (values 10 20)) (lambda (a b) (* a b)))")
+                .unwrap();
+        assert_eq!(result, Value::from(200i64));
+    }
+
+    #[test]
+    fn test_srfi_45_lazy_evaluation() {
+        // Test delay creates a promise
+        let result = eval_str("(promise? (delay (+ 1 2)))").unwrap();
+        assert_eq!(result, Value::Boolean(true));
+
+        // Test force evaluates a delayed expression
+        let result = eval_str("(force (delay (+ 1 2)))").unwrap();
+        assert_eq!(result, Value::from(3i64));
+
+        // Test force on non-promise returns the value
+        let result = eval_str("(force 42)").unwrap();
+        assert_eq!(result, Value::from(42i64));
+
+        // Test lazy creates a promise
+        let result = eval_str("(promise? (lazy (+ 3 4)))").unwrap();
+        assert_eq!(result, Value::Boolean(true));
+
+        // Test nested delay/force
+        let result = eval_str("(force (force (delay (delay (+ 5 6)))))").unwrap();
+        assert_eq!(result, Value::from(11i64));
+    }
+
+    #[test]
+    fn test_srfi_46_syntax_rules() {
+        // Test basic syntax-rules parsing
+        let result = eval_str("(syntax-rules () ((test x) x))");
+        assert!(result.is_ok());
+
+        // The result should be a procedure (macro transformer)
+        assert!(result.unwrap().is_procedure());
+
+        // Test syntax-rules with literals
+        let result = eval_str("(syntax-rules (else) ((test x) x))");
+        assert!(result.is_ok());
+
+        // Test invalid syntax-rules (missing rules)
+        let result = eval_str("(syntax-rules ())");
+        assert!(result.is_err());
     }
 }

@@ -203,9 +203,7 @@ impl ObjectRegistry {
         // TODO: Implement proper type converter registration
         // For now, just store the type name
         let dummy_converter = |_any_obj: &dyn Any| -> Result<Value> {
-            Err(LambdustError::TypeError(
-                "Type converter not implemented".to_string(),
-            ))
+            Err(LambdustError::type_error("Type converter not implemented"))
         };
 
         self.converters
@@ -349,8 +347,8 @@ impl LambdustBridge {
                 name: "call-external".to_string(),
                 arity: None, // Variadic
                 func: |_args| {
-                    Err(LambdustError::RuntimeError(
-                        "call-external not implemented yet".to_string(),
+                    Err(LambdustError::runtime_error(
+                        "call-external not implemented yet",
                     ))
                 },
             }),
@@ -362,8 +360,8 @@ impl LambdustBridge {
                 name: "get-property".to_string(),
                 arity: Some(2),
                 func: |_args| {
-                    Err(LambdustError::RuntimeError(
-                        "get-property not implemented yet".to_string(),
+                    Err(LambdustError::runtime_error(
+                        "get-property not implemented yet",
                     ))
                 },
             }),
@@ -375,8 +373,8 @@ impl LambdustBridge {
                 name: "set-property!".to_string(),
                 arity: Some(3),
                 func: |_args| {
-                    Err(LambdustError::RuntimeError(
-                        "set-property! not implemented yet".to_string(),
+                    Err(LambdustError::runtime_error(
+                        "set-property! not implemented yet",
                     ))
                 },
             }),
@@ -417,7 +415,7 @@ impl LambdustBridge {
     /// Load and evaluate a Scheme file
     pub fn load_file(&mut self, path: &str) -> Result<Value> {
         let content =
-            std::fs::read_to_string(path).map_err(|e| LambdustError::IoError(e.to_string()))?;
+            std::fs::read_to_string(path).map_err(|e| LambdustError::io_error(e.to_string()))?;
         self.eval(&content)
     }
 
@@ -447,10 +445,7 @@ impl Callable for CallableFunction {
     fn call(&self, args: &[Value]) -> Result<Value> {
         if let Some(expected_arity) = self.arity {
             if args.len() != expected_arity {
-                return Err(LambdustError::ArityError {
-                    expected: expected_arity,
-                    actual: args.len(),
-                });
+                return Err(LambdustError::arity_error(expected_arity, args.len()));
             }
         }
         (self.func)(args)
@@ -518,11 +513,9 @@ impl FromScheme for i64 {
             Value::Number(n) => match n {
                 crate::lexer::SchemeNumber::Integer(i) => Ok(*i),
                 crate::lexer::SchemeNumber::Real(r) => Ok(*r as i64),
-                _ => Err(LambdustError::TypeError(
-                    "Cannot convert to i64".to_string(),
-                )),
+                _ => Err(LambdustError::type_error("Cannot convert to i64")),
             },
-            _ => Err(LambdustError::TypeError("Expected number".to_string())),
+            _ => Err(LambdustError::type_error("Expected number")),
         }
     }
 }
@@ -533,11 +526,9 @@ impl FromScheme for f64 {
             Value::Number(n) => match n {
                 crate::lexer::SchemeNumber::Integer(i) => Ok(*i as f64),
                 crate::lexer::SchemeNumber::Real(r) => Ok(*r),
-                _ => Err(LambdustError::TypeError(
-                    "Cannot convert to f64".to_string(),
-                )),
+                _ => Err(LambdustError::type_error("Cannot convert to f64")),
             },
-            _ => Err(LambdustError::TypeError("Expected number".to_string())),
+            _ => Err(LambdustError::type_error("Expected number")),
         }
     }
 }
@@ -553,9 +544,7 @@ impl FromScheme for String {
         match value {
             Value::String(s) => Ok(s.clone()),
             Value::Symbol(s) => Ok(s.clone()),
-            _ => Err(LambdustError::TypeError(
-                "Expected string or symbol".to_string(),
-            )),
+            _ => Err(LambdustError::type_error("Expected string or symbol")),
         }
     }
 }
@@ -595,7 +584,10 @@ mod tests {
     #[test]
     fn test_type_conversion() {
         assert_eq!(42i64.to_scheme().unwrap(), Value::from(42i64));
-        assert_eq!(3.14f64.to_scheme().unwrap(), Value::from(3.14f64));
+        assert_eq!(
+            std::f64::consts::PI.to_scheme().unwrap(),
+            Value::from(std::f64::consts::PI)
+        );
         assert_eq!(true.to_scheme().unwrap(), Value::from(true));
         assert_eq!("hello".to_scheme().unwrap(), Value::from("hello"));
 
@@ -603,7 +595,7 @@ mod tests {
         assert_eq!(i64::from_scheme(&value).unwrap(), 42i64);
 
         let value = Value::from(true);
-        assert_eq!(bool::from_scheme(&value).unwrap(), true);
+        assert!(bool::from_scheme(&value).unwrap());
     }
 
     #[test]

@@ -102,17 +102,11 @@ impl FunctionSignature {
     pub fn validate_args(&self, args: &[Value]) -> Result<()> {
         if let Some(ref params) = self.parameters {
             if !self.variadic && args.len() != params.len() {
-                return Err(LambdustError::ArityError {
-                    expected: params.len(),
-                    actual: args.len(),
-                });
+                return Err(LambdustError::arity_error(params.len(), args.len()));
             }
 
             if self.variadic && args.len() < params.len() {
-                return Err(LambdustError::ArityError {
-                    expected: params.len(),
-                    actual: args.len(),
-                });
+                return Err(LambdustError::arity_error(params.len(), args.len()));
             }
 
             // Check required parameters
@@ -125,7 +119,7 @@ impl FunctionSignature {
             for (i, (param_type, arg)) in params[..check_count].iter().zip(args.iter()).enumerate()
             {
                 if !param_type.matches(arg) {
-                    return Err(LambdustError::TypeError(format!(
+                    return Err(LambdustError::type_error(format!(
                         "Parameter {}: expected {}, got {:?}",
                         i + 1,
                         param_type.name(),
@@ -140,7 +134,7 @@ impl FunctionSignature {
     /// Validate return value against this signature
     pub fn validate_return(&self, value: &Value) -> Result<()> {
         if !self.return_type.matches(value) {
-            return Err(LambdustError::TypeError(format!(
+            return Err(LambdustError::type_error(format!(
                 "Return value type mismatch: expected {}, got {:?}",
                 self.return_type.name(),
                 value
@@ -264,7 +258,7 @@ impl HostFunctionRegistry {
                         Value::String(s) => result.push_str(s),
                         Value::Symbol(s) => result.push_str(s),
                         _ => {
-                            return Err(LambdustError::TypeError(
+                            return Err(LambdustError::type_error(
                                 "host-string-append: all arguments must be strings".to_string(),
                             ));
                         }
@@ -280,10 +274,7 @@ impl HostFunctionRegistry {
             "host-length".to_string(),
             |args: &[Value]| -> Result<Value> {
                 if args.len() != 1 {
-                    return Err(LambdustError::ArityError {
-                        expected: 1,
-                        actual: args.len(),
-                    });
+                    return Err(LambdustError::arity_error(1, args.len()));
                 }
 
                 match &args[0] {
@@ -296,10 +287,10 @@ impl HostFunctionRegistry {
                                 vec.len() as i64,
                             )))
                         } else {
-                            Err(LambdustError::TypeError("Invalid list".to_string()))
+                            Err(LambdustError::type_error("Invalid list".to_string()))
                         }
                     }
-                    _ => Err(LambdustError::TypeError(
+                    _ => Err(LambdustError::type_error(
                         "host-length: argument must be a string or list".to_string(),
                     )),
                 }
@@ -334,10 +325,7 @@ impl FromSchemeArgs for () {
         if args.is_empty() {
             Ok(())
         } else {
-            Err(LambdustError::ArityError {
-                expected: 0,
-                actual: args.len(),
-            })
+            Err(LambdustError::arity_error(0, args.len()))
         }
     }
 
@@ -349,10 +337,7 @@ impl FromSchemeArgs for () {
 impl<T: Marshallable> FromSchemeArgs for (T,) {
     fn from_scheme_args(args: &[Value]) -> Result<Self> {
         if args.len() != 1 {
-            return Err(LambdustError::ArityError {
-                expected: 1,
-                actual: args.len(),
-            });
+            return Err(LambdustError::arity_error(1, args.len()));
         }
         Ok((T::from_scheme(&args[0])?,))
     }
@@ -365,10 +350,7 @@ impl<T: Marshallable> FromSchemeArgs for (T,) {
 impl<T1: Marshallable, T2: Marshallable> FromSchemeArgs for (T1, T2) {
     fn from_scheme_args(args: &[Value]) -> Result<Self> {
         if args.len() != 2 {
-            return Err(LambdustError::ArityError {
-                expected: 2,
-                actual: args.len(),
-            });
+            return Err(LambdustError::arity_error(2, args.len()));
         }
         Ok((T1::from_scheme(&args[0])?, T2::from_scheme(&args[1])?))
     }
@@ -381,10 +363,7 @@ impl<T1: Marshallable, T2: Marshallable> FromSchemeArgs for (T1, T2) {
 impl<T1: Marshallable, T2: Marshallable, T3: Marshallable> FromSchemeArgs for (T1, T2, T3) {
     fn from_scheme_args(args: &[Value]) -> Result<Self> {
         if args.len() != 3 {
-            return Err(LambdustError::ArityError {
-                expected: 3,
-                actual: args.len(),
-            });
+            return Err(LambdustError::arity_error(3, args.len()));
         }
         Ok((
             T1::from_scheme(&args[0])?,
@@ -444,10 +423,7 @@ mod tests {
             "test-add".to_string(),
             |args: &[Value]| -> Result<Value> {
                 if args.len() != 2 {
-                    return Err(LambdustError::ArityError {
-                        expected: 2,
-                        actual: args.len(),
-                    });
+                    return Err(LambdustError::arity_error(2, args.len()));
                 }
 
                 match (&args[0], &args[1]) {
@@ -455,7 +431,7 @@ mod tests {
                         Value::Number(SchemeNumber::Integer(a)),
                         Value::Number(SchemeNumber::Integer(b)),
                     ) => Ok(Value::Number(SchemeNumber::Integer(a + b))),
-                    _ => Err(LambdustError::TypeError("Expected numbers".to_string())),
+                    _ => Err(LambdustError::type_error("Expected numbers".to_string())),
                 }
             },
         );
@@ -525,8 +501,8 @@ mod tests {
             let result = func(&[]);
             assert!(result.is_err());
             match result.unwrap_err() {
-                LambdustError::TypeError(msg) => {
-                    assert!(msg.contains("Return value type mismatch"));
+                LambdustError::TypeError { message, .. } => {
+                    assert!(message.contains("Return value type mismatch"));
                 }
                 _ => panic!("Expected TypeError for return value mismatch"),
             }

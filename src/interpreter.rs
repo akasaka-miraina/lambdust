@@ -93,7 +93,7 @@ impl LambdustInterpreter {
         if exprs.len() < 2 {
             return false;
         }
-        
+
         matches!(&exprs[0], crate::ast::Expr::Variable(op) if op == "define")
     }
 
@@ -150,12 +150,12 @@ impl LambdustInterpreter {
                 if let Value::Procedure(_) = value {
                     self.apply_procedure(value, args.to_vec())
                 } else {
-                    Err(LambdustError::TypeError(format!(
+                    Err(LambdustError::type_error(format!(
                         "{name} is not a procedure"
                     )))
                 }
             }
-            Err(_) => Err(LambdustError::UndefinedVariable(name.to_string())),
+            Err(_) => Err(LambdustError::undefined_variable(name.to_string())),
         }
     }
 
@@ -175,7 +175,7 @@ impl LambdustInterpreter {
         // Use the evaluator's public interface for calling procedures
         match &procedure {
             Value::Procedure(_) => self.evaluator.call_procedure(procedure, args),
-            _ => Err(LambdustError::TypeError("Not a procedure".to_string())),
+            _ => Err(LambdustError::type_error("Not a procedure".to_string())),
         }
     }
 
@@ -219,7 +219,7 @@ impl LambdustInterpreter {
     /// Load and execute Scheme code from a string with error context
     pub fn load_string(&mut self, code: &str, context: &str) -> Result<Value> {
         self.eval_string(code)
-            .map_err(|e| LambdustError::RuntimeError(format!("Error in {context}: {e}")))
+            .map_err(|e| LambdustError::runtime_error(format!("Error in {context}: {e}")))
     }
 }
 
@@ -321,10 +321,7 @@ mod tests {
             "test-add".to_string(),
             |args: &[Value]| -> Result<Value> {
                 if args.len() != 2 {
-                    return Err(LambdustError::ArityError {
-                        expected: 2,
-                        actual: args.len(),
-                    });
+                    return Err(LambdustError::arity_error(2, args.len()));
                 }
 
                 match (&args[0], &args[1]) {
@@ -332,7 +329,7 @@ mod tests {
                         Value::Number(SchemeNumber::Integer(a)),
                         Value::Number(SchemeNumber::Integer(b)),
                     ) => Ok(Value::Number(SchemeNumber::Integer(a + b))),
-                    _ => Err(LambdustError::TypeError("Expected numbers".to_string())),
+                    _ => Err(LambdustError::type_error("Expected numbers".to_string())),
                 }
             },
         );
@@ -358,15 +355,12 @@ mod tests {
             "string-length".to_string(),
             |args: &[Value]| -> Result<Value> {
                 if args.len() != 1 {
-                    return Err(LambdustError::ArityError {
-                        expected: 1,
-                        actual: args.len(),
-                    });
+                    return Err(LambdustError::arity_error(1, args.len()));
                 }
 
                 match &args[0] {
                     Value::String(s) => Ok(Value::Number(SchemeNumber::Integer(s.len() as i64))),
-                    _ => Err(LambdustError::TypeError("Expected string".to_string())),
+                    _ => Err(LambdustError::type_error("Expected string".to_string())),
                 }
             },
         );

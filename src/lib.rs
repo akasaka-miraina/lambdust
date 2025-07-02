@@ -78,6 +78,7 @@ pub mod builtins;
 pub mod environment;
 pub mod error;
 pub mod evaluator;
+pub mod formal_evaluator;
 pub mod host;
 pub mod interpreter;
 pub mod lexer;
@@ -206,7 +207,7 @@ impl Interpreter {
     /// ```
     pub fn load_file(&mut self, path: &str) -> Result<Value> {
         let content =
-            std::fs::read_to_string(path).map_err(|e| LambdustError::IoError(e.to_string()))?;
+            std::fs::read_to_string(path).map_err(|e| LambdustError::io_error(e.to_string()))?;
         self.eval(&content)
     }
 }

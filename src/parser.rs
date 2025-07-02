@@ -55,7 +55,7 @@ impl Parser {
             Some(Token::Unquote) => self.parse_unquote(),
             Some(Token::UnquoteSplicing) => self.parse_unquote_splicing(),
             Some(token) => self.parse_atom(token.clone()),
-            None => Err(LambdustError::ParseError(
+            None => Err(LambdustError::parse_error(
                 "Unexpected end of input".to_string(),
             )),
         }
@@ -76,7 +76,7 @@ impl Parser {
                         if let Some(tail_expr) = tail {
                             return Ok(Expr::DottedList(elements, Box::new(tail_expr)));
                         } else {
-                            return Err(LambdustError::ParseError(
+                            return Err(LambdustError::parse_error(
                                 "Missing tail after dot".to_string(),
                             ));
                         }
@@ -86,12 +86,12 @@ impl Parser {
                 }
                 Token::Dot => {
                     if has_dot {
-                        return Err(LambdustError::ParseError(
+                        return Err(LambdustError::parse_error(
                             "Multiple dots in list".to_string(),
                         ));
                     }
                     if elements.is_empty() {
-                        return Err(LambdustError::ParseError(
+                        return Err(LambdustError::parse_error(
                             "Dot at beginning of list".to_string(),
                         ));
                     }
@@ -101,7 +101,7 @@ impl Parser {
                 }
                 _ => {
                     if has_dot && tail.is_some() {
-                        return Err(LambdustError::ParseError(
+                        return Err(LambdustError::parse_error(
                             "Multiple expressions after dot".to_string(),
                         ));
                     }
@@ -110,7 +110,7 @@ impl Parser {
             }
         }
 
-        Err(LambdustError::ParseError("Unterminated list".to_string()))
+        Err(LambdustError::parse_error("Unterminated list".to_string()))
     }
 
     /// Parse a quoted expression
@@ -151,13 +151,13 @@ impl Parser {
             Token::String(s) => Ok(Expr::Literal(Literal::String(s))),
             Token::Character(c) => Ok(Expr::Literal(Literal::Character(c))),
             Token::Symbol(s) => Ok(Expr::Variable(s)),
-            Token::RightParen => Err(LambdustError::ParseError(
+            Token::RightParen => Err(LambdustError::parse_error(
                 "Unexpected right parenthesis".to_string(),
             )),
-            Token::Dot => Err(LambdustError::ParseError(
+            Token::Dot => Err(LambdustError::parse_error(
                 "Unexpected dot outside of list".to_string(),
             )),
-            _ => Err(LambdustError::ParseError(format!(
+            _ => Err(LambdustError::parse_error(format!(
                 "Unexpected token: {token}"
             ))),
         }
