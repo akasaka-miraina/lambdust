@@ -1,5 +1,5 @@
 //! R7RS Small 標準関数のデモンストレーション
-//! 
+//!
 //! 新しく実装されたR7RS Small準拠の標準関数をテストします。
 
 use lambdust::{Interpreter, Value};
@@ -11,7 +11,7 @@ fn main() {
 
     // 1. Error function demonstration
     println!("1. Error handling functions:");
-    
+
     // Show normal operation first
     match interpreter.eval("(+ 1 2)") {
         Ok(result) => println!("✓ Normal operation: (+ 1 2) => {}", result),
@@ -30,27 +30,27 @@ fn main() {
     println!("✓ Value::Values type added to value system");
     println!("✓ call-with-values placeholder implementation added");
     println!("✓ set-car! and set-cdr! implemented (clone-based)");
-    
+
     // Test set-car! and set-cdr!
     interpreter.eval("(define test-pair (cons 1 2))").ok();
     match interpreter.eval("test-pair") {
         Ok(result) => println!("✓ Original pair: {}", result),
         Err(e) => println!("✗ Error: {}", e),
     }
-    
+
     match interpreter.eval("(set-car! test-pair 'new-car)") {
         Ok(result) => println!("✓ set-car! result: {}", result),
         Err(e) => println!("✗ set-car! error: {}", e),
     }
-    
+
     match interpreter.eval("(set-cdr! test-pair 'new-cdr)") {
         Ok(result) => println!("✓ set-cdr! result: {}", result),
         Err(e) => println!("✗ set-cdr! error: {}", e),
     }
-    
+
     // 3. Record type demonstration (from SRFI 9)
     println!("\n3. Record types (SRFI 9):");
-    
+
     // Simple record type example
     let point_definition = r#"
 (define-record-type point
@@ -63,20 +63,20 @@ fn main() {
     match interpreter.eval(point_definition) {
         Ok(_) => {
             println!("✓ Point record type defined successfully");
-            
+
             // Test record creation and access
             match interpreter.eval("(make-point 3 4)") {
                 Ok(result) => {
                     println!("✓ Created point: {}", result);
-                    
+
                     // Store for later access
                     interpreter.eval("(define p (make-point 5 10))").ok();
-                    
+
                     match interpreter.eval("(point? p)") {
                         Ok(result) => println!("✓ Point predicate: (point? p) => {}", result),
                         Err(e) => println!("✗ Point predicate error: {}", e),
                     }
-                    
+
                     match interpreter.eval("(point-x p)") {
                         Ok(result) => println!("✓ Point accessor: (point-x p) => {}", result),
                         Err(e) => println!("✗ Point accessor error: {}", e),
@@ -90,7 +90,7 @@ fn main() {
 
     // 4. Extended numeric functions
     println!("\n4. Extended numeric functions:");
-    
+
     let numeric_tests = vec![
         ("(abs -5)", "Absolute value"),
         ("(floor 3.7)", "Floor function"),
@@ -111,7 +111,7 @@ fn main() {
 
     // 5. Character and string functions
     println!("\n5. Character and string functions:");
-    
+
     let char_string_tests = vec![
         ("(char=? #\\a #\\a)", "Character equality"),
         ("(char<? #\\a #\\b)", "Character comparison"),
@@ -131,7 +131,7 @@ fn main() {
 
     // 6. Vector operations
     println!("\n6. Vector operations:");
-    
+
     let vector_tests = vec![
         ("(vector 1 2 3)", "Vector creation"),
         ("(vector-length (vector 1 2 3 4))", "Vector length"),
@@ -155,7 +155,7 @@ fn main() {
 
     // 8. Type conversion functions
     println!("\n8. Type conversion functions:");
-    
+
     let conversion_tests = vec![
         ("(char->string #\\A)", "Character to string"),
         ("(string->list \"hello\")", "String to list"),
@@ -209,7 +209,7 @@ mod tests {
     #[test]
     fn test_r7rs_numeric_functions() {
         let mut interpreter = Interpreter::new();
-        
+
         // Test basic numeric functions
         assert_eq!(interpreter.eval("(abs -5)").unwrap(), Value::from(5i64));
         assert_eq!(interpreter.eval("(min 3 1 4)").unwrap(), Value::from(1i64));
@@ -221,37 +221,57 @@ mod tests {
     #[test]
     fn test_r7rs_character_functions() {
         let mut interpreter = Interpreter::new();
-        
+
         // Test character functions
-        assert_eq!(interpreter.eval("(char=? #\\a #\\a)").unwrap(), Value::Boolean(true));
-        assert_eq!(interpreter.eval("(char<? #\\a #\\b)").unwrap(), Value::Boolean(true));
-        assert_eq!(interpreter.eval("(char->integer #\\A)").unwrap(), Value::from(65i64));
+        assert_eq!(
+            interpreter.eval("(char=? #\\a #\\a)").unwrap(),
+            Value::Boolean(true)
+        );
+        assert_eq!(
+            interpreter.eval("(char<? #\\a #\\b)").unwrap(),
+            Value::Boolean(true)
+        );
+        assert_eq!(
+            interpreter.eval("(char->integer #\\A)").unwrap(),
+            Value::from(65i64)
+        );
     }
 
     #[test]
     fn test_r7rs_string_functions() {
         let mut interpreter = Interpreter::new();
-        
+
         // Test string functions
-        assert_eq!(interpreter.eval("(string=? \"hello\" \"hello\")").unwrap(), Value::Boolean(true));
-        assert_eq!(interpreter.eval("(string<? \"abc\" \"def\")").unwrap(), Value::Boolean(true));
+        assert_eq!(
+            interpreter.eval("(string=? \"hello\" \"hello\")").unwrap(),
+            Value::Boolean(true)
+        );
+        assert_eq!(
+            interpreter.eval("(string<? \"abc\" \"def\")").unwrap(),
+            Value::Boolean(true)
+        );
     }
 
     #[test]
     fn test_r7rs_vector_functions() {
         let mut interpreter = Interpreter::new();
-        
+
         // Test vector functions
         let vec_result = interpreter.eval("(vector 1 2 3)").unwrap();
         assert!(matches!(vec_result, Value::Vector(_)));
-        
-        assert_eq!(interpreter.eval("(vector-length (vector 1 2 3 4))").unwrap(), Value::from(4i64));
+
+        assert_eq!(
+            interpreter
+                .eval("(vector-length (vector 1 2 3 4))")
+                .unwrap(),
+            Value::from(4i64)
+        );
     }
 
     #[test]
     fn test_error_function() {
         let mut interpreter = Interpreter::new();
-        
+
         // Test error function - should raise an error
         let result = interpreter.eval("(error \"test error\")");
         assert!(result.is_err());

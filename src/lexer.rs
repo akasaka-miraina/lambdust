@@ -215,7 +215,9 @@ impl<'a> Lexer<'a> {
                     Some('"') => string_value.push('"'),
                     Some(c) => string_value.push(c),
                     None => {
-                        return Err(LambdustError::lexer_error("Unterminated string".to_string()));
+                        return Err(LambdustError::lexer_error(
+                            "Unterminated string".to_string(),
+                        ));
                     }
                 }
                 self.advance();
@@ -225,7 +227,9 @@ impl<'a> Lexer<'a> {
             }
         }
 
-        Err(LambdustError::lexer_error("Unterminated string".to_string()))
+        Err(LambdustError::lexer_error(
+            "Unterminated string".to_string(),
+        ))
     }
 
     /// Read a character token

@@ -9,14 +9,17 @@ fn main() {
 
     // 1. Test continuation function registration
     println!("1. Continuation and exception functions:");
-    
+
     match interpreter.eval("(procedure? call/cc)") {
         Ok(result) => println!("✓ call/cc function registered: {}", result),
         Err(e) => println!("✗ call/cc test failed: {}", e),
     }
 
     match interpreter.eval("(procedure? call-with-current-continuation)") {
-        Ok(result) => println!("✓ call-with-current-continuation function registered: {}", result),
+        Ok(result) => println!(
+            "✓ call-with-current-continuation function registered: {}",
+            result
+        ),
         Err(e) => println!("✗ call-with-current-continuation test failed: {}", e),
     }
 
@@ -99,12 +102,12 @@ fn main() {
     println!("  • with-exception-handler - 例外ハンドラー");
     println!("  • dynamic-wind - unwinding/rewinding");
     println!("  • Continuation値型とProcedure::Continuation");
-    
+
     println!("\n🔄 実装中:");
     println!("  • evaluator統合による完全な継続サポート");
     println!("  • 例外ハンドラーチェーンの実装");
     println!("  • dynamic-windの実際のunwind/rewind動作");
-    
+
     println!("\n📊 R7RS Small適合率: 約95-98%");
     println!("🎯 継続・例外処理の基盤構造は完成");
     println!("🔧 完全な動作にはevaluator側の統合が必要");

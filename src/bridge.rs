@@ -347,7 +347,9 @@ impl LambdustBridge {
                 name: "call-external".to_string(),
                 arity: None, // Variadic
                 func: |_args| {
-                    Err(LambdustError::runtime_error("call-external not implemented yet"))
+                    Err(LambdustError::runtime_error(
+                        "call-external not implemented yet",
+                    ))
                 },
             }),
         );
@@ -358,7 +360,9 @@ impl LambdustBridge {
                 name: "get-property".to_string(),
                 arity: Some(2),
                 func: |_args| {
-                    Err(LambdustError::runtime_error("get-property not implemented yet"))
+                    Err(LambdustError::runtime_error(
+                        "get-property not implemented yet",
+                    ))
                 },
             }),
         );
@@ -369,7 +373,9 @@ impl LambdustBridge {
                 name: "set-property!".to_string(),
                 arity: Some(3),
                 func: |_args| {
-                    Err(LambdustError::runtime_error("set-property! not implemented yet"))
+                    Err(LambdustError::runtime_error(
+                        "set-property! not implemented yet",
+                    ))
                 },
             }),
         );

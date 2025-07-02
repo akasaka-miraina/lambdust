@@ -18,8 +18,7 @@ fn error_function() -> Value {
             if args.is_empty() {
                 return Err(LambdustError::RuntimeError {
                     message: "error: expected at least one argument".to_string(),
-                    location: crate::error::SourceSpan::unknown(),
-                    stack_trace: Vec::new(),
+                    context: Box::new(crate::error::ErrorContext::unknown()),
                 });
             }
 
@@ -44,8 +43,7 @@ fn error_function() -> Value {
 
             Err(LambdustError::RuntimeError {
                 message: full_message,
-                location: crate::error::SourceSpan::unknown(),
-                stack_trace: Vec::new(),
+                context: Box::new(crate::error::ErrorContext::unknown()),
             })
         },
     })

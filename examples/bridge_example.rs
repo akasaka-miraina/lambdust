@@ -78,7 +78,7 @@ fn main() -> Result<()> {
             _ => {
                 return Err(lambdust::error::LambdustError::type_error(
                     "Expected number".to_string(),
-                );
+                ));
             }
         };
         Ok(Value::from(n * n))
@@ -91,13 +91,13 @@ fn main() -> Result<()> {
                 _ => {
                     return Err(lambdust::error::LambdustError::type_error(
                         "Expected integer".to_string(),
-                    );
+                    ));
                 }
             },
             _ => {
                 return Err(lambdust::error::LambdustError::type_error(
                     "Expected integer".to_string(),
-                );
+                ));
             }
         };
 

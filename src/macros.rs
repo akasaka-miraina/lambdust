@@ -259,7 +259,7 @@ impl MacroExpander {
     }
 
     /// SRFI 46: Check if pattern has nested ellipsis
-    #[allow(dead_code)]
+    #[allow(dead_code, clippy::only_used_in_recursion)]
     fn has_nested_ellipsis(&self, pattern: &Pattern) -> bool {
         match pattern {
             Pattern::NestedEllipsis(_, _) => true,
@@ -267,19 +267,23 @@ impl MacroExpander {
             Pattern::Vector(patterns) => patterns.iter().any(|p| self.has_nested_ellipsis(p)),
             Pattern::Ellipsis(inner) => self.has_nested_ellipsis(inner),
             Pattern::Dotted(patterns, tail) => {
-                patterns.iter().any(|p| self.has_nested_ellipsis(p)) || self.has_nested_ellipsis(tail)
+                patterns.iter().any(|p| self.has_nested_ellipsis(p))
+                    || self.has_nested_ellipsis(tail)
             }
             _ => false,
         }
     }
 
     /// SRFI 46: Count ellipsis nesting level
+    #[allow(clippy::only_used_in_recursion)]
     fn count_ellipsis_level(&self, expr: &Expr) -> usize {
         match expr {
             Expr::Variable(name) if name == "..." => 1,
-            Expr::List(exprs) => {
-                exprs.iter().map(|e| self.count_ellipsis_level(e)).max().unwrap_or(0)
-            }
+            Expr::List(exprs) => exprs
+                .iter()
+                .map(|e| self.count_ellipsis_level(e))
+                .max()
+                .unwrap_or(0),
             _ => 0,
         }
     }
@@ -321,7 +325,10 @@ impl MacroExpander {
 
                             let last_pattern = patterns.pop().unwrap();
                             if ellipsis_count > 0 {
-                                patterns.push(Pattern::NestedEllipsis(Box::new(last_pattern), ellipsis_count + 1));
+                                patterns.push(Pattern::NestedEllipsis(
+                                    Box::new(last_pattern),
+                                    ellipsis_count + 1,
+                                ));
                                 i += ellipsis_count + 1; // Skip the additional ellipses
                             } else {
                                 patterns.push(Pattern::Ellipsis(Box::new(last_pattern)));
@@ -337,9 +344,7 @@ impl MacroExpander {
 
                 Ok(Pattern::List(patterns))
             }
-            Expr::Literal(lit) => {
-                Ok(Pattern::Literal(format!("{lit:?}")))
-            }
+            Expr::Literal(lit) => Ok(Pattern::Literal(format!("{lit:?}"))),
             _ => Err(LambdustError::syntax_error(
                 "syntax-rules: invalid pattern".to_string(),
             )),
@@ -383,7 +388,10 @@ impl MacroExpander {
 
                             let last_template = templates.pop().unwrap();
                             if ellipsis_count > 0 {
-                                templates.push(Template::NestedEllipsis(Box::new(last_template), ellipsis_count + 1));
+                                templates.push(Template::NestedEllipsis(
+                                    Box::new(last_template),
+                                    ellipsis_count + 1,
+                                ));
                                 i += ellipsis_count + 1;
                             } else {
                                 templates.push(Template::Ellipsis(Box::new(last_template)));
@@ -399,9 +407,7 @@ impl MacroExpander {
 
                 Ok(Template::List(templates))
             }
-            Expr::Literal(lit) => {
-                Ok(Template::Literal(format!("{lit:?}")))
-            }
+            Expr::Literal(lit) => Ok(Template::Literal(format!("{lit:?}"))),
             _ => Err(LambdustError::syntax_error(
                 "syntax-rules: invalid template".to_string(),
             )),
@@ -820,13 +826,13 @@ fn expand_unless(args: &[Expr]) -> Result<Expr> {
 }
 
 /// Expand define-record-type macro (SRFI 9)
-/// 
+///
 /// Syntax: (define-record-type <type-name>
 ///           (<constructor> <field-name> ...)
 ///           <predicate>
 ///           (<field-name> <accessor> [<modifier>])
 ///           ...)
-/// 
+///
 /// Example: (define-record-type point
 ///            (make-point x y)
 ///            point?
@@ -842,9 +848,11 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
     // Parse type name
     let type_name = match &operands[0] {
         Expr::Variable(name) => name.clone(),
-        _ => return Err(LambdustError::syntax_error(
-            "define-record-type: type name must be an identifier".to_string(),
-        )),
+        _ => {
+            return Err(LambdustError::syntax_error(
+                "define-record-type: type name must be an identifier".to_string(),
+            ));
+        }
     };
 
     // Parse constructor specification
@@ -852,11 +860,13 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
         Expr::List(exprs) if !exprs.is_empty() => {
             let constructor_name = match &exprs[0] {
                 Expr::Variable(name) => name.clone(),
-                _ => return Err(LambdustError::syntax_error(
-                    "define-record-type: constructor name must be an identifier".to_string(),
-                )),
+                _ => {
+                    return Err(LambdustError::syntax_error(
+                        "define-record-type: constructor name must be an identifier".to_string(),
+                    ));
+                }
             };
-            
+
             let field_names: Result<Vec<String>> = exprs[1..]
                 .iter()
                 .map(|expr| match expr {
@@ -866,20 +876,24 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
                     )),
                 })
                 .collect();
-            
+
             (constructor_name, field_names?)
-        },
-        _ => return Err(LambdustError::syntax_error(
-            "define-record-type: constructor specification must be a list".to_string(),
-        )),
+        }
+        _ => {
+            return Err(LambdustError::syntax_error(
+                "define-record-type: constructor specification must be a list".to_string(),
+            ));
+        }
     };
 
     // Parse predicate name
     let predicate_name = match &operands[2] {
         Expr::Variable(name) => name.clone(),
-        _ => return Err(LambdustError::syntax_error(
-            "define-record-type: predicate name must be an identifier".to_string(),
-        )),
+        _ => {
+            return Err(LambdustError::syntax_error(
+                "define-record-type: predicate name must be an identifier".to_string(),
+            ));
+        }
     };
 
     // Parse field specifications
@@ -889,40 +903,49 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
             Expr::List(exprs) if exprs.len() >= 2 => {
                 let field_name = match &exprs[0] {
                     Expr::Variable(name) => name.clone(),
-                    _ => return Err(LambdustError::syntax_error(
-                        "define-record-type: field name must be an identifier".to_string(),
-                    )),
+                    _ => {
+                        return Err(LambdustError::syntax_error(
+                            "define-record-type: field name must be an identifier".to_string(),
+                        ));
+                    }
                 };
-                
+
                 let accessor_name = match &exprs[1] {
                     Expr::Variable(name) => name.clone(),
-                    _ => return Err(LambdustError::syntax_error(
-                        "define-record-type: accessor name must be an identifier".to_string(),
-                    )),
+                    _ => {
+                        return Err(LambdustError::syntax_error(
+                            "define-record-type: accessor name must be an identifier".to_string(),
+                        ));
+                    }
                 };
-                
+
                 let modifier_name = if exprs.len() >= 3 {
                     match &exprs[2] {
                         Expr::Variable(name) => Some(name.clone()),
-                        _ => return Err(LambdustError::syntax_error(
-                            "define-record-type: modifier name must be an identifier".to_string(),
-                        )),
+                        _ => {
+                            return Err(LambdustError::syntax_error(
+                                "define-record-type: modifier name must be an identifier"
+                                    .to_string(),
+                            ));
+                        }
                     }
                 } else {
                     None
                 };
-                
+
                 field_specs.push((field_name, accessor_name, modifier_name));
-            },
-            _ => return Err(LambdustError::syntax_error(
-                "define-record-type: field specification must be a list".to_string(),
-            )),
+            }
+            _ => {
+                return Err(LambdustError::syntax_error(
+                    "define-record-type: field specification must be a list".to_string(),
+                ));
+            }
         }
     }
 
     // Generate the expanded code
     // This will create:
-    // 1. A record type definition 
+    // 1. A record type definition
     // 2. Constructor procedure
     // 3. Predicate procedure
     // 4. Accessor procedures
@@ -935,10 +958,11 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
     // that create and manipulate record instances
 
     // Generate constructor
-    let constructor_args = field_names.iter()
+    let constructor_args = field_names
+        .iter()
         .map(|name| Expr::Variable(name.clone()))
         .collect();
-    
+
     let constructor_def = Expr::List(vec![
         Expr::Variable("define".to_string()),
         Expr::Variable(constructor_name),
@@ -949,9 +973,12 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
             Expr::List(vec![
                 Expr::Variable("make-record".to_string()),
                 Expr::Quote(Box::new(Expr::Variable(type_name.clone()))),
-                Expr::List(vec![
-                    Expr::Variable("list".to_string())
-                ].into_iter().chain(field_names.iter().map(|name| Expr::Variable(name.clone()))).collect()),
+                Expr::List(
+                    vec![Expr::Variable("list".to_string())]
+                        .into_iter()
+                        .chain(field_names.iter().map(|name| Expr::Variable(name.clone())))
+                        .collect(),
+                ),
             ]),
         ]),
     ]);
@@ -985,7 +1012,9 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
                 Expr::List(vec![
                     Expr::Variable("record-field".to_string()),
                     Expr::Variable("record".to_string()),
-                    Expr::Literal(crate::ast::Literal::Number(crate::lexer::SchemeNumber::Integer(i as i64))),
+                    Expr::Literal(crate::ast::Literal::Number(
+                        crate::lexer::SchemeNumber::Integer(i as i64),
+                    )),
                 ]),
             ]),
         ]);
@@ -1005,7 +1034,9 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
                     Expr::List(vec![
                         Expr::Variable("record-set-field!".to_string()),
                         Expr::Variable("record".to_string()),
-                        Expr::Literal(crate::ast::Literal::Number(crate::lexer::SchemeNumber::Integer(i as i64))),
+                        Expr::Literal(crate::ast::Literal::Number(
+                            crate::lexer::SchemeNumber::Integer(i as i64),
+                        )),
                         Expr::Variable("value".to_string()),
                     ]),
                 ]),
@@ -1015,9 +1046,12 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
     }
 
     // Return a begin form with all definitions
-    Ok(Expr::List(vec![
-        Expr::Variable("begin".to_string())
-    ].into_iter().chain(definitions).collect()))
+    Ok(Expr::List(
+        vec![Expr::Variable("begin".to_string())]
+            .into_iter()
+            .chain(definitions)
+            .collect(),
+    ))
 }
 
 #[cfg(test)]
@@ -1091,15 +1125,15 @@ mod tests {
     #[test]
     fn test_srfi_46_ellipsis_count() {
         let expander = MacroExpander::new();
-        
+
         // Test ellipsis variable
         let ellipsis_var = Expr::Variable("...".to_string());
         assert_eq!(expander.count_ellipsis_level(&ellipsis_var), 1);
-        
-        // Test nested ellipsis in list  
+
+        // Test nested ellipsis in list
         let nested = Expr::List(vec![
             Expr::Variable("...".to_string()),
-            Expr::List(vec![Expr::Variable("...".to_string())])
+            Expr::List(vec![Expr::Variable("...".to_string())]),
         ]);
         assert_eq!(expander.count_ellipsis_level(&nested), 1);
     }
@@ -1107,12 +1141,12 @@ mod tests {
     #[test]
     fn test_srfi_46_pattern_parsing() {
         let expander = MacroExpander::new();
-        
+
         // Test simple pattern
         let simple = Expr::Variable("x".to_string());
         let pattern = expander.parse_pattern_srfi46(&simple).unwrap();
         assert_eq!(pattern, Pattern::Variable("x".to_string()));
-        
+
         // Test list pattern
         let list = Expr::List(vec![
             Expr::Variable("x".to_string()),
@@ -1121,7 +1155,7 @@ mod tests {
         ]);
         let pattern = expander.parse_pattern_srfi46(&list).unwrap();
         assert!(matches!(pattern, Pattern::List(_)));
-        
+
         // Test ellipsis pattern
         let ellipsis = Expr::List(vec![
             Expr::Variable("x".to_string()),
@@ -1136,15 +1170,15 @@ mod tests {
         }
     }
 
-    #[test] 
+    #[test]
     fn test_srfi_46_template_parsing() {
         let expander = MacroExpander::new();
-        
+
         // Test simple template
         let simple = Expr::Variable("x".to_string());
         let template = expander.parse_template_srfi46(&simple).unwrap();
         assert_eq!(template, Template::Variable("x".to_string()));
-        
+
         // Test list template
         let list = Expr::List(vec![
             Expr::Variable("x".to_string()),
@@ -1153,8 +1187,8 @@ mod tests {
         ]);
         let template = expander.parse_template_srfi46(&list).unwrap();
         assert!(matches!(template, Template::List(_)));
-        
-        // Test ellipsis template  
+
+        // Test ellipsis template
         let ellipsis = Expr::List(vec![
             Expr::Variable("x".to_string()),
             Expr::Variable("...".to_string()),

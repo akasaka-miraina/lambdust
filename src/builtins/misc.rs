@@ -24,12 +24,9 @@ fn values_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "values".to_string(),
         arity: None, // Variadic - can take any number of arguments
-        func: |args| {
-            Ok(Value::Values(args.to_vec()))
-        },
+        func: |args| Ok(Value::Values(args.to_vec())),
     })
 }
-
 
 // Record operations (SRFI 9)
 
@@ -42,32 +39,37 @@ fn record_make() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             // First argument should be the record type (as a symbol/string)
             let type_name = match &args[0] {
                 Value::Symbol(s) => s.clone(),
                 Value::String(s) => s.clone(),
-                _ => return Err(LambdustError::type_error(format!(
-                    "make-record: expected type name as symbol or string, got {}", args[0]
-                ))),
+                _ => {
+                    return Err(LambdustError::type_error(format!(
+                        "make-record: expected type name as symbol or string, got {}",
+                        args[0]
+                    )));
+                }
             };
-            
+
             // Remaining arguments are field values
             let field_values = args[1..].to_vec();
-            
+
             // Create a basic record type and record
             let record_type = crate::value::RecordType {
                 name: type_name,
-                field_names: (0..field_values.len()).map(|i| format!("field{}", i)).collect(),
+                field_names: (0..field_values.len())
+                    .map(|i| format!("field{}", i))
+                    .collect(),
                 constructor_name: "make-record".to_string(),
                 predicate_name: "record?".to_string(),
             };
-            
+
             let record = crate::value::Record {
                 record_type,
                 fields: field_values,
             };
-            
+
             Ok(Value::Record(record))
         },
     })
@@ -82,15 +84,18 @@ fn record_predicate() -> Value {
             if args.len() != 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             let type_name = match &args[1] {
                 Value::Symbol(s) => s.clone(),
                 Value::String(s) => s.clone(),
-                _ => return Err(LambdustError::type_error(format!(
-                    "record-of-type?: expected type name as symbol or string, got {}", args[1]
-                ))),
+                _ => {
+                    return Err(LambdustError::type_error(format!(
+                        "record-of-type?: expected type name as symbol or string, got {}",
+                        args[1]
+                    )));
+                }
             };
-            
+
             Ok(Value::Boolean(args[0].is_record_of_type(&type_name)))
         },
     })
@@ -105,28 +110,35 @@ fn record_field_get() -> Value {
             if args.len() != 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             let record = match args[0].as_record() {
                 Some(r) => r,
-                None => return Err(LambdustError::type_error(format!(
-                    "record-field: expected record, got {}", args[0]
-                ))),
+                None => {
+                    return Err(LambdustError::type_error(format!(
+                        "record-field: expected record, got {}",
+                        args[0]
+                    )));
+                }
             };
-            
+
             let index = match args[1].as_number() {
                 Some(crate::lexer::SchemeNumber::Integer(i)) if *i >= 0 => *i as usize,
-                _ => return Err(LambdustError::type_error(format!(
-                    "record-field: expected non-negative integer index, got {}", args[1]
-                ))),
+                _ => {
+                    return Err(LambdustError::type_error(format!(
+                        "record-field: expected non-negative integer index, got {}",
+                        args[1]
+                    )));
+                }
             };
-            
+
             if index >= record.fields.len() {
                 return Err(LambdustError::runtime_error(format!(
-                    "record-field: index {} out of bounds for record with {} fields", 
-                    index, record.fields.len()
+                    "record-field: index {} out of bounds for record with {} fields",
+                    index,
+                    record.fields.len()
                 )));
             }
-            
+
             Ok(record.fields[index].clone())
         },
     })
@@ -141,37 +153,44 @@ fn record_field_set() -> Value {
             if args.len() != 3 {
                 return Err(LambdustError::arity_error(3, args.len()));
             }
-            
+
             let record = match args[0].as_record() {
                 Some(r) => r,
-                None => return Err(LambdustError::type_error(format!(
-                    "record-set-field!: expected record, got {}", args[0]
-                ))),
+                None => {
+                    return Err(LambdustError::type_error(format!(
+                        "record-set-field!: expected record, got {}",
+                        args[0]
+                    )));
+                }
             };
-            
+
             let index = match args[1].as_number() {
                 Some(crate::lexer::SchemeNumber::Integer(i)) if *i >= 0 => *i as usize,
-                _ => return Err(LambdustError::type_error(format!(
-                    "record-set-field!: expected non-negative integer index, got {}", args[1]
-                ))),
+                _ => {
+                    return Err(LambdustError::type_error(format!(
+                        "record-set-field!: expected non-negative integer index, got {}",
+                        args[1]
+                    )));
+                }
             };
-            
+
             if index >= record.fields.len() {
                 return Err(LambdustError::runtime_error(format!(
-                    "record-set-field!: index {} out of bounds for record with {} fields", 
-                    index, record.fields.len()
+                    "record-set-field!: index {} out of bounds for record with {} fields",
+                    index,
+                    record.fields.len()
                 )));
             }
-            
+
             // Create new record with updated field
             let mut new_fields = record.fields.clone();
             new_fields[index] = args[2].clone();
-            
+
             let new_record = crate::value::Record {
                 record_type: record.record_type.clone(),
                 fields: new_fields,
             };
-            
+
             Ok(Value::Record(new_record))
         },
     })

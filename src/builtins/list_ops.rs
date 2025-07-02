@@ -38,7 +38,8 @@ fn list_car() -> Value {
             match &args[0] {
                 Value::Pair(car, _) => Ok((**car).clone()),
                 _ => Err(LambdustError::type_error(format!(
-                    "car: expected pair, got {}", args[0]
+                    "car: expected pair, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -56,7 +57,8 @@ fn list_cdr() -> Value {
             match &args[0] {
                 Value::Pair(_, cdr) => Ok((**cdr).clone()),
                 _ => Err(LambdustError::type_error(format!(
-                    "cdr: expected pair, got {}", args[0]
+                    "cdr: expected pair, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -71,7 +73,10 @@ fn list_cons() -> Value {
             if args.len() != 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            Ok(Value::Pair(Box::new(args[0].clone()), Box::new(args[1].clone())))
+            Ok(Value::Pair(
+                Box::new(args[0].clone()),
+                Box::new(args[1].clone()),
+            ))
         },
     })
 }
@@ -80,9 +85,7 @@ fn list_list() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "list".to_string(),
         arity: None, // Variadic
-        func: |args| {
-            Ok(Value::from_vector(args.to_vec()))
-        },
+        func: |args| Ok(Value::from_vector(args.to_vec())),
     })
 }
 
@@ -95,9 +98,12 @@ fn list_length() -> Value {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
             match args[0].list_length() {
-                Some(len) => Ok(Value::Number(crate::lexer::SchemeNumber::Integer(len as i64))),
+                Some(len) => Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+                    len as i64,
+                ))),
                 None => Err(LambdustError::type_error(format!(
-                    "length: expected proper list, got {}", args[0]
+                    "length: expected proper list, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -114,7 +120,7 @@ fn list_append() -> Value {
             }
 
             let mut result = Vec::new();
-            
+
             // Convert all but last argument to vectors and append
             for (i, arg) in args.iter().enumerate() {
                 if i == args.len() - 1 {
@@ -143,13 +149,16 @@ fn list_append() -> Value {
                     // All other arguments must be lists
                     match arg.to_vector() {
                         Some(vec) => result.extend(vec),
-                        None => return Err(LambdustError::type_error(format!(
-                            "append: expected list, got {}", arg
-                        ))),
+                        None => {
+                            return Err(LambdustError::type_error(format!(
+                                "append: expected list, got {}",
+                                arg
+                            )));
+                        }
                     }
                 }
             }
-            
+
             Ok(Value::from_vector(result))
         },
     })
@@ -169,7 +178,8 @@ fn list_reverse() -> Value {
                     Ok(Value::from_vector(vec))
                 }
                 None => Err(LambdustError::type_error(format!(
-                    "reverse: expected list, got {}", args[0]
+                    "reverse: expected list, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -186,8 +196,7 @@ fn list_set_car() -> Value {
             if args.len() != 2 {
                 return Err(LambdustError::RuntimeError {
                     message: "set-car!: expected exactly 2 arguments".to_string(),
-                    location: crate::error::SourceSpan::unknown(),
-                    stack_trace: Vec::new(),
+                    context: Box::new(crate::error::ErrorContext::unknown()),
                 });
             }
 
@@ -195,17 +204,16 @@ fn list_set_car() -> Value {
                 Value::Pair(_, cdr) => {
                     // Create new pair with new car and existing cdr
                     let new_pair = Value::Pair(Box::new(args[1].clone()), cdr.clone());
-                    
+
                     // Note: In a true Scheme implementation, this would mutate the original pair
                     // Here we return the new pair, but this doesn't provide true mutation semantics
                     // A complete implementation would require using Rc<RefCell<>> throughout the Value system
-                    
+
                     Ok(new_pair)
                 }
                 _ => Err(LambdustError::RuntimeError {
                     message: format!("set-car!: expected pair, got {}", args[0]),
-                    location: crate::error::SourceSpan::unknown(),
-                    stack_trace: Vec::new(),
+                    context: Box::new(crate::error::ErrorContext::unknown()),
                 }),
             }
         },
@@ -220,8 +228,7 @@ fn list_set_cdr() -> Value {
             if args.len() != 2 {
                 return Err(LambdustError::RuntimeError {
                     message: "set-cdr!: expected exactly 2 arguments".to_string(),
-                    location: crate::error::SourceSpan::unknown(),
-                    stack_trace: Vec::new(),
+                    context: Box::new(crate::error::ErrorContext::unknown()),
                 });
             }
 
@@ -229,14 +236,13 @@ fn list_set_cdr() -> Value {
                 Value::Pair(car, _) => {
                     // Create new pair with existing car and new cdr
                     let new_pair = Value::Pair(car.clone(), Box::new(args[1].clone()));
-                    
+
                     // Note: Same limitation as set-car! - this doesn't provide true mutation semantics
                     Ok(new_pair)
                 }
                 _ => Err(LambdustError::RuntimeError {
                     message: format!("set-cdr!: expected pair, got {}", args[0]),
-                    location: crate::error::SourceSpan::unknown(),
-                    stack_trace: Vec::new(),
+                    context: Box::new(crate::error::ErrorContext::unknown()),
                 }),
             }
         },

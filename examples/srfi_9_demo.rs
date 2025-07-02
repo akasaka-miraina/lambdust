@@ -1,5 +1,5 @@
 //! SRFI 9 (Define-record-type) demonstration
-//! 
+//!
 //! This example shows how to use the define-record-type macro
 //! to create structured data types in Scheme.
 
@@ -70,8 +70,10 @@ fn main() {
 
     // Example 6: Create and use person
     println!("\n6. Creating and using person records:");
-    interpreter.eval(r#"(define alice (make-person "Alice" 30 "alice@example.com"))"#).ok();
-    
+    interpreter
+        .eval(r#"(define alice (make-person "Alice" 30 "alice@example.com"))"#)
+        .ok();
+
     match interpreter.eval("(person? alice)") {
         Ok(result) => println!("✓ (person? alice) => {}", result),
         Err(e) => println!("✗ Error: {}", e),
@@ -115,28 +117,32 @@ mod tests {
     #[test]
     fn test_basic_record_operations() {
         let mut interpreter = Interpreter::new();
-        
+
         // Define a simple record type
-        let result = interpreter.eval(r#"
+        let result = interpreter.eval(
+            r#"
 (define-record-type test-record
   (make-test-record field1 field2)
   test-record?
   (field1 test-record-field1)
   (field2 test-record-field2))
-"#);
+"#,
+        );
         assert!(result.is_ok());
 
         // Create an instance
         let result = interpreter.eval("(make-test-record 42 \"hello\")");
         assert!(result.is_ok());
-        
+
         // Store the instance
-        interpreter.eval("(define r (make-test-record 42 \"hello\"))").unwrap();
-        
+        interpreter
+            .eval("(define r (make-test-record 42 \"hello\"))")
+            .unwrap();
+
         // Test predicate
         let result = interpreter.eval("(test-record? r)").unwrap();
         assert_eq!(result, Value::Boolean(true));
-        
+
         // Test field access
         let result = interpreter.eval("(test-record-field1 r)").unwrap();
         assert_eq!(result, Value::from(42i64));
@@ -145,30 +151,50 @@ mod tests {
     #[test]
     fn test_record_type_safety() {
         let mut interpreter = Interpreter::new();
-        
+
         // Define two different record types
-        interpreter.eval(r#"
+        interpreter
+            .eval(
+                r#"
 (define-record-type type-a
   (make-a field)
   a?
   (field a-field))
-"#).unwrap();
+"#,
+            )
+            .unwrap();
 
-        interpreter.eval(r#"
+        interpreter
+            .eval(
+                r#"
 (define-record-type type-b
   (make-b field)
   b?
   (field b-field))
-"#).unwrap();
+"#,
+            )
+            .unwrap();
 
         // Create instances
         interpreter.eval("(define a-instance (make-a 1))").unwrap();
         interpreter.eval("(define b-instance (make-b 2))").unwrap();
-        
+
         // Test type predicates
-        assert_eq!(interpreter.eval("(a? a-instance)").unwrap(), Value::Boolean(true));
-        assert_eq!(interpreter.eval("(b? a-instance)").unwrap(), Value::Boolean(false));
-        assert_eq!(interpreter.eval("(a? b-instance)").unwrap(), Value::Boolean(false));
-        assert_eq!(interpreter.eval("(b? b-instance)").unwrap(), Value::Boolean(true));
+        assert_eq!(
+            interpreter.eval("(a? a-instance)").unwrap(),
+            Value::Boolean(true)
+        );
+        assert_eq!(
+            interpreter.eval("(b? a-instance)").unwrap(),
+            Value::Boolean(false)
+        );
+        assert_eq!(
+            interpreter.eval("(a? b-instance)").unwrap(),
+            Value::Boolean(false)
+        );
+        assert_eq!(
+            interpreter.eval("(b? b-instance)").unwrap(),
+            Value::Boolean(true)
+        );
     }
 }

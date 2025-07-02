@@ -176,7 +176,8 @@ impl Evaluator {
             "if" => Ok(Some(self.eval_if_tail(operands, env)?)),
             "begin" => Ok(Some(self.eval_begin_tail(operands, env)?)),
             // Special forms that are not tail-call optimizable
-            "define" | "set!" | "lambda" | "quote" | "and" | "or" | "do" | "apply" | "map" | "for-each" | "call-with-values" | "delay" | "lazy" | "force" | "syntax-rules" => {
+            "define" | "set!" | "lambda" | "quote" | "and" | "or" | "do" | "apply" | "map"
+            | "for-each" | "call-with-values" | "delay" | "lazy" | "force" | "syntax-rules" => {
                 Ok(Some(TailCallInfo::None))
             }
             _ => Ok(None), // Not a special form
@@ -357,7 +358,9 @@ impl Evaluator {
                     ))
                 }
             },
-            _ => Err(LambdustError::type_error(format!("Not a procedure: {proc}"))),
+            _ => Err(LambdustError::type_error(format!(
+                "Not a procedure: {proc}"
+            ))),
         }
     }
 
@@ -744,9 +747,12 @@ impl Evaluator {
         // Convert arguments to vector
         let arguments = match args_value.to_vector() {
             Some(vec) => vec,
-            None => return Err(LambdustError::type_error(format!(
-                "apply: expected list of arguments, got {}", args_value
-            ))),
+            None => {
+                return Err(LambdustError::type_error(format!(
+                    "apply: expected list of arguments, got {}",
+                    args_value
+                )));
+            }
         };
 
         // Apply the procedure to the arguments
@@ -765,9 +771,12 @@ impl Evaluator {
         // Convert list to vector
         let elements = match list_value.to_vector() {
             Some(vec) => vec,
-            None => return Err(LambdustError::type_error(format!(
-                "map: expected list, got {}", list_value
-            ))),
+            None => {
+                return Err(LambdustError::type_error(format!(
+                    "map: expected list, got {}",
+                    list_value
+                )));
+            }
         };
 
         let mut result = Vec::new();
@@ -793,9 +802,12 @@ impl Evaluator {
         // Convert list to vector
         let elements = match list_value.to_vector() {
             Some(vec) => vec,
-            None => return Err(LambdustError::type_error(format!(
-                "for-each: expected list, got {}", list_value
-            ))),
+            None => {
+                return Err(LambdustError::type_error(format!(
+                    "for-each: expected list, got {}",
+                    list_value
+                )));
+            }
         };
 
         // Apply procedure to each element (for side effects)
@@ -835,7 +847,10 @@ impl Evaluator {
         }
 
         // Create a lazy promise without evaluating the expression
-        Ok(crate::builtins::lazy::make_lazy_promise(operands[0].clone(), env))
+        Ok(crate::builtins::lazy::make_lazy_promise(
+            operands[0].clone(),
+            env,
+        ))
     }
 
     /// Evaluate lazy special form: (lazy expr)
@@ -846,7 +861,10 @@ impl Evaluator {
 
         // lazy is similar to delay but for SRFI 45 semantics
         // For now, treat it the same as delay
-        Ok(crate::builtins::lazy::make_lazy_promise(operands[0].clone(), env))
+        Ok(crate::builtins::lazy::make_lazy_promise(
+            operands[0].clone(),
+            env,
+        ))
     }
 
     /// Evaluate force special form: (force promise)
@@ -856,11 +874,9 @@ impl Evaluator {
         }
 
         let promise_value = self.eval_impl(operands[0].clone(), env)?;
-        
+
         match promise_value {
-            Value::Promise(promise) => {
-                crate::builtins::lazy::force_promise(&promise, self)
-            }
+            Value::Promise(promise) => crate::builtins::lazy::force_promise(&promise, self),
             // If it's not a promise, just return the value (per SRFI 45)
             value => Ok(value),
         }
@@ -881,9 +897,11 @@ impl Evaluator {
                 // A full implementation would parse and store these
                 &operands[0]
             }
-            _ => return Err(LambdustError::syntax_error(
-                "syntax-rules: literals must be a list".to_string(),
-            )),
+            _ => {
+                return Err(LambdustError::syntax_error(
+                    "syntax-rules: literals must be a list".to_string(),
+                ));
+            }
         };
 
         // Parse rules (pattern template pairs)
@@ -896,9 +914,11 @@ impl Evaluator {
                     let _template = self.macro_expander.parse_template_srfi46(&rule_parts[1])?;
                     // Store rules for later use
                 }
-                _ => return Err(LambdustError::syntax_error(
-                    "syntax-rules: each rule must be (pattern template)".to_string(),
-                )),
+                _ => {
+                    return Err(LambdustError::syntax_error(
+                        "syntax-rules: each rule must be (pattern template)".to_string(),
+                    ));
+                }
             }
         }
 
@@ -998,7 +1018,7 @@ mod tests {
         // Test apply with built-in function
         let result = eval_str("(apply + '(1 2 3))").unwrap();
         assert_eq!(result, Value::from(6i64));
-        
+
         let result = eval_str("(apply * '(2 3 4))").unwrap();
         assert_eq!(result, Value::from(24i64));
     }
@@ -1007,12 +1027,15 @@ mod tests {
     fn test_eval_map() {
         // Test map with built-in function (abs)
         let result = eval_str("(map abs '(-1 -2 3 -4))").unwrap();
-        assert_eq!(result, Value::from_vector(vec![
-            Value::from(1i64),
-            Value::from(2i64), 
-            Value::from(3i64),
-            Value::from(4i64)
-        ]));
+        assert_eq!(
+            result,
+            Value::from_vector(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64),
+                Value::from(4i64)
+            ])
+        );
     }
 
     #[test]
@@ -1022,42 +1045,52 @@ mod tests {
         assert_eq!(result, Value::Undefined);
     }
 
-    #[test] 
+    #[test]
     fn test_higher_order_with_lambda() {
         // Test apply with user-defined lambda
         let result = eval_str("(apply (lambda (x y) (+ x y)) '(3 4))").unwrap();
         assert_eq!(result, Value::from(7i64));
-        
+
         // Test map with user-defined lambda
         let result = eval_str("(map (lambda (x) (* x x)) '(1 2 3 4))").unwrap();
-        assert_eq!(result, Value::from_vector(vec![
-            Value::from(1i64),
-            Value::from(4i64),
-            Value::from(9i64),
-            Value::from(16i64)
-        ]));
+        assert_eq!(
+            result,
+            Value::from_vector(vec![
+                Value::from(1i64),
+                Value::from(4i64),
+                Value::from(9i64),
+                Value::from(16i64)
+            ])
+        );
     }
 
     #[test]
     fn test_values_and_call_with_values() {
         // Test values function
         let result = eval_str("(values 1 2 3)").unwrap();
-        assert_eq!(result, Value::Values(vec![
-            Value::from(1i64),
-            Value::from(2i64),
-            Value::from(3i64)
-        ]));
+        assert_eq!(
+            result,
+            Value::Values(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64)
+            ])
+        );
 
         // Test call-with-values with single value
         let result = eval_str("(call-with-values (lambda () 42) (lambda (x) x))").unwrap();
         assert_eq!(result, Value::from(42i64));
 
         // Test call-with-values with multiple values
-        let result = eval_str("(call-with-values (lambda () (values 1 2 3)) (lambda (x y z) (+ x y z)))").unwrap();
+        let result =
+            eval_str("(call-with-values (lambda () (values 1 2 3)) (lambda (x y z) (+ x y z)))")
+                .unwrap();
         assert_eq!(result, Value::from(6i64));
 
         // Test call-with-values with values producer
-        let result = eval_str("(call-with-values (lambda () (values 10 20)) (lambda (a b) (* a b)))").unwrap();
+        let result =
+            eval_str("(call-with-values (lambda () (values 10 20)) (lambda (a b) (* a b)))")
+                .unwrap();
         assert_eq!(result, Value::from(200i64));
     }
 
@@ -1089,7 +1122,7 @@ mod tests {
         // Test basic syntax-rules parsing
         let result = eval_str("(syntax-rules () ((test x) x))");
         assert!(result.is_ok());
-        
+
         // The result should be a procedure (macro transformer)
         assert!(result.unwrap().is_procedure());
 

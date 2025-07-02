@@ -11,7 +11,7 @@ pub type Result<T> = std::result::Result<T, LambdustError>;
 pub struct SourcePosition {
     /// Line number (1-based)
     pub line: usize,
-    /// Column number (1-based) 
+    /// Column number (1-based)
     pub column: usize,
     /// Character offset from start of input (0-based)
     pub offset: usize,
@@ -20,12 +20,20 @@ pub struct SourcePosition {
 impl SourcePosition {
     /// Create a new source position
     pub fn new(line: usize, column: usize, offset: usize) -> Self {
-        Self { line, column, offset }
+        Self {
+            line,
+            column,
+            offset,
+        }
     }
 
     /// Default position for when position is unknown
     pub fn unknown() -> Self {
-        Self { line: 0, column: 0, offset: 0 }
+        Self {
+            line: 0,
+            column: 0,
+            offset: 0,
+        }
     }
 }
 
@@ -53,12 +61,20 @@ pub struct SourceSpan {
 impl SourceSpan {
     /// Create a new source span
     pub fn new(start: SourcePosition, end: SourcePosition) -> Self {
-        Self { start, end, filename: None }
+        Self {
+            start,
+            end,
+            filename: None,
+        }
     }
 
     /// Create a source span with filename
     pub fn with_filename(start: SourcePosition, end: SourcePosition, filename: String) -> Self {
-        Self { start, end, filename: Some(filename) }
+        Self {
+            start,
+            end,
+            filename: Some(filename),
+        }
     }
 
     /// Create an unknown span
@@ -128,6 +144,33 @@ impl std::fmt::Display for StackFrame {
     }
 }
 
+/// Context information for runtime errors
+#[derive(Debug, Clone, PartialEq)]
+pub struct ErrorContext {
+    /// Source location where error occurred
+    pub location: SourceSpan,
+    /// Call stack trace
+    pub stack_trace: Vec<StackFrame>,
+}
+
+impl ErrorContext {
+    /// Create new error context
+    pub fn new(location: SourceSpan, stack_trace: Vec<StackFrame>) -> Self {
+        Self {
+            location,
+            stack_trace,
+        }
+    }
+
+    /// Create error context with unknown location
+    pub fn unknown() -> Self {
+        Self {
+            location: SourceSpan::unknown(),
+            stack_trace: Vec::new(),
+        }
+    }
+}
+
 /// Main error type for the Lambdust interpreter
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum LambdustError {
@@ -154,10 +197,8 @@ pub enum LambdustError {
     RuntimeError {
         /// Error message
         message: String,
-        /// Source location where error occurred
-        location: SourceSpan,
-        /// Call stack trace
-        stack_trace: Vec<StackFrame>,
+        /// Error context (boxed to reduce size)
+        context: Box<ErrorContext>,
     },
 
     /// Type errors
@@ -165,10 +206,8 @@ pub enum LambdustError {
     TypeError {
         /// Error message
         message: String,
-        /// Source location where error occurred
-        location: SourceSpan,
-        /// Call stack trace
-        stack_trace: Vec<StackFrame>,
+        /// Error context (boxed to reduce size)
+        context: Box<ErrorContext>,
     },
 
     /// Undefined variable errors
@@ -176,10 +215,8 @@ pub enum LambdustError {
     UndefinedVariable {
         /// Variable name
         variable: String,
-        /// Source location where error occurred
-        location: SourceSpan,
-        /// Call stack trace
-        stack_trace: Vec<StackFrame>,
+        /// Error context (boxed to reduce size)
+        context: Box<ErrorContext>,
     },
 
     /// Arity errors (wrong number of arguments)
@@ -191,19 +228,15 @@ pub enum LambdustError {
         actual: usize,
         /// Function name
         function: String,
-        /// Source location where error occurred
-        location: SourceSpan,
-        /// Call stack trace
-        stack_trace: Vec<StackFrame>,
+        /// Error context (boxed to reduce size)
+        context: Box<ErrorContext>,
     },
 
     /// Division by zero
     #[error("Division by zero")]
     DivisionByZero {
-        /// Source location where error occurred
-        location: SourceSpan,
-        /// Call stack trace
-        stack_trace: Vec<StackFrame>,
+        /// Error context (boxed to reduce size)
+        context: Box<ErrorContext>,
     },
 
     /// I/O errors
@@ -218,10 +251,8 @@ pub enum LambdustError {
     /// Stack overflow (for detecting infinite recursion)
     #[error("Stack overflow")]
     StackOverflow {
-        /// Source location where overflow was detected
-        location: SourceSpan,
-        /// Call stack trace (may be truncated)
-        stack_trace: Vec<StackFrame>,
+        /// Error context (boxed to reduce size)
+        context: Box<ErrorContext>,
     },
 
     /// Macro expansion errors
@@ -229,10 +260,8 @@ pub enum LambdustError {
     MacroError {
         /// Error message
         message: String,
-        /// Source location where error occurred
-        location: SourceSpan,
-        /// Call stack trace
-        stack_trace: Vec<StackFrame>,
+        /// Error context (boxed to reduce size)
+        context: Box<ErrorContext>,
     },
 
     /// Syntax errors in special forms
@@ -259,11 +288,9 @@ impl LambdustError {
     pub fn runtime_error(message: impl Into<String>) -> Self {
         Self::RuntimeError {
             message: message.into(),
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
-
 
     /// Legacy constructor for TypeError (for easier migration)
     pub fn type_error_old(message: String) -> Self {
@@ -296,29 +323,32 @@ impl LambdustError {
         }
     }
 
-    /// Legacy constructor for ArityError (for easier migration) 
+    /// Legacy constructor for ArityError (for easier migration)
     pub fn arity_error_old(expected: usize, actual: usize) -> Self {
         Self::arity_error(expected, actual)
     }
 
     /// Legacy struct-style constructor for ArityError
     pub fn arity_error_struct(expected: usize, actual: usize) -> Self {
-        Self::ArityError { expected, actual, function: "<unknown>".to_string(), location: SourceSpan::unknown(), stack_trace: Vec::new() }
+        Self::ArityError {
+            expected,
+            actual,
+            function: "<unknown>".to_string(),
+            context: Box::new(ErrorContext::unknown()),
+        }
     }
 
     /// Legacy constructor for DivisionByZero (for easier migration)
     pub fn division_by_zero_old() -> Self {
         Self::DivisionByZero {
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
 
     /// Legacy constructor for StackOverflow (for easier migration)
     pub fn stack_overflow_old() -> Self {
         Self::StackOverflow {
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
 
@@ -326,8 +356,7 @@ impl LambdustError {
     pub fn macro_error_old(message: String) -> Self {
         Self::MacroError {
             message,
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
 
@@ -343,8 +372,7 @@ impl LambdustError {
     pub fn type_error(message: impl Into<String>) -> Self {
         Self::TypeError {
             message: message.into(),
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
 
@@ -354,8 +382,7 @@ impl LambdustError {
             expected,
             actual,
             function: "<unknown>".to_string(),
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
 
@@ -363,8 +390,7 @@ impl LambdustError {
     pub fn undefined_variable(variable: impl Into<String>) -> Self {
         Self::UndefinedVariable {
             variable: variable.into(),
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
 
@@ -403,30 +429,28 @@ impl LambdustError {
     /// Create a simple division by zero error without location info (for backward compatibility)
     pub fn division_by_zero() -> Self {
         Self::DivisionByZero {
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
 
     /// Create a simple stack overflow error without location info (for backward compatibility)
     pub fn stack_overflow() -> Self {
         Self::StackOverflow {
-            location: SourceSpan::unknown(),
-            stack_trace: Vec::new(),
+            context: Box::new(ErrorContext::unknown()),
         }
     }
 
     /// Add a stack frame to the error's stack trace
     pub fn with_stack_frame(mut self, frame: StackFrame) -> Self {
         match &mut self {
-            Self::RuntimeError { stack_trace, .. }
-            | Self::TypeError { stack_trace, .. }
-            | Self::UndefinedVariable { stack_trace, .. }
-            | Self::ArityError { stack_trace, .. }
-            | Self::DivisionByZero { stack_trace, .. }
-            | Self::StackOverflow { stack_trace, .. }
-            | Self::MacroError { stack_trace, .. } => {
-                stack_trace.push(frame);
+            Self::RuntimeError { context, .. }
+            | Self::TypeError { context, .. }
+            | Self::UndefinedVariable { context, .. }
+            | Self::ArityError { context, .. }
+            | Self::DivisionByZero { context, .. }
+            | Self::StackOverflow { context, .. }
+            | Self::MacroError { context, .. } => {
+                context.stack_trace.push(frame);
             }
             _ => {} // Some error types don't have stack traces
         }
@@ -438,15 +462,17 @@ impl LambdustError {
         match &mut self {
             Self::LexerError { location: loc, .. }
             | Self::ParseError { location: loc, .. }
-            | Self::RuntimeError { location: loc, .. }
-            | Self::TypeError { location: loc, .. }
-            | Self::UndefinedVariable { location: loc, .. }
-            | Self::ArityError { location: loc, .. }
-            | Self::DivisionByZero { location: loc, .. }
-            | Self::StackOverflow { location: loc, .. }
-            | Self::MacroError { location: loc, .. }
             | Self::SyntaxError { location: loc, .. } => {
                 *loc = location;
+            }
+            Self::RuntimeError { context, .. }
+            | Self::TypeError { context, .. }
+            | Self::UndefinedVariable { context, .. }
+            | Self::ArityError { context, .. }
+            | Self::DivisionByZero { context, .. }
+            | Self::StackOverflow { context, .. }
+            | Self::MacroError { context, .. } => {
+                context.location = location;
             }
             Self::IoError { location: loc, .. } => {
                 *loc = Some(location);
@@ -458,7 +484,7 @@ impl LambdustError {
     /// Generate a detailed error report with stack trace
     pub fn format_detailed(&self) -> String {
         let mut output = String::new();
-        
+
         // Main error message
         output.push_str(&format!("Error: {}\n", self));
 
@@ -466,19 +492,26 @@ impl LambdustError {
         match self {
             Self::LexerError { location, .. }
             | Self::ParseError { location, .. }
-            | Self::RuntimeError { location, .. }
-            | Self::TypeError { location, .. }
-            | Self::UndefinedVariable { location, .. }
-            | Self::ArityError { location, .. }
-            | Self::DivisionByZero { location, .. }
-            | Self::StackOverflow { location, .. }
-            | Self::MacroError { location, .. }
             | Self::SyntaxError { location, .. } => {
                 if *location != SourceSpan::unknown() {
                     output.push_str(&format!("  at {}\n", location));
                 }
             }
-            Self::IoError { location: Some(location), .. } => {
+            Self::RuntimeError { context, .. }
+            | Self::TypeError { context, .. }
+            | Self::UndefinedVariable { context, .. }
+            | Self::ArityError { context, .. }
+            | Self::DivisionByZero { context, .. }
+            | Self::StackOverflow { context, .. }
+            | Self::MacroError { context, .. } => {
+                if context.location != SourceSpan::unknown() {
+                    output.push_str(&format!("  at {}\n", context.location));
+                }
+            }
+            Self::IoError {
+                location: Some(location),
+                ..
+            } => {
                 output.push_str(&format!("  at {}\n", location));
             }
             _ => {}
@@ -486,13 +519,13 @@ impl LambdustError {
 
         // Add stack trace
         let stack_trace = match self {
-            Self::RuntimeError { stack_trace, .. }
-            | Self::TypeError { stack_trace, .. }
-            | Self::UndefinedVariable { stack_trace, .. }
-            | Self::ArityError { stack_trace, .. }
-            | Self::DivisionByZero { stack_trace, .. }
-            | Self::StackOverflow { stack_trace, .. }
-            | Self::MacroError { stack_trace, .. } => stack_trace,
+            Self::RuntimeError { context, .. }
+            | Self::TypeError { context, .. }
+            | Self::UndefinedVariable { context, .. }
+            | Self::ArityError { context, .. }
+            | Self::DivisionByZero { context, .. }
+            | Self::StackOverflow { context, .. }
+            | Self::MacroError { context, .. } => &context.stack_trace,
             _ => return output,
         };
 

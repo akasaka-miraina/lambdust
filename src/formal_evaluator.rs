@@ -86,6 +86,12 @@ pub struct Store {
     next_location: usize,
 }
 
+impl Default for Store {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Store {
     /// Create a new store
     pub fn new() -> Self {
@@ -110,8 +116,8 @@ impl Store {
 
     /// Set value at location
     pub fn set(&mut self, location: usize, value: Value) -> Result<()> {
-        if self.locations.contains_key(&location) {
-            self.locations.insert(location, value);
+        if let std::collections::hash_map::Entry::Occupied(mut e) = self.locations.entry(location) {
+            e.insert(value);
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
@@ -171,12 +177,7 @@ impl FormalEvaluator {
     /// - ρ: environment
     /// - κ: continuation
     /// - σ: store
-    pub fn eval(
-        &mut self,
-        expr: Expr,
-        env: Rc<Environment>,
-        cont: Continuation,
-    ) -> Result<Value> {
+    pub fn eval(&mut self, expr: Expr, env: Rc<Environment>, cont: Continuation) -> Result<Value> {
         match expr {
             // Constants: E[K]ρκσ = κ(K[K])
             Expr::Literal(lit) => self.eval_literal(lit, cont),
@@ -185,14 +186,10 @@ impl FormalEvaluator {
             Expr::Variable(name) => self.eval_variable(name, env, cont),
 
             // Function application: E[(E0 E1 ...)]ρκσ
-            Expr::List(exprs) if !exprs.is_empty() => {
-                self.eval_application(exprs, env, cont)
-            }
+            Expr::List(exprs) if !exprs.is_empty() => self.eval_application(exprs, env, cont),
 
             // Empty list
-            Expr::List(exprs) if exprs.is_empty() => {
-                self.eval_literal(Literal::Nil, cont)
-            }
+            Expr::List(exprs) if exprs.is_empty() => self.eval_literal(Literal::Nil, cont),
 
             // Quote: E['E]ρκσ = κ(E[E])
             Expr::Quote(expr) => self.eval_quote(*expr, cont),
@@ -237,13 +234,13 @@ impl FormalEvaluator {
         cont: Continuation,
     ) -> Result<Value> {
         if exprs.is_empty() {
-            return Err(LambdustError::syntax_error(
-                "Empty application".to_string(),
-            ));
+            return Err(LambdustError::syntax_error("Empty application".to_string()));
         }
 
         // Check for special forms first
-        if let Some(special_result) = self.try_eval_special_form(&exprs, env.clone(), cont.clone())? {
+        if let Some(special_result) =
+            self.try_eval_special_form(&exprs, env.clone(), cont.clone())?
+        {
             return Ok(special_result);
         }
 
@@ -281,10 +278,10 @@ impl FormalEvaluator {
                 }
                 "values" => return Ok(Some(self.eval_values(&exprs[1..], env, cont)?)),
                 "call-with-values" => {
-                    return Ok(Some(self.eval_call_with_values(&exprs[1..], env, cont)?))
+                    return Ok(Some(self.eval_call_with_values(&exprs[1..], env, cont)?));
                 }
                 "dynamic-wind" => {
-                    return Ok(Some(self.eval_dynamic_wind(&exprs[1..], env, cont)?))
+                    return Ok(Some(self.eval_dynamic_wind(&exprs[1..], env, cont)?));
                 }
                 _ => {}
             }
@@ -406,7 +403,7 @@ impl FormalEvaluator {
             _ => {
                 return Err(LambdustError::syntax_error(
                     "set!: not a variable".to_string(),
-                ))
+                ));
             }
         };
 
@@ -428,6 +425,7 @@ impl FormalEvaluator {
     }
 
     /// Convert expression to value (for quote)
+    #[allow(clippy::only_used_in_recursion)]
     fn expr_to_value(&self, expr: Expr) -> Result<Value> {
         match expr {
             Expr::Literal(lit) => match lit {
@@ -549,11 +547,7 @@ impl FormalEvaluator {
         match cont {
             Continuation::Identity => Ok(value),
 
-            Continuation::Operator {
-                args,
-                env,
-                parent,
-            } => {
+            Continuation::Operator { args, env, parent } => {
                 // Operator has been evaluated, now evaluate arguments
                 self.eval_args(value, args, Vec::new(), env, *parent)
             }
@@ -639,7 +633,7 @@ impl FormalEvaluator {
 
         // Apply evaluation order strategy
         let ordered_args = self.apply_evaluation_order(args);
-        
+
         // Evaluate first argument in the ordered sequence
         let first_arg = ordered_args[0].clone();
         let rest_args = ordered_args[1..].to_vec();
@@ -731,10 +725,7 @@ impl Default for FormalEvaluator {
 }
 
 /// Public interface for formal evaluation
-pub fn eval_with_formal_semantics(
-    expr: Expr,
-    env: Rc<Environment>,
-) -> Result<Value> {
+pub fn eval_with_formal_semantics(expr: Expr, env: Rc<Environment>) -> Result<Value> {
     let mut evaluator = FormalEvaluator::new();
     evaluator.eval(expr, env, Continuation::Identity)
 }
@@ -792,7 +783,11 @@ mod tests {
         let result = eval_str_formal("(values 1 2 3)").unwrap();
         assert_eq!(
             result,
-            Value::Values(vec![Value::from(1i64), Value::from(2i64), Value::from(3i64)])
+            Value::Values(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64)
+            ])
         );
     }
 
@@ -809,8 +804,12 @@ mod tests {
         let lit_expr = Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(42)));
         let cont = Continuation::Identity;
 
-        let result_ltr = eval_ltr.eval(lit_expr.clone(), env.clone(), cont.clone()).unwrap();
-        let result_rtl = eval_rtl.eval(lit_expr.clone(), env.clone(), cont.clone()).unwrap();
+        let result_ltr = eval_ltr
+            .eval(lit_expr.clone(), env.clone(), cont.clone())
+            .unwrap();
+        let result_rtl = eval_rtl
+            .eval(lit_expr.clone(), env.clone(), cont.clone())
+            .unwrap();
         let result_unspec = eval_unspec.eval(lit_expr, env, cont).unwrap();
 
         assert_eq!(result_ltr, Value::from(42i64));
@@ -822,9 +821,9 @@ mod tests {
     fn test_argument_order_independence() {
         // Test that expressions that should be order-independent work correctly
         // (This is a simplified test - real order independence testing would be more complex)
-        
+
         use crate::lexer::SchemeNumber;
-        
+
         let args = vec![
             Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
@@ -832,11 +831,11 @@ mod tests {
         ];
 
         let eval = FormalEvaluator::new();
-        
+
         // Test left-to-right order
         let ordered_ltr = eval.apply_evaluation_order(args.clone());
         assert_eq!(ordered_ltr.len(), 3);
-        
+
         // Test that reordering doesn't affect literal values
         let eval_rtl = FormalEvaluator::with_eval_order(EvalOrder::RightToLeft);
         let ordered_rtl = eval_rtl.apply_evaluation_order(args);

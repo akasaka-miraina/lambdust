@@ -401,9 +401,12 @@ impl Value {
             }
             (Value::External(a), Value::External(b)) => a.id == b.id,
             (Value::Record(a), Value::Record(b)) => {
-                a.record_type == b.record_type && 
-                a.fields.len() == b.fields.len() && 
-                a.fields.iter().zip(b.fields.iter()).all(|(x, y)| x.equal(y))
+                a.record_type == b.record_type
+                    && a.fields.len() == b.fields.len()
+                    && a.fields
+                        .iter()
+                        .zip(b.fields.iter())
+                        .all(|(x, y)| x.equal(y))
             }
             (Value::Values(a), Value::Values(b)) => {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.equal(y))

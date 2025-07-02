@@ -50,9 +50,12 @@ fn string_length() -> Value {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
             match args[0].as_string() {
-                Some(s) => Ok(Value::Number(SchemeNumber::Integer(s.chars().count() as i64))),
+                Some(s) => Ok(Value::Number(SchemeNumber::Integer(
+                    s.chars().count() as i64
+                ))),
                 None => Err(LambdustError::type_error(format!(
-                    "string-length: expected string, got {}", args[0]
+                    "string-length: expected string, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -67,26 +70,30 @@ fn string_ref() -> Value {
             if args.len() != 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             let s = args[0].as_string().ok_or_else(|| {
                 LambdustError::type_error(format!("string-ref: expected string, got {}", args[0]))
             })?;
-            
+
             let index = match args[1].as_number() {
                 Some(SchemeNumber::Integer(i)) => *i as usize,
-                _ => return Err(LambdustError::type_error(format!(
-                    "string-ref: expected integer index, got {}", args[1]
-                ))),
+                _ => {
+                    return Err(LambdustError::type_error(format!(
+                        "string-ref: expected integer index, got {}",
+                        args[1]
+                    )));
+                }
             };
-            
+
             let chars: Vec<char> = s.chars().collect();
             if index >= chars.len() {
                 return Err(LambdustError::runtime_error(format!(
-                    "string-ref: index {} out of bounds for string of length {}", 
-                    index, chars.len()
+                    "string-ref: index {} out of bounds for string of length {}",
+                    index,
+                    chars.len()
                 )));
             }
-            
+
             Ok(Value::Character(chars[index]))
         },
     })
@@ -101,9 +108,12 @@ fn string_append() -> Value {
             for arg in args {
                 match arg.as_string() {
                     Some(s) => result.push_str(s),
-                    None => return Err(LambdustError::type_error(format!(
-                        "string-append: expected string, got {}", arg
-                    ))),
+                    None => {
+                        return Err(LambdustError::type_error(format!(
+                            "string-append: expected string, got {}",
+                            arg
+                        )));
+                    }
                 }
             }
             Ok(Value::String(result))
@@ -119,37 +129,45 @@ fn string_substring() -> Value {
             if args.len() < 2 || args.len() > 3 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             let s = args[0].as_string().ok_or_else(|| {
                 LambdustError::type_error(format!("substring: expected string, got {}", args[0]))
             })?;
-            
+
             let start = match args[1].as_number() {
                 Some(SchemeNumber::Integer(i)) => *i as usize,
-                _ => return Err(LambdustError::type_error(format!(
-                    "substring: expected integer start, got {}", args[1]
-                ))),
+                _ => {
+                    return Err(LambdustError::type_error(format!(
+                        "substring: expected integer start, got {}",
+                        args[1]
+                    )));
+                }
             };
-            
+
             let chars: Vec<char> = s.chars().collect();
             let end = if args.len() == 3 {
                 match args[2].as_number() {
                     Some(SchemeNumber::Integer(i)) => *i as usize,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "substring: expected integer end, got {}", args[2]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "substring: expected integer end, got {}",
+                            args[2]
+                        )));
+                    }
                 }
             } else {
                 chars.len()
             };
-            
+
             if start > chars.len() || end > chars.len() || start > end {
                 return Err(LambdustError::runtime_error(format!(
-                    "substring: invalid range [{}, {}) for string of length {}", 
-                    start, end, chars.len()
+                    "substring: invalid range [{}, {}) for string of length {}",
+                    start,
+                    end,
+                    chars.len()
                 )));
             }
-            
+
             let result: String = chars[start..end].iter().collect();
             Ok(Value::String(result))
         },
@@ -164,11 +182,11 @@ fn string_equal() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             let first = args[0].as_string().ok_or_else(|| {
                 LambdustError::type_error(format!("string=?: expected string, got {}", args[0]))
             })?;
-            
+
             for arg in &args[1..] {
                 let s = arg.as_string().ok_or_else(|| {
                     LambdustError::type_error(format!("string=?: expected string, got {}", arg))
@@ -190,15 +208,18 @@ fn string_less_than() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             for i in 0..args.len() - 1 {
                 let current = args[i].as_string().ok_or_else(|| {
                     LambdustError::type_error(format!("string<?: expected string, got {}", args[i]))
                 })?;
                 let next = args[i + 1].as_string().ok_or_else(|| {
-                    LambdustError::type_error(format!("string<?: expected string, got {}", args[i + 1]))
+                    LambdustError::type_error(format!(
+                        "string<?: expected string, got {}",
+                        args[i + 1]
+                    ))
                 })?;
-                
+
                 if current >= next {
                     return Ok(Value::Boolean(false));
                 }
@@ -216,15 +237,18 @@ fn string_greater_than() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             for i in 0..args.len() - 1 {
                 let current = args[i].as_string().ok_or_else(|| {
                     LambdustError::type_error(format!("string>?: expected string, got {}", args[i]))
                 })?;
                 let next = args[i + 1].as_string().ok_or_else(|| {
-                    LambdustError::type_error(format!("string>?: expected string, got {}", args[i + 1]))
+                    LambdustError::type_error(format!(
+                        "string>?: expected string, got {}",
+                        args[i + 1]
+                    ))
                 })?;
-                
+
                 if current <= next {
                     return Ok(Value::Boolean(false));
                 }
@@ -242,15 +266,21 @@ fn string_less_equal() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             for i in 0..args.len() - 1 {
                 let current = args[i].as_string().ok_or_else(|| {
-                    LambdustError::type_error(format!("string<=?: expected string, got {}", args[i]))
+                    LambdustError::type_error(format!(
+                        "string<=?: expected string, got {}",
+                        args[i]
+                    ))
                 })?;
                 let next = args[i + 1].as_string().ok_or_else(|| {
-                    LambdustError::type_error(format!("string<=?: expected string, got {}", args[i + 1]))
+                    LambdustError::type_error(format!(
+                        "string<=?: expected string, got {}",
+                        args[i + 1]
+                    ))
                 })?;
-                
+
                 if current > next {
                     return Ok(Value::Boolean(false));
                 }
@@ -268,15 +298,21 @@ fn string_greater_equal() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             for i in 0..args.len() - 1 {
                 let current = args[i].as_string().ok_or_else(|| {
-                    LambdustError::type_error(format!("string>=?: expected string, got {}", args[i]))
+                    LambdustError::type_error(format!(
+                        "string>=?: expected string, got {}",
+                        args[i]
+                    ))
                 })?;
                 let next = args[i + 1].as_string().ok_or_else(|| {
-                    LambdustError::type_error(format!("string>=?: expected string, got {}", args[i + 1]))
+                    LambdustError::type_error(format!(
+                        "string>=?: expected string, got {}",
+                        args[i + 1]
+                    ))
                 })?;
-                
+
                 if current < next {
                     return Ok(Value::Boolean(false));
                 }
@@ -294,25 +330,31 @@ fn string_make() -> Value {
             if args.is_empty() || args.len() > 2 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             let length = match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) if *n >= 0 => *n as usize,
-                _ => return Err(LambdustError::type_error(format!(
-                    "make-string: expected non-negative integer, got {}", args[0]
-                ))),
+                _ => {
+                    return Err(LambdustError::type_error(format!(
+                        "make-string: expected non-negative integer, got {}",
+                        args[0]
+                    )));
+                }
             };
-            
+
             let fill_char = if args.len() == 2 {
                 match &args[1] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "make-string: expected character, got {}", args[1]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "make-string: expected character, got {}",
+                            args[1]
+                        )));
+                    }
                 }
             } else {
                 ' ' // Default fill character
             };
-            
+
             Ok(Value::String(fill_char.to_string().repeat(length)))
         },
     })
@@ -327,9 +369,12 @@ fn string_constructor() -> Value {
             for arg in args {
                 match arg {
                     Value::Character(c) => result.push(*c),
-                    _ => return Err(LambdustError::type_error(format!(
-                        "string: expected character, got {}", arg
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "string: expected character, got {}",
+                            arg
+                        )));
+                    }
                 }
             }
             Ok(Value::String(result))
@@ -347,14 +392,17 @@ fn char_equal() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             let first = match &args[0] {
                 Value::Character(c) => *c,
-                _ => return Err(LambdustError::type_error(format!(
-                    "char=?: expected character, got {}", args[0]
-                ))),
+                _ => {
+                    return Err(LambdustError::type_error(format!(
+                        "char=?: expected character, got {}",
+                        args[0]
+                    )));
+                }
             };
-            
+
             for arg in &args[1..] {
                 match arg {
                     Value::Character(c) => {
@@ -362,9 +410,12 @@ fn char_equal() -> Value {
                             return Ok(Value::Boolean(false));
                         }
                     }
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char=?: expected character, got {}", arg
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char=?: expected character, got {}",
+                            arg
+                        )));
+                    }
                 }
             }
             Ok(Value::Boolean(true))
@@ -380,21 +431,27 @@ fn char_less_than() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             for i in 0..args.len() - 1 {
                 let current = match &args[i] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char<?: expected character, got {}", args[i]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char<?: expected character, got {}",
+                            args[i]
+                        )));
+                    }
                 };
                 let next = match &args[i + 1] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char<?: expected character, got {}", args[i + 1]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char<?: expected character, got {}",
+                            args[i + 1]
+                        )));
+                    }
                 };
-                
+
                 if current >= next {
                     return Ok(Value::Boolean(false));
                 }
@@ -412,21 +469,27 @@ fn char_greater_than() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             for i in 0..args.len() - 1 {
                 let current = match &args[i] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char>?: expected character, got {}", args[i]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char>?: expected character, got {}",
+                            args[i]
+                        )));
+                    }
                 };
                 let next = match &args[i + 1] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char>?: expected character, got {}", args[i + 1]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char>?: expected character, got {}",
+                            args[i + 1]
+                        )));
+                    }
                 };
-                
+
                 if current <= next {
                     return Ok(Value::Boolean(false));
                 }
@@ -444,21 +507,27 @@ fn char_less_equal() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             for i in 0..args.len() - 1 {
                 let current = match &args[i] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char<=?: expected character, got {}", args[i]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char<=?: expected character, got {}",
+                            args[i]
+                        )));
+                    }
                 };
                 let next = match &args[i + 1] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char<=?: expected character, got {}", args[i + 1]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char<=?: expected character, got {}",
+                            args[i + 1]
+                        )));
+                    }
                 };
-                
+
                 if current > next {
                     return Ok(Value::Boolean(false));
                 }
@@ -476,21 +545,27 @@ fn char_greater_equal() -> Value {
             if args.len() < 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            
+
             for i in 0..args.len() - 1 {
                 let current = match &args[i] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char>=?: expected character, got {}", args[i]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char>=?: expected character, got {}",
+                            args[i]
+                        )));
+                    }
                 };
                 let next = match &args[i + 1] {
                     Value::Character(c) => *c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "char>=?: expected character, got {}", args[i + 1]
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "char>=?: expected character, got {}",
+                            args[i + 1]
+                        )));
+                    }
                 };
-                
+
                 if current < next {
                     return Ok(Value::Boolean(false));
                 }
@@ -508,11 +583,12 @@ fn char_to_integer() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             match &args[0] {
                 Value::Character(c) => Ok(Value::Number(SchemeNumber::Integer(*c as u8 as i64))),
                 _ => Err(LambdustError::type_error(format!(
-                    "char->integer: expected character, got {}", args[0]
+                    "char->integer: expected character, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -527,19 +603,21 @@ fn integer_to_char() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => {
                     if *n >= 0 && *n <= 127 {
                         Ok(Value::Character(*n as u8 as char))
                     } else {
                         Err(LambdustError::runtime_error(format!(
-                            "integer->char: value {} out of ASCII range", n
+                            "integer->char: value {} out of ASCII range",
+                            n
                         )))
                     }
                 }
                 _ => Err(LambdustError::type_error(format!(
-                    "integer->char: expected integer, got {}", args[0]
+                    "integer->char: expected integer, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -556,11 +634,12 @@ fn convert_char_to_string() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             match &args[0] {
                 Value::Character(c) => Ok(Value::String(c.to_string())),
                 _ => Err(LambdustError::type_error(format!(
-                    "char->string: expected character, got {}", args[0]
+                    "char->string: expected character, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -575,14 +654,15 @@ fn convert_string_to_list() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             match args[0].as_string() {
                 Some(s) => {
                     let chars: Vec<Value> = s.chars().map(Value::Character).collect();
                     Ok(Value::from_vector(chars))
                 }
                 None => Err(LambdustError::type_error(format!(
-                    "string->list: expected string, got {}", args[0]
+                    "string->list: expected string, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -597,25 +677,31 @@ fn convert_list_to_string() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             let chars = match args[0].to_vector() {
                 Some(vec) => vec,
-                None => return Err(LambdustError::type_error(format!(
-                    "list->string: expected list, got {}", args[0]
-                ))),
+                None => {
+                    return Err(LambdustError::type_error(format!(
+                        "list->string: expected list, got {}",
+                        args[0]
+                    )));
+                }
             };
-            
+
             let mut result = String::new();
             for val in chars {
                 let ch = match val {
                     Value::Character(c) => c,
-                    _ => return Err(LambdustError::type_error(format!(
-                        "list->string: expected list of characters, got {}", val
-                    ))),
+                    _ => {
+                        return Err(LambdustError::type_error(format!(
+                            "list->string: expected list of characters, got {}",
+                            val
+                        )));
+                    }
                 };
                 result.push(ch);
             }
-            
+
             Ok(Value::String(result))
         },
     })
@@ -629,11 +715,12 @@ fn convert_number_to_string() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             match args[0].as_number() {
                 Some(n) => Ok(Value::String(n.to_string())),
                 None => Err(LambdustError::type_error(format!(
-                    "number->string: expected number, got {}", args[0]
+                    "number->string: expected number, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -648,7 +735,7 @@ fn convert_string_to_number() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             match args[0].as_string() {
                 Some(s) => {
                     if let Ok(i) = s.parse::<i64>() {
@@ -660,7 +747,8 @@ fn convert_string_to_number() -> Value {
                     }
                 }
                 None => Err(LambdustError::type_error(format!(
-                    "string->number: expected string, got {}", args[0]
+                    "string->number: expected string, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -675,11 +763,12 @@ fn convert_symbol_to_string() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             match args[0].as_symbol() {
                 Some(s) => Ok(Value::String(s.to_string())),
                 None => Err(LambdustError::type_error(format!(
-                    "symbol->string: expected symbol, got {}", args[0]
+                    "symbol->string: expected symbol, got {}",
+                    args[0]
                 ))),
             }
         },
@@ -694,11 +783,12 @@ fn convert_string_to_symbol() -> Value {
             if args.len() != 1 {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
-            
+
             match args[0].as_string() {
                 Some(s) => Ok(Value::Symbol(s.to_string())),
                 None => Err(LambdustError::type_error(format!(
-                    "string->symbol: expected string, got {}", args[0]
+                    "string->symbol: expected string, got {}",
+                    args[0]
                 ))),
             }
         },

@@ -1,5 +1,5 @@
 //! SRFI 45: Primitives for Expressing Iterative Lazy Algorithms
-//! 
+//!
 //! This module implements the lazy evaluation primitives defined in SRFI 45.
 
 use crate::ast::Expr;
@@ -60,21 +60,24 @@ pub fn make_lazy_promise(expr: Expr, env: Rc<Environment>) -> Value {
 /// Create an eager promise from a value
 pub fn make_eager_promise(value: Value) -> Value {
     Value::Promise(Promise {
-        state: PromiseState::Eager { 
-            value: Box::new(value) 
+        state: PromiseState::Eager {
+            value: Box::new(value),
         },
     })
 }
 
 /// Force a promise, returning the evaluated value
 /// This requires evaluator integration for complete implementation
-pub fn force_promise(promise: &Promise, evaluator: &mut crate::evaluator::Evaluator) -> crate::Result<Value> {
+pub fn force_promise(
+    promise: &Promise,
+    evaluator: &mut crate::evaluator::Evaluator,
+) -> crate::Result<Value> {
     match &promise.state {
         PromiseState::Eager { value } => Ok((**value).clone()),
         PromiseState::Lazy { expr, env } => {
             // Evaluate the expression in the stored environment
             let result = evaluator.eval_in_env(expr.clone(), env.clone())?;
-            
+
             // If the result is another promise, force it recursively
             match result {
                 Value::Promise(ref inner_promise) => force_promise(inner_promise, evaluator),
@@ -92,21 +95,23 @@ mod tests {
     #[test]
     fn test_promise_predicate() {
         let predicate = promise_predicate();
-        
+
         // Test with promise
         let promise = make_eager_promise(Value::Number(SchemeNumber::Integer(42)));
         let result = match predicate {
             Value::Procedure(Procedure::Builtin { func, .. }) => func(&[promise]),
             _ => panic!("Expected builtin procedure"),
-        }.unwrap();
+        }
+        .unwrap();
         assert_eq!(result, Value::Boolean(true));
-        
+
         // Test with non-promise
         let non_promise = Value::Number(SchemeNumber::Integer(42));
         let result = match predicate {
             Value::Procedure(Procedure::Builtin { func, .. }) => func(&[non_promise]),
             _ => panic!("Expected builtin procedure"),
-        }.unwrap();
+        }
+        .unwrap();
         assert_eq!(result, Value::Boolean(false));
     }
 
@@ -114,12 +119,22 @@ mod tests {
     fn test_make_promises() {
         // Test eager promise
         let eager = make_eager_promise(Value::Number(SchemeNumber::Integer(42)));
-        assert!(matches!(eager, Value::Promise(Promise { state: PromiseState::Eager { .. } })));
-        
+        assert!(matches!(
+            eager,
+            Value::Promise(Promise {
+                state: PromiseState::Eager { .. }
+            })
+        ));
+
         // Test lazy promise
         let expr = Expr::Literal(crate::ast::Literal::Number(SchemeNumber::Integer(42)));
         let env = Rc::new(Environment::new());
         let lazy = make_lazy_promise(expr, env);
-        assert!(matches!(lazy, Value::Promise(Promise { state: PromiseState::Lazy { .. } })));
+        assert!(matches!(
+            lazy,
+            Value::Promise(Promise {
+                state: PromiseState::Lazy { .. }
+            })
+        ));
     }
 }
