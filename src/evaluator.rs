@@ -936,7 +936,7 @@ impl Evaluator {
         });
 
         // Call the procedure with the continuation as its argument
-        self.apply_procedure(proc, vec![continuation_proc], env)
+        self.apply_procedure(proc, vec![continuation_proc], continuation_proc)
     }
 
     /// Evaluate force special form: (force promise)
