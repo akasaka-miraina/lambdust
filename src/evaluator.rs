@@ -176,11 +176,23 @@ impl Evaluator {
             "if" => Ok(Some(self.eval_if_tail(operands, env)?)),
             "begin" => Ok(Some(self.eval_begin_tail(operands, env)?)),
             // Special forms that are not tail-call optimizable
-            "define" | "set!" | "lambda" | "quote" | "and" | "or" | "do" | "apply" | "map"
-            | "for-each" | "call-with-values" | "delay" | "lazy" | "force" | "syntax-rules"
-            | "call-with-current-continuation" | "call/cc" => {
-                Ok(Some(TailCallInfo::None))
-            }
+            "define"
+            | "set!"
+            | "lambda"
+            | "quote"
+            | "and"
+            | "or"
+            | "do"
+            | "apply"
+            | "map"
+            | "for-each"
+            | "call-with-values"
+            | "delay"
+            | "lazy"
+            | "force"
+            | "syntax-rules"
+            | "call-with-current-continuation"
+            | "call/cc" => Ok(Some(TailCallInfo::None)),
             _ => Ok(None), // Not a special form
         }
     }
@@ -363,7 +375,7 @@ impl Evaluator {
                         // Multiple values case - wrap in Values
                         Value::Values(args)
                     };
-                    
+
                     // Apply the continuation (this would jump to the captured context)
                     // For now, we'll use the simplified implementation
                     self.apply_continuation(*continuation.clone(), result_value)
@@ -883,12 +895,12 @@ impl Evaluator {
         // For now, this is a simplified implementation
         // A full implementation would restore the call stack and environment
         // and jump to the continuation point
-        
+
         // In a complete implementation, this would:
         // 1. Restore the captured environment
         // 2. Restore the call stack
         // 3. Return the value to the continuation point
-        
+
         // For this basic implementation, we'll just return the value
         // This allows call/cc to work in simple cases
         Ok(value)
@@ -901,13 +913,14 @@ impl Evaluator {
         }
 
         let proc = self.eval_impl(operands[0].clone(), env.clone())?;
-        
+
         // Verify that the argument is a procedure
         match &proc {
-            Value::Procedure(_) => {},
+            Value::Procedure(_) => {}
             _ => {
                 return Err(LambdustError::type_error(format!(
-                    "call/cc: expected procedure, got {}", proc
+                    "call/cc: expected procedure, got {}",
+                    proc
                 )));
             }
         }
@@ -1153,7 +1166,7 @@ mod tests {
         assert_eq!(result, Value::from(200i64));
     }
 
-    #[test] 
+    #[test]
     fn test_call_cc_basic() {
         // Test basic call/cc that doesn't use the continuation
         let result = eval_str("(call/cc (lambda (k) 42))").unwrap();
@@ -1168,18 +1181,22 @@ mod tests {
     fn test_continuation_multi_values() {
         // Test continuation with multiple values
         let result = eval_str("(call/cc (lambda (cont) (cont 1 2 3)))").unwrap();
-        assert_eq!(result, Value::Values(vec![
-            Value::from(1i64),
-            Value::from(2i64), 
-            Value::from(3i64)
-        ]));
-        
+        assert_eq!(
+            result,
+            Value::Values(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64)
+            ])
+        );
+
         // Test continuation in call-with-values context
         let result = eval_str(
             "(call-with-values 
                (lambda () (call/cc (lambda (cont) (cont 5 10))))
-               (lambda (a b) (+ a b)))"
-        ).unwrap();
+               (lambda (a b) (+ a b)))",
+        )
+        .unwrap();
         assert_eq!(result, Value::from(15i64));
     }
 

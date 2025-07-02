@@ -930,19 +930,23 @@ mod tests {
     fn test_formal_multi_value_continuations() {
         // Test that the formal evaluator properly handles multiple values in continuations
         // This ensures that the CPS implementation correctly propagates multi-value contexts
-        
+
         // Test simple multi-value propagation
         let result = eval_str_formal("(values 1 2 3)").unwrap();
-        assert_eq!(result, Value::Values(vec![
-            Value::from(1i64),
-            Value::from(2i64),
-            Value::from(3i64)
-        ]));
+        assert_eq!(
+            result,
+            Value::Values(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64)
+            ])
+        );
 
         // Test multi-value in call-with-values (more complex CPS case)
         let result = eval_str_formal(
-            "(call-with-values (lambda () (values 5 10 15)) (lambda (a b c) (+ a b c)))"
-        ).unwrap();
+            "(call-with-values (lambda () (values 5 10 15)) (lambda (a b c) (+ a b c)))",
+        )
+        .unwrap();
         assert_eq!(result, Value::from(30i64));
     }
 }
