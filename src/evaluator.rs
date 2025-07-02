@@ -84,7 +84,7 @@ impl Evaluator {
             match self.eval_impl_tail(expr.clone(), env.clone())? {
                 TailCallInfo::None => {
                     // Normal evaluation
-                    return Ok(self.eval_impl_tail(expr, env)?);
+                    return self.eval_impl(expr, env);
                 }
                 TailCallInfo::Call { proc, args } => {
                     // Tail call optimization: execute via loop

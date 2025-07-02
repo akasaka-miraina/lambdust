@@ -74,10 +74,23 @@ impl LambdustInterpreter {
     /// Extract function name from define form using AST
     fn extract_function_name(&self, code: &str) -> Option<String> {
         // Parse the code into an AST
-        if let Ok(ast) = parse(tokenize(code).ok()?) {
-            // Check if the AST represents a define form
-            if let Value::Procedure(Procedure::Lambda { name: Some(name), .. }) = ast {
-                return Some(name);
+        if let Ok(crate::ast::Expr::List(exprs)) = parse(tokenize(code).ok()?) {
+            if !exprs.is_empty() {
+                if let crate::ast::Expr::Variable(op) = &exprs[0] {
+                    if op == "define" && exprs.len() >= 2 {
+                        match &exprs[1] {
+                            // (define var value)
+                            crate::ast::Expr::Variable(name) => return Some(name.clone()),
+                            // (define (name params...) body...)
+                            crate::ast::Expr::List(def_exprs) if !def_exprs.is_empty() => {
+                                if let crate::ast::Expr::Variable(name) = &def_exprs[0] {
+                                    return Some(name.clone());
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             }
         }
         None
