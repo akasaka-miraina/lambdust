@@ -3,6 +3,7 @@
 use thiserror::Error;
 
 /// Result type alias for Lambdust operations
+#[allow(clippy::result_large_err)]
 pub type Result<T> = std::result::Result<T, LambdustError>;
 
 /// Source position information for error reporting
@@ -372,6 +373,46 @@ impl LambdustError {
         Self::SyntaxError {
             message: message.into(),
             location: SourceSpan::unknown(),
+        }
+    }
+
+    /// Create a simple parse error without location info (for backward compatibility)
+    pub fn parse_error(message: impl Into<String>) -> Self {
+        Self::ParseError {
+            message: message.into(),
+            location: SourceSpan::unknown(),
+        }
+    }
+
+    /// Create a simple lexer error without location info (for backward compatibility)
+    pub fn lexer_error(message: impl Into<String>) -> Self {
+        Self::LexerError {
+            message: message.into(),
+            location: SourceSpan::unknown(),
+        }
+    }
+
+    /// Create a simple io error without location info (for backward compatibility)
+    pub fn io_error(message: impl Into<String>) -> Self {
+        Self::IoError {
+            message: message.into(),
+            location: None,
+        }
+    }
+
+    /// Create a simple division by zero error without location info (for backward compatibility)
+    pub fn division_by_zero() -> Self {
+        Self::DivisionByZero {
+            location: SourceSpan::unknown(),
+            stack_trace: Vec::new(),
+        }
+    }
+
+    /// Create a simple stack overflow error without location info (for backward compatibility)
+    pub fn stack_overflow() -> Self {
+        Self::StackOverflow {
+            location: SourceSpan::unknown(),
+            stack_trace: Vec::new(),
         }
     }
 

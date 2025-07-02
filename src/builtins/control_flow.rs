@@ -20,13 +20,13 @@ fn call_cc_function() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
 
             // The argument should be a procedure that takes one argument (the continuation)
             let _proc = match &args[0] {
                 Value::Procedure(_) => &args[0],
-                _ => return Err(LambdustError::TypeError(format!(
+                _ => return Err(LambdustError::type_error(format!(
                     "call/cc: expected procedure, got {}", args[0]
                 ))),
             };
@@ -59,7 +59,7 @@ fn raise_function() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
 
             // Convert the raised value to a runtime error
@@ -80,13 +80,13 @@ fn with_exception_handler_function() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
 
             // First argument should be the exception handler (procedure)
             let _handler = match &args[0] {
                 Value::Procedure(_) => &args[0],
-                _ => return Err(LambdustError::TypeError(format!(
+                _ => return Err(LambdustError::type_error(format!(
                     "with-exception-handler: expected procedure as handler, got {}", args[0]
                 ))),
             };
@@ -94,7 +94,7 @@ fn with_exception_handler_function() -> Value {
             // Second argument should be the thunk (procedure of no arguments)
             let _thunk = match &args[1] {
                 Value::Procedure(_) => &args[1],
-                _ => return Err(LambdustError::TypeError(format!(
+                _ => return Err(LambdustError::type_error(format!(
                     "with-exception-handler: expected procedure as thunk, got {}", args[1]
                 ))),
             };
@@ -117,13 +117,13 @@ fn dynamic_wind_function() -> Value {
         arity: Some(3),
         func: |args| {
             if args.len() != 3 {
-                return Err(LambdustError::ArityError(3, args.len()));
+                return Err(LambdustError::arity_error(3, args.len()));
             }
 
             // First argument: before thunk (procedure of no arguments)
             let _before = match &args[0] {
                 Value::Procedure(_) => &args[0],
-                _ => return Err(LambdustError::TypeError(format!(
+                _ => return Err(LambdustError::type_error(format!(
                     "dynamic-wind: expected procedure as before thunk, got {}", args[0]
                 ))),
             };
@@ -131,7 +131,7 @@ fn dynamic_wind_function() -> Value {
             // Second argument: during thunk (procedure of no arguments)
             let _during = match &args[1] {
                 Value::Procedure(_) => &args[1],
-                _ => return Err(LambdustError::TypeError(format!(
+                _ => return Err(LambdustError::type_error(format!(
                     "dynamic-wind: expected procedure as during thunk, got {}", args[1]
                 ))),
             };
@@ -139,7 +139,7 @@ fn dynamic_wind_function() -> Value {
             // Third argument: after thunk (procedure of no arguments)
             let _after = match &args[2] {
                 Value::Procedure(_) => &args[2],
-                _ => return Err(LambdustError::TypeError(format!(
+                _ => return Err(LambdustError::type_error(format!(
                     "dynamic-wind: expected procedure as after thunk, got {}", args[2]
                 ))),
             };

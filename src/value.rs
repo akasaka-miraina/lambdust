@@ -39,6 +39,8 @@ pub enum Value {
     Values(Vec<Value>),
     /// Continuation values (call/cc)
     Continuation(Continuation),
+    /// Promise values (SRFI 45 - lazy evaluation)
+    Promise(Promise),
 }
 
 /// Procedure representation
@@ -206,6 +208,10 @@ impl fmt::Display for Value {
                 }
             }
             Value::Continuation(_) => write!(f, "#<continuation>"),
+            Value::Promise(promise) => match &promise.state {
+                PromiseState::Lazy { .. } => write!(f, "#<promise:lazy>"),
+                PromiseState::Eager { value } => write!(f, "#<promise:eager:{}>", value),
+            },
         }
     }
 }
@@ -453,6 +459,7 @@ impl std::fmt::Debug for Value {
             Self::Record(arg0) => f.debug_tuple("Record").field(arg0).finish(),
             Self::Values(arg0) => f.debug_tuple("Values").field(arg0).finish(),
             Self::Continuation(arg0) => f.debug_tuple("Continuation").field(arg0).finish(),
+            Self::Promise(arg0) => f.debug_tuple("Promise").field(arg0).finish(),
         }
     }
 }
@@ -473,6 +480,7 @@ impl PartialEq for Value {
             (Self::Record(l0), Self::Record(r0)) => l0 == r0,
             (Self::Values(l0), Self::Values(r0)) => l0 == r0,
             (Self::Continuation(_), Self::Continuation(_)) => false, // Continuations are never equal
+            (Self::Promise(_), Self::Promise(_)) => false, // Promises are never equal per SRFI 45
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
@@ -647,6 +655,30 @@ pub struct StackFrame {
     pub expr: Expr,
     /// The environment for this frame
     pub env: Rc<Environment>,
+}
+
+/// Promise for lazy evaluation (SRFI 45)
+#[derive(Clone, Debug)]
+pub struct Promise {
+    /// The current state of the promise
+    pub state: PromiseState,
+}
+
+/// State of a promise
+#[derive(Clone, Debug)]
+pub enum PromiseState {
+    /// Unevaluated promise with expression and environment
+    Lazy {
+        /// Expression to evaluate
+        expr: Expr,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+    },
+    /// Evaluated promise with cached value
+    Eager {
+        /// Cached result value
+        value: Box<Value>,
+    },
 }
 
 #[cfg(test)]

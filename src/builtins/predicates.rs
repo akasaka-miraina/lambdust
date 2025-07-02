@@ -35,7 +35,7 @@ fn predicate_number() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(args[0].is_number()))
         },
@@ -48,7 +48,7 @@ fn predicate_string() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(args[0].is_string()))
         },
@@ -61,7 +61,7 @@ fn predicate_symbol() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(args[0].is_symbol()))
         },
@@ -74,7 +74,7 @@ fn predicate_boolean() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(matches!(args[0], Value::Boolean(_))))
         },
@@ -87,7 +87,7 @@ fn predicate_procedure() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(args[0].is_procedure()))
         },
@@ -100,7 +100,7 @@ fn predicate_char() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(matches!(args[0], Value::Character(_))))
         },
@@ -113,7 +113,7 @@ fn predicate_vector() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(matches!(args[0], Value::Vector(_))))
         },
@@ -140,7 +140,7 @@ fn equality_eq() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
             Ok(Value::Boolean(args[0].scheme_eq(&args[1])))
         },
@@ -153,7 +153,7 @@ fn equality_eqv() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
             Ok(Value::Boolean(args[0].eqv(&args[1])))
         },
@@ -166,7 +166,7 @@ fn equality_equal() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
             Ok(Value::Boolean(args[0].equal(&args[1])))
         },
@@ -181,7 +181,7 @@ fn logical_not() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(!args[0].is_truthy()))
         },

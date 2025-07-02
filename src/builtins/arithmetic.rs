@@ -59,7 +59,7 @@ fn add_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => {
             Ok(SchemeNumber::Real(x + *y as f64))
         }
-        _ => Err(LambdustError::TypeError(format!(
+        _ => Err(LambdustError::type_error(format!(
             "Cannot add {} and {}", a, b
         ))),
     }
@@ -80,7 +80,7 @@ fn sub_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => {
             Ok(SchemeNumber::Real(x - *y as f64))
         }
-        _ => Err(LambdustError::TypeError(format!(
+        _ => Err(LambdustError::type_error(format!(
             "Cannot subtract {} from {}", b, a
         ))),
     }
@@ -101,7 +101,7 @@ fn mul_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => {
             Ok(SchemeNumber::Real(x * *y as f64))
         }
-        _ => Err(LambdustError::TypeError(format!(
+        _ => Err(LambdustError::type_error(format!(
             "Cannot multiply {} and {}", a, b
         ))),
     }
@@ -111,10 +111,10 @@ fn mul_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
 fn div_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
     match (a, b) {
         (_, SchemeNumber::Integer(0)) => {
-            Err(LambdustError::DivisionByZero())
+            Err(LambdustError::division_by_zero())
         }
         (_, SchemeNumber::Real(f)) if *f == 0.0 => {
-            Err(LambdustError::DivisionByZero())
+            Err(LambdustError::division_by_zero())
         }
         (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
             if x % y == 0 {
@@ -132,7 +132,7 @@ fn div_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => {
             Ok(SchemeNumber::Real(x / *y as f64))
         }
-        _ => Err(LambdustError::TypeError(format!(
+        _ => Err(LambdustError::type_error(format!(
             "Cannot divide {} by {}", a, b
         ))),
     }
@@ -150,7 +150,7 @@ fn arithmetic_add() -> Value {
                 if let Some(num) = arg.as_number() {
                     result = add_numbers(&result, num)?;
                 } else {
-                    return Err(LambdustError::TypeError(format!(
+                    return Err(LambdustError::type_error(format!(
                         "+: expected number, got {}", arg
                     )));
                 }
@@ -166,7 +166,7 @@ fn arithmetic_sub() -> Value {
         arity: None, // At least 1 argument
         func: |args| {
             if args.is_empty() {
-                return Err(LambdustError::ArityError(1, 0));
+                return Err(LambdustError::arity_error(1, 0));
             }
 
             if let Some(first_num) = args[0].as_number() {
@@ -175,7 +175,7 @@ fn arithmetic_sub() -> Value {
                     match first_num {
                         SchemeNumber::Integer(x) => Ok(Value::Number(SchemeNumber::Integer(-x))),
                         SchemeNumber::Real(x) => Ok(Value::Number(SchemeNumber::Real(-x))),
-                        _ => Err(LambdustError::TypeError("Cannot negate this number".to_string())),
+                        _ => Err(LambdustError::type_error("Cannot negate this number")),
                     }
                 } else {
                     // Binary minus
@@ -184,7 +184,7 @@ fn arithmetic_sub() -> Value {
                         if let Some(num) = arg.as_number() {
                             result = sub_numbers(&result, num)?;
                         } else {
-                            return Err(LambdustError::TypeError(format!(
+                            return Err(LambdustError::type_error(format!(
                                 "-: expected number, got {}", arg
                             )));
                         }
@@ -192,7 +192,7 @@ fn arithmetic_sub() -> Value {
                     Ok(Value::Number(result))
                 }
             } else {
-                Err(LambdustError::TypeError(format!(
+                Err(LambdustError::type_error(format!(
                     "-: expected number, got {}", args[0]
                 )))
             }
@@ -210,7 +210,7 @@ fn arithmetic_mul() -> Value {
                 if let Some(num) = arg.as_number() {
                     result = mul_numbers(&result, num)?;
                 } else {
-                    return Err(LambdustError::TypeError(format!(
+                    return Err(LambdustError::type_error(format!(
                         "*: expected number, got {}", arg
                     )));
                 }
@@ -226,18 +226,18 @@ fn arithmetic_div() -> Value {
         arity: None, // At least 1 argument
         func: |args| {
             if args.is_empty() {
-                return Err(LambdustError::ArityError(1, 0));
+                return Err(LambdustError::arity_error(1, 0));
             }
 
             if let Some(first_num) = args[0].as_number() {
                 if args.len() == 1 {
                     // Reciprocal
                     match first_num {
-                        SchemeNumber::Integer(0) => Err(LambdustError::DivisionByZero()),
-                        SchemeNumber::Real(f) if *f == 0.0 => Err(LambdustError::DivisionByZero()),
+                        SchemeNumber::Integer(0) => Err(LambdustError::division_by_zero()),
+                        SchemeNumber::Real(f) if *f == 0.0 => Err(LambdustError::division_by_zero()),
                         SchemeNumber::Integer(x) => Ok(Value::Number(SchemeNumber::Real(1.0 / *x as f64))),
                         SchemeNumber::Real(x) => Ok(Value::Number(SchemeNumber::Real(1.0 / x))),
-                        _ => Err(LambdustError::TypeError("Cannot take reciprocal of this number".to_string())),
+                        _ => Err(LambdustError::type_error("Cannot take reciprocal of this number")),
                     }
                 } else {
                     // Division
@@ -246,7 +246,7 @@ fn arithmetic_div() -> Value {
                         if let Some(num) = arg.as_number() {
                             result = div_numbers(&result, num)?;
                         } else {
-                            return Err(LambdustError::TypeError(format!(
+                            return Err(LambdustError::type_error(format!(
                                 "/: expected number, got {}", arg
                             )));
                         }
@@ -254,7 +254,7 @@ fn arithmetic_div() -> Value {
                     Ok(Value::Number(result))
                 }
             } else {
-                Err(LambdustError::TypeError(format!(
+                Err(LambdustError::type_error(format!(
                     "/: expected number, got {}", args[0]
                 )))
             }
@@ -270,12 +270,12 @@ fn arithmetic_eq() -> Value {
         arity: None, // At least 2 arguments
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
 
             for arg in args {
                 if !arg.is_number() {
-                    return Err(LambdustError::TypeError(format!(
+                    return Err(LambdustError::type_error(format!(
                         "=: expected number, got {}", arg
                     )));
                 }
@@ -299,15 +299,15 @@ fn arithmetic_lt() -> Value {
         arity: None, // At least 2 arguments
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
 
             for i in 0..args.len() - 1 {
                 let current = args[i].as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!("<: expected number, got {}", args[i]))
+                    LambdustError::type_error(format!("<: expected number, got {}", args[i]))
                 })?;
                 let next = args[i + 1].as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!("<: expected number, got {}", args[i + 1]))
+                    LambdustError::type_error(format!("<: expected number, got {}", args[i + 1]))
                 })?;
 
                 if !number_less_than(current, next) {
@@ -325,15 +325,15 @@ fn arithmetic_le() -> Value {
         arity: None, // At least 2 arguments
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
 
             for i in 0..args.len() - 1 {
                 let current = args[i].as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!("<=: expected number, got {}", args[i]))
+                    LambdustError::type_error(format!("<=: expected number, got {}", args[i]))
                 })?;
                 let next = args[i + 1].as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!("<=: expected number, got {}", args[i + 1]))
+                    LambdustError::type_error(format!("<=: expected number, got {}", args[i + 1]))
                 })?;
 
                 if number_less_than(next, current) {
@@ -351,15 +351,15 @@ fn arithmetic_gt() -> Value {
         arity: None, // At least 2 arguments
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
 
             for i in 0..args.len() - 1 {
                 let current = args[i].as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!(">: expected number, got {}", args[i]))
+                    LambdustError::type_error(format!(">: expected number, got {}", args[i]))
                 })?;
                 let next = args[i + 1].as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!(">: expected number, got {}", args[i + 1]))
+                    LambdustError::type_error(format!(">: expected number, got {}", args[i + 1]))
                 })?;
 
                 if !number_less_than(next, current) {
@@ -377,15 +377,15 @@ fn arithmetic_ge() -> Value {
         arity: None, // At least 2 arguments
         func: |args| {
             if args.len() < 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
 
             for i in 0..args.len() - 1 {
                 let current = args[i].as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!(">=: expected number, got {}", args[i]))
+                    LambdustError::type_error(format!(">=: expected number, got {}", args[i]))
                 })?;
                 let next = args[i + 1].as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!(">=: expected number, got {}", args[i + 1]))
+                    LambdustError::type_error(format!(">=: expected number, got {}", args[i + 1]))
                 })?;
 
                 if number_less_than(current, next) {
@@ -405,13 +405,13 @@ fn numeric_abs() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Number(SchemeNumber::Integer(n.abs()))),
                 Some(SchemeNumber::Real(n)) => Ok(Value::Number(SchemeNumber::Real(n.abs()))),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "abs: expected number, got {}", args[0]
                 ))),
             }
@@ -425,25 +425,25 @@ fn numeric_quotient() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
             
             let a = args[0].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("quotient: expected number, got {}", args[0]))
+                LambdustError::type_error(format!("quotient: expected number, got {}", args[0]))
             })?;
             let b = args[1].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("quotient: expected number, got {}", args[1]))
+                LambdustError::type_error(format!("quotient: expected number, got {}", args[1]))
             })?;
             
             match (a, b) {
                 (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                     if *y == 0 {
-                        Err(LambdustError::DivisionByZero())
+                        Err(LambdustError::division_by_zero())
                     } else {
                         Ok(Value::Number(SchemeNumber::Integer(x / y)))
                     }
                 }
-                _ => Err(LambdustError::TypeError("quotient: expected integers".to_string())),
+                _ => Err(LambdustError::type_error("quotient: expected integers")),
             }
         },
     })
@@ -455,25 +455,25 @@ fn numeric_remainder() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
             
             let a = args[0].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("remainder: expected number, got {}", args[0]))
+                LambdustError::type_error(format!("remainder: expected number, got {}", args[0]))
             })?;
             let b = args[1].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("remainder: expected number, got {}", args[1]))
+                LambdustError::type_error(format!("remainder: expected number, got {}", args[1]))
             })?;
             
             match (a, b) {
                 (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                     if *y == 0 {
-                        Err(LambdustError::DivisionByZero())
+                        Err(LambdustError::division_by_zero())
                     } else {
                         Ok(Value::Number(SchemeNumber::Integer(x % y)))
                     }
                 }
-                _ => Err(LambdustError::TypeError("remainder: expected integers".to_string())),
+                _ => Err(LambdustError::type_error("remainder: expected integers")),
             }
         },
     })
@@ -485,27 +485,27 @@ fn numeric_modulo() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
             
             let a = args[0].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("modulo: expected number, got {}", args[0]))
+                LambdustError::type_error(format!("modulo: expected number, got {}", args[0]))
             })?;
             let b = args[1].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("modulo: expected number, got {}", args[1]))
+                LambdustError::type_error(format!("modulo: expected number, got {}", args[1]))
             })?;
             
             match (a, b) {
                 (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                     if *y == 0 {
-                        Err(LambdustError::DivisionByZero())
+                        Err(LambdustError::division_by_zero())
                     } else {
                         // Scheme modulo: result has same sign as divisor
                         let result = ((x % y) + y) % y;
                         Ok(Value::Number(SchemeNumber::Integer(result)))
                     }
                 }
-                _ => Err(LambdustError::TypeError("modulo: expected integers".to_string())),
+                _ => Err(LambdustError::type_error("modulo: expected integers")),
             }
         },
     })
@@ -526,7 +526,7 @@ fn numeric_gcd() -> Value {
                     Some(SchemeNumber::Integer(n)) => {
                         result = gcd_helper(result, *n);
                     }
-                    _ => return Err(LambdustError::TypeError(format!(
+                    _ => return Err(LambdustError::type_error(format!(
                         "gcd: expected integer, got {}", arg
                     ))),
                 }
@@ -554,7 +554,7 @@ fn numeric_lcm() -> Value {
                         }
                         result = lcm_helper(result, *n);
                     }
-                    _ => return Err(LambdustError::TypeError(format!(
+                    _ => return Err(LambdustError::type_error(format!(
                         "lcm: expected integer, got {}", arg
                     ))),
                 }
@@ -570,13 +570,13 @@ fn numeric_floor() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Number(SchemeNumber::Integer(*n))),
                 Some(SchemeNumber::Real(n)) => Ok(Value::Number(SchemeNumber::Integer(n.floor() as i64))),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "floor: expected number, got {}", args[0]
                 ))),
             }
@@ -590,13 +590,13 @@ fn numeric_ceiling() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Number(SchemeNumber::Integer(*n))),
                 Some(SchemeNumber::Real(n)) => Ok(Value::Number(SchemeNumber::Integer(n.ceil() as i64))),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "ceiling: expected number, got {}", args[0]
                 ))),
             }
@@ -610,13 +610,13 @@ fn numeric_truncate() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Number(SchemeNumber::Integer(*n))),
                 Some(SchemeNumber::Real(n)) => Ok(Value::Number(SchemeNumber::Integer(n.trunc() as i64))),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "truncate: expected number, got {}", args[0]
                 ))),
             }
@@ -630,13 +630,13 @@ fn numeric_round() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Number(SchemeNumber::Integer(*n))),
                 Some(SchemeNumber::Real(n)) => Ok(Value::Number(SchemeNumber::Integer(n.round() as i64))),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "round: expected number, got {}", args[0]
                 ))),
             }
@@ -650,13 +650,13 @@ fn numeric_sqrt() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => {
                     if *n < 0 {
-                        Err(LambdustError::RuntimeError("sqrt: domain error".to_string()))
+                        Err(LambdustError::runtime_error("sqrt: domain error"))
                     } else {
                         let result = (*n as f64).sqrt();
                         if result.fract() == 0.0 {
@@ -668,12 +668,12 @@ fn numeric_sqrt() -> Value {
                 }
                 Some(SchemeNumber::Real(n)) => {
                     if *n < 0.0 {
-                        Err(LambdustError::RuntimeError("sqrt: domain error".to_string()))
+                        Err(LambdustError::runtime_error("sqrt: domain error"))
                     } else {
                         Ok(Value::Number(SchemeNumber::Real(n.sqrt())))
                     }
                 }
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "sqrt: expected number, got {}", args[0]
                 ))),
             }
@@ -687,14 +687,14 @@ fn numeric_expt() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
             
             let base = args[0].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("expt: expected number, got {}", args[0]))
+                LambdustError::type_error(format!("expt: expected number, got {}", args[0]))
             })?;
             let exp = args[1].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("expt: expected number, got {}", args[1]))
+                LambdustError::type_error(format!("expt: expected number, got {}", args[1]))
             })?;
             
             match (base, exp) {
@@ -736,16 +736,16 @@ fn numeric_min() -> Value {
         arity: None, // At least 1 argument
         func: |args| {
             if args.is_empty() {
-                return Err(LambdustError::ArityError(1, 0));
+                return Err(LambdustError::arity_error(1, 0));
             }
             
             let mut min_val = args[0].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("min: expected number, got {}", args[0]))
+                LambdustError::type_error(format!("min: expected number, got {}", args[0]))
             })?.clone();
             
             for arg in &args[1..] {
                 let num = arg.as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!("min: expected number, got {}", arg))
+                    LambdustError::type_error(format!("min: expected number, got {}", arg))
                 })?;
                 
                 if number_less_than(num, &min_val) {
@@ -764,16 +764,16 @@ fn numeric_max() -> Value {
         arity: None, // At least 1 argument
         func: |args| {
             if args.is_empty() {
-                return Err(LambdustError::ArityError(1, 0));
+                return Err(LambdustError::arity_error(1, 0));
             }
             
             let mut max_val = args[0].as_number().ok_or_else(|| {
-                LambdustError::TypeError(format!("max: expected number, got {}", args[0]))
+                LambdustError::type_error(format!("max: expected number, got {}", args[0]))
             })?.clone();
             
             for arg in &args[1..] {
                 let num = arg.as_number().ok_or_else(|| {
-                    LambdustError::TypeError(format!("max: expected number, got {}", arg))
+                    LambdustError::type_error(format!("max: expected number, got {}", arg))
                 })?;
                 
                 if number_less_than(&max_val, num) {
@@ -794,12 +794,12 @@ fn predicate_odd() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(n % 2 != 0)),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "odd?: expected integer, got {}", args[0]
                 ))),
             }
@@ -813,12 +813,12 @@ fn predicate_even() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(n % 2 == 0)),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "even?: expected integer, got {}", args[0]
                 ))),
             }
@@ -832,13 +832,13 @@ fn predicate_zero() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(*n == 0)),
                 Some(SchemeNumber::Real(n)) => Ok(Value::Boolean(*n == 0.0)),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "zero?: expected number, got {}", args[0]
                 ))),
             }
@@ -852,13 +852,13 @@ fn predicate_positive() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(*n > 0)),
                 Some(SchemeNumber::Real(n)) => Ok(Value::Boolean(*n > 0.0)),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "positive?: expected number, got {}", args[0]
                 ))),
             }
@@ -872,13 +872,13 @@ fn predicate_negative() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match args[0].as_number() {
                 Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(*n < 0)),
                 Some(SchemeNumber::Real(n)) => Ok(Value::Boolean(*n < 0.0)),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "negative?: expected number, got {}", args[0]
                 ))),
             }

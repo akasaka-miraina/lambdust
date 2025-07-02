@@ -33,11 +33,11 @@ fn list_car() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             match &args[0] {
                 Value::Pair(car, _) => Ok((**car).clone()),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "car: expected pair, got {}", args[0]
                 ))),
             }
@@ -51,11 +51,11 @@ fn list_cdr() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             match &args[0] {
                 Value::Pair(_, cdr) => Ok((**cdr).clone()),
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "cdr: expected pair, got {}", args[0]
                 ))),
             }
@@ -69,7 +69,7 @@ fn list_cons() -> Value {
         arity: Some(2),
         func: |args| {
             if args.len() != 2 {
-                return Err(LambdustError::ArityError(2, args.len()));
+                return Err(LambdustError::arity_error(2, args.len()));
             }
             Ok(Value::Pair(Box::new(args[0].clone()), Box::new(args[1].clone())))
         },
@@ -92,11 +92,11 @@ fn list_length() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             match args[0].list_length() {
                 Some(len) => Ok(Value::Number(crate::lexer::SchemeNumber::Integer(len as i64))),
-                None => Err(LambdustError::TypeError(format!(
+                None => Err(LambdustError::type_error(format!(
                     "length: expected proper list, got {}", args[0]
                 ))),
             }
@@ -143,7 +143,7 @@ fn list_append() -> Value {
                     // All other arguments must be lists
                     match arg.to_vector() {
                         Some(vec) => result.extend(vec),
-                        None => return Err(LambdustError::TypeError(format!(
+                        None => return Err(LambdustError::type_error(format!(
                             "append: expected list, got {}", arg
                         ))),
                     }
@@ -161,14 +161,14 @@ fn list_reverse() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             match args[0].to_vector() {
                 Some(mut vec) => {
                     vec.reverse();
                     Ok(Value::from_vector(vec))
                 }
-                None => Err(LambdustError::TypeError(format!(
+                None => Err(LambdustError::type_error(format!(
                     "reverse: expected list, got {}", args[0]
                 ))),
             }
@@ -251,7 +251,7 @@ fn predicate_null() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(args[0].is_nil()))
         },
@@ -264,7 +264,7 @@ fn predicate_pair() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(args[0].is_pair()))
         },
@@ -277,7 +277,7 @@ fn predicate_list() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             Ok(Value::Boolean(args[0].is_list()))
         },

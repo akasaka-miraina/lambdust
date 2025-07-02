@@ -24,7 +24,7 @@ fn io_display() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             match &args[0] {
                 Value::String(s) => print!("{}", s),
@@ -42,7 +42,7 @@ fn io_newline() -> Value {
         arity: Some(0),
         func: |args| {
             if !args.is_empty() {
-                return Err(LambdustError::ArityError(0, args.len()));
+                return Err(LambdustError::arity_error(0, args.len()));
             }
             println!();
             Ok(Value::Undefined)
@@ -57,7 +57,7 @@ fn io_read() -> Value {
         func: |_args| {
             // For now, this is a placeholder implementation
             // A complete implementation would parse Scheme expressions from input
-            Err(LambdustError::RuntimeError("read: not yet implemented".to_string()))
+            Err(LambdustError::runtime_error("read: not yet implemented".to_string()))
         },
     })
 }
@@ -68,7 +68,7 @@ fn io_write() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             print!("{}", args[0]);
             std::io::Write::flush(&mut std::io::stdout()).ok();
@@ -84,7 +84,7 @@ fn io_read_char() -> Value {
         func: |_args| {
             // For now, this is a placeholder implementation
             // A complete implementation would read a character from input
-            Err(LambdustError::RuntimeError("read-char: not yet implemented".to_string()))
+            Err(LambdustError::runtime_error("read-char: not yet implemented".to_string()))
         },
     })
 }
@@ -96,7 +96,7 @@ fn io_peek_char() -> Value {
         func: |_args| {
             // For now, this is a placeholder implementation
             // A complete implementation would peek at the next character without consuming it
-            Err(LambdustError::RuntimeError("peek-char: not yet implemented".to_string()))
+            Err(LambdustError::runtime_error("peek-char: not yet implemented".to_string()))
         },
     })
 }
@@ -107,7 +107,7 @@ fn io_write_char() -> Value {
         arity: Some(1),
         func: |args| {
             if args.len() != 1 {
-                return Err(LambdustError::ArityError(1, args.len()));
+                return Err(LambdustError::arity_error(1, args.len()));
             }
             
             match &args[0] {
@@ -116,7 +116,7 @@ fn io_write_char() -> Value {
                     std::io::Write::flush(&mut std::io::stdout()).ok();
                     Ok(Value::Undefined)
                 }
-                _ => Err(LambdustError::TypeError(format!(
+                _ => Err(LambdustError::type_error(format!(
                     "write-char: expected character, got {}", args[0]
                 ))),
             }

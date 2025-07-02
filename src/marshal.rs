@@ -33,7 +33,7 @@ pub enum MarshalError {
 
 impl From<MarshalError> for LambdustError {
     fn from(error: MarshalError) -> Self {
-        LambdustError::RuntimeError(format!("Marshal error: {error:?}"))
+        LambdustError::runtime_error(format!("Marshal error: {error:?}"))
     }
 }
 
@@ -95,28 +95,28 @@ impl TypeSafeMarshaller {
     fn convert_i64(any: Box<dyn Any>) -> Result<Value> {
         any.downcast::<i64>()
             .map(|value| Value::Number(SchemeNumber::Integer(*value)))
-            .map_err(|_| LambdustError::TypeError("Expected i64".to_string()))
+            .map_err(|_| LambdustError::type_error("Expected i64".to_string()))
     }
 
     /// Convert f64 to Scheme value
     fn convert_f64(any: Box<dyn Any>) -> Result<Value> {
         any.downcast::<f64>()
             .map(|value| Value::Number(SchemeNumber::Real(*value)))
-            .map_err(|_| LambdustError::TypeError("Expected f64".to_string()))
+            .map_err(|_| LambdustError::type_error("Expected f64".to_string()))
     }
 
     /// Convert String to Scheme value
     fn convert_string(any: Box<dyn Any>) -> Result<Value> {
         any.downcast::<String>()
             .map(|value| Value::String(*value))
-            .map_err(|_| LambdustError::TypeError("Expected String".to_string()))
+            .map_err(|_| LambdustError::type_error("Expected String".to_string()))
     }
 
     /// Convert bool to Scheme value
     fn convert_bool(any: Box<dyn Any>) -> Result<Value> {
         any.downcast::<bool>()
             .map(|value| Value::Boolean(*value))
-            .map_err(|_| LambdustError::TypeError("Expected bool".to_string()))
+            .map_err(|_| LambdustError::type_error("Expected bool".to_string()))
     }
 
     /// Register a type converter

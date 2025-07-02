@@ -4,6 +4,7 @@ pub mod arithmetic;
 pub mod control_flow;
 pub mod error_handling;
 pub mod io;
+pub mod lazy;
 pub mod list_ops;
 pub mod misc;
 pub mod predicates;
@@ -26,6 +27,7 @@ pub fn create_builtins() -> HashMap<String, Value> {
     vector::register_vector_functions(&mut builtins);
     io::register_io_functions(&mut builtins);
     error_handling::register_error_functions(&mut builtins);
+    lazy::register_lazy_functions(&mut builtins);
     misc::register_misc_functions(&mut builtins);
 
     builtins

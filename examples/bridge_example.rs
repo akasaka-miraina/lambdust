@@ -70,15 +70,15 @@ fn main() -> Result<()> {
                 lambdust::lexer::SchemeNumber::Integer(i) => *i as f64,
                 lambdust::lexer::SchemeNumber::Real(r) => *r,
                 _ => {
-                    return Err(lambdust::error::LambdustError::TypeError(
+                    return Err(lambdust::error::LambdustError::type_error(
                         "Expected number".to_string(),
                     ));
                 }
             },
             _ => {
-                return Err(lambdust::error::LambdustError::TypeError(
+                return Err(lambdust::error::LambdustError::type_error(
                     "Expected number".to_string(),
-                ));
+                );
             }
         };
         Ok(Value::from(n * n))
@@ -89,20 +89,20 @@ fn main() -> Result<()> {
             Value::Number(num) => match num {
                 lambdust::lexer::SchemeNumber::Integer(i) => *i,
                 _ => {
-                    return Err(lambdust::error::LambdustError::TypeError(
+                    return Err(lambdust::error::LambdustError::type_error(
                         "Expected integer".to_string(),
-                    ));
+                    );
                 }
             },
             _ => {
-                return Err(lambdust::error::LambdustError::TypeError(
+                return Err(lambdust::error::LambdustError::type_error(
                     "Expected integer".to_string(),
-                ));
+                );
             }
         };
 
         if n < 0 {
-            return Err(lambdust::error::LambdustError::RuntimeError(
+            return Err(lambdust::error::LambdustError::runtime_error(
                 "Factorial of negative number".to_string(),
             ));
         }
@@ -118,14 +118,14 @@ fn main() -> Result<()> {
     // Register string manipulation functions
     bridge.register_function("string-upper", Some(1), |args| match &args[0] {
         Value::String(s) => Ok(Value::from(s.to_uppercase())),
-        _ => Err(lambdust::error::LambdustError::TypeError(
+        _ => Err(lambdust::error::LambdustError::type_error(
             "Expected string".to_string(),
         )),
     });
 
     bridge.register_function("string-reverse", Some(1), |args| match &args[0] {
         Value::String(s) => Ok(Value::from(s.chars().rev().collect::<String>())),
-        _ => Err(lambdust::error::LambdustError::TypeError(
+        _ => Err(lambdust::error::LambdustError::type_error(
             "Expected string".to_string(),
         )),
     });
@@ -135,7 +135,7 @@ fn main() -> Result<()> {
         let name = match &args[0] {
             Value::String(s) => s.clone(),
             _ => {
-                return Err(lambdust::error::LambdustError::TypeError(
+                return Err(lambdust::error::LambdustError::type_error(
                     "Expected string for name".to_string(),
                 ));
             }
@@ -145,13 +145,13 @@ fn main() -> Result<()> {
             Value::Number(num) => match num {
                 lambdust::lexer::SchemeNumber::Integer(i) => *i as u32,
                 _ => {
-                    return Err(lambdust::error::LambdustError::TypeError(
+                    return Err(lambdust::error::LambdustError::type_error(
                         "Expected integer for age".to_string(),
                     ));
                 }
             },
             _ => {
-                return Err(lambdust::error::LambdustError::TypeError(
+                return Err(lambdust::error::LambdustError::type_error(
                     "Expected integer for age".to_string(),
                 ));
             }
@@ -160,7 +160,7 @@ fn main() -> Result<()> {
         let email = match &args[2] {
             Value::String(s) => s.clone(),
             _ => {
-                return Err(lambdust::error::LambdustError::TypeError(
+                return Err(lambdust::error::LambdustError::type_error(
                     "Expected string for email".to_string(),
                 ));
             }
@@ -247,13 +247,13 @@ mod tests {
                 Value::Number(num) => match num {
                     lambdust::lexer::SchemeNumber::Integer(i) => *i,
                     _ => {
-                        return Err(lambdust::error::LambdustError::TypeError(
+                        return Err(lambdust::error::LambdustError::type_error(
                             "Expected integer".to_string(),
                         ));
                     }
                 },
                 _ => {
-                    return Err(lambdust::error::LambdustError::TypeError(
+                    return Err(lambdust::error::LambdustError::type_error(
                         "Expected number".to_string(),
                     ));
                 }

@@ -139,14 +139,36 @@ cargo clippy
 - [x] 基本設計完了
 - [x] 字句解析器実装
 - [x] 構文解析器実装
-- [x] 評価器実装
-- [x] 組み込み関数実装（95-98%完了）
-- [x] マクロシステム実装（基本機能）
-- [x] 外部API実装（ホスト連携機能）
-- [x] テスト完備（76テスト全パス）
+- [x] 評価器実装（従来型 + R7RS形式的意味論準拠CPS評価器）
+- [x] 組み込み関数実装（99%完了：103個の標準関数）
+- [x] マクロシステム実装（SRFI 46拡張対応）
+- [x] 外部API実装（ホスト連携・マーシャリング）
+- [x] テスト完備（91テスト全パス）
 - [x] ドキュメント整備
 
-### R7RS Small実装完了ステータス（95-98%達成）
+### R7RS Small実装完了ステータス（99%達成）
+
+#### 🆕 R7RS形式的意味論準拠機能
+
+1. **継続渡しスタイル評価器**
+   - R7RS仕様書の形式文法に完全準拠
+   - 継続ベースの評価モデル実装
+   - 動的ポイント・環境変換サポート
+
+2. **未指定評価順序サポート**
+   - 左から右・右から左・非決定的順序
+   - R7RSの"unspecified order"セマンティクス実装
+   - 準拠性テスト対応
+
+3. **拡張継続システム**
+   - call/ccとescape procedures完全実装
+   - dynamic-wind実装
+   - 例外処理システム（guard, raise, with-exception-handler）
+
+4. **完全多値システム**
+   - values、call-with-values（evaluator統合完了）
+   - 継続ベースの多値処理
+   - R7RS準拠の戻り値処理
 
 #### ✅ 完全実装済み
 
@@ -235,15 +257,15 @@ cargo clippy
    - 構造体的なデータ型の定義機能
    - 優先度: 必須
 
-2. **SRFI 45: Primitives for Expressing Iterative Lazy Algorithms**
+2. **SRFI 45: Primitives for Expressing Iterative Lazy Algorithms** ✅
    - プロミス（promise）とディレイ（delay）の拡張
-   - 遅延評価機能の強化
-   - 優先度: 必須
+   - 遅延評価機能の強化（delay, force, lazy, promise?）
+   - 優先度: 必須 → **完全実装済み**
 
-3. **SRFI 46: Basic Syntax-rules Extensions**
+3. **SRFI 46: Basic Syntax-rules Extensions** ✅
    - syntax-rulesマクロシステムの拡張
-   - 楕円記法の強化
-   - 優先度: 必須
+   - 楕円記法の強化（nested ellipsis対応）
+   - 優先度: 必須 → **完全実装済み**
 
 ### 実装推奨SRFI（高優先度）
 

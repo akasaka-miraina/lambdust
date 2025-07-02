@@ -31,6 +31,10 @@ pub enum Pattern {
     Ellipsis(Box<Pattern>),
     /// Dotted pattern
     Dotted(Vec<Pattern>, Box<Pattern>),
+    /// Nested ellipsis pattern (SRFI 46 extension)
+    NestedEllipsis(Box<Pattern>, usize), // pattern with nesting level
+    /// Vector pattern (SRFI 46 extension)
+    Vector(Vec<Pattern>),
 }
 
 /// Template for syntax-rules
@@ -46,6 +50,10 @@ pub enum Template {
     Ellipsis(Box<Template>),
     /// Dotted template
     Dotted(Vec<Template>, Box<Template>),
+    /// Nested ellipsis template (SRFI 46 extension)
+    NestedEllipsis(Box<Template>, usize), // template with nesting level
+    /// Vector template (SRFI 46 extension)
+    Vector(Vec<Template>),
 }
 
 /// Syntax rule (pattern -> template)
@@ -249,6 +257,156 @@ impl MacroExpander {
             },
         );
     }
+
+    /// SRFI 46: Check if pattern has nested ellipsis
+    #[allow(dead_code)]
+    fn has_nested_ellipsis(&self, pattern: &Pattern) -> bool {
+        match pattern {
+            Pattern::NestedEllipsis(_, _) => true,
+            Pattern::List(patterns) => patterns.iter().any(|p| self.has_nested_ellipsis(p)),
+            Pattern::Vector(patterns) => patterns.iter().any(|p| self.has_nested_ellipsis(p)),
+            Pattern::Ellipsis(inner) => self.has_nested_ellipsis(inner),
+            Pattern::Dotted(patterns, tail) => {
+                patterns.iter().any(|p| self.has_nested_ellipsis(p)) || self.has_nested_ellipsis(tail)
+            }
+            _ => false,
+        }
+    }
+
+    /// SRFI 46: Count ellipsis nesting level
+    fn count_ellipsis_level(&self, expr: &Expr) -> usize {
+        match expr {
+            Expr::Variable(name) if name == "..." => 1,
+            Expr::List(exprs) => {
+                exprs.iter().map(|e| self.count_ellipsis_level(e)).max().unwrap_or(0)
+            }
+            _ => 0,
+        }
+    }
+
+    /// SRFI 46: Parse pattern with SRFI 46 extensions
+    pub fn parse_pattern_srfi46(&self, expr: &Expr) -> Result<Pattern> {
+        match expr {
+            Expr::Variable(name) => {
+                if name == "..." {
+                    return Err(LambdustError::syntax_error(
+                        "syntax-rules: unexpected ellipsis".to_string(),
+                    ));
+                }
+                Ok(Pattern::Variable(name.clone()))
+            }
+            Expr::List(exprs) => {
+                if exprs.is_empty() {
+                    return Ok(Pattern::List(vec![]));
+                }
+
+                let mut patterns = Vec::new();
+                let mut i = 0;
+
+                while i < exprs.len() {
+                    if let Expr::Variable(name) = &exprs[i] {
+                        if name == "..." {
+                            if patterns.is_empty() {
+                                return Err(LambdustError::syntax_error(
+                                    "syntax-rules: ellipsis without preceding pattern".to_string(),
+                                ));
+                            }
+
+                            // Check for nested ellipsis (SRFI 46)
+                            let ellipsis_count = if i + 1 < exprs.len() {
+                                self.count_ellipsis_level(&exprs[i + 1])
+                            } else {
+                                0
+                            };
+
+                            let last_pattern = patterns.pop().unwrap();
+                            if ellipsis_count > 0 {
+                                patterns.push(Pattern::NestedEllipsis(Box::new(last_pattern), ellipsis_count + 1));
+                                i += ellipsis_count + 1; // Skip the additional ellipses
+                            } else {
+                                patterns.push(Pattern::Ellipsis(Box::new(last_pattern)));
+                                i += 1;
+                            }
+                            continue;
+                        }
+                    }
+
+                    patterns.push(self.parse_pattern_srfi46(&exprs[i])?);
+                    i += 1;
+                }
+
+                Ok(Pattern::List(patterns))
+            }
+            Expr::Literal(lit) => {
+                Ok(Pattern::Literal(format!("{lit:?}")))
+            }
+            _ => Err(LambdustError::syntax_error(
+                "syntax-rules: invalid pattern".to_string(),
+            )),
+        }
+    }
+
+    /// SRFI 46: Parse template with SRFI 46 extensions
+    pub fn parse_template_srfi46(&self, expr: &Expr) -> Result<Template> {
+        match expr {
+            Expr::Variable(name) => {
+                if name == "..." {
+                    return Err(LambdustError::syntax_error(
+                        "syntax-rules: unexpected ellipsis in template".to_string(),
+                    ));
+                }
+                Ok(Template::Variable(name.clone()))
+            }
+            Expr::List(exprs) => {
+                if exprs.is_empty() {
+                    return Ok(Template::List(vec![]));
+                }
+
+                let mut templates = Vec::new();
+                let mut i = 0;
+
+                while i < exprs.len() {
+                    if let Expr::Variable(name) = &exprs[i] {
+                        if name == "..." {
+                            if templates.is_empty() {
+                                return Err(LambdustError::syntax_error(
+                                    "syntax-rules: ellipsis without preceding template".to_string(),
+                                ));
+                            }
+
+                            // Check for nested ellipsis (SRFI 46)
+                            let ellipsis_count = if i + 1 < exprs.len() {
+                                self.count_ellipsis_level(&exprs[i + 1])
+                            } else {
+                                0
+                            };
+
+                            let last_template = templates.pop().unwrap();
+                            if ellipsis_count > 0 {
+                                templates.push(Template::NestedEllipsis(Box::new(last_template), ellipsis_count + 1));
+                                i += ellipsis_count + 1;
+                            } else {
+                                templates.push(Template::Ellipsis(Box::new(last_template)));
+                                i += 1;
+                            }
+                            continue;
+                        }
+                    }
+
+                    templates.push(self.parse_template_srfi46(&exprs[i])?);
+                    i += 1;
+                }
+
+                Ok(Template::List(templates))
+            }
+            Expr::Literal(lit) => {
+                Ok(Template::Literal(format!("{lit:?}")))
+            }
+            _ => Err(LambdustError::syntax_error(
+                "syntax-rules: invalid template".to_string(),
+            )),
+        }
+    }
 }
 
 impl Default for MacroExpander {
@@ -262,7 +420,7 @@ impl Default for MacroExpander {
 /// Expand let macro: (let ((var val) ...) body ...) -> ((lambda (var ...) body ...) val ...)
 fn expand_let(args: &[Expr]) -> Result<Expr> {
     if args.len() < 2 {
-        return Err(LambdustError::SyntaxError(
+        return Err(LambdustError::syntax_error(
             "let: too few arguments".to_string(),
         ));
     }
@@ -274,7 +432,7 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
     let binding_list = match bindings {
         Expr::List(bindings) => bindings,
         _ => {
-            return Err(LambdustError::SyntaxError(
+            return Err(LambdustError::syntax_error(
                 "let: bindings must be a list".to_string(),
             ));
         }
@@ -291,13 +449,13 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
                     vals.push(parts[1].clone());
                 }
                 _ => {
-                    return Err(LambdustError::SyntaxError(
+                    return Err(LambdustError::syntax_error(
                         "let: binding variable must be a symbol".to_string(),
                     ));
                 }
             },
             _ => {
-                return Err(LambdustError::SyntaxError(
+                return Err(LambdustError::syntax_error(
                     "let: each binding must be (var val)".to_string(),
                 ));
             }
@@ -321,7 +479,7 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
 /// Expand let* macro: (let* ((var val) ...) body ...) -> nested lets
 fn expand_let_star(args: &[Expr]) -> Result<Expr> {
     if args.len() < 2 {
-        return Err(LambdustError::SyntaxError(
+        return Err(LambdustError::syntax_error(
             "let*: too few arguments".to_string(),
         ));
     }
@@ -332,7 +490,7 @@ fn expand_let_star(args: &[Expr]) -> Result<Expr> {
     let binding_list = match bindings {
         Expr::List(bindings) => bindings,
         _ => {
-            return Err(LambdustError::SyntaxError(
+            return Err(LambdustError::syntax_error(
                 "let*: bindings must be a list".to_string(),
             ));
         }
@@ -369,7 +527,7 @@ fn expand_let_star(args: &[Expr]) -> Result<Expr> {
 /// ((lambda (var ...) (set! var val) ... body ...) #f ...)
 fn expand_letrec(args: &[Expr]) -> Result<Expr> {
     if args.len() < 2 {
-        return Err(LambdustError::SyntaxError(
+        return Err(LambdustError::syntax_error(
             "letrec: too few arguments".to_string(),
         ));
     }
@@ -380,7 +538,7 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
     let binding_list = match bindings {
         Expr::List(bindings) => bindings,
         _ => {
-            return Err(LambdustError::SyntaxError(
+            return Err(LambdustError::syntax_error(
                 "letrec: bindings must be a list".to_string(),
             ));
         }
@@ -404,14 +562,14 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
                         undefined_vals.push(Expr::Variable("#f".to_string())); // Use #f as undefined
                     }
                     _ => {
-                        return Err(LambdustError::SyntaxError(
+                        return Err(LambdustError::syntax_error(
                             "letrec: binding variable must be a symbol".to_string(),
                         ));
                     }
                 }
             }
             _ => {
-                return Err(LambdustError::SyntaxError(
+                return Err(LambdustError::syntax_error(
                     "letrec: each binding must be (var val)".to_string(),
                 ));
             }
@@ -461,7 +619,7 @@ fn expand_cond_clauses(clauses: &[Expr]) -> Result<Expr> {
             if let Expr::Variable(name) = test {
                 if name == "else" {
                     if !rest.is_empty() {
-                        return Err(LambdustError::SyntaxError(
+                        return Err(LambdustError::syntax_error(
                             "cond: else clause must be last".to_string(),
                         ));
                     }
@@ -497,7 +655,7 @@ fn expand_cond_clauses(clauses: &[Expr]) -> Result<Expr> {
                 else_expr,
             ]))
         }
-        _ => Err(LambdustError::SyntaxError(
+        _ => Err(LambdustError::syntax_error(
             "cond: clause must be a list".to_string(),
         )),
     }
@@ -506,7 +664,7 @@ fn expand_cond_clauses(clauses: &[Expr]) -> Result<Expr> {
 /// Expand case macro
 fn expand_case(args: &[Expr]) -> Result<Expr> {
     if args.len() < 2 {
-        return Err(LambdustError::SyntaxError(
+        return Err(LambdustError::syntax_error(
             "case: too few arguments".to_string(),
         ));
     }
@@ -546,7 +704,7 @@ fn expand_case_clauses(key_var: &str, clauses: &[Expr]) -> Result<Expr> {
             if let Expr::Variable(name) = datum_list {
                 if name == "else" {
                     if !rest.is_empty() {
-                        return Err(LambdustError::SyntaxError(
+                        return Err(LambdustError::syntax_error(
                             "case: else clause must be last".to_string(),
                         ));
                     }
@@ -593,7 +751,7 @@ fn expand_case_clauses(key_var: &str, clauses: &[Expr]) -> Result<Expr> {
                 else_expr,
             ]))
         }
-        _ => Err(LambdustError::SyntaxError(
+        _ => Err(LambdustError::syntax_error(
             "case: clause must be a list".to_string(),
         )),
     }
@@ -602,7 +760,7 @@ fn expand_case_clauses(key_var: &str, clauses: &[Expr]) -> Result<Expr> {
 /// Expand when macro: (when test body ...) -> (if test (begin body ...))
 fn expand_when(args: &[Expr]) -> Result<Expr> {
     if args.is_empty() {
-        return Err(LambdustError::SyntaxError(
+        return Err(LambdustError::syntax_error(
             "when: too few arguments".to_string(),
         ));
     }
@@ -632,7 +790,7 @@ fn expand_when(args: &[Expr]) -> Result<Expr> {
 /// Expand unless macro: (unless test body ...) -> (if (not test) (begin body ...))
 fn expand_unless(args: &[Expr]) -> Result<Expr> {
     if args.is_empty() {
-        return Err(LambdustError::SyntaxError(
+        return Err(LambdustError::syntax_error(
             "unless: too few arguments".to_string(),
         ));
     }
@@ -676,7 +834,7 @@ fn expand_unless(args: &[Expr]) -> Result<Expr> {
 ///            (y point-y set-point-y!))
 fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
     if operands.len() < 3 {
-        return Err(LambdustError::SyntaxError(
+        return Err(LambdustError::syntax_error(
             "define-record-type: expected at least 3 arguments".to_string(),
         ));
     }
@@ -684,7 +842,7 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
     // Parse type name
     let type_name = match &operands[0] {
         Expr::Variable(name) => name.clone(),
-        _ => return Err(LambdustError::SyntaxError(
+        _ => return Err(LambdustError::syntax_error(
             "define-record-type: type name must be an identifier".to_string(),
         )),
     };
@@ -694,7 +852,7 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
         Expr::List(exprs) if !exprs.is_empty() => {
             let constructor_name = match &exprs[0] {
                 Expr::Variable(name) => name.clone(),
-                _ => return Err(LambdustError::SyntaxError(
+                _ => return Err(LambdustError::syntax_error(
                     "define-record-type: constructor name must be an identifier".to_string(),
                 )),
             };
@@ -703,7 +861,7 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
                 .iter()
                 .map(|expr| match expr {
                     Expr::Variable(name) => Ok(name.clone()),
-                    _ => Err(LambdustError::SyntaxError(
+                    _ => Err(LambdustError::syntax_error(
                         "define-record-type: field names must be identifiers".to_string(),
                     )),
                 })
@@ -711,7 +869,7 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
             
             (constructor_name, field_names?)
         },
-        _ => return Err(LambdustError::SyntaxError(
+        _ => return Err(LambdustError::syntax_error(
             "define-record-type: constructor specification must be a list".to_string(),
         )),
     };
@@ -719,7 +877,7 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
     // Parse predicate name
     let predicate_name = match &operands[2] {
         Expr::Variable(name) => name.clone(),
-        _ => return Err(LambdustError::SyntaxError(
+        _ => return Err(LambdustError::syntax_error(
             "define-record-type: predicate name must be an identifier".to_string(),
         )),
     };
@@ -731,14 +889,14 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
             Expr::List(exprs) if exprs.len() >= 2 => {
                 let field_name = match &exprs[0] {
                     Expr::Variable(name) => name.clone(),
-                    _ => return Err(LambdustError::SyntaxError(
+                    _ => return Err(LambdustError::syntax_error(
                         "define-record-type: field name must be an identifier".to_string(),
                     )),
                 };
                 
                 let accessor_name = match &exprs[1] {
                     Expr::Variable(name) => name.clone(),
-                    _ => return Err(LambdustError::SyntaxError(
+                    _ => return Err(LambdustError::syntax_error(
                         "define-record-type: accessor name must be an identifier".to_string(),
                     )),
                 };
@@ -746,7 +904,7 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
                 let modifier_name = if exprs.len() >= 3 {
                     match &exprs[2] {
                         Expr::Variable(name) => Some(name.clone()),
-                        _ => return Err(LambdustError::SyntaxError(
+                        _ => return Err(LambdustError::syntax_error(
                             "define-record-type: modifier name must be an identifier".to_string(),
                         )),
                     }
@@ -756,7 +914,7 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
                 
                 field_specs.push((field_name, accessor_name, modifier_name));
             },
-            _ => return Err(LambdustError::SyntaxError(
+            _ => return Err(LambdustError::syntax_error(
                 "define-record-type: field specification must be a list".to_string(),
             )),
         }
@@ -928,5 +1086,85 @@ mod tests {
 
         assert!(expander.is_macro_call(&let_expr));
         assert!(!expander.is_macro_call(&regular_expr));
+    }
+
+    #[test]
+    fn test_srfi_46_ellipsis_count() {
+        let expander = MacroExpander::new();
+        
+        // Test ellipsis variable
+        let ellipsis_var = Expr::Variable("...".to_string());
+        assert_eq!(expander.count_ellipsis_level(&ellipsis_var), 1);
+        
+        // Test nested ellipsis in list  
+        let nested = Expr::List(vec![
+            Expr::Variable("...".to_string()),
+            Expr::List(vec![Expr::Variable("...".to_string())])
+        ]);
+        assert_eq!(expander.count_ellipsis_level(&nested), 1);
+    }
+
+    #[test]
+    fn test_srfi_46_pattern_parsing() {
+        let expander = MacroExpander::new();
+        
+        // Test simple pattern
+        let simple = Expr::Variable("x".to_string());
+        let pattern = expander.parse_pattern_srfi46(&simple).unwrap();
+        assert_eq!(pattern, Pattern::Variable("x".to_string()));
+        
+        // Test list pattern
+        let list = Expr::List(vec![
+            Expr::Variable("x".to_string()),
+            Expr::Variable("y".to_string()),
+            Expr::Variable("z".to_string()),
+        ]);
+        let pattern = expander.parse_pattern_srfi46(&list).unwrap();
+        assert!(matches!(pattern, Pattern::List(_)));
+        
+        // Test ellipsis pattern
+        let ellipsis = Expr::List(vec![
+            Expr::Variable("x".to_string()),
+            Expr::Variable("...".to_string()),
+        ]);
+        let pattern = expander.parse_pattern_srfi46(&ellipsis).unwrap();
+        if let Pattern::List(patterns) = pattern {
+            assert_eq!(patterns.len(), 1);
+            assert!(matches!(patterns[0], Pattern::Ellipsis(_)));
+        } else {
+            panic!("Expected list pattern with ellipsis");
+        }
+    }
+
+    #[test] 
+    fn test_srfi_46_template_parsing() {
+        let expander = MacroExpander::new();
+        
+        // Test simple template
+        let simple = Expr::Variable("x".to_string());
+        let template = expander.parse_template_srfi46(&simple).unwrap();
+        assert_eq!(template, Template::Variable("x".to_string()));
+        
+        // Test list template
+        let list = Expr::List(vec![
+            Expr::Variable("x".to_string()),
+            Expr::Variable("y".to_string()),
+            Expr::Variable("z".to_string()),
+        ]);
+        let template = expander.parse_template_srfi46(&list).unwrap();
+        assert!(matches!(template, Template::List(_)));
+        
+        // Test ellipsis template  
+        let ellipsis = Expr::List(vec![
+            Expr::Variable("x".to_string()),
+            Expr::Variable("...".to_string()),
+        ]);
+        let template = expander.parse_template_srfi46(&ellipsis).unwrap();
+        if let Template::List(templates) = template {
+            assert_eq!(templates.len(), 1);
+            assert!(matches!(templates[0], Template::Ellipsis(_)));
+        } else {
+            panic!("Expected list template with ellipsis");
+        }
     }
 }
