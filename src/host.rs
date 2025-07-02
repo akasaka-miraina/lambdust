@@ -140,13 +140,11 @@ impl FunctionSignature {
     /// Validate return value against this signature
     pub fn validate_return(&self, value: &Value) -> Result<()> {
         if !self.return_type.matches(value) {
-            return Err(LambdustError::TypeError(
-                format!(
-                    "Return value type mismatch: expected {}, got {:?}",
-                    self.return_type.name(),
-                    value
-                )
-            ));
+            return Err(LambdustError::TypeError(format!(
+                "Return value type mismatch: expected {}, got {:?}",
+                self.return_type.name(),
+                value
+            )));
         }
         Ok(())
     }
@@ -201,10 +199,7 @@ impl HostFunctionRegistry {
         };
 
         // Create signature based on types
-        let signature = FunctionSignature::new(
-            Args::parameter_types(),
-            Ret::value_type(),
-        );
+        let signature = FunctionSignature::new(Args::parameter_types(), Ret::value_type());
 
         self.register_function(name, wrapper, signature);
     }
@@ -500,13 +495,11 @@ mod tests {
     #[test]
     fn test_return_value_validation() {
         let mut registry = HostFunctionRegistry::new();
-        
+
         // Register function with specific return type validation
         registry.register_function(
             "return-string".to_string(),
-            |_args: &[Value]| -> Result<Value> {
-                Ok(Value::String("expected string".to_string()))
-            },
+            |_args: &[Value]| -> Result<Value> { Ok(Value::String("expected string".to_string())) },
             FunctionSignature::new(vec![], ValueType::String),
         );
 

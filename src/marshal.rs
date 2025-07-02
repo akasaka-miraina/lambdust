@@ -402,19 +402,19 @@ mod tests {
     #[test]
     fn test_c_string_conversions() {
         use std::ffi::CString;
-        
+
         // Test valid C string conversion
         let test_str = "hello world";
         let c_string = CString::new(test_str).unwrap();
         let c_ptr = c_string.as_ptr();
-        
+
         let scheme_val = unsafe { c_string_to_scheme(c_ptr) }.unwrap();
         assert_eq!(scheme_val, Value::String("hello world".to_string()));
-        
+
         // Test scheme string to C conversion
         let scheme_string = Value::String("test string".to_string());
         let c_ptr = scheme_string_to_c(&scheme_string).unwrap();
-        
+
         // Convert back to verify
         let reconstructed = unsafe { CString::from_raw(c_ptr) };
         assert_eq!(reconstructed.to_str().unwrap(), "test string");
@@ -425,7 +425,7 @@ mod tests {
         // Test null pointer handling
         let result = unsafe { c_string_to_scheme(std::ptr::null()) };
         assert!(result.is_err());
-        
+
         match result.unwrap_err() {
             LambdustError::RuntimeError(msg) => {
                 assert!(msg.contains("Marshal error"));
@@ -439,7 +439,7 @@ mod tests {
         // Test string containing null bytes
         let scheme_val = Value::String("hello\0world".to_string());
         let result = scheme_string_to_c(&scheme_val);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             LambdustError::RuntimeError(msg) => {
@@ -454,7 +454,7 @@ mod tests {
         // Test type mismatch in scheme_string_to_c
         let non_string = Value::Number(SchemeNumber::Integer(42));
         let result = scheme_string_to_c(&non_string);
-        
+
         assert!(result.is_err());
         match result.unwrap_err() {
             LambdustError::RuntimeError(msg) => {
@@ -473,7 +473,7 @@ mod tests {
             Value::Nil,
             Value::Symbol("symbol".to_string()),
         ];
-        
+
         for val in test_cases {
             let result = scheme_to_c_int(&val);
             assert!(result.is_err(), "Expected error for value: {:?}", val);
@@ -487,11 +487,11 @@ mod tests {
             free_c_string(std::ptr::null_mut());
         }
         // Should not panic or cause issues
-        
+
         // Test proper deallocation cycle
         let scheme_val = Value::String("test".to_string());
         let c_ptr = scheme_string_to_c(&scheme_val).unwrap();
-        
+
         // This should safely deallocate
         unsafe {
             free_c_string(c_ptr);

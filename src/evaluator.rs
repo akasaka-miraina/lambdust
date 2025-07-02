@@ -222,8 +222,13 @@ impl Evaluator {
         self.apply_procedure(proc, args, env)
     }
 
+    /// Public interface for calling procedures from host code
+    pub fn call_procedure(&mut self, proc: Value, args: Vec<Value>) -> Result<Value> {
+        self.apply_procedure(proc, args, self.global_env.clone())
+    }
+
     /// Apply a procedure to arguments
-    pub fn apply_procedure(
+    fn apply_procedure(
         &mut self,
         proc: Value,
         args: Vec<Value>,

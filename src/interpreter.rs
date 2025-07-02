@@ -150,12 +150,9 @@ impl LambdustInterpreter {
 
     /// Apply a procedure with arguments
     fn apply_procedure(&mut self, procedure: Value, args: Vec<Value>) -> Result<Value> {
-        // Create a temporary function call expression and evaluate it
+        // Use the evaluator's public interface for calling procedures
         match &procedure {
-            Value::Procedure(_) => {
-                self.evaluator
-                    .apply_procedure(procedure, args, self.evaluator.global_env.clone())
-            }
+            Value::Procedure(_) => self.evaluator.call_procedure(procedure, args),
             _ => Err(LambdustError::TypeError("Not a procedure".to_string())),
         }
     }
