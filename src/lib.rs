@@ -5,6 +5,7 @@
 //! combines "lambda" (λ) with "Rust," reflecting Scheme's functional nature
 //! and the ability to add expressive power to existing applications.
 //!
+//! Pre-commit hooks ensure code quality through automated testing.
 //! ## Features
 //!
 //! - **R7RS Compliance**: Implements the R7RS Small language specification
