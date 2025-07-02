@@ -1,39 +1,96 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
+name: Feature Request
+about: 新機能や改善の提案
 title: '[FEATURE] '
-labels: enhancement
+labels: ['enhancement']
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## 概要
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+<!-- 実装したい機能や改善内容を簡潔に説明してください -->
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## 背景・動機
 
-**R7RS Compliance**
-If this feature is part of the R7RS specification, please provide a reference to the relevant section.
+<!-- なぜこの機能が必要なのか、現状の問題点を説明してください -->
 
-**Use Case**
-Describe the use case for this feature. How would it be used in practice?
+## 詳細仕様
 
-**Example Code**
-If applicable, provide example code showing how the feature would be used:
+<!-- 実装する機能の詳細な仕様を記述してください -->
+
+### 要件
+
+- [ ] 要件1
+- [ ] 要件2
+- [ ] 要件3
+
+### 仕様詳細
+
+<!-- 
+具体的な実装内容を記述してください
+- API設計
+- データ構造
+- アルゴリズム
+- パフォーマンス要件
+- エラーハンドリング
+-->
+
+## R7RS準拠
+
+<!-- R7RS仕様の一部である場合、関連セクションを記載してください -->
+
+## 使用例
+
+### Schemeコード例
 
 ```scheme
-;; Example Scheme code
+;; 提案する機能の使用例
 (your-proposed-syntax-here)
 ```
 
+### Rust統合例
+
 ```rust
-// Example Rust integration
-// Your proposed API here
+// Rustでの統合例
+// 提案するAPI
 ```
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+## 実装計画
+
+### Phase 1: 基本実装
+- [ ] タスク1
+- [ ] タスク2
+
+### Phase 2: 拡張機能（オプション）
+- [ ] タスク3
+- [ ] タスク4
+
+## テスト計画
+
+<!-- どのようなテストを追加するか記述してください -->
+
+- [ ] 単体テスト
+- [ ] 統合テスト
+- [ ] パフォーマンステスト
+- [ ] 境界値テスト
+
+## 関連Issue・PR
+
+<!-- 関連するIssueやPRがあれば記載してください -->
+
+- Related to #
+- Depends on #
+
+## 追加情報
+
+<!-- その他、実装に関する補足情報があれば記載してください -->
+
+### 参考資料
+
+- [R7RS仕様書](https://small.r7rs.org/)
+- [SRFI文書](https://srfi.schemers.org/)
+
+### 注意事項
+
+<!-- 実装時の注意点があれば記載してください -->

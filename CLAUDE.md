@@ -475,6 +475,34 @@ pub unsafe extern "C" fn lambdust_register_function(
 3. **Phase 3**: C/C++ FFIインターフェースとパフォーマンス最適化
 4. **Phase 4**: サンドボックス機能と高度なセキュリティ対策
 
+## 開発フロー
+
+### 基本的な作業手順
+
+1. **Issue作成**: GitHubでIssueを作成し、作業内容を明確化
+2. **ブランチ作成**: mainブランチからfeatureブランチをfork
+3. **設計・実装**: 機能の設計と実装を行う
+4. **Pull Request**: GitHub CopilotのレビューコメントあるPRを作成
+5. **レビュー・マージ**: コードレビュー後、mainブランチにマージ
+
+### Issue・PR作成のガイドライン
+
+各作業では以下のテンプレートを使用してください：
+
+- **Issue**: `.github/ISSUE_TEMPLATE/feature_request.md`
+- **Pull Request**: `.github/pull_request_template.md`
+
+これらのテンプレートはプロジェクトルートに配置されており、GitHub Copilotのレビューを効果的に活用できるよう設計されています。
+
+### ブランチ命名規則
+
+- 機能追加: `feature/description`
+- バグ修正: `fix/description`
+- ドキュメント: `docs/description`
+- テスト: `test/description`
+
+例: `feature/srfi-1-list-library`, `fix/memory-leak-in-parser`
+
 ## 今後の拡張予定
 
 - REPL実装

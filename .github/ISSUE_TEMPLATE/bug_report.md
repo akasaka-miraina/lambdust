@@ -1,50 +1,95 @@
 ---
-name: Bug report
-about: Create a report to help us improve
+name: Bug Report
+about: バグの報告
 title: '[BUG] '
-labels: bug
+labels: ['bug']
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## バグの概要
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+<!-- バグの内容を簡潔に説明してください -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## 再現手順
 
-**Scheme Code**
-If applicable, provide the Scheme code that causes the issue:
+<!-- バグを再現するための手順を記述してください -->
+
+1. 手順1
+2. 手順2
+3. 手順3
+
+## 期待される動作
+
+<!-- 本来期待される正しい動作を説明してください -->
+
+## 実際の動作
+
+<!-- 実際に発生している問題のある動作を説明してください -->
+
+## 再現コード
+
+### Schemeコード
 
 ```scheme
-(your-scheme-code-here)
+;; バグを再現するSchemeコード
+(problematic-code-here)
 ```
 
-**Rust Code**
-If applicable, provide the Rust code that demonstrates the issue:
+### Rustコード（該当する場合）
 
 ```rust
-// Your Rust code here
+// バグを再現するRustコード
+// problematic code here
 ```
 
-**Error Output**
-If applicable, provide the error message or unexpected output:
+## エラーメッセージ
 
 ```
-Error message here
+エラーメッセージがあれば貼り付けてください
 ```
 
-**Environment (please complete the following information):**
-- OS: [e.g. macOS, Linux, Windows]
-- Rust version: [e.g. 1.70.0]
-- Lambdust version: [e.g. 0.1.0]
+## 環境情報
 
-**Additional context**
-Add any other context about the problem here.
+- OS: [例: macOS 14.0, Ubuntu 22.04, Windows 11]
+- Rustバージョン: [例: 1.70.0]
+- Lambdustバージョン: [例: 0.1.1]
+
+## 追加情報
+
+<!-- その他、バグの調査に役立つ情報があれば記載してください -->
+
+### スタックトレース
+
+```
+スタックトレースがあれば貼り付けてください
+```
+
+### 関連するログ
+
+```
+関連するログ出力があれば貼り付けてください
+```
+
+## 影響範囲
+
+- [ ] 機能が全く動作しない
+- [ ] 一部の機能で問題が発生
+- [ ] パフォーマンスに影響
+- [ ] メモリリーク
+- [ ] その他: [詳細]
+
+## 緊急度
+
+- [ ] 緊急（システムが動作しない）
+- [ ] 高（主要機能に影響）
+- [ ] 中（一部機能に影響）
+- [ ] 低（軽微な問題）
+
+## R7RS仕様との関連
+
+<!-- R7RS仕様に関連するバグの場合、該当セクションを記載してください -->
+
+## 回避策
+
+<!-- 一時的な回避策があれば記載してください -->
