@@ -6,6 +6,7 @@
 //! and the ability to add expressive power to existing applications.
 //!
 //! Pre-commit hooks ensure code quality through automated testing.
+//!
 //! ## Features
 //!
 //! - **R7RS Compliance**: Implements the R7RS Small language specification
@@ -214,6 +215,12 @@ impl Default for Interpreter {
     fn default() -> Self {
         Self::new()
     }
+}
+
+// Test formatting fix
+fn _test_formatting() {
+    let _x=1+2+3;
+    let _y   =   "test"  ;
 }
 
 #[cfg(test)]
