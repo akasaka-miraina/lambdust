@@ -540,7 +540,8 @@ impl FormalEvaluator {
 
         // Create a continuation for step 1: after producer is evaluated, evaluate consumer
         let step1_cont = Continuation::CallWithValuesStep1 {
-            consumer_expr,
+            producer_expr,
+            consumer_expr: consumer_expr.clone(),
             env: env.clone(),
             parent: Box::new(cont),
         };
