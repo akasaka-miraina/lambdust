@@ -926,17 +926,23 @@ impl Evaluator {
         }
 
         // Create a continuation that captures the current evaluation context
-        let continuation = Continuation {
+        let current_continuation = Continuation {
             stack: Vec::new(), // Simplified - full implementation would capture actual call stack
             env: env.clone(),
         };
 
+        // Chain the original continuation into the new continuation
+        let chained_continuation = Continuation {
+            stack: current_continuation.stack, // Preserve the current stack
+            env: current_continuation.env.clone(), // Preserve the current environment
+        };
+
         let continuation_proc = Value::Procedure(Procedure::Continuation {
-            continuation: Box::new(continuation),
+            continuation: Box::new(chained_continuation),
         });
 
         // Call the procedure with the continuation as its argument
-        self.apply_procedure(proc, vec![continuation_proc], continuation)
+        self.apply_procedure(proc, vec![continuation_proc], current_continuation)
     }
 
     /// Evaluate force special form: (force promise)
