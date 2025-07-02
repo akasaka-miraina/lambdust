@@ -82,11 +82,13 @@ impl Evaluator {
     ) -> Result<Value> {
         loop {
             let tail_info = self.eval_impl_tail(expr.clone(), env.clone())?;
-            
+
             match tail_info {
                 TailCallInfo::None => return self.eval_impl(expr, env),
                 TailCallInfo::Call { proc, args } => {
-                    if let Some((new_expr, new_env)) = self.try_optimize_lambda_call(&proc, &args)? {
+                    if let Some((new_expr, new_env)) =
+                        self.try_optimize_lambda_call(&proc, &args)?
+                    {
                         expr = new_expr;
                         env = new_env;
                         continue;
@@ -109,7 +111,8 @@ impl Evaluator {
             variadic,
             body,
             closure,
-        }) = proc else {
+        }) = proc
+        else {
             return Ok(None);
         };
 

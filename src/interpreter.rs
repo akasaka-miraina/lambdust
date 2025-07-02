@@ -93,7 +93,7 @@ impl LambdustInterpreter {
         if exprs.len() < 2 {
             return false;
         }
-        
+
         matches!(&exprs[0], crate::ast::Expr::Variable(op) if op == "define")
     }
 

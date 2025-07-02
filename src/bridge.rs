@@ -203,9 +203,7 @@ impl ObjectRegistry {
         // TODO: Implement proper type converter registration
         // For now, just store the type name
         let dummy_converter = |_any_obj: &dyn Any| -> Result<Value> {
-            Err(LambdustError::TypeError(
-                "Type converter not implemented".to_string(),
-            ))
+            Err(LambdustError::type_error("Type converter not implemented"))
         };
 
         self.converters
@@ -349,9 +347,7 @@ impl LambdustBridge {
                 name: "call-external".to_string(),
                 arity: None, // Variadic
                 func: |_args| {
-                    Err(LambdustError::RuntimeError(
-                        "call-external not implemented yet".to_string(),
-                    ))
+                    Err(LambdustError::runtime_error("call-external not implemented yet"))
                 },
             }),
         );
@@ -362,9 +358,7 @@ impl LambdustBridge {
                 name: "get-property".to_string(),
                 arity: Some(2),
                 func: |_args| {
-                    Err(LambdustError::RuntimeError(
-                        "get-property not implemented yet".to_string(),
-                    ))
+                    Err(LambdustError::runtime_error("get-property not implemented yet"))
                 },
             }),
         );
@@ -375,9 +369,7 @@ impl LambdustBridge {
                 name: "set-property!".to_string(),
                 arity: Some(3),
                 func: |_args| {
-                    Err(LambdustError::RuntimeError(
-                        "set-property! not implemented yet".to_string(),
-                    ))
+                    Err(LambdustError::runtime_error("set-property! not implemented yet"))
                 },
             }),
         );
@@ -447,10 +439,7 @@ impl Callable for CallableFunction {
     fn call(&self, args: &[Value]) -> Result<Value> {
         if let Some(expected_arity) = self.arity {
             if args.len() != expected_arity {
-                return Err(LambdustError::ArityError {
-                    expected: expected_arity,
-                    actual: args.len(),
-                });
+                return Err(LambdustError::ArityError(expected_arity, args.len()));
             }
         }
         (self.func)(args)

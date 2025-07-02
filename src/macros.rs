@@ -151,6 +151,16 @@ impl MacroExpander {
                 is_syntax_rules: false,
             },
         );
+
+        // define-record-type macro (SRFI 9)
+        self.macros.insert(
+            "define-record-type".to_string(),
+            Macro {
+                name: "define-record-type".to_string(),
+                transformer: expand_define_record_type,
+                is_syntax_rules: false,
+            },
+        );
     }
 
     /// Check if an expression is a macro call
@@ -649,6 +659,207 @@ fn expand_unless(args: &[Expr]) -> Result<Expr> {
             }),
         ]))
     }
+}
+
+/// Expand define-record-type macro (SRFI 9)
+/// 
+/// Syntax: (define-record-type <type-name>
+///           (<constructor> <field-name> ...)
+///           <predicate>
+///           (<field-name> <accessor> [<modifier>])
+///           ...)
+/// 
+/// Example: (define-record-type point
+///            (make-point x y)
+///            point?
+///            (x point-x set-point-x!)
+///            (y point-y set-point-y!))
+fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
+    if operands.len() < 3 {
+        return Err(LambdustError::SyntaxError(
+            "define-record-type: expected at least 3 arguments".to_string(),
+        ));
+    }
+
+    // Parse type name
+    let type_name = match &operands[0] {
+        Expr::Variable(name) => name.clone(),
+        _ => return Err(LambdustError::SyntaxError(
+            "define-record-type: type name must be an identifier".to_string(),
+        )),
+    };
+
+    // Parse constructor specification
+    let (constructor_name, field_names) = match &operands[1] {
+        Expr::List(exprs) if !exprs.is_empty() => {
+            let constructor_name = match &exprs[0] {
+                Expr::Variable(name) => name.clone(),
+                _ => return Err(LambdustError::SyntaxError(
+                    "define-record-type: constructor name must be an identifier".to_string(),
+                )),
+            };
+            
+            let field_names: Result<Vec<String>> = exprs[1..]
+                .iter()
+                .map(|expr| match expr {
+                    Expr::Variable(name) => Ok(name.clone()),
+                    _ => Err(LambdustError::SyntaxError(
+                        "define-record-type: field names must be identifiers".to_string(),
+                    )),
+                })
+                .collect();
+            
+            (constructor_name, field_names?)
+        },
+        _ => return Err(LambdustError::SyntaxError(
+            "define-record-type: constructor specification must be a list".to_string(),
+        )),
+    };
+
+    // Parse predicate name
+    let predicate_name = match &operands[2] {
+        Expr::Variable(name) => name.clone(),
+        _ => return Err(LambdustError::SyntaxError(
+            "define-record-type: predicate name must be an identifier".to_string(),
+        )),
+    };
+
+    // Parse field specifications
+    let mut field_specs = Vec::new();
+    for field_spec in &operands[3..] {
+        match field_spec {
+            Expr::List(exprs) if exprs.len() >= 2 => {
+                let field_name = match &exprs[0] {
+                    Expr::Variable(name) => name.clone(),
+                    _ => return Err(LambdustError::SyntaxError(
+                        "define-record-type: field name must be an identifier".to_string(),
+                    )),
+                };
+                
+                let accessor_name = match &exprs[1] {
+                    Expr::Variable(name) => name.clone(),
+                    _ => return Err(LambdustError::SyntaxError(
+                        "define-record-type: accessor name must be an identifier".to_string(),
+                    )),
+                };
+                
+                let modifier_name = if exprs.len() >= 3 {
+                    match &exprs[2] {
+                        Expr::Variable(name) => Some(name.clone()),
+                        _ => return Err(LambdustError::SyntaxError(
+                            "define-record-type: modifier name must be an identifier".to_string(),
+                        )),
+                    }
+                } else {
+                    None
+                };
+                
+                field_specs.push((field_name, accessor_name, modifier_name));
+            },
+            _ => return Err(LambdustError::SyntaxError(
+                "define-record-type: field specification must be a list".to_string(),
+            )),
+        }
+    }
+
+    // Generate the expanded code
+    // This will create:
+    // 1. A record type definition 
+    // 2. Constructor procedure
+    // 3. Predicate procedure
+    // 4. Accessor procedures
+    // 5. Modifier procedures (if specified)
+
+    let mut definitions = Vec::new();
+
+    // For now, generate a simple begin form with placeholder definitions
+    // In a complete implementation, this would generate proper procedures
+    // that create and manipulate record instances
+
+    // Generate constructor
+    let constructor_args = field_names.iter()
+        .map(|name| Expr::Variable(name.clone()))
+        .collect();
+    
+    let constructor_def = Expr::List(vec![
+        Expr::Variable("define".to_string()),
+        Expr::Variable(constructor_name),
+        Expr::List(vec![
+            Expr::Variable("lambda".to_string()),
+            Expr::List(constructor_args),
+            // TODO: Create actual record construction logic
+            Expr::List(vec![
+                Expr::Variable("make-record".to_string()),
+                Expr::Quote(Box::new(Expr::Variable(type_name.clone()))),
+                Expr::List(vec![
+                    Expr::Variable("list".to_string())
+                ].into_iter().chain(field_names.iter().map(|name| Expr::Variable(name.clone()))).collect()),
+            ]),
+        ]),
+    ]);
+    definitions.push(constructor_def);
+
+    // Generate predicate
+    let predicate_def = Expr::List(vec![
+        Expr::Variable("define".to_string()),
+        Expr::Variable(predicate_name),
+        Expr::List(vec![
+            Expr::Variable("lambda".to_string()),
+            Expr::List(vec![Expr::Variable("obj".to_string())]),
+            Expr::List(vec![
+                Expr::Variable("record-of-type?".to_string()),
+                Expr::Variable("obj".to_string()),
+                Expr::Quote(Box::new(Expr::Variable(type_name.clone()))),
+            ]),
+        ]),
+    ]);
+    definitions.push(predicate_def);
+
+    // Generate accessors and modifiers
+    for (i, (_field_name, accessor_name, modifier_name)) in field_specs.into_iter().enumerate() {
+        // Accessor
+        let accessor_def = Expr::List(vec![
+            Expr::Variable("define".to_string()),
+            Expr::Variable(accessor_name),
+            Expr::List(vec![
+                Expr::Variable("lambda".to_string()),
+                Expr::List(vec![Expr::Variable("record".to_string())]),
+                Expr::List(vec![
+                    Expr::Variable("record-field".to_string()),
+                    Expr::Variable("record".to_string()),
+                    Expr::Literal(crate::ast::Literal::Number(crate::lexer::SchemeNumber::Integer(i as i64))),
+                ]),
+            ]),
+        ]);
+        definitions.push(accessor_def);
+
+        // Modifier (if specified)
+        if let Some(modifier_name) = modifier_name {
+            let modifier_def = Expr::List(vec![
+                Expr::Variable("define".to_string()),
+                Expr::Variable(modifier_name),
+                Expr::List(vec![
+                    Expr::Variable("lambda".to_string()),
+                    Expr::List(vec![
+                        Expr::Variable("record".to_string()),
+                        Expr::Variable("value".to_string()),
+                    ]),
+                    Expr::List(vec![
+                        Expr::Variable("record-set-field!".to_string()),
+                        Expr::Variable("record".to_string()),
+                        Expr::Literal(crate::ast::Literal::Number(crate::lexer::SchemeNumber::Integer(i as i64))),
+                        Expr::Variable("value".to_string()),
+                    ]),
+                ]),
+            ]);
+            definitions.push(modifier_def);
+        }
+    }
+
+    // Return a begin form with all definitions
+    Ok(Expr::List(vec![
+        Expr::Variable("begin".to_string())
+    ].into_iter().chain(definitions).collect()))
 }
 
 #[cfg(test)]

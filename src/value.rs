@@ -33,6 +33,12 @@ pub enum Value {
     Port(Port),
     /// External object values
     External(crate::bridge::ExternalObject),
+    /// Record values (SRFI 9)
+    Record(Record),
+    /// Multiple values (R7RS)
+    Values(Vec<Value>),
+    /// Continuation values (call/cc)
+    Continuation(Continuation),
 }
 
 /// Procedure representation
@@ -70,7 +76,7 @@ pub enum Procedure {
     /// Continuation (for call/cc)
     Continuation {
         /// Captured continuation
-        stack: Vec<Value>,
+        continuation: Box<Continuation>,
     },
 }
 
@@ -83,6 +89,28 @@ pub enum Port {
     Output,
     /// String port
     String(String),
+}
+
+/// Record type representation (SRFI 9)
+#[derive(Debug, Clone, PartialEq)]
+pub struct RecordType {
+    /// Type name
+    pub name: String,
+    /// Field names in order
+    pub field_names: Vec<String>,
+    /// Constructor name
+    pub constructor_name: String,
+    /// Predicate name
+    pub predicate_name: String,
+}
+
+/// Record instance (SRFI 9)
+#[derive(Debug, Clone, PartialEq)]
+pub struct Record {
+    /// Record type information
+    pub record_type: RecordType,
+    /// Field values
+    pub fields: Vec<Value>,
 }
 
 impl fmt::Display for Value {
@@ -151,6 +179,33 @@ impl fmt::Display for Value {
             }
             Value::Port(_) => write!(f, "#<port>"),
             Value::External(obj) => write!(f, "#<external:{}>", obj.type_name),
+            Value::Record(record) => {
+                write!(f, "#<{}:", record.record_type.name)?;
+                for (i, field) in record.fields.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{}", field)?;
+                }
+                write!(f, ">")
+            }
+            Value::Values(values) => {
+                if values.len() == 1 {
+                    // Single value should display as the value itself
+                    write!(f, "{}", values[0])
+                } else {
+                    // Multiple values display
+                    write!(f, "values(")?;
+                    for (i, value) in values.iter().enumerate() {
+                        if i > 0 {
+                            write!(f, " ")?;
+                        }
+                        write!(f, "{}", value)?;
+                    }
+                    write!(f, ")")
+                }
+            }
+            Value::Continuation(_) => write!(f, "#<continuation>"),
         }
     }
 }
@@ -302,6 +357,27 @@ impl Value {
         }
     }
 
+    /// Check if this value is a record
+    pub fn is_record(&self) -> bool {
+        matches!(self, Value::Record(_))
+    }
+
+    /// Get the record if this is a record
+    pub fn as_record(&self) -> Option<&Record> {
+        match self {
+            Value::Record(r) => Some(r),
+            _ => None,
+        }
+    }
+
+    /// Check if this is a record of a specific type
+    pub fn is_record_of_type(&self, type_name: &str) -> bool {
+        match self {
+            Value::Record(record) => record.record_type.name == type_name,
+            _ => false,
+        }
+    }
+
     /// Check if two values are equal
     pub fn equal(&self, other: &Value) -> bool {
         match (self, other) {
@@ -318,6 +394,14 @@ impl Value {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.equal(y))
             }
             (Value::External(a), Value::External(b)) => a.id == b.id,
+            (Value::Record(a), Value::Record(b)) => {
+                a.record_type == b.record_type && 
+                a.fields.len() == b.fields.len() && 
+                a.fields.iter().zip(b.fields.iter()).all(|(x, y)| x.equal(y))
+            }
+            (Value::Values(a), Value::Values(b)) => {
+                a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.equal(y))
+            }
             _ => false,
         }
     }
@@ -330,6 +414,8 @@ impl Value {
             (Value::Character(a), Value::Character(b)) => a == b,
             (Value::Symbol(a), Value::Symbol(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
+            (Value::Record(_), Value::Record(_)) => std::ptr::eq(self, other),
+            (Value::Values(_), Value::Values(_)) => std::ptr::eq(self, other),
             _ => std::ptr::eq(self, other),
         }
     }
@@ -342,6 +428,8 @@ impl Value {
             (Value::Character(a), Value::Character(b)) => a == b,
             (Value::Symbol(a), Value::Symbol(b)) => a == b,
             (Value::Nil, Value::Nil) => true,
+            (Value::Record(_), Value::Record(_)) => std::ptr::eq(self, other),
+            (Value::Values(_), Value::Values(_)) => std::ptr::eq(self, other),
             _ => std::ptr::eq(self, other),
         }
     }
@@ -362,6 +450,9 @@ impl std::fmt::Debug for Value {
             Self::Vector(arg0) => f.debug_tuple("Vector").field(arg0).finish(),
             Self::Port(arg0) => f.debug_tuple("Port").field(arg0).finish(),
             Self::External(arg0) => f.debug_tuple("External").field(arg0).finish(),
+            Self::Record(arg0) => f.debug_tuple("Record").field(arg0).finish(),
+            Self::Values(arg0) => f.debug_tuple("Values").field(arg0).finish(),
+            Self::Continuation(arg0) => f.debug_tuple("Continuation").field(arg0).finish(),
         }
     }
 }
@@ -379,6 +470,9 @@ impl PartialEq for Value {
             (Self::Vector(l0), Self::Vector(r0)) => l0 == r0,
             (Self::Port(l0), Self::Port(r0)) => l0 == r0,
             (Self::External(l0), Self::External(r0)) => l0.id == r0.id,
+            (Self::Record(l0), Self::Record(r0)) => l0 == r0,
+            (Self::Values(l0), Self::Values(r0)) => l0 == r0,
+            (Self::Continuation(_), Self::Continuation(_)) => false, // Continuations are never equal
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
@@ -408,9 +502,9 @@ impl std::fmt::Debug for Procedure {
                 .field("name", name)
                 .field("arity", arity)
                 .finish(),
-            Self::Continuation { stack } => f
+            Self::Continuation { continuation } => f
                 .debug_struct("Continuation")
-                .field("stack", stack)
+                .field("continuation", continuation)
                 .finish(),
         }
     }
@@ -462,8 +556,8 @@ impl PartialEq for Procedure {
                     ..
                 },
             ) => l_name == r_name && l_arity == r_arity,
-            (Self::Continuation { stack: l_stack }, Self::Continuation { stack: r_stack }) => {
-                l_stack == r_stack
+            (Self::Continuation { continuation: _ }, Self::Continuation { continuation: _ }) => {
+                false // Continuations are never equal
             }
             _ => false,
         }
@@ -535,6 +629,24 @@ impl From<SchemeNumber> for Value {
     fn from(n: SchemeNumber) -> Self {
         Value::Number(n)
     }
+}
+
+/// Continuation representation for call/cc
+#[derive(Clone, Debug)]
+pub struct Continuation {
+    /// The call stack at the time of capture
+    pub stack: Vec<StackFrame>,
+    /// The environment at the time of capture
+    pub env: Rc<Environment>,
+}
+
+/// Stack frame for continuation representation
+#[derive(Clone, Debug)]
+pub struct StackFrame {
+    /// The expression being evaluated
+    pub expr: Expr,
+    /// The environment for this frame
+    pub env: Rc<Environment>,
 }
 
 #[cfg(test)]

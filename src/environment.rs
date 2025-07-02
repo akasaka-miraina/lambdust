@@ -99,18 +99,12 @@ impl Environment {
         if variadic {
             // Last parameter collects remaining arguments
             if params.is_empty() {
-                return Err(LambdustError::ArityError {
-                    expected: 0,
-                    actual: args.len(),
-                });
+                return Err(LambdustError::ArityError(0, args.len()));
             }
 
             let required_params = params.len() - 1;
             if args.len() < required_params {
-                return Err(LambdustError::ArityError {
-                    expected: required_params,
-                    actual: args.len(),
-                });
+                return Err(LambdustError::ArityError(required_params, args.len()));
             }
 
             // Bind required parameters
@@ -125,10 +119,7 @@ impl Environment {
         } else {
             // Fixed arity
             if args.len() != params.len() {
-                return Err(LambdustError::ArityError {
-                    expected: params.len(),
-                    actual: args.len(),
-                });
+                return Err(LambdustError::ArityError(params.len(), args.len()));
             }
 
             for (param, arg) in params.iter().zip(args.iter()) {

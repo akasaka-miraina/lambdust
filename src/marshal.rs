@@ -424,8 +424,8 @@ mod tests {
         assert!(result.is_err());
 
         match result.unwrap_err() {
-            LambdustError::RuntimeError(msg) => {
-                assert!(msg.contains("Marshal error"));
+            LambdustError::RuntimeError { message, .. } => {
+                assert!(message.contains("Marshal error"));
             }
             _ => panic!("Expected marshal error for null pointer"),
         }
@@ -439,8 +439,8 @@ mod tests {
 
         assert!(result.is_err());
         match result.unwrap_err() {
-            LambdustError::RuntimeError(msg) => {
-                assert!(msg.contains("String contains null bytes"));
+            LambdustError::RuntimeError { message, .. } => {
+                assert!(message.contains("String contains null bytes"));
             }
             _ => panic!("Expected error for string with null bytes"),
         }
@@ -454,8 +454,8 @@ mod tests {
 
         assert!(result.is_err());
         match result.unwrap_err() {
-            LambdustError::RuntimeError(msg) => {
-                assert!(msg.contains("TypeMismatch"));
+            LambdustError::RuntimeError { message, .. } => {
+                assert!(message.contains("TypeMismatch"));
             }
             _ => panic!("Expected type mismatch error"),
         }
