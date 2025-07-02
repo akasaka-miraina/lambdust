@@ -1,7 +1,6 @@
 //! Example demonstrating the Lambdust bridge API
 
 use lambdust::{LambdustBridge, Result, Value};
-use std::collections::HashMap;
 
 // Example external struct that we want to expose to Scheme
 #[derive(Debug, Clone)]

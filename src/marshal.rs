@@ -361,7 +361,7 @@ mod tests {
         let scheme_val = flag.to_scheme().unwrap();
         assert_eq!(scheme_val, Value::Boolean(true));
         let back: bool = bool::from_scheme(&scheme_val).unwrap();
-        assert_eq!(back, true);
+        assert!(back);
     }
 
     #[test]

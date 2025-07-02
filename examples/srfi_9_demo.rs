@@ -3,7 +3,7 @@
 //! This example shows how to use the define-record-type macro
 //! to create structured data types in Scheme.
 
-use lambdust::{Interpreter, Value};
+use lambdust::Interpreter;
 
 fn main() {
     println!("=== SRFI 9 Define-record-type Demo ===\n");

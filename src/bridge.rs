@@ -592,7 +592,7 @@ mod tests {
         assert_eq!(i64::from_scheme(&value).unwrap(), 42i64);
 
         let value = Value::from(true);
-        assert_eq!(bool::from_scheme(&value).unwrap(), true);
+        assert!(bool::from_scheme(&value).unwrap());
     }
 
     #[test]

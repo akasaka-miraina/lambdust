@@ -2,7 +2,7 @@
 //!
 //! 新しく実装されたR7RS Small準拠の標準関数をテストします。
 
-use lambdust::{Interpreter, Value};
+use lambdust::Interpreter;
 
 fn main() {
     println!("=== R7RS Small 標準関数デモ ===\n");
