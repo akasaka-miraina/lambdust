@@ -46,6 +46,9 @@ pub trait Marshallable: 'static {
 
     /// Convert from Rust type to Scheme value
     fn to_scheme(&self) -> Result<Value>;
+
+    /// Get the corresponding ValueType for this Rust type
+    fn value_type() -> crate::host::ValueType;
 }
 
 /// Type converter function signature
@@ -166,6 +169,10 @@ impl Marshallable for i64 {
     fn to_scheme(&self) -> Result<Value> {
         Ok(Value::Number(SchemeNumber::Integer(*self)))
     }
+
+    fn value_type() -> crate::host::ValueType {
+        crate::host::ValueType::Number
+    }
 }
 
 impl Marshallable for f64 {
@@ -186,6 +193,10 @@ impl Marshallable for f64 {
     fn to_scheme(&self) -> Result<Value> {
         Ok(Value::Number(SchemeNumber::Real(*self)))
     }
+
+    fn value_type() -> crate::host::ValueType {
+        crate::host::ValueType::Number
+    }
 }
 
 impl Marshallable for String {
@@ -204,6 +215,10 @@ impl Marshallable for String {
     fn to_scheme(&self) -> Result<Value> {
         Ok(Value::String(self.clone()))
     }
+
+    fn value_type() -> crate::host::ValueType {
+        crate::host::ValueType::String
+    }
 }
 
 impl Marshallable for bool {
@@ -220,6 +235,10 @@ impl Marshallable for bool {
 
     fn to_scheme(&self) -> Result<Value> {
         Ok(Value::Boolean(*self))
+    }
+
+    fn value_type() -> crate::host::ValueType {
+        crate::host::ValueType::Boolean
     }
 }
 
@@ -246,6 +265,10 @@ impl<T: Marshallable> Marshallable for Vec<T> {
             result = Value::cons(item.to_scheme()?, result);
         }
         Ok(result)
+    }
+
+    fn value_type() -> crate::host::ValueType {
+        crate::host::ValueType::List
     }
 }
 
@@ -374,5 +397,104 @@ mod tests {
 
         let back = scheme_to_c_int(&c_val).unwrap();
         assert_eq!(back, 100);
+    }
+
+    #[test]
+    fn test_c_string_conversions() {
+        use std::ffi::CString;
+        
+        // Test valid C string conversion
+        let test_str = "hello world";
+        let c_string = CString::new(test_str).unwrap();
+        let c_ptr = c_string.as_ptr();
+        
+        let scheme_val = unsafe { c_string_to_scheme(c_ptr) }.unwrap();
+        assert_eq!(scheme_val, Value::String("hello world".to_string()));
+        
+        // Test scheme string to C conversion
+        let scheme_string = Value::String("test string".to_string());
+        let c_ptr = scheme_string_to_c(&scheme_string).unwrap();
+        
+        // Convert back to verify
+        let reconstructed = unsafe { CString::from_raw(c_ptr) };
+        assert_eq!(reconstructed.to_str().unwrap(), "test string");
+    }
+
+    #[test]
+    fn test_c_string_null_pointer() {
+        // Test null pointer handling
+        let result = unsafe { c_string_to_scheme(std::ptr::null()) };
+        assert!(result.is_err());
+        
+        match result.unwrap_err() {
+            LambdustError::RuntimeError(msg) => {
+                assert!(msg.contains("Marshal error"));
+            }
+            _ => panic!("Expected marshal error for null pointer"),
+        }
+    }
+
+    #[test]
+    fn test_c_string_with_null_bytes() {
+        // Test string containing null bytes
+        let scheme_val = Value::String("hello\0world".to_string());
+        let result = scheme_string_to_c(&scheme_val);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            LambdustError::RuntimeError(msg) => {
+                assert!(msg.contains("String contains null bytes"));
+            }
+            _ => panic!("Expected error for string with null bytes"),
+        }
+    }
+
+    #[test]
+    fn test_c_string_type_mismatch() {
+        // Test type mismatch in scheme_string_to_c
+        let non_string = Value::Number(SchemeNumber::Integer(42));
+        let result = scheme_string_to_c(&non_string);
+        
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            LambdustError::RuntimeError(msg) => {
+                assert!(msg.contains("TypeMismatch"));
+            }
+            _ => panic!("Expected type mismatch error"),
+        }
+    }
+
+    #[test]
+    fn test_scheme_to_c_int_type_errors() {
+        // Test various non-numeric types
+        let test_cases = vec![
+            Value::String("not a number".to_string()),
+            Value::Boolean(true),
+            Value::Nil,
+            Value::Symbol("symbol".to_string()),
+        ];
+        
+        for val in test_cases {
+            let result = scheme_to_c_int(&val);
+            assert!(result.is_err(), "Expected error for value: {:?}", val);
+        }
+    }
+
+    #[test]
+    fn test_free_c_string_safety() {
+        // Test that free_c_string handles null pointers safely
+        unsafe {
+            free_c_string(std::ptr::null_mut());
+        }
+        // Should not panic or cause issues
+        
+        // Test proper deallocation cycle
+        let scheme_val = Value::String("test".to_string());
+        let c_ptr = scheme_string_to_c(&scheme_val).unwrap();
+        
+        // This should safely deallocate
+        unsafe {
+            free_c_string(c_ptr);
+        }
     }
 }

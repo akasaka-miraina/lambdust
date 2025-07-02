@@ -136,6 +136,20 @@ impl FunctionSignature {
         }
         Ok(())
     }
+
+    /// Validate return value against this signature
+    pub fn validate_return(&self, value: &Value) -> Result<()> {
+        if !self.return_type.matches(value) {
+            return Err(LambdustError::TypeError(
+                format!(
+                    "Return value type mismatch: expected {}, got {:?}",
+                    self.return_type.name(),
+                    value
+                )
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Host function type alias to reduce complexity
@@ -189,7 +203,7 @@ impl HostFunctionRegistry {
         // Create signature based on types
         let signature = FunctionSignature::new(
             Args::parameter_types(),
-            ValueType::Any, // Will be refined in future versions
+            Ret::value_type(),
         );
 
         self.register_function(name, wrapper, signature);
@@ -202,10 +216,12 @@ impl HostFunctionRegistry {
             let signature_clone = signature.clone();
             let func_clone = func.clone();
 
-            // Create a wrapper that validates arguments
+            // Create a wrapper that validates arguments and return value
             let wrapper = move |args: &[Value]| -> Result<Value> {
                 signature_clone.validate_args(args)?;
-                func_clone(args)
+                let result = func_clone(args)?;
+                signature_clone.validate_return(&result)?;
+                Ok(result)
             };
 
             Some(Value::Procedure(Procedure::HostFunction {
@@ -347,7 +363,7 @@ impl<T: Marshallable> FromSchemeArgs for (T,) {
     }
 
     fn parameter_types() -> Vec<ValueType> {
-        vec![ValueType::Any] // Will be refined with more type information
+        vec![T::value_type()]
     }
 }
 
@@ -363,7 +379,7 @@ impl<T1: Marshallable, T2: Marshallable> FromSchemeArgs for (T1, T2) {
     }
 
     fn parameter_types() -> Vec<ValueType> {
-        vec![ValueType::Any, ValueType::Any] // Will be refined
+        vec![T1::value_type(), T2::value_type()]
     }
 }
 
@@ -383,7 +399,7 @@ impl<T1: Marshallable, T2: Marshallable, T3: Marshallable> FromSchemeArgs for (T
     }
 
     fn parameter_types() -> Vec<ValueType> {
-        vec![ValueType::Any, ValueType::Any, ValueType::Any] // Will be refined
+        vec![T1::value_type(), T2::value_type(), T3::value_type()]
     }
 }
 
@@ -479,5 +495,48 @@ mod tests {
 
         let proc = registry.get_procedure("add-numbers").unwrap();
         assert!(proc.is_procedure());
+    }
+
+    #[test]
+    fn test_return_value_validation() {
+        let mut registry = HostFunctionRegistry::new();
+        
+        // Register function with specific return type validation
+        registry.register_function(
+            "return-string".to_string(),
+            |_args: &[Value]| -> Result<Value> {
+                Ok(Value::String("expected string".to_string()))
+            },
+            FunctionSignature::new(vec![], ValueType::String),
+        );
+
+        registry.register_function(
+            "return-wrong-type".to_string(),
+            |_args: &[Value]| -> Result<Value> {
+                // This should fail validation - returns number instead of string
+                Ok(Value::Number(SchemeNumber::Integer(42)))
+            },
+            FunctionSignature::new(vec![], ValueType::String),
+        );
+
+        // Test correct return type
+        let proc1 = registry.get_procedure("return-string").unwrap();
+        if let Value::Procedure(Procedure::HostFunction { func, .. }) = proc1 {
+            let result = func(&[]);
+            assert!(result.is_ok());
+        }
+
+        // Test incorrect return type should fail validation
+        let proc2 = registry.get_procedure("return-wrong-type").unwrap();
+        if let Value::Procedure(Procedure::HostFunction { func, .. }) = proc2 {
+            let result = func(&[]);
+            assert!(result.is_err());
+            match result.unwrap_err() {
+                LambdustError::TypeError(msg) => {
+                    assert!(msg.contains("Return value type mismatch"));
+                }
+                _ => panic!("Expected TypeError for return value mismatch"),
+            }
+        }
     }
 }
