@@ -52,8 +52,7 @@ fn add_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
         (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(*x as f64 + y)),
         (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Real(x + *y as f64)),
         _ => Err(LambdustError::type_error(format!(
-            "Cannot add {} and {}",
-            a, b
+            "Cannot add {a} and {b}"
         ))),
     }
 }
