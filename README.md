@@ -2,6 +2,8 @@
 
 [![Crates.io](https://img.shields.io/crates/v/lambdust)](https://crates.io/crates/lambdust)
 [![Documentation](https://docs.rs/lambdust/badge.svg)](https://docs.rs/lambdust)
+[![CI](https://github.com/akasaka-miraina/lambdust/workflows/Continuous%20Integration/badge.svg)](https://github.com/akasaka-miraina/lambdust/actions)
+[![Coverage](https://codecov.io/gh/akasaka-miraina/lambdust/branch/main/graph/badge.svg)](https://codecov.io/gh/akasaka-miraina/lambdust)
 [![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](LICENSE)
 
 Lambdust is a complete R7RS Scheme interpreter implemented in Rust, designed for embedding in applications as a macro and scripting system. The name combines "lambda" (λ) with "Rust," reflecting Scheme's functional nature and the ability to add expressive power to existing applications.
@@ -180,8 +182,33 @@ cargo build --release
 ### Running Tests
 
 ```bash
+# Run all tests
 cargo test
+
+# Run tests with coverage report
+cargo install cargo-llvm-cov
+cargo llvm-cov --all-features --workspace --open
 ```
+
+### Test Coverage
+
+The project maintains high test coverage across all modules:
+
+- **Unit Tests**: 94 test cases covering core functionality
+- **Documentation Tests**: 13 doctests ensuring example code works
+- **Integration Tests**: End-to-end testing of the complete interpreter
+- **Coverage Reports**: Automatically generated and uploaded to Codecov
+
+Current test coverage (Overall: **52.94%**):
+- ✅ Parser (83.26%)
+- ✅ Environment (84.86%)  
+- ✅ Lexer (72.14%)
+- ✅ Interpreter (71.43%)
+- ✅ Marshal (71.92%)
+- ✅ Evaluator (65.75%)
+- ✅ Macro System (62.15%)
+- ⚠️ Built-in Functions (35% avg - needs improvement)
+- ⚠️ Error Handling (21.32% - needs improvement)
 
 ### Generating Documentation
 

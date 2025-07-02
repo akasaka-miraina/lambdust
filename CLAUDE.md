@@ -141,10 +141,12 @@ cargo clippy
 - [x] 構文解析器実装
 - [x] 評価器実装（従来型 + R7RS形式的意味論準拠CPS評価器）
 - [x] 組み込み関数実装（99%完了：103個の標準関数）
-- [x] マクロシステム実装（SRFI 46拡張対応）
+- [x] マクロシステム実装（SRFI 9, 45, 46対応）
 - [x] 外部API実装（ホスト連携・マーシャリング）
-- [x] テスト完備（91テスト全パス）
+- [x] テスト完備（94テスト + 13ドキュメントテスト全パス）
 - [x] ドキュメント整備
+- [x] CI/CD パイプライン構築（GitHub Actions）
+- [x] 開発フロー整備（Issue/PRテンプレート、GitHub Copilot統合）
 
 ### R7RS Small実装完了ステータス（99%達成）
 
@@ -229,13 +231,11 @@ cargo clippy
 
 - **call-with-values**: 多値システム基盤は完成、evaluator統合待ち
 - **継続・例外処理**: 基盤構造完成、完全動作にはevaluator統合必要
-- **マクロシステム**: 基本syntax-rules実装済み、SRFI 46拡張待ち
 
 #### ⏳ 今後の拡張予定
 
-- **SRFI 45**: 遅延評価プリミティブ（delay, force, promise?）
-- **SRFI 46**: syntax-rules拡張（楕円記法強化）
 - **完全なevaluator統合**: 継続・例外・多値の完全動作化
+- **パフォーマンス最適化**: より高速な評価器実装
 
 ### アーキテクチャ改善完了
 
@@ -244,7 +244,10 @@ cargo clippy
   - vector.rs（ベクタ）、predicates.rs（述語）、io.rs（I/O）
   - control_flow.rs（継続・例外）、misc.rs（多値・レコード）、error_handling.rs（エラー）
 - **保守性向上**: 機能別の独立テスト可能性と新機能追加の容易性確保
-- **テスト完備**: 76テスト全パス、デモプログラム5個で動作確認
+- **テスト完備**: 94テスト + 13ドキュメントテスト全パス、デモプログラム5個で動作確認
+- **品質管理**: pre-commit hook + GitHub Actions CI/CD（Windows/macOS/Linux対応）
+- **開発フロー**: Issue→Branch→PR ワークフロー・テンプレート整備完了
+- **GitHub Copilot連携**: PR テンプレートにレビュールール統合、自動コード品質向上
 
 ## R7RS Small仕様とSRFI実装計画
 
@@ -252,10 +255,10 @@ cargo clippy
 
 以下のSRFIはR7RS Small仕様に標準として組み込まれており、必須実装項目です：
 
-1. **SRFI 9: Define-record-type**
+1. **SRFI 9: Define-record-type** ✅
    - レコード型定義（define-record-type）
    - 構造体的なデータ型の定義機能
-   - 優先度: 必須
+   - 優先度: 必須 → **完全実装済み**
 
 2. **SRFI 45: Primitives for Expressing Iterative Lazy Algorithms** ✅
    - プロミス（promise）とディレイ（delay）の拡張
