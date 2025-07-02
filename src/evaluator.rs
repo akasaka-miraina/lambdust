@@ -134,6 +134,10 @@ impl Evaluator {
                     match name.as_str() {
                         "if" => return self.eval_if_tail(operands, env),
                         "begin" => return self.eval_begin_tail(operands, env),
+                        // Special forms that are not tail-call optimizable
+                        "define" | "set!" | "lambda" | "quote" | "and" | "or" | "do" => {
+                            return Ok(TailCallInfo::None);
+                        }
                         _ => {} // 通常の手続き呼び出しとして処理
                     }
                 }
