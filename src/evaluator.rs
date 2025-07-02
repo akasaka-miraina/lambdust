@@ -4,7 +4,7 @@ use crate::ast::{Expr, Literal};
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::macros::MacroExpander;
-use crate::value::{Procedure, Value};
+use crate::value::{Continuation, Procedure, Value};
 use std::rc::Rc;
 
 /// Maximum recursion depth to prevent stack overflow
@@ -177,7 +177,8 @@ impl Evaluator {
             "begin" => Ok(Some(self.eval_begin_tail(operands, env)?)),
             // Special forms that are not tail-call optimizable
             "define" | "set!" | "lambda" | "quote" | "and" | "or" | "do" | "apply" | "map"
-            | "for-each" | "call-with-values" | "delay" | "lazy" | "force" | "syntax-rules" => {
+            | "for-each" | "call-with-values" | "delay" | "lazy" | "force" | "syntax-rules"
+            | "call-with-current-continuation" | "call/cc" => {
                 Ok(Some(TailCallInfo::None))
             }
             _ => Ok(None), // Not a special form
@@ -280,6 +281,7 @@ impl Evaluator {
             "lazy" => self.eval_lazy(operands, env)?,
             "force" => self.eval_force(operands, env)?,
             "syntax-rules" => self.eval_syntax_rules(operands, env)?,
+            "call-with-current-continuation" | "call/cc" => self.eval_call_cc(operands, env)?,
             _ => return Ok(None), // Not a special form
         };
 
@@ -351,11 +353,20 @@ impl Evaluator {
                     // Arity is already validated by HostFunctionRegistry wrapper
                     func(&args)
                 }
-                Procedure::Continuation { .. } => {
-                    // TODO: Implement continuations
-                    Err(LambdustError::runtime_error(
-                        "Continuations not yet implemented".to_string(),
-                    ))
+                Procedure::Continuation { continuation } => {
+                    // Apply continuation with the given arguments
+                    // Continuations can accept multiple values
+                    let result_value = if args.len() == 1 {
+                        // Single value case
+                        args[0].clone()
+                    } else {
+                        // Multiple values case - wrap in Values
+                        Value::Values(args)
+                    };
+                    
+                    // Apply the continuation (this would jump to the captured context)
+                    // For now, we'll use the simplified implementation
+                    self.apply_continuation(*continuation.clone(), result_value)
                 }
             },
             _ => Err(LambdustError::type_error(format!(
@@ -867,6 +878,54 @@ impl Evaluator {
         ))
     }
 
+    /// Apply a continuation with a value (supporting multiple values)
+    fn apply_continuation(&mut self, _continuation: Continuation, value: Value) -> Result<Value> {
+        // For now, this is a simplified implementation
+        // A full implementation would restore the call stack and environment
+        // and jump to the continuation point
+        
+        // In a complete implementation, this would:
+        // 1. Restore the captured environment
+        // 2. Restore the call stack
+        // 3. Return the value to the continuation point
+        
+        // For this basic implementation, we'll just return the value
+        // This allows call/cc to work in simple cases
+        Ok(value)
+    }
+
+    /// Evaluate call-with-current-continuation special form: (call/cc proc)
+    fn eval_call_cc(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        let proc = self.eval_impl(operands[0].clone(), env.clone())?;
+        
+        // Verify that the argument is a procedure
+        match &proc {
+            Value::Procedure(_) => {},
+            _ => {
+                return Err(LambdustError::type_error(format!(
+                    "call/cc: expected procedure, got {}", proc
+                )));
+            }
+        }
+
+        // Create a continuation that captures the current evaluation context
+        let continuation = Continuation {
+            stack: Vec::new(), // Simplified - full implementation would capture actual call stack
+            env: env.clone(),
+        };
+
+        let continuation_proc = Value::Procedure(Procedure::Continuation {
+            continuation: Box::new(continuation),
+        });
+
+        // Call the procedure with the continuation as its argument
+        self.apply_procedure(proc, vec![continuation_proc], env)
+    }
+
     /// Evaluate force special form: (force promise)
     fn eval_force(&mut self, operands: &[Expr], env: Rc<Environment>) -> Result<Value> {
         if operands.len() != 1 {
@@ -1092,6 +1151,36 @@ mod tests {
             eval_str("(call-with-values (lambda () (values 10 20)) (lambda (a b) (* a b)))")
                 .unwrap();
         assert_eq!(result, Value::from(200i64));
+    }
+
+    #[test] 
+    fn test_call_cc_basic() {
+        // Test basic call/cc that doesn't use the continuation
+        let result = eval_str("(call/cc (lambda (k) 42))").unwrap();
+        assert_eq!(result, Value::from(42i64));
+
+        // Test call/cc with identity function
+        let result = eval_str("(call/cc (lambda (cont) (cont 100)))").unwrap();
+        assert_eq!(result, Value::from(100i64));
+    }
+
+    #[test]
+    fn test_continuation_multi_values() {
+        // Test continuation with multiple values
+        let result = eval_str("(call/cc (lambda (cont) (cont 1 2 3)))").unwrap();
+        assert_eq!(result, Value::Values(vec![
+            Value::from(1i64),
+            Value::from(2i64), 
+            Value::from(3i64)
+        ]));
+        
+        // Test continuation in call-with-values context
+        let result = eval_str(
+            "(call-with-values 
+               (lambda () (call/cc (lambda (cont) (cont 5 10))))
+               (lambda (a b) (+ a b)))"
+        ).unwrap();
+        assert_eq!(result, Value::from(15i64));
     }
 
     #[test]

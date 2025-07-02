@@ -651,7 +651,7 @@ impl FormalEvaluator {
                     env: env.clone(),
                     parent,
                 };
-                
+
                 // Evaluate the producer
                 self.eval(producer_expr, env, step2_cont)
             }
@@ -663,16 +663,17 @@ impl FormalEvaluator {
             } => {
                 // Producer has been evaluated (value), now call it and then apply consumer
                 let producer = value;
-                
+
                 // Call the producer with no arguments to get the values
-                let producer_result = self.apply_procedure(producer, Vec::new(), Continuation::Identity)?;
-                
+                let producer_result =
+                    self.apply_procedure(producer, Vec::new(), Continuation::Identity)?;
+
                 // Convert the result to arguments for the consumer
                 let consumer_args = match producer_result {
                     Value::Values(values) => values,
                     single_value => vec![single_value],
                 };
-                
+
                 // Apply the consumer with the producer's values
                 self.apply_procedure(consumer, consumer_args, *parent)
             }
@@ -912,11 +913,36 @@ mod tests {
         assert_eq!(result, Value::from(42i64));
 
         // Test call-with-values with multiple values
-        let result = eval_str_formal("(call-with-values (lambda () (values 1 2 3)) (lambda (x y z) (+ x y z)))").unwrap();
+        let result = eval_str_formal(
+            "(call-with-values (lambda () (values 1 2 3)) (lambda (x y z) (+ x y z)))",
+        )
+        .unwrap();
         assert_eq!(result, Value::from(6i64));
 
         // Test call-with-values with values producer
-        let result = eval_str_formal("(call-with-values (lambda () (values 10 20)) (lambda (a b) (* a b)))").unwrap();
+        let result =
+            eval_str_formal("(call-with-values (lambda () (values 10 20)) (lambda (a b) (* a b)))")
+                .unwrap();
         assert_eq!(result, Value::from(200i64));
+    }
+
+    #[test]
+    fn test_formal_multi_value_continuations() {
+        // Test that the formal evaluator properly handles multiple values in continuations
+        // This ensures that the CPS implementation correctly propagates multi-value contexts
+        
+        // Test simple multi-value propagation
+        let result = eval_str_formal("(values 1 2 3)").unwrap();
+        assert_eq!(result, Value::Values(vec![
+            Value::from(1i64),
+            Value::from(2i64),
+            Value::from(3i64)
+        ]));
+
+        // Test multi-value in call-with-values (more complex CPS case)
+        let result = eval_str_formal(
+            "(call-with-values (lambda () (values 5 10 15)) (lambda (a b c) (+ a b c)))"
+        ).unwrap();
+        assert_eq!(result, Value::from(30i64));
     }
 }
