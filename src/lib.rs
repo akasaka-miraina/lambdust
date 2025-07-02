@@ -217,12 +217,6 @@ impl Default for Interpreter {
     }
 }
 
-// Test formatting fix
-fn _test_formatting() {
-    let _x=1+2+3;
-    let _y   =   "test"  ;
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
