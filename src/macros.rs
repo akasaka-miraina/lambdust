@@ -258,21 +258,7 @@ impl MacroExpander {
         );
     }
 
-    /// SRFI 46: Check if pattern has nested ellipsis
-    #[allow(dead_code, clippy::only_used_in_recursion)]
-    fn has_nested_ellipsis(&self, pattern: &Pattern) -> bool {
-        match pattern {
-            Pattern::NestedEllipsis(_, _) => true,
-            Pattern::List(patterns) => patterns.iter().any(|p| self.has_nested_ellipsis(p)),
-            Pattern::Vector(patterns) => patterns.iter().any(|p| self.has_nested_ellipsis(p)),
-            Pattern::Ellipsis(inner) => self.has_nested_ellipsis(inner),
-            Pattern::Dotted(patterns, tail) => {
-                patterns.iter().any(|p| self.has_nested_ellipsis(p))
-                    || self.has_nested_ellipsis(tail)
-            }
-            _ => false,
-        }
-    }
+// Removed the `has_nested_ellipsis` method as it was dead code.
 
     /// SRFI 46: Count ellipsis nesting level
     #[allow(clippy::only_used_in_recursion)]
