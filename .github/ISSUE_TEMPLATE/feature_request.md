@@ -1,39 +1,96 @@
 ---
-name: Feature request
+name: Feature Request
 about: Suggest an idea for this project
 title: '[FEATURE] '
-labels: enhancement
+labels: ['enhancement']
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+## Summary
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+<!-- Provide a clear and concise description of the feature you want to implement -->
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+## Motivation
 
-**R7RS Compliance**
-If this feature is part of the R7RS specification, please provide a reference to the relevant section.
+<!-- Explain why this feature is needed and what problem it solves -->
 
-**Use Case**
-Describe the use case for this feature. How would it be used in practice?
+## Detailed Specification
 
-**Example Code**
-If applicable, provide example code showing how the feature would be used:
+<!-- Describe the detailed specification of the feature -->
+
+### Requirements
+
+- [ ] Requirement 1
+- [ ] Requirement 2
+- [ ] Requirement 3
+
+### Implementation Details
+
+<!-- 
+Describe the specific implementation content:
+- API design
+- Data structures
+- Algorithms
+- Performance requirements
+- Error handling
+-->
+
+## R7RS Compliance
+
+<!-- If this feature is part of the R7RS specification, provide a reference to the relevant section -->
+
+## Usage Examples
+
+### Scheme Code Example
 
 ```scheme
-;; Example Scheme code
+;; Example usage of the proposed feature
 (your-proposed-syntax-here)
 ```
+
+### Rust Integration Example
 
 ```rust
 // Example Rust integration
 // Your proposed API here
 ```
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+## Implementation Plan
+
+### Phase 1: Basic Implementation
+- [ ] Task 1
+- [ ] Task 2
+
+### Phase 2: Extended Features (Optional)
+- [ ] Task 3
+- [ ] Task 4
+
+## Test Plan
+
+<!-- Describe what tests should be added -->
+
+- [ ] Unit tests
+- [ ] Integration tests
+- [ ] Performance tests
+- [ ] Edge case tests
+
+## Related Issues/PRs
+
+<!-- Link related issues or PRs if any -->
+
+- Related to #
+- Depends on #
+
+## Additional Information
+
+<!-- Any other information relevant to the implementation -->
+
+### References
+
+- [R7RS Specification](https://small.r7rs.org/)
+- [SRFI Documents](https://srfi.schemers.org/)
+
+### Notes
+
+<!-- Any implementation notes or considerations -->

@@ -1,50 +1,95 @@
 ---
-name: Bug report
+name: Bug Report
 about: Create a report to help us improve
 title: '[BUG] '
-labels: bug
+labels: ['bug']
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Bug Description
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+<!-- Provide a clear and concise description of the bug -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Steps to Reproduce
 
-**Scheme Code**
-If applicable, provide the Scheme code that causes the issue:
+<!-- Describe the steps to reproduce the bug -->
+
+1. Step 1
+2. Step 2
+3. Step 3
+
+## Expected Behavior
+
+<!-- Describe what should happen -->
+
+## Actual Behavior
+
+<!-- Describe what actually happens -->
+
+## Reproduction Code
+
+### Scheme Code
 
 ```scheme
-(your-scheme-code-here)
+;; Scheme code that reproduces the bug
+(problematic-code-here)
 ```
 
-**Rust Code**
-If applicable, provide the Rust code that demonstrates the issue:
+### Rust Code (if applicable)
 
 ```rust
-// Your Rust code here
+// Rust code that reproduces the bug
+// problematic code here
 ```
 
-**Error Output**
-If applicable, provide the error message or unexpected output:
+## Error Messages
 
 ```
-Error message here
+Paste any error messages here
 ```
 
-**Environment (please complete the following information):**
-- OS: [e.g. macOS, Linux, Windows]
+## Environment
+
+- OS: [e.g. macOS 14.0, Ubuntu 22.04, Windows 11]
 - Rust version: [e.g. 1.70.0]
-- Lambdust version: [e.g. 0.1.0]
+- Lambdust version: [e.g. 0.1.1]
 
-**Additional context**
-Add any other context about the problem here.
+## Additional Information
+
+<!-- Any other information that helps with investigating the bug -->
+
+### Stack Trace
+
+```
+Paste stack trace if available
+```
+
+### Related Logs
+
+```
+Paste related log output if available
+```
+
+## Impact
+
+- [ ] Feature completely broken
+- [ ] Partial functionality affected
+- [ ] Performance impact
+- [ ] Memory leak
+- [ ] Other: [details]
+
+## Severity
+
+- [ ] Critical (system doesn't work)
+- [ ] High (major feature affected)
+- [ ] Medium (some features affected)
+- [ ] Low (minor issue)
+
+## R7RS Specification Relation
+
+<!-- If this bug is related to R7RS specification, provide reference to relevant section -->
+
+## Workaround
+
+<!-- Describe any temporary workaround if available -->

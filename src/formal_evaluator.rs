@@ -75,6 +75,24 @@ pub enum Continuation {
         /// Parent continuation
         parent: Box<Continuation>,
     },
+    /// Call-with-values step 1: evaluate consumer, then producer
+    CallWithValuesStep1 {
+        /// Producer expression to evaluate later
+        producer_expr: Expr,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+        /// Parent continuation
+        parent: Box<Continuation>,
+    },
+    /// Call-with-values step 2: call producer, then consumer
+    CallWithValuesStep2 {
+        /// Consumer procedure (already evaluated)
+        consumer: Value,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+        /// Parent continuation
+        parent: Box<Continuation>,
+    },
 }
 
 /// Store (memory) for locations
@@ -510,18 +528,26 @@ impl FormalEvaluator {
     fn eval_call_with_values(
         &mut self,
         operands: &[Expr],
-        _env: Rc<Environment>,
-        _cont: Continuation,
+        env: Rc<Environment>,
+        cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 2 {
             return Err(LambdustError::arity_error(2, operands.len()));
         }
 
-        // This is a simplified implementation
-        // A full CPS implementation would properly thread the continuations
-        Err(LambdustError::runtime_error(
-            "call-with-values: not yet fully implemented in formal evaluator".to_string(),
-        ))
+        let producer_expr = operands[0].clone();
+        let consumer_expr = operands[1].clone();
+
+        // Create a continuation for step 1: after producer is evaluated, evaluate consumer
+        let step1_cont = Continuation::CallWithValuesStep1 {
+            producer_expr,
+            consumer_expr: consumer_expr.clone(),
+            env: env.clone(),
+            parent: Box::new(cont),
+        };
+
+        // First evaluate the producer
+        self.eval(producer_expr, env, step1_cont)
     }
 
     /// Evaluate dynamic-wind
@@ -613,9 +639,63 @@ impl FormalEvaluator {
                 values.push(value);
                 self.apply_continuation(*parent, Value::Values(values))
             }
+
+            Continuation::CallWithValuesStep1 {
+                producer_expr,
+                env,
+                parent,
+            } => {
+                // Consumer has been evaluated (value), now evaluate producer
+                let consumer = value;
+                let step2_cont = Continuation::CallWithValuesStep2 {
+                    consumer,
+                    env: env.clone(),
+                    parent,
+                };
+
+                // Evaluate the producer
+                self.eval(producer_expr, env, step2_cont)
+            }
+
+            Continuation::CallWithValuesStep2 {
+                consumer,
+                env: _,
+                parent,
+            } => {
+                // Producer has been evaluated (value), now call it and then apply consumer
+                let producer = value;
+
+                // Call the producer with no arguments to get the values
+                let producer_result =
+                    self.apply_procedure(producer, Vec::new(), Continuation::Identity)?;
+
+                // Convert the result to arguments for the consumer
+                let consumer_args = match producer_result {
+                    Value::Values(values) => values,
+                    single_value => vec![single_value],
+                };
+
+                // Apply the consumer with the producer's values in the correct environment
+                self.apply_procedure_with_env(consumer, consumer_args, env, *parent)
+            }
         }
     }
 
+    /// Apply a procedure in a specific environment
+    fn apply_procedure_with_env(
+        &mut self,
+        procedure: Value,
+        args: Vec<Value>,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        // Temporarily set the environment for the procedure application
+        let previous_env = self.current_env.clone();
+        self.current_env = env;
+        let result = self.apply_procedure(procedure, args, cont);
+        self.current_env = previous_env; // Restore the previous environment
+        result
+    }
     /// Evaluate arguments for function application
     /// Implements unspecified evaluation order per R7RS semantics
     fn eval_args(
@@ -840,5 +920,69 @@ mod tests {
         let eval_rtl = FormalEvaluator::with_eval_order(EvalOrder::RightToLeft);
         let ordered_rtl = eval_rtl.apply_evaluation_order(args);
         assert_eq!(ordered_rtl.len(), 3);
+    }
+
+    #[test]
+    fn test_formal_call_with_values() {
+        // Test call-with-values with single value
+        let result = eval_str_formal("(call-with-values (lambda () 42) (lambda (x) x))").unwrap();
+        assert_eq!(result, Value::from(42i64));
+
+        // Test call-with-values with multiple values
+        let result = eval_str_formal(
+            "(call-with-values (lambda () (values 1 2 3)) (lambda (x y z) (+ x y z)))",
+        )
+        .unwrap();
+        assert_eq!(result, Value::from(6i64));
+
+        // Test call-with-values with values producer
+        let result =
+            eval_str_formal("(call-with-values (lambda () (values 10 20)) (lambda (a b) (* a b)))")
+                .unwrap();
+        assert_eq!(result, Value::from(200i64));
+    }
+
+    #[test]
+    fn test_formal_call_with_values_errors() {
+        // Test call-with-values with wrong arity
+        let result = eval_str_formal("(call-with-values)");
+        assert!(result.is_err());
+
+        let result = eval_str_formal("(call-with-values (lambda () 1))");
+        assert!(result.is_err());
+
+        let result = eval_str_formal("(call-with-values (lambda () 1) (lambda (x) x) extra)");
+        assert!(result.is_err());
+
+        // Test call-with-values with non-procedure arguments
+        let result = eval_str_formal("(call-with-values 42 (lambda (x) x))");
+        assert!(result.is_err());
+
+        let result = eval_str_formal("(call-with-values (lambda () 1) 42)");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_formal_multi_value_continuations() {
+        // Test that the formal evaluator properly handles multiple values in continuations
+        // This ensures that the CPS implementation correctly propagates multi-value contexts
+
+        // Test simple multi-value propagation
+        let result = eval_str_formal("(values 1 2 3)").unwrap();
+        assert_eq!(
+            result,
+            Value::Values(vec![
+                Value::from(1i64),
+                Value::from(2i64),
+                Value::from(3i64)
+            ])
+        );
+
+        // Test multi-value in call-with-values (more complex CPS case)
+        let result = eval_str_formal(
+            "(call-with-values (lambda () (values 5 10 15)) (lambda (a b c) (+ a b c)))",
+        )
+        .unwrap();
+        assert_eq!(result, Value::from(30i64));
     }
 }

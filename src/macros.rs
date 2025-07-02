@@ -1191,18 +1191,20 @@ mod tests {
     #[test]
     fn test_expand_define_record_type() {
         let expander = MacroExpander::new();
-        
+
         // Test basic define-record-type expansion
-        let expr = parse_expr(r#"
+        let expr = parse_expr(
+            r#"
             (define-record-type point
               (make-point x y)
               point?
               (x point-x set-point-x!)
               (y point-y set-point-y!))
-        "#);
-        
+        "#,
+        );
+
         let expanded = expander.expand_macro(expr).unwrap();
-        
+
         // Should expand to a begin expression with multiple definitions
         match expanded {
             Expr::List(exprs) if !exprs.is_empty() => {
@@ -1219,16 +1221,18 @@ mod tests {
     #[test]
     fn test_expand_define_record_type_minimal() {
         let expander = MacroExpander::new();
-        
+
         // Test minimal define-record-type with no fields
-        let expr = parse_expr(r#"
+        let expr = parse_expr(
+            r#"
             (define-record-type empty-record
               (make-empty-record)
               empty-record?)
-        "#);
-        
+        "#,
+        );
+
         let expanded = expander.expand_macro(expr).unwrap();
-        
+
         // Should still expand to a begin expression
         match expanded {
             Expr::List(exprs) if !exprs.is_empty() => {
@@ -1245,18 +1249,20 @@ mod tests {
     #[test]
     fn test_expand_define_record_type_field_without_modifier() {
         let expander = MacroExpander::new();
-        
+
         // Test define-record-type with field that has no modifier
-        let expr = parse_expr(r#"
+        let expr = parse_expr(
+            r#"
             (define-record-type person
               (make-person name age)
               person?
               (name person-name)
               (age person-age set-person-age!))
-        "#);
-        
+        "#,
+        );
+
         let expanded = expander.expand_macro(expr).unwrap();
-        
+
         // Should expand successfully even with mixed field specifications
         match expanded {
             Expr::List(exprs) if !exprs.is_empty() => {
