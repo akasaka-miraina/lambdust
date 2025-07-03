@@ -53,9 +53,7 @@ impl LambdustInterpreter {
 
     /// Execute Scheme code from string
     pub fn eval_string(&mut self, code: &str) -> Result<Value> {
-        let tokens = tokenize(code)?;
-        let ast = parse(tokens)?;
-        let result = self.evaluator.eval(ast)?;
+        let result = self.evaluator.eval_string(code)?;
 
         // Check if the result is a procedure and cache it for host access
         if let Value::Procedure(Procedure::Lambda { .. }) = &result {

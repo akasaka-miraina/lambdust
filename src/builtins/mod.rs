@@ -8,6 +8,7 @@ pub mod lazy;
 pub mod list_ops;
 pub mod misc;
 pub mod predicates;
+pub mod srfi;
 pub mod string_char;
 pub mod vector;
 
@@ -29,6 +30,7 @@ pub fn create_builtins() -> HashMap<String, Value> {
     error_handling::register_error_functions(&mut builtins);
     lazy::register_lazy_functions(&mut builtins);
     misc::register_misc_functions(&mut builtins);
+    srfi::register_srfi_functions(&mut builtins);
 
     builtins
 }

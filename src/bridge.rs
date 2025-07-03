@@ -392,24 +392,34 @@ impl LambdustBridge {
     /// Register an external function
     pub fn register_function<F>(&mut self, name: &str, arity: Option<usize>, func: F)
     where
-        F: Fn(&[Value]) -> Result<Value> + Send + Sync + 'static,
+        F: Fn(&[Value]) -> Result<Value> + Send + Sync + Clone + 'static,
     {
         let callable = CallableFunction {
             name: name.to_string(),
             arity,
-            func: Box::new(func),
+            func: Box::new(func.clone()),
         };
 
+        // Register in the registry
         self.registry
             .lock()
             .unwrap()
             .register_function(name, Arc::new(callable));
+
+        // Create a HostFunction procedure for the evaluator
+        let host_func = std::rc::Rc::new(func);
+        let procedure = Value::Procedure(Procedure::HostFunction {
+            name: name.to_string(),
+            arity,
+            func: host_func,
+        });
+
+        self.evaluator.global_env.define(name.to_string(), procedure);
     }
 
     /// Evaluate Scheme code
     pub fn eval(&mut self, code: &str) -> Result<Value> {
-        self.evaluator
-            .eval(crate::parser::parse(crate::lexer::tokenize(code)?)?)
+        self.evaluator.eval_string(code)
     }
 
     /// Load and evaluate a Scheme file

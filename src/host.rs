@@ -45,7 +45,7 @@ impl ValueType {
             (ValueType::String, Value::String(_)) => true,
             (ValueType::Symbol, Value::Symbol(_)) => true,
             (ValueType::List, value) if value.is_list() => true,
-            (ValueType::Pair, Value::Pair(_, _)) => true,
+            (ValueType::Pair, Value::Pair(_)) => true,
             (ValueType::Nil, Value::Nil) => true,
             (ValueType::Procedure, Value::Procedure(_)) => true,
             _ => false,

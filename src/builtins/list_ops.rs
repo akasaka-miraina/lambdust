@@ -36,7 +36,10 @@ fn list_car() -> Value {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
             match &args[0] {
-                Value::Pair(car, _) => Ok((**car).clone()),
+                Value::Pair(pair_ref) => {
+                    let pair = pair_ref.borrow();
+                    Ok(pair.car.clone())
+                }
                 _ => Err(LambdustError::type_error(format!(
                     "car: expected pair, got {}",
                     args[0]
@@ -55,7 +58,10 @@ fn list_cdr() -> Value {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
             match &args[0] {
-                Value::Pair(_, cdr) => Ok((**cdr).clone()),
+                Value::Pair(pair_ref) => {
+                    let pair = pair_ref.borrow();
+                    Ok(pair.cdr.clone())
+                }
                 _ => Err(LambdustError::type_error(format!(
                     "cdr: expected pair, got {}",
                     args[0]
@@ -73,10 +79,7 @@ fn list_cons() -> Value {
             if args.len() != 2 {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
-            Ok(Value::Pair(
-                Box::new(args[0].clone()),
-                Box::new(args[1].clone()),
-            ))
+            Ok(Value::cons(args[0].clone(), args[1].clone()))
         },
     })
 }
@@ -140,7 +143,7 @@ fn list_append() -> Value {
                             // Build proper list from result and make last cdr the non-list value
                             let mut list = arg.clone();
                             for item in result.into_iter().rev() {
-                                list = Value::Pair(Box::new(item), Box::new(list));
+                                list = Value::cons(item, list);
                             }
                             return Ok(list);
                         }
@@ -201,15 +204,10 @@ fn list_set_car() -> Value {
             }
 
             match &args[0] {
-                Value::Pair(_, cdr) => {
-                    // Create new pair with new car and existing cdr
-                    let new_pair = Value::Pair(Box::new(args[1].clone()), cdr.clone());
-
-                    // Note: In a true Scheme implementation, this would mutate the original pair
-                    // Here we return the new pair, but this doesn't provide true mutation semantics
-                    // A complete implementation would require using Rc<RefCell<>> throughout the Value system
-
-                    Ok(new_pair)
+                Value::Pair(_) => {
+                    // Use the new set_car! functionality for true mutation
+                    args[0].set_car(args[1].clone()).map_err(LambdustError::runtime_error)?;
+                    Ok(args[0].clone())
                 }
                 _ => Err(LambdustError::RuntimeError {
                     message: format!("set-car!: expected pair, got {}", args[0]),
@@ -233,12 +231,10 @@ fn list_set_cdr() -> Value {
             }
 
             match &args[0] {
-                Value::Pair(car, _) => {
-                    // Create new pair with existing car and new cdr
-                    let new_pair = Value::Pair(car.clone(), Box::new(args[1].clone()));
-
-                    // Note: Same limitation as set-car! - this doesn't provide true mutation semantics
-                    Ok(new_pair)
+                Value::Pair(_) => {
+                    // Use the new set_cdr! functionality for true mutation
+                    args[0].set_cdr(args[1].clone()).map_err(LambdustError::runtime_error)?;
+                    Ok(args[0].clone())
                 }
                 _ => Err(LambdustError::RuntimeError {
                     message: format!("set-cdr!: expected pair, got {}", args[0]),

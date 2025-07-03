@@ -78,13 +78,14 @@ pub mod builtins;
 pub mod environment;
 pub mod error;
 pub mod evaluator;
-pub mod formal_evaluator;
 pub mod host;
 pub mod interpreter;
 pub mod lexer;
 pub mod macros;
 pub mod marshal;
+pub mod module_system;
 pub mod parser;
+pub mod srfi;
 pub mod value;
 
 // REPL module will be implemented in future versions
@@ -93,7 +94,9 @@ pub mod value;
 
 pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
 pub use error::{LambdustError, Result};
-pub use evaluator::Evaluator;
+pub use evaluator::{Evaluator, FormalEvaluator};
+pub use module_system::ModuleSystem;
+pub use srfi::SrfiRegistry;
 pub use value::Value;
 
 /// The main interpreter struct that provides the public API
@@ -177,9 +180,7 @@ impl Interpreter {
     /// assert_eq!(result, Value::from(120i64));
     /// ```
     pub fn eval(&mut self, input: &str) -> Result<Value> {
-        let tokens = lexer::tokenize(input)?;
-        let ast = parser::parse(tokens)?;
-        self.evaluator.eval(ast)
+        self.evaluator.eval_string(input)
     }
 
     /// Load and evaluate a Scheme file

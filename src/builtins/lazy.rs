@@ -66,7 +66,7 @@ pub fn make_eager_promise(value: Value) -> Value {
     })
 }
 
-/// Force a promise, returning the evaluated value
+/// Force a promise, returning the evaluated value (for FormalEvaluator)
 /// This requires evaluator integration for complete implementation
 pub fn force_promise(
     promise: &Promise,
@@ -75,8 +75,8 @@ pub fn force_promise(
     match &promise.state {
         PromiseState::Eager { value } => Ok((**value).clone()),
         PromiseState::Lazy { expr, env } => {
-            // Evaluate the expression in the stored environment
-            let result = evaluator.eval_in_env(expr.clone(), env.clone())?;
+            // Evaluate the expression in the stored environment using formal evaluator
+            let result = evaluator.eval(expr.clone(), env.clone(), crate::evaluator::Continuation::Identity)?;
 
             // If the result is another promise, force it recursively
             match result {
@@ -86,6 +86,7 @@ pub fn force_promise(
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
