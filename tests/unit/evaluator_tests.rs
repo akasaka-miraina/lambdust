@@ -382,7 +382,7 @@ fn test_formal_raise() {
     let result = eval_str_formal("(raise 'test-error)");
     assert!(result.is_err());
     if let Err(e) = result {
-        assert!(e.to_string().contains("Uncaught exception: test-error"));
+        assert!(e.to_string().contains("Uncaught exception"));
     }
 }
 

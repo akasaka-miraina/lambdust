@@ -64,6 +64,7 @@ fn test_memory_statistics() {
             "peak-memory-usage",
             "current-memory-usage",
             "location-count",
+            "store-type",
         ];
         
         for stat_pair in &stats_vec {

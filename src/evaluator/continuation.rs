@@ -160,6 +160,17 @@ pub enum Continuation {
         /// Parent continuation
         parent: Box<Continuation>,
     },
+    /// Values accumulate continuation (for proper left-to-right evaluation)
+    ValuesAccumulate {
+        /// Expressions remaining to evaluate
+        remaining_exprs: Vec<Expr>,
+        /// Values accumulated so far
+        accumulated_values: Vec<Value>,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+        /// Parent continuation
+        parent: Box<Continuation>,
+    },
     /// Begin continuation (for sequence evaluation)
     Begin {
         /// Remaining expressions to evaluate

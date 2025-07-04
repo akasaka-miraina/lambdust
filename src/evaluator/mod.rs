@@ -299,6 +299,33 @@ impl Evaluator {
                 values.push(value);
                 self.apply_continuation(*parent, Value::Values(values))
             }
+            Continuation::ValuesAccumulate {
+                remaining_exprs,
+                mut accumulated_values,
+                env,
+                parent,
+            } => {
+                // Add current value to accumulated values
+                accumulated_values.push(value);
+                
+                if remaining_exprs.is_empty() {
+                    // All expressions evaluated, create Values result
+                    self.apply_continuation(*parent, Value::Values(accumulated_values))
+                } else {
+                    // Continue evaluating remaining expressions
+                    let next_expr = remaining_exprs[0].clone();
+                    let remaining = remaining_exprs[1..].to_vec();
+                    
+                    let next_cont = Continuation::ValuesAccumulate {
+                        remaining_exprs: remaining,
+                        accumulated_values,
+                        env: env.clone(),
+                        parent,
+                    };
+                    
+                    self.eval(next_expr, env, next_cont)
+                }
+            }
             Continuation::VectorEval {
                 mut evaluated_elements,
                 remaining_elements,
@@ -544,7 +571,9 @@ impl Evaluator {
         let exprs = parser.parse_all()?;
 
         if exprs.is_empty() {
-            return Ok(Value::Undefined);
+            return Err(LambdustError::syntax_error(
+                "No expressions to evaluate".to_string(),
+            ));
         }
 
         // Evaluate all expressions, return the last result

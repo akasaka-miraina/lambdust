@@ -528,12 +528,12 @@ impl Evaluator {
                 Value::Number(crate::lexer::SchemeNumber::Integer(stats.total_deallocations() as i64)),
             ),
             Value::cons(
-                Value::Symbol("memory-usage".to_string()),
-                Value::Number(crate::lexer::SchemeNumber::Integer(stats.memory_usage() as i64)),
-            ),
-            Value::cons(
                 Value::Symbol("current-memory-usage".to_string()),
                 Value::Number(crate::lexer::SchemeNumber::Integer(self.memory_usage() as i64)),
+            ),
+            Value::cons(
+                Value::Symbol("peak-memory-usage".to_string()),
+                Value::Number(crate::lexer::SchemeNumber::Integer(stats.memory_usage() as i64)),
             ),
         ];
         
