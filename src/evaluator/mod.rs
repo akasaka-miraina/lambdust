@@ -18,10 +18,6 @@ use crate::value::{Procedure, Value};
 
 // Re-export main types
 pub use continuation::{Continuation, DynamicPoint};
-pub use control_flow::*;
-pub use higher_order::*;
-pub use imports::*;
-pub use special_forms::*;
 pub use types::*;
 
 use std::rc::Rc;
@@ -190,12 +186,12 @@ impl Evaluator {
 
     /// Evaluate quote form: E['E]ρκσ = κ(E[E])
     fn eval_quote(&mut self, expr: Expr, cont: Continuation) -> Result<Value> {
-        let value = self.expr_to_value(expr)?;
+        let value = Self::expr_to_value(expr)?;
         self.apply_continuation(cont, value)
     }
 
     /// Convert expression to value (for quote)
-    fn expr_to_value(&self, expr: Expr) -> Result<Value> {
+    fn expr_to_value(expr: Expr) -> Result<Value> {
         match expr {
             Expr::Literal(lit) => Ok(match lit {
                 Literal::Boolean(b) => Value::Boolean(b),
@@ -208,16 +204,16 @@ impl Evaluator {
             Expr::List(exprs) => {
                 let mut result = Value::Nil;
                 for expr in exprs.into_iter().rev() {
-                    let value = self.expr_to_value(expr)?;
+                    let value = Self::expr_to_value(expr)?;
                     result = Value::cons(value, result);
                 }
                 Ok(result)
             }
             Expr::Vector(exprs) => {
-                let values: Result<Vec<Value>> = exprs.into_iter().map(|e| self.expr_to_value(e)).collect();
+                let values: Result<Vec<Value>> = exprs.into_iter().map(Self::expr_to_value).collect();
                 Ok(Value::from_vector(values?))
             }
-            Expr::Quote(expr) => self.expr_to_value(*expr),
+            Expr::Quote(expr) => Self::expr_to_value(*expr),
             Expr::DottedList(_, _) => Err(LambdustError::syntax_error(
                 "Dotted lists not supported in quote context".to_string(),
             )),
@@ -425,7 +421,7 @@ impl Evaluator {
         &mut self,
         procedure: Value,
         args: Vec<Value>,
-        env: Rc<Environment>,
+        _env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         match procedure {
@@ -461,7 +457,7 @@ impl Evaluator {
                     }
 
                     // Create new environment for lambda body
-                    let mut lambda_env = Environment::with_parent(closure);
+                    let lambda_env = Environment::with_parent(closure);
 
                     // Bind parameters
                     if variadic {
@@ -512,7 +508,6 @@ impl Evaluator {
 
     /// Evaluate a string containing Scheme code
     pub fn eval_string(&mut self, input: &str) -> Result<Value> {
-        use crate::lexer::Lexer;
         use crate::parser::Parser;
 
         let tokens = crate::lexer::tokenize(input)?;

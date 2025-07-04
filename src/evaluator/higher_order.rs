@@ -307,7 +307,7 @@ impl Evaluator {
         &mut self,
         procedure: Value,
         args: Vec<Value>,
-        env: Rc<Environment>,
+        _env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         match procedure {
@@ -343,7 +343,7 @@ impl Evaluator {
                     }
 
                     // Create new environment for lambda body
-                    let mut lambda_env = Environment::with_parent(closure);
+                    let lambda_env = Environment::with_parent(closure);
 
                     // Bind parameters
                     if variadic {

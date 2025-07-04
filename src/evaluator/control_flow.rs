@@ -409,6 +409,7 @@ impl Evaluator {
     }
 
     /// Parse guard condition clause
+    #[allow(clippy::type_complexity)]
     fn parse_guard_condition(
         &self,
         condition_expr: &Expr,
@@ -602,6 +603,7 @@ impl Evaluator {
     }
 
     // Placeholder implementations for continuation applications
+    #[allow(clippy::too_many_arguments)]
     fn apply_do_continuation(
         &mut self,
         _value: Value,

@@ -489,15 +489,15 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
         }
     };
 
-    let mut vars = Vec::new();
-    let mut vals = Vec::new();
+    let mut variables = Vec::new();
+    let mut values = Vec::new();
 
     for binding in binding_list {
         match binding {
             Expr::List(parts) if parts.len() == 2 => match &parts[0] {
                 Expr::Variable(var) => {
-                    vars.push(Expr::Variable(var.clone()));
-                    vals.push(parts[1].clone());
+                    variables.push(Expr::Variable(var.clone()));
+                    values.push(parts[1].clone());
                 }
                 _ => {
                     return Err(LambdustError::syntax_error(
@@ -515,14 +515,14 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
 
     // Create lambda expression
     let lambda = Expr::List({
-        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(vars)];
+        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(variables)];
         lambda_expr.extend(body.iter().cloned());
         lambda_expr
     });
 
     // Create application
     let mut application = vec![lambda];
-    application.extend(vals);
+    application.extend(values);
 
     Ok(Expr::List(application))
 }
@@ -595,22 +595,22 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
         }
     };
 
-    let mut vars = Vec::new();
+    let mut variables = Vec::new();
     let mut assignments = Vec::new();
-    let mut undefined_vals = Vec::new();
+    let mut undefined_values = Vec::new();
 
     for binding in binding_list {
         match binding {
             Expr::List(parts) if parts.len() == 2 => {
                 match &parts[0] {
                     Expr::Variable(var) => {
-                        vars.push(Expr::Variable(var.clone()));
+                        variables.push(Expr::Variable(var.clone()));
                         assignments.push(Expr::List(vec![
                             Expr::Variable("set!".to_string()),
                             Expr::Variable(var.clone()),
                             parts[1].clone(),
                         ]));
-                        undefined_vals.push(Expr::Variable("#f".to_string())); // Use #f as undefined
+                        undefined_values.push(Expr::Variable("#f".to_string())); // Use #f as undefined
                     }
                     _ => {
                         return Err(LambdustError::syntax_error(
@@ -632,14 +632,14 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
     lambda_body.extend(body.iter().cloned());
 
     let lambda = Expr::List({
-        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(vars)];
+        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(variables)];
         lambda_expr.extend(lambda_body);
         lambda_expr
     });
 
     // Create application with undefined values
     let mut application = vec![lambda];
-    application.extend(undefined_vals);
+    application.extend(undefined_values);
 
     Ok(Expr::List(application))
 }

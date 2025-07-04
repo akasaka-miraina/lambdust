@@ -68,7 +68,7 @@ impl Evaluator {
         if operands.len() != 1 {
             return Err(LambdustError::arity_error(1, operands.len()));
         }
-        let value = self.expr_to_value(operands[0].clone())?;
+        let value = crate::evaluator::Evaluator::expr_to_value(operands[0].clone())?;
         self.apply_continuation(cont, value)
     }
 

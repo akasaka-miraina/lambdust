@@ -78,12 +78,8 @@ impl Evaluator {
             }
         };
 
-        // Parse optional parts specification
-        let parts: Vec<&str> = if srfi_parts.len() > 1 {
-            vec!["all"] // Simplified for now
-        } else {
-            vec!["all"]
-        };
+        // Parse optional parts specification (simplified for now)
+        let parts: Vec<&str> = vec!["all"];
 
         // Get exports from SRFI registry
         let exports = {
@@ -100,6 +96,7 @@ impl Evaluator {
     }
 
     /// Parse import parts specification
+    #[allow(dead_code)]
     fn parse_import_parts(&self, _parts_exprs: &[Expr]) -> Result<Vec<&str>> {
         // For now, just support "all" 
         // In a full implementation, this would parse specific part names

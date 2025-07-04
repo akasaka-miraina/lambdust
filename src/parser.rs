@@ -76,14 +76,12 @@ impl Parser {
                     if has_dot {
                         if let Some(tail_expr) = tail {
                             return Ok(Expr::DottedList(elements, Box::new(tail_expr)));
-                        } else {
-                            return Err(LambdustError::parse_error(
-                                "Missing tail after dot".to_string(),
-                            ));
                         }
-                    } else {
-                        return Ok(Expr::List(elements));
+                        return Err(LambdustError::parse_error(
+                            "Missing tail after dot".to_string(),
+                        ));
                     }
+                    return Ok(Expr::List(elements));
                 }
                 Token::Dot => {
                     if has_dot {

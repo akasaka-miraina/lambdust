@@ -105,29 +105,26 @@ fn list_append() -> Value {
                     // If last is a list, append it
                     result.extend(vec);
                     break;
-                } else {
-                    // If last is not a list, create dotted list
-                    if result.is_empty() {
-                        return Ok(arg.clone());
-                    } else {
-                        // Build proper list from result and make last cdr the non-list value
-                        let mut list = arg.clone();
-                        for item in result.into_iter().rev() {
-                            list = Value::cons(item, list);
-                        }
-                        return Ok(list);
-                    }
                 }
-            } else {
-                // All other arguments must be lists
-                match arg.to_vector() {
-                    Some(vec) => result.extend(vec),
-                    None => {
-                        return Err(LambdustError::type_error(format!(
-                            "append: expected list, got {}",
-                            arg
-                        )));
-                    }
+                // If last is not a list, create dotted list
+                if result.is_empty() {
+                    return Ok(arg.clone());
+                }
+                // Build proper list from result and make last cdr the non-list value
+                let mut list = arg.clone();
+                for item in result.into_iter().rev() {
+                    list = Value::cons(item, list);
+                }
+                return Ok(list);
+            }
+            // All other arguments must be lists
+            match arg.to_vector() {
+                Some(vec) => result.extend(vec),
+                None => {
+                    return Err(LambdustError::type_error(format!(
+                        "append: expected list, got {}",
+                        arg
+                    )));
                 }
             }
         }

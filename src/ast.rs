@@ -44,9 +44,9 @@ pub enum Literal {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Literal(lit) => write!(f, "{lit}"),
-            Expr::Variable(name) => write!(f, "{name}"),
-            Expr::List(exprs) => {
+            Self::Literal(lit) => write!(f, "{lit}"),
+            Self::Variable(name) => write!(f, "{name}"),
+            Self::List(exprs) => {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
                     if i > 0 {
@@ -103,24 +103,28 @@ impl fmt::Display for Literal {
 
 impl Expr {
     /// Check if this expression is a literal
-    pub fn is_literal(&self) -> bool {
-        matches!(self, Expr::Literal(_))
+    #[must_use]
+    pub const fn is_literal(&self) -> bool {
+        matches!(self, Self::Literal(_))
     }
 
     /// Check if this expression is a variable
-    pub fn is_variable(&self) -> bool {
-        matches!(self, Expr::Variable(_))
+    #[must_use]
+    pub const fn is_variable(&self) -> bool {
+        matches!(self, Self::Variable(_))
     }
 
     /// Check if this expression is a list
-    pub fn is_list(&self) -> bool {
-        matches!(self, Expr::List(_))
+    #[must_use]
+    pub const fn is_list(&self) -> bool {
+        matches!(self, Self::List(_))
     }
 
     /// Check if this expression is an empty list
-    pub fn is_empty_list(&self) -> bool {
-        matches!(self, Expr::List(exprs) if exprs.is_empty())
-            || matches!(self, Expr::Literal(Literal::Nil))
+    #[must_use]
+    pub const fn is_empty_list(&self) -> bool {
+        matches!(self, Self::List(exprs) if exprs.is_empty())
+            || matches!(self, Self::Literal(Literal::Nil))
     }
 
     /// Get the symbol name if this is a variable
@@ -206,45 +210,52 @@ impl Expr {
 
 impl Literal {
     /// Check if this is a truthy value (everything except #f is truthy)
-    pub fn is_truthy(&self) -> bool {
-        !matches!(self, Literal::Boolean(false))
+    #[must_use]
+    pub const fn is_truthy(&self) -> bool {
+        !matches!(self, Self::Boolean(false))
     }
 
     /// Check if this is a number
-    pub fn is_number(&self) -> bool {
-        matches!(self, Literal::Number(_))
+    #[must_use]
+    pub const fn is_number(&self) -> bool {
+        matches!(self, Self::Number(_))
     }
 
     /// Get the number value if this is a number
-    pub fn as_number(&self) -> Option<&SchemeNumber> {
+    #[must_use]
+    pub const fn as_number(&self) -> Option<&SchemeNumber> {
         match self {
-            Literal::Number(n) => Some(n),
+            Self::Number(n) => Some(n),
             _ => None,
         }
     }
 
     /// Check if this is a string
-    pub fn is_string(&self) -> bool {
-        matches!(self, Literal::String(_))
+    #[must_use]
+    pub const fn is_string(&self) -> bool {
+        matches!(self, Self::String(_))
     }
 
     /// Get the string value if this is a string
+    #[must_use]
     pub fn as_string(&self) -> Option<&str> {
         match self {
-            Literal::String(s) => Some(s),
+            Self::String(s) => Some(s),
             _ => None,
         }
     }
 
     /// Check if this is a character
-    pub fn is_character(&self) -> bool {
-        matches!(self, Literal::Character(_))
+    #[must_use]
+    pub const fn is_character(&self) -> bool {
+        matches!(self, Self::Character(_))
     }
 
     /// Get the character value if this is a character
-    pub fn as_character(&self) -> Option<char> {
+    #[must_use]
+    pub const fn as_character(&self) -> Option<char> {
         match self {
-            Literal::Character(c) => Some(*c),
+            Self::Character(c) => Some(*c),
             _ => None,
         }
     }
