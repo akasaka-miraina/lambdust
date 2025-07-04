@@ -9,8 +9,8 @@ use crate::evaluator::continuation::DynamicPoint;
 use crate::srfi::SrfiRegistry;
 use crate::value::Value;
 use std::collections::HashMap;
-use std::rc::Rc;
 use std::fmt::Debug;
+use std::rc::Rc;
 
 /// Location identifier for R7RS memory management
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -104,7 +104,7 @@ impl Store {
             locations: HashMap::new(),
             next_location: 0,
             memory_usage: 0,
-            memory_limit: 0, // Unlimited by default
+            memory_limit: 0,           // Unlimited by default
             gc_threshold: 1024 * 1024, // 1MB default GC threshold
             current_generation: 0,
             stats: StoreStatistics::default(),
@@ -133,15 +133,15 @@ impl Store {
 
         let loc_id = self.next_location;
         let cell = MemoryCell::new(value.clone());
-        
+
         // Approximate memory usage calculation
         let value_size = self.estimate_value_size(&value);
         self.memory_usage += value_size;
-        
+
         self.locations.insert(loc_id, cell);
         self.next_location += 1;
         self.stats.total_allocations += 1;
-        
+
         // Update peak memory usage
         if self.memory_usage > self.stats.peak_memory_usage {
             self.stats.peak_memory_usage = self.memory_usage;
@@ -158,7 +158,7 @@ impl Store {
     /// Set value at location
     pub fn set(&mut self, location: Location, value: Value) -> Result<()> {
         let location_id = location.id();
-        
+
         // Get old value size first
         let old_size = if let Some(cell) = self.locations.get(&location_id) {
             self.estimate_value_size(&cell.value)
@@ -168,17 +168,17 @@ impl Store {
                 location
             )));
         };
-        
+
         // Calculate new value size
         let new_size = self.estimate_value_size(&value);
-        
+
         // Now update the cell
         if let Some(cell) = self.locations.get_mut(&location_id) {
             cell.value = value;
-            
+
             // Update memory usage
             self.memory_usage = self.memory_usage.saturating_sub(old_size) + new_size;
-            
+
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
@@ -237,13 +237,13 @@ impl Store {
     /// Force garbage collection
     pub fn collect_garbage(&mut self) {
         self.stats.gc_cycles += 1;
-        
+
         // Mark phase: mark all reachable locations
         self.mark_phase();
-        
+
         // Sweep phase: deallocate unmarked locations
         self.sweep_phase();
-        
+
         // Increment generation
         self.current_generation += 1;
     }
@@ -253,7 +253,7 @@ impl Store {
         if self.memory_limit > 0 && self.memory_usage >= self.memory_limit {
             return true;
         }
-        
+
         self.memory_usage >= self.gc_threshold
     }
 
@@ -263,7 +263,7 @@ impl Store {
         for cell in self.locations.values_mut() {
             cell.marked = false;
         }
-        
+
         // Mark all locations with positive reference count
         for cell in self.locations.values_mut() {
             if cell.ref_count > 0 {
@@ -275,13 +275,13 @@ impl Store {
     /// Sweep phase of garbage collection
     fn sweep_phase(&mut self) {
         let mut to_remove = Vec::new();
-        
+
         for (loc_id, cell) in &self.locations {
             if !cell.marked {
                 to_remove.push(*loc_id);
             }
         }
-        
+
         for loc_id in to_remove {
             if let Some(cell) = self.locations.remove(&loc_id) {
                 let value_size = self.estimate_value_size(&cell.value);
@@ -300,15 +300,20 @@ impl Store {
             Value::Character(_) => 4,
             Value::String(s) => s.len() + 24, // String overhead
             Value::Symbol(s) => s.len() + 24,
-            Value::Pair(_) => 32, // Approximate size of pair
+            Value::Pair(_) => 32,                 // Approximate size of pair
             Value::Vector(v) => v.len() * 8 + 24, // Vector overhead
-            Value::HashTable(_) => 64, // Approximate hash table overhead
-            Value::Procedure(_) => 48, // Approximate procedure overhead
+            Value::HashTable(_) => 64,            // Approximate hash table overhead
+            Value::Procedure(_) => 48,            // Approximate procedure overhead
             Value::Promise(_) => 32,
-            Value::Port(_) => 64, // Port overhead
+            Value::Port(_) => 64,     // Port overhead
             Value::External(_) => 48, // External object overhead
-            Value::Record(_) => 64, // Record overhead
-            Value::Values(v) => v.iter().map(|val| self.estimate_value_size(val)).sum::<usize>() + 24,
+            Value::Record(_) => 64,   // Record overhead
+            Value::Values(v) => {
+                v.iter()
+                    .map(|val| self.estimate_value_size(val))
+                    .sum::<usize>()
+                    + 24
+            }
             Value::Continuation(_) => 96, // Continuation overhead
             Value::Nil => 8,
             Value::Undefined => 8,
@@ -380,18 +385,18 @@ impl LocationHandle for TraditionalLocation {
         // This would need evaluator context - simplified for now
         None
     }
-    
+
     fn set(&self, _value: Value) -> Result<()> {
         // This would need evaluator context - simplified for now
         Err(LambdustError::runtime_error(
             "Traditional location access requires evaluator context".to_string(),
         ))
     }
-    
+
     fn is_valid(&self) -> bool {
         true // Traditional locations are always valid while store exists
     }
-    
+
     fn id(&self) -> usize {
         self.location.id()
     }
@@ -403,15 +408,15 @@ impl LocationHandle for crate::evaluator::raii_store::RaiiLocation {
     fn get(&self) -> Option<Value> {
         self.get()
     }
-    
+
     fn set(&self, value: Value) -> Result<()> {
         self.set(value)
     }
-    
+
     fn is_valid(&self) -> bool {
         self.is_valid()
     }
-    
+
     fn id(&self) -> usize {
         self.id()
     }
@@ -436,7 +441,7 @@ impl StoreStatisticsWrapper {
             StoreStatisticsWrapper::Raii(stats) => stats.total_allocations,
         }
     }
-    
+
     /// Get total deallocations regardless of store type
     pub fn total_deallocations(&self) -> usize {
         match self {
@@ -445,7 +450,7 @@ impl StoreStatisticsWrapper {
             StoreStatisticsWrapper::Raii(stats) => stats.total_deallocations,
         }
     }
-    
+
     /// Get memory usage regardless of store type
     pub fn memory_usage(&self) -> usize {
         match self {
@@ -680,9 +685,7 @@ impl Evaluator {
                 StoreStatisticsWrapper::Traditional(store.get_statistics().clone())
             }
             #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(store) => {
-                StoreStatisticsWrapper::Raii(store.statistics())
-            }
+            MemoryStrategy::RaiiStore(store) => StoreStatisticsWrapper::Raii(store.statistics()),
         }
     }
 
@@ -723,7 +726,9 @@ impl Evaluator {
     #[cfg(feature = "raii-store")]
     pub fn with_raii_store() -> Self {
         Evaluator {
-            memory_strategy: MemoryStrategy::RaiiStore(crate::evaluator::raii_store::RaiiStore::new()),
+            memory_strategy: MemoryStrategy::RaiiStore(
+                crate::evaluator::raii_store::RaiiStore::new(),
+            ),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
             eval_order: EvalOrder::LeftToRight,
@@ -740,7 +745,7 @@ impl Evaluator {
     pub fn with_raii_store_memory_limit(memory_limit: usize) -> Self {
         Evaluator {
             memory_strategy: MemoryStrategy::RaiiStore(
-                crate::evaluator::raii_store::RaiiStore::with_memory_limit(memory_limit)
+                crate::evaluator::raii_store::RaiiStore::with_memory_limit(memory_limit),
             ),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
@@ -755,17 +760,13 @@ impl Evaluator {
 
     /// Dynamic Points management methods
     /// Push a new dynamic point onto the stack
-    pub fn push_dynamic_point(
-        &mut self,
-        before: Option<Value>,
-        after: Option<Value>,
-    ) -> usize {
+    pub fn push_dynamic_point(&mut self, before: Option<Value>, after: Option<Value>) -> usize {
         let id = self.next_dynamic_point_id;
         self.next_dynamic_point_id += 1;
 
         let parent = self.dynamic_points.last().cloned().map(Box::new);
         let dynamic_point = DynamicPoint::new(before, after, parent, id);
-        
+
         self.dynamic_points.push(dynamic_point);
         id
     }

@@ -15,9 +15,9 @@ fn guard_handler_function(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(LambdustError::arity_error(1, args.len()));
     }
-    
+
     let _exception = &args[0];
-    
+
     // For now, just return undefined to satisfy the handler interface
     // A full implementation would need evaluator context to properly
     // evaluate guard clauses and condition expressions
@@ -89,7 +89,7 @@ impl Evaluator {
                                 _ => {
                                     return Err(LambdustError::syntax_error(
                                         "do: binding variable must be a symbol".to_string(),
-                                    ))
+                                    ));
                                 }
                             };
 
@@ -101,7 +101,7 @@ impl Evaluator {
                         _ => {
                             return Err(LambdustError::syntax_error(
                                 "do: binding must be a list".to_string(),
-                            ))
+                            ));
                         }
                     }
                 }
@@ -250,10 +250,8 @@ impl Evaluator {
         }
 
         // Push new dynamic point
-        let dynamic_point_id = self.push_dynamic_point(
-            Some(before_thunk.clone()),
-            Some(after_thunk.clone()),
-        );
+        let dynamic_point_id =
+            self.push_dynamic_point(Some(before_thunk.clone()), Some(after_thunk.clone()));
 
         // Execute before thunk
         self.apply_procedure_with_evaluator(
@@ -281,12 +279,7 @@ impl Evaluator {
         };
 
         // Execute main thunk
-        self.apply_procedure_with_evaluator(
-            main_thunk,
-            vec![],
-            env,
-            wind_cont,
-        )
+        self.apply_procedure_with_evaluator(main_thunk, vec![], env, wind_cont)
     }
 
     /// Evaluate delay special form
@@ -369,16 +362,14 @@ impl Evaluator {
     /// Force a promise value
     fn force_promise(&mut self, promise: Value, cont: Continuation) -> Result<Value> {
         match promise {
-            Value::Promise(promise_ref) => {
-                match &promise_ref.state {
-                    crate::value::PromiseState::Lazy { expr, env } => {
-                        self.eval(expr.clone(), env.clone(), cont)
-                    }
-                    crate::value::PromiseState::Eager { value } => {
-                        self.apply_continuation(cont, value.as_ref().clone())
-                    }
+            Value::Promise(promise_ref) => match &promise_ref.state {
+                crate::value::PromiseState::Lazy { expr, env } => {
+                    self.eval(expr.clone(), env.clone(), cont)
                 }
-            }
+                crate::value::PromiseState::Eager { value } => {
+                    self.apply_continuation(cont, value.as_ref().clone())
+                }
+            },
             other => self.apply_continuation(cont, other),
         }
     }
@@ -454,7 +445,8 @@ impl Evaluator {
         let body_exprs = operands[1..].to_vec();
 
         // Create guard exception handler
-        let guard_handler = self.create_guard_handler(condition_var, clauses, else_exprs, env.clone())?;
+        let guard_handler =
+            self.create_guard_handler(condition_var, clauses, else_exprs, env.clone())?;
 
         // Install handler
         let handler_info = ExceptionHandlerInfo {
@@ -491,7 +483,7 @@ impl Evaluator {
                     _ => {
                         return Err(LambdustError::syntax_error(
                             "guard: condition variable must be a symbol".to_string(),
-                        ))
+                        ));
                     }
                 };
 
@@ -526,7 +518,7 @@ impl Evaluator {
                         _ => {
                             return Err(LambdustError::syntax_error(
                                 "guard: clause must be a list".to_string(),
-                            ))
+                            ));
                         }
                     }
                 }
@@ -549,20 +541,24 @@ impl Evaluator {
     ) -> Result<Value> {
         // For testing purposes, create a simplified handler that pattern matches
         // on the expected test cases and returns the appropriate result
-        
+
         // Simplified implementation: analyze clauses and pre-compute results
         for (condition_expr, result_exprs) in &clauses {
             // Check if this is an eq? test for 'test-error
             if let Expr::List(condition_parts) = condition_expr {
                 if condition_parts.len() == 3 {
-                    if let (Expr::Variable(func), Expr::Variable(_var), Expr::Quote(quoted)) = 
-                        (&condition_parts[0], &condition_parts[1], &condition_parts[2]) {
+                    if let (Expr::Variable(func), Expr::Variable(_var), Expr::Quote(quoted)) = (
+                        &condition_parts[0],
+                        &condition_parts[1],
+                        &condition_parts[2],
+                    ) {
                         if func == "eq?" {
                             if let Expr::Variable(symbol) = quoted.as_ref() {
                                 if symbol == "test-error" && !result_exprs.is_empty() {
                                     // This clause matches 'test-error, return its result
                                     if let Expr::Quote(result_expr) = &result_exprs[0] {
-                                        if let Expr::Variable(result_symbol) = result_expr.as_ref() {
+                                        if let Expr::Variable(result_symbol) = result_expr.as_ref()
+                                        {
                                             return Ok(Value::Symbol(result_symbol.clone()));
                                         }
                                     }
@@ -573,7 +569,7 @@ impl Evaluator {
                 }
             }
         }
-        
+
         // Check else clause
         if let Some(else_clauses) = else_exprs {
             if !else_clauses.is_empty() {
@@ -584,14 +580,14 @@ impl Evaluator {
                 }
             }
         }
-        
+
         // Fallback handler
         let guard_procedure = Procedure::Builtin {
             name: "guard-handler".to_string(),
             arity: Some(1),
             func: guard_handler_function,
         };
-        
+
         Ok(Value::Procedure(guard_procedure))
     }
 
@@ -611,12 +607,7 @@ impl Evaluator {
                 }
                 Value::Procedure(_) => {
                     // This is a real procedure, call it with the exception
-                    self.apply_procedure(
-                        handler,
-                        vec![exception],
-                        handler_env,
-                        cont,
-                    )
+                    self.apply_procedure(handler, vec![exception], handler_env, cont)
                 }
                 _ => {
                     // Unexpected handler type, return it directly
@@ -699,7 +690,9 @@ impl Evaluator {
                 after_thunk,
                 dynamic_point_id,
                 parent,
-            } => self.apply_dynamic_wind_continuation(value, after_thunk, dynamic_point_id, *parent),
+            } => {
+                self.apply_dynamic_wind_continuation(value, after_thunk, dynamic_point_id, *parent)
+            }
             _ => Err(LambdustError::runtime_error(
                 "Unhandled continuation type in control flow".to_string(),
             )),
@@ -737,7 +730,6 @@ impl Evaluator {
         self.eval(expr, env, Continuation::Identity)
     }
 
-
     // Placeholder implementations for continuation applications
     #[allow(clippy::too_many_arguments)]
     fn apply_do_continuation(
@@ -751,13 +743,13 @@ impl Evaluator {
         parent: Continuation,
     ) -> Result<Value> {
         // test_value is the result of evaluating the test expression
-        
+
         // Check if test is true (non-#f)
         let test_is_true = match test_value {
             Value::Boolean(false) => false,
             _ => true, // Everything except #f is true in Scheme
         };
-        
+
         if test_is_true {
             // Test succeeded, evaluate result expressions and exit loop
             if result_exprs.is_empty() {
@@ -778,12 +770,13 @@ impl Evaluator {
                     self.eval(body_expr.clone(), env.clone(), Continuation::Identity)?;
                 }
             }
-            
+
             // 2. Update variables with step expressions (all at once with old values)
             let mut step_values = Vec::new();
             for (var, _init, step_opt) in &bindings {
                 if let Some(step_expr) = step_opt {
-                    let step_value = self.eval(step_expr.clone(), env.clone(), Continuation::Identity)?;
+                    let step_value =
+                        self.eval(step_expr.clone(), env.clone(), Continuation::Identity)?;
                     step_values.push((var.clone(), step_value));
                 } else {
                     // If no step expression, keep current value
@@ -791,12 +784,12 @@ impl Evaluator {
                     step_values.push((var.clone(), current_value));
                 }
             }
-            
+
             // Now update all variables at once
             for (var, new_value) in step_values {
                 env.set(&var, new_value)?;
             }
-            
+
             // 3. Re-evaluate test and continue loop
             let next_do_cont = Continuation::Do {
                 bindings,
@@ -806,7 +799,7 @@ impl Evaluator {
                 env: env.clone(),
                 parent: Box::new(parent),
             };
-            
+
             self.eval(test, env, next_do_cont)
         }
     }
@@ -824,7 +817,7 @@ impl Evaluator {
             env: env.clone(),
             parent: Box::new(parent),
         };
-        
+
         self.eval(producer_expr, env, cwv_step2_cont)
     }
 
@@ -837,19 +830,15 @@ impl Evaluator {
     ) -> Result<Value> {
         // Both consumer and producer are evaluated
         // Apply producer (should be a procedure with no arguments)
-        let producer_result = self.apply_procedure(
-            producer,
-            Vec::new(),
-            env.clone(),
-            Continuation::Identity,
-        )?;
-        
+        let producer_result =
+            self.apply_procedure(producer, Vec::new(), env.clone(), Continuation::Identity)?;
+
         // Convert result to arguments for consumer
         let consumer_args = match producer_result {
             Value::Values(values) => values,
             single_value => vec![single_value],
         };
-        
+
         // Apply consumer with the values
         self.apply_procedure(consumer, consumer_args, env, parent)
     }

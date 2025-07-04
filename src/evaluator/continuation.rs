@@ -62,13 +62,13 @@ impl DynamicPoint {
     pub fn common_ancestor(&self, other: &DynamicPoint) -> Option<usize> {
         let mut self_path = Vec::new();
         let mut current = Some(self);
-        
+
         // Collect path from self to root
         while let Some(point) = current {
             self_path.push(point.id);
             current = point.parent.as_ref().map(|p| p.as_ref());
         }
-        
+
         // Check if other's path intersects with self's path
         let mut other_current = Some(other);
         while let Some(point) = other_current {
@@ -77,7 +77,7 @@ impl DynamicPoint {
             }
             other_current = point.parent.as_ref().map(|p| p.as_ref());
         }
-        
+
         None
     }
 
@@ -85,12 +85,12 @@ impl DynamicPoint {
     pub fn path_to_root(&self) -> Vec<usize> {
         let mut path = Vec::new();
         let mut current = Some(self);
-        
+
         while let Some(point) = current {
             path.push(point.id);
             current = point.parent.as_ref().map(|p| p.as_ref());
         }
-        
+
         path
     }
 }

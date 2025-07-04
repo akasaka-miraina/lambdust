@@ -360,7 +360,8 @@ fn fold_right_placeholder(args: &[Value]) -> Result<Value> {
     }
 
     Err(LambdustError::runtime_error(
-        "fold-right: lambda functions require evaluator integration (not yet implemented)".to_string(),
+        "fold-right: lambda functions require evaluator integration (not yet implemented)"
+            .to_string(),
     ))
 }
 
@@ -451,7 +452,15 @@ impl crate::srfi::SrfiModule for Srfi1 {
                 }
                 "higher-order" => {
                     // Higher-order functions
-                    for name in &["fold", "fold-right", "map", "filter", "find", "any", "every"] {
+                    for name in &[
+                        "fold",
+                        "fold-right",
+                        "map",
+                        "filter",
+                        "find",
+                        "any",
+                        "every",
+                    ] {
                         if let Some(value) = all_exports.get(*name) {
                             filtered.insert(name.to_string(), value.clone());
                         }
@@ -465,7 +474,8 @@ impl crate::srfi::SrfiModule for Srfi1 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "SRFI 1: unknown part '{}'", part
+                        "SRFI 1: unknown part '{}'",
+                        part
                     )));
                 }
             }

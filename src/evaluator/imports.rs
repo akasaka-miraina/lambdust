@@ -68,13 +68,13 @@ impl Evaluator {
 
         // Parse SRFI number
         let srfi_number = match &srfi_parts[0] {
-            Expr::Literal(crate::ast::Literal::Number(
-                crate::lexer::SchemeNumber::Integer(n),
-            )) => *n as u32,
+            Expr::Literal(crate::ast::Literal::Number(crate::lexer::SchemeNumber::Integer(n))) => {
+                *n as u32
+            }
             _ => {
                 return Err(LambdustError::syntax_error(
                     "import: SRFI number must be an integer".to_string(),
-                ))
+                ));
             }
         };
 
@@ -103,7 +103,7 @@ impl Evaluator {
     /// Parse import parts specification
     fn parse_import_parts(&self, parts_exprs: &[Expr]) -> Result<Vec<String>> {
         let mut parts = Vec::new();
-        
+
         for part_expr in parts_exprs {
             match part_expr {
                 Expr::Variable(name) => {
@@ -116,13 +116,13 @@ impl Evaluator {
                 }
             }
         }
-        
+
         if parts.is_empty() {
             return Err(LambdustError::syntax_error(
                 "import: at least one part name required".to_string(),
             ));
         }
-        
+
         Ok(parts)
     }
 }

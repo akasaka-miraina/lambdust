@@ -1,7 +1,7 @@
 //! Unit tests for SRFI 1: List Library implementation
 
-use lambdust::srfi::srfi_1::*;
 use lambdust::lexer::SchemeNumber;
+use lambdust::srfi::srfi_1::*;
 use lambdust::value::Value;
 
 #[test]

@@ -107,7 +107,9 @@ impl Evaluator {
                 ));
             }
             call_args = arg_list.to_vector().ok_or_else(|| {
-                LambdustError::type_error("apply: second argument must be a proper list".to_string())
+                LambdustError::type_error(
+                    "apply: second argument must be a proper list".to_string(),
+                )
             })?;
         } else {
             // Extended form: (apply proc arg1 arg2 ... args)
@@ -333,10 +335,7 @@ impl Evaluator {
                     // Check arity for lambda
                     if variadic {
                         if args.len() < params.len() - 1 {
-                            return Err(LambdustError::arity_error(
-                                params.len() - 1,
-                                args.len(),
-                            ));
+                            return Err(LambdustError::arity_error(params.len() - 1, args.len()));
                         }
                     } else if args.len() != params.len() {
                         return Err(LambdustError::arity_error(params.len(), args.len()));
@@ -365,7 +364,9 @@ impl Evaluator {
                     // Evaluate body with full evaluator support
                     self.eval_sequence(body, Rc::new(lambda_env), cont)
                 }
-                Procedure::Continuation { continuation: _captured_cont } => {
+                Procedure::Continuation {
+                    continuation: _captured_cont,
+                } => {
                     // Apply captured continuation (simplified implementation)
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
@@ -425,7 +426,7 @@ impl Evaluator {
         for (key, value) in ht.iter() {
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone()];
-            
+
             // Apply procedure to key-value pair
             self.apply_procedure_with_evaluator(
                 proc_value.clone(),
@@ -475,7 +476,7 @@ impl Evaluator {
         for (key, value) in ht.iter() {
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone(), accumulator];
-            
+
             // Apply procedure to key, value, and accumulator
             accumulator = self.apply_procedure_with_evaluator(
                 proc_value.clone(),
@@ -516,38 +517,50 @@ impl Evaluator {
         }
 
         let stats = self.store_statistics();
-        
+
         // Create association list with statistics (universal across store types)
         let mut stats_pairs = vec![
             Value::cons(
                 Value::Symbol("total-allocations".to_string()),
-                Value::Number(crate::lexer::SchemeNumber::Integer(stats.total_allocations() as i64)),
+                Value::Number(crate::lexer::SchemeNumber::Integer(
+                    stats.total_allocations() as i64,
+                )),
             ),
             Value::cons(
                 Value::Symbol("total-deallocations".to_string()),
-                Value::Number(crate::lexer::SchemeNumber::Integer(stats.total_deallocations() as i64)),
+                Value::Number(crate::lexer::SchemeNumber::Integer(
+                    stats.total_deallocations() as i64,
+                )),
             ),
             Value::cons(
                 Value::Symbol("current-memory-usage".to_string()),
-                Value::Number(crate::lexer::SchemeNumber::Integer(self.memory_usage() as i64)),
+                Value::Number(crate::lexer::SchemeNumber::Integer(
+                    self.memory_usage() as i64
+                )),
             ),
             Value::cons(
                 Value::Symbol("peak-memory-usage".to_string()),
-                Value::Number(crate::lexer::SchemeNumber::Integer(stats.memory_usage() as i64)),
+                Value::Number(crate::lexer::SchemeNumber::Integer(
+                    stats.memory_usage() as i64
+                )),
             ),
         ];
-        
+
         // Add store-type-specific statistics
         match &stats {
             crate::evaluator::types::StoreStatisticsWrapper::Traditional(traditional_stats) => {
                 stats_pairs.push(Value::cons(
                     Value::Symbol("gc-cycles".to_string()),
-                    Value::Number(crate::lexer::SchemeNumber::Integer(traditional_stats.gc_cycles as i64)),
+                    Value::Number(crate::lexer::SchemeNumber::Integer(
+                        traditional_stats.gc_cycles as i64,
+                    )),
                 ));
                 if let Ok(store) = self.store() {
                     stats_pairs.push(Value::cons(
                         Value::Symbol("location-count".to_string()),
-                        Value::Number(crate::lexer::SchemeNumber::Integer(store.location_count() as i64)),
+                        Value::Number(crate::lexer::SchemeNumber::Integer(
+                            store.location_count() as i64
+                        )),
                     ));
                 }
                 stats_pairs.push(Value::cons(
@@ -559,15 +572,21 @@ impl Evaluator {
             crate::evaluator::types::StoreStatisticsWrapper::Raii(raii_stats) => {
                 stats_pairs.push(Value::cons(
                     Value::Symbol("active-locations".to_string()),
-                    Value::Number(crate::lexer::SchemeNumber::Integer(raii_stats.active_locations as i64)),
+                    Value::Number(crate::lexer::SchemeNumber::Integer(
+                        raii_stats.active_locations as i64,
+                    )),
                 ));
                 stats_pairs.push(Value::cons(
                     Value::Symbol("peak-active-locations".to_string()),
-                    Value::Number(crate::lexer::SchemeNumber::Integer(raii_stats.peak_active_locations as i64)),
+                    Value::Number(crate::lexer::SchemeNumber::Integer(
+                        raii_stats.peak_active_locations as i64,
+                    )),
                 ));
                 stats_pairs.push(Value::cons(
                     Value::Symbol("auto-cleanup-events".to_string()),
-                    Value::Number(crate::lexer::SchemeNumber::Integer(raii_stats.auto_cleanup_events as i64)),
+                    Value::Number(crate::lexer::SchemeNumber::Integer(
+                        raii_stats.auto_cleanup_events as i64,
+                    )),
                 ));
                 stats_pairs.push(Value::cons(
                     Value::Symbol("store-type".to_string()),
@@ -575,7 +594,7 @@ impl Evaluator {
                 ));
             }
         }
-        
+
         let result = Value::from_vector(stats_pairs);
         self.apply_continuation(cont, result)
     }
@@ -608,7 +627,7 @@ impl Evaluator {
 
         let limit_expr = operands[0].clone();
         let limit_value = self.eval(limit_expr, env.clone(), Continuation::Identity)?;
-        
+
         let limit = match &limit_value {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
             Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as usize,
@@ -636,7 +655,7 @@ impl Evaluator {
 
         let value_expr = operands[0].clone();
         let value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
-        
+
         let _location_handle = self.allocate(value)?;
         // For now, return the location handle's ID as a number
         // In a full implementation, we'd need a Location value type
@@ -658,7 +677,7 @@ impl Evaluator {
 
         let location_expr = operands[0].clone();
         let location_value = self.eval(location_expr, env.clone(), Continuation::Identity)?;
-        
+
         let location_id = match &location_value {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
             _ => {
@@ -669,7 +688,7 @@ impl Evaluator {
         };
 
         let location = crate::evaluator::types::Location::new(location_id);
-        
+
         if let Some(value) = self.store_get(location) {
             self.apply_continuation(cont, value.clone())
         } else {
@@ -693,10 +712,10 @@ impl Evaluator {
 
         let location_expr = operands[0].clone();
         let value_expr = operands[1].clone();
-        
+
         let location_value = self.eval(location_expr, env.clone(), Continuation::Identity)?;
         let new_value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
-        
+
         let location_id = match &location_value {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
             _ => {
@@ -708,7 +727,7 @@ impl Evaluator {
 
         let location = crate::evaluator::types::Location::new(location_id);
         self.store_set(location, new_value)?;
-        
+
         self.apply_continuation(cont, Value::Undefined)
     }
 }

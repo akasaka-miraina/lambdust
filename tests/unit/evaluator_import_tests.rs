@@ -8,7 +8,7 @@ use lambdust::value::Value;
 #[test]
 fn test_import_srfi_1() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test (import (srfi 1))
     let import_expr = Expr::List(vec![
         Expr::Variable("import".to_string()),
@@ -17,15 +17,15 @@ fn test_import_srfi_1() {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Test that SRFI 1 functions are now available
     // Create a list first using quote
     let list_expr = Expr::List(vec![
@@ -36,14 +36,16 @@ fn test_import_srfi_1() {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
         ]),
     ]);
-    
+
     // Evaluate the list
-    let _list_result = evaluator.eval(
-        list_expr,
-        evaluator.global_env.clone(),
-        Continuation::Identity,
-    ).unwrap();
-    
+    let _list_result = evaluator
+        .eval(
+            list_expr,
+            evaluator.global_env.clone(),
+            Continuation::Identity,
+        )
+        .unwrap();
+
     // Now test take function: (take list 2)
     let take_expr = Expr::List(vec![
         Expr::Variable("take".to_string()),
@@ -57,15 +59,15 @@ fn test_import_srfi_1() {
         ]),
         Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
     ]);
-    
+
     let result = evaluator.eval(
         take_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Check that result is a list with first 2 elements
     let result_val = result.unwrap();
     match result_val {
@@ -91,7 +93,7 @@ fn test_import_srfi_1() {
 #[test]
 fn test_import_srfi_13() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test (import (srfi 13))
     let import_expr = Expr::List(vec![
         Expr::Variable("import".to_string()),
@@ -100,27 +102,27 @@ fn test_import_srfi_13() {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(13))),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Test that SRFI 13 functions are now available
     let string_null_expr = Expr::List(vec![
         Expr::Variable("string-null?".to_string()),
         Expr::Literal(Literal::String("".to_string())),
     ]);
-    
+
     let result = evaluator.eval(
         string_null_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), Value::Boolean(true));
 }
@@ -128,7 +130,7 @@ fn test_import_srfi_13() {
 #[test]
 fn test_import_srfi_69() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test (import (srfi 69))
     let import_expr = Expr::List(vec![
         Expr::Variable("import".to_string()),
@@ -137,28 +139,26 @@ fn test_import_srfi_69() {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(69))),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Test that SRFI 69 functions are now available
-    let make_hash_table_expr = Expr::List(vec![
-        Expr::Variable("make-hash-table".to_string()),
-    ]);
-    
+    let make_hash_table_expr = Expr::List(vec![Expr::Variable("make-hash-table".to_string())]);
+
     let result = evaluator.eval(
         make_hash_table_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Check that result is a hash table
     match result.unwrap() {
         Value::HashTable(_) => (), // Success
@@ -169,7 +169,7 @@ fn test_import_srfi_69() {
 #[test]
 fn test_import_multiple_srfis() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test (import (srfi 1) (srfi 13))
     let import_expr = Expr::List(vec![
         Expr::Variable("import".to_string()),
@@ -182,15 +182,15 @@ fn test_import_multiple_srfis() {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(13))),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Test that both SRFI 1 and SRFI 13 functions are available
     // Test SRFI 1 function
     let take_expr = Expr::List(vec![
@@ -204,27 +204,27 @@ fn test_import_multiple_srfis() {
         ]),
         Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
     ]);
-    
+
     let result = evaluator.eval(
         take_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Test SRFI 13 function
     let string_null_expr = Expr::List(vec![
         Expr::Variable("string-null?".to_string()),
         Expr::Literal(Literal::String("test".to_string())),
     ]);
-    
+
     let result = evaluator.eval(
         string_null_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), Value::Boolean(false));
 }
@@ -232,20 +232,18 @@ fn test_import_multiple_srfis() {
 #[test]
 fn test_import_error_cases() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test import with no arguments
-    let import_expr = Expr::List(vec![
-        Expr::Variable("import".to_string()),
-    ]);
-    
+    let import_expr = Expr::List(vec![Expr::Variable("import".to_string())]);
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_err());
-    
+
     // Test import with invalid SRFI ID
     let import_expr = Expr::List(vec![
         Expr::Variable("import".to_string()),
@@ -254,20 +252,20 @@ fn test_import_error_cases() {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(999))),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_err());
 }
 
 #[test]
 fn test_import_partial_srfi_1() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test (import (srfi 1 fold map))
     let import_expr = Expr::List(vec![
         Expr::Variable("import".to_string()),
@@ -278,15 +276,15 @@ fn test_import_partial_srfi_1() {
             Expr::Variable("map".to_string()),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Test that fold is available
     let fold_expr = Expr::List(vec![
         Expr::Variable("fold".to_string()),
@@ -300,13 +298,13 @@ fn test_import_partial_srfi_1() {
             ]),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         fold_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), Value::Number(SchemeNumber::Integer(3)));
 }
@@ -314,7 +312,7 @@ fn test_import_partial_srfi_1() {
 #[test]
 fn test_import_partial_srfi_13() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test (import (srfi 13 predicates))
     let import_expr = Expr::List(vec![
         Expr::Variable("import".to_string()),
@@ -324,27 +322,27 @@ fn test_import_partial_srfi_13() {
             Expr::Variable("predicates".to_string()),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Test that string-null? is available
     let string_null_expr = Expr::List(vec![
         Expr::Variable("string-null?".to_string()),
         Expr::Literal(Literal::String("".to_string())),
     ]);
-    
+
     let result = evaluator.eval(
         string_null_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), Value::Boolean(true));
 }
@@ -352,7 +350,7 @@ fn test_import_partial_srfi_13() {
 #[test]
 fn test_import_partial_srfi_69() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test (import (srfi 69 constructors accessors))
     let import_expr = Expr::List(vec![
         Expr::Variable("import".to_string()),
@@ -363,28 +361,26 @@ fn test_import_partial_srfi_69() {
             Expr::Variable("accessors".to_string()),
         ]),
     ]);
-    
+
     let result = evaluator.eval(
         import_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Test that make-hash-table is available
-    let make_hash_expr = Expr::List(vec![
-        Expr::Variable("make-hash-table".to_string()),
-    ]);
-    
+    let make_hash_expr = Expr::List(vec![Expr::Variable("make-hash-table".to_string())]);
+
     let result = evaluator.eval(
         make_hash_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     assert!(result.is_ok());
-    
+
     // Check that result is a hash table
     match result.unwrap() {
         Value::HashTable(_) => (), // Success

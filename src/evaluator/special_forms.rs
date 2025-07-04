@@ -254,7 +254,7 @@ impl Evaluator {
             _ => {
                 return Err(LambdustError::syntax_error(
                     "set!: first argument must be a variable".to_string(),
-                ))
+                ));
             }
         };
 
@@ -324,7 +324,7 @@ impl Evaluator {
                     _ => {
                         return Err(LambdustError::syntax_error(
                             "define: function name must be a symbol".to_string(),
-                        ))
+                        ));
                     }
                 };
 
@@ -332,10 +332,7 @@ impl Evaluator {
                 let body = operands[1..].to_vec();
 
                 // Transform to (define name (lambda params body...))
-                let mut lambda_parts = vec![
-                    Expr::Variable("lambda".to_string()),
-                    params,
-                ];
+                let mut lambda_parts = vec![Expr::Variable("lambda".to_string()), params];
                 lambda_parts.extend(body);
                 let lambda_expr = Expr::List(lambda_parts);
 
@@ -428,7 +425,11 @@ impl Evaluator {
 
     /// Apply special form continuations (delegated from main apply_continuation)
     /// Apply special form continuations (called from mod.rs)
-    pub fn apply_special_form_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
+    pub fn apply_special_form_continuation(
+        &mut self,
+        cont: Continuation,
+        value: Value,
+    ) -> Result<Value> {
         match cont {
             Continuation::IfTest {
                 consequent,

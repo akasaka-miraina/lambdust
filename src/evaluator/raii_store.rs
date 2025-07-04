@@ -7,8 +7,8 @@
 use crate::error::{LambdustError, Result};
 use crate::value::Value;
 use std::cell::RefCell;
-use std::rc::{Rc, Weak};
 use std::collections::HashMap;
+use std::rc::{Rc, Weak};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Global location ID counter
@@ -176,7 +176,7 @@ impl RaiiStoreManager {
     /// Allocate a new location with RAII management
     pub fn allocate_location(&mut self, value: Value) -> (usize, Value) {
         let id = NEXT_LOCATION_ID.fetch_add(1, Ordering::SeqCst);
-        
+
         // Auto-cleanup if needed
         if self.should_auto_cleanup() {
             self.auto_cleanup();
@@ -205,7 +205,9 @@ impl RaiiStoreManager {
 
     /// Get value at location
     fn get_value(&mut self, location_id: usize) -> Option<Value> {
-        self.cells.get_mut(&location_id).map(|cell| cell.access().clone())
+        self.cells
+            .get_mut(&location_id)
+            .map(|cell| cell.access().clone())
     }
 
     /// Set value at location
@@ -219,22 +221,22 @@ impl RaiiStoreManager {
                 location_id
             )));
         };
-        
+
         // Calculate new value size
         let new_size = self.estimate_value_size(&value);
-        
+
         // Now update the cell
         if let Some(cell) = self.cells.get_mut(&location_id) {
             cell.update(value);
-            
+
             // Update memory usage
-            self.stats.estimated_memory_usage = 
+            self.stats.estimated_memory_usage =
                 self.stats.estimated_memory_usage.saturating_sub(old_size) + new_size;
-                
+
             if self.stats.estimated_memory_usage > self.stats.peak_memory_usage {
                 self.stats.peak_memory_usage = self.stats.estimated_memory_usage;
             }
-            
+
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
@@ -250,8 +252,10 @@ impl RaiiStoreManager {
             let memory_usage = self.estimate_value_size(&cell.value);
             self.stats.total_deallocations += 1;
             self.stats.active_locations = self.stats.active_locations.saturating_sub(1);
-            self.stats.estimated_memory_usage = 
-                self.stats.estimated_memory_usage.saturating_sub(memory_usage);
+            self.stats.estimated_memory_usage = self
+                .stats
+                .estimated_memory_usage
+                .saturating_sub(memory_usage);
         }
     }
 
@@ -263,21 +267,24 @@ impl RaiiStoreManager {
         }
 
         // Age-based trigger (if we have many old locations)
-        let old_locations = self.cells.values()
+        let old_locations = self
+            .cells
+            .values()
             .filter(|cell| cell.age() > self.cleanup_age_threshold)
             .count();
-        
+
         old_locations > self.stats.active_locations / 4 // 25% threshold
     }
 
     /// Perform automatic cleanup based on age and idle time
     fn auto_cleanup(&mut self) {
         let mut to_remove = Vec::new();
-        
+
         for (id, cell) in &self.cells {
             // Remove very old or long-idle locations
-            if cell.age() > self.cleanup_age_threshold || 
-               cell.idle_time() > self.cleanup_idle_threshold {
+            if cell.age() > self.cleanup_age_threshold
+                || cell.idle_time() > self.cleanup_idle_threshold
+            {
                 to_remove.push(*id);
             }
         }
@@ -330,7 +337,12 @@ impl RaiiStoreManager {
             Value::Port(_) => 64,
             Value::External(_) => 48,
             Value::Record(_) => 64,
-            Value::Values(v) => v.iter().map(|val| self.estimate_value_size(val)).sum::<usize>() + 24,
+            Value::Values(v) => {
+                v.iter()
+                    .map(|val| self.estimate_value_size(val))
+                    .sum::<usize>()
+                    + 24
+            }
             Value::Continuation(_) => 96,
             Value::Nil => 8,
             Value::Undefined => 8,
@@ -361,7 +373,9 @@ impl RaiiStore {
     /// Create a new RAII store with memory limit
     pub fn with_memory_limit(memory_limit: usize) -> Self {
         RaiiStore {
-            manager: Rc::new(RefCell::new(RaiiStoreManager::with_memory_limit(memory_limit))),
+            manager: Rc::new(RefCell::new(RaiiStoreManager::with_memory_limit(
+                memory_limit,
+            ))),
         }
     }
 
@@ -369,7 +383,7 @@ impl RaiiStore {
     pub fn allocate(&self, value: Value) -> RaiiLocation {
         let mut manager = self.manager.borrow_mut();
         let (id, _) = manager.allocate_location(value);
-        
+
         // Create RAII location with weak reference to prevent cycles
         RaiiLocation {
             id,
@@ -412,12 +426,12 @@ mod tests {
     fn test_raii_location_auto_cleanup() {
         let store = RaiiStore::new();
         let initial_count = store.active_location_count();
-        
+
         {
             let _location = store.allocate(Value::Number(SchemeNumber::Integer(42)));
             assert_eq!(store.active_location_count(), initial_count + 1);
         } // location goes out of scope here
-        
+
         // Location should be automatically cleaned up
         assert_eq!(store.active_location_count(), initial_count);
     }
@@ -426,10 +440,13 @@ mod tests {
     fn test_raii_location_value_access() {
         let store = RaiiStore::new();
         let location = store.allocate(Value::Number(SchemeNumber::Integer(42)));
-        
+
         // Get value
-        assert_eq!(location.get(), Some(Value::Number(SchemeNumber::Integer(42))));
-        
+        assert_eq!(
+            location.get(),
+            Some(Value::Number(SchemeNumber::Integer(42)))
+        );
+
         // Set new value
         location.set(Value::String("hello".to_string())).unwrap();
         assert_eq!(location.get(), Some(Value::String("hello".to_string())));
@@ -439,10 +456,10 @@ mod tests {
     fn test_memory_usage_tracking() {
         let store = RaiiStore::new();
         let initial_usage = store.memory_usage();
-        
+
         let _location = store.allocate(Value::String("test".to_string()));
         assert!(store.memory_usage() > initial_usage);
-        
+
         // Memory usage includes string length + overhead
         let expected_min = initial_usage + 4 + 24; // "test".len() + overhead
         assert!(store.memory_usage() >= expected_min);
@@ -452,17 +469,20 @@ mod tests {
     fn test_statistics_tracking() {
         let store = RaiiStore::new();
         let initial_stats = store.statistics();
-        
+
         {
             let _location = store.allocate(Value::Number(SchemeNumber::Integer(42)));
             let stats = store.statistics();
             assert_eq!(stats.total_allocations, initial_stats.total_allocations + 1);
             assert_eq!(stats.active_locations, initial_stats.active_locations + 1);
         }
-        
+
         // After location is dropped
         let final_stats = store.statistics();
-        assert_eq!(final_stats.total_deallocations, initial_stats.total_deallocations + 1);
+        assert_eq!(
+            final_stats.total_deallocations,
+            initial_stats.total_deallocations + 1
+        );
         assert_eq!(final_stats.active_locations, initial_stats.active_locations);
     }
 }

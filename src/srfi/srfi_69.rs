@@ -848,8 +848,13 @@ impl crate::srfi::SrfiModule for Srfi69 {
                 }
                 "accessors" => {
                     // Hash table accessors
-                    for name in &["hash-table-ref", "hash-table-set!", "hash-table-delete!", 
-                                 "hash-table-exists?", "hash-table-size"] {
+                    for name in &[
+                        "hash-table-ref",
+                        "hash-table-set!",
+                        "hash-table-delete!",
+                        "hash-table-exists?",
+                        "hash-table-size",
+                    ] {
                         if let Some(value) = all_exports.get(*name) {
                             filtered.insert(name.to_string(), value.clone());
                         }
@@ -865,8 +870,13 @@ impl crate::srfi::SrfiModule for Srfi69 {
                 }
                 "conversion" => {
                     // Conversion functions
-                    for name in &["hash-table->alist", "alist->hash-table", "hash-table-copy",
-                                 "hash-table-keys", "hash-table-values"] {
+                    for name in &[
+                        "hash-table->alist",
+                        "alist->hash-table",
+                        "hash-table-copy",
+                        "hash-table-keys",
+                        "hash-table-values",
+                    ] {
                         if let Some(value) = all_exports.get(*name) {
                             filtered.insert(name.to_string(), value.clone());
                         }
@@ -896,7 +906,8 @@ impl crate::srfi::SrfiModule for Srfi69 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "SRFI 69: unknown part '{}'", part
+                        "SRFI 69: unknown part '{}'",
+                        part
                     )));
                 }
             }

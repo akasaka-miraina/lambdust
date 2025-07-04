@@ -980,8 +980,13 @@ impl crate::srfi::SrfiModule for Srfi13 {
             match *part {
                 "predicates" => {
                     // String predicate functions
-                    for name in &["string-null?", "string-prefix?", "string-suffix?", 
-                                 "string-prefix-ci?", "string-suffix-ci?"] {
+                    for name in &[
+                        "string-null?",
+                        "string-prefix?",
+                        "string-suffix?",
+                        "string-prefix-ci?",
+                        "string-suffix-ci?",
+                    ] {
                         if let Some(value) = all_exports.get(*name) {
                             filtered.insert(name.to_string(), value.clone());
                         }
@@ -997,8 +1002,13 @@ impl crate::srfi::SrfiModule for Srfi13 {
                 }
                 "manipulation" => {
                     // String manipulation functions
-                    for name in &["string-take", "string-drop", "string-take-right", 
-                                 "string-drop-right", "string-concatenate"] {
+                    for name in &[
+                        "string-take",
+                        "string-drop",
+                        "string-take-right",
+                        "string-drop-right",
+                        "string-concatenate",
+                    ] {
                         if let Some(value) = all_exports.get(*name) {
                             filtered.insert(name.to_string(), value.clone());
                         }
@@ -1028,7 +1038,8 @@ impl crate::srfi::SrfiModule for Srfi13 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "SRFI 13: unknown part '{}'", part
+                        "SRFI 13: unknown part '{}'",
+                        part
                     )));
                 }
             }

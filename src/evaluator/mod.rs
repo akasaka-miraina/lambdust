@@ -108,9 +108,7 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         if exprs.is_empty() {
-            return Err(LambdustError::syntax_error(
-                "Empty application".to_string(),
-            ));
+            return Err(LambdustError::syntax_error("Empty application".to_string()));
         }
 
         // Try to handle special forms first
@@ -142,9 +140,12 @@ impl Evaluator {
     ) -> Result<Option<Value>> {
         if let Expr::Variable(name) = &exprs[0] {
             if self.is_special_form(name) {
-                return Ok(Some(
-                    self.eval_known_special_form(name, &exprs[1..], env, cont)?,
-                ));
+                return Ok(Some(self.eval_known_special_form(
+                    name,
+                    &exprs[1..],
+                    env,
+                    cont,
+                )?));
             }
         }
         Ok(None)
@@ -221,7 +222,8 @@ impl Evaluator {
                 Ok(result)
             }
             Expr::Vector(exprs) => {
-                let values: Result<Vec<Value>> = exprs.into_iter().map(Self::expr_to_value).collect();
+                let values: Result<Vec<Value>> =
+                    exprs.into_iter().map(Self::expr_to_value).collect();
                 Ok(Value::from_vector(values?))
             }
             Expr::Quote(expr) => Self::expr_to_value(*expr),
@@ -233,7 +235,7 @@ impl Evaluator {
                     result = Value::cons(value, result);
                 }
                 Ok(result)
-            },
+            }
             Expr::Quasiquote(_) | Expr::Unquote(_) | Expr::UnquoteSplicing(_) => {
                 Err(LambdustError::syntax_error(
                     "Quasiquote forms not yet implemented in quote context".to_string(),
@@ -249,7 +251,7 @@ impl Evaluator {
         _env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-        // For basic quasiquote without unquote/unquote-splicing, 
+        // For basic quasiquote without unquote/unquote-splicing,
         // it's equivalent to quote
         let value = Self::expr_to_value(expr)?;
         self.apply_continuation(cont, value)
@@ -314,7 +316,7 @@ impl Evaluator {
             } => {
                 // Add current value to accumulated values
                 accumulated_values.push(value);
-                
+
                 if remaining_exprs.is_empty() {
                     // All expressions evaluated, create Values result
                     self.apply_continuation(*parent, Value::Values(accumulated_values))
@@ -322,14 +324,14 @@ impl Evaluator {
                     // Continue evaluating remaining expressions
                     let next_expr = remaining_exprs[0].clone();
                     let remaining = remaining_exprs[1..].to_vec();
-                    
+
                     let next_cont = Continuation::ValuesAccumulate {
                         remaining_exprs: remaining,
                         accumulated_values,
                         env: env.clone(),
                         parent,
                     };
-                    
+
                     self.eval(next_expr, env, next_cont)
                 }
             }
@@ -492,10 +494,7 @@ impl Evaluator {
                     // Check arity for lambda
                     if variadic {
                         if args.len() < params.len() - 1 {
-                            return Err(LambdustError::arity_error(
-                                params.len() - 1,
-                                args.len(),
-                            ));
+                            return Err(LambdustError::arity_error(params.len() - 1, args.len()));
                         }
                     } else if args.len() != params.len() {
                         return Err(LambdustError::arity_error(params.len(), args.len()));
@@ -524,12 +523,14 @@ impl Evaluator {
                     // Evaluate body
                     self.eval_sequence(body, Rc::new(lambda_env), cont)
                 }
-                Procedure::Continuation { continuation: _captured_cont } => {
+                Procedure::Continuation {
+                    continuation: _captured_cont,
+                } => {
                     // Apply captured continuation (basic escape implementation)
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
-                    
+
                     // Basic escape: return the value directly to the captured continuation
                     // This implements a simplified form of non-local exit
                     // A full implementation would need to properly restore the captured continuation state
@@ -564,9 +565,7 @@ impl Evaluator {
             | Continuation::Define { .. }
             | Continuation::Begin { .. }
             | Continuation::And { .. }
-            | Continuation::Or { .. } => {
-                self.apply_special_form_continuation(cont, value)
-            }
+            | Continuation::Or { .. } => self.apply_special_form_continuation(cont, value),
             // Default to control flow continuations
             _ => self.apply_control_flow_continuation(cont, value),
         }
@@ -597,7 +596,12 @@ impl Evaluator {
 
     /// Call a procedure (for compatibility)
     pub fn call_procedure(&mut self, procedure: Value, args: Vec<Value>) -> Result<Value> {
-        self.apply_procedure(procedure, args, self.global_env.clone(), Continuation::Identity)
+        self.apply_procedure(
+            procedure,
+            args,
+            self.global_env.clone(),
+            Continuation::Identity,
+        )
     }
 
     /// Macro expansion integration

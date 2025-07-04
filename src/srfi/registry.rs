@@ -32,8 +32,8 @@ impl SrfiRegistry {
         let mut registry = Self::new();
 
         // Register standard SRFIs that are available
-        registry.register(Box::new(super::srfi_1::Srfi1));   // List Library
-        registry.register(Box::new(super::srfi_9::Srfi9));   // Define-record-type
+        registry.register(Box::new(super::srfi_1::Srfi1)); // List Library
+        registry.register(Box::new(super::srfi_9::Srfi9)); // Define-record-type
         registry.register(Box::new(super::srfi_13::Srfi13)); // String Libraries
         registry.register(Box::new(super::srfi_45::Srfi45)); // Lazy evaluation
         registry.register(Box::new(super::srfi_46::Srfi46)); // Syntax-rules extensions
@@ -109,17 +109,19 @@ impl SrfiRegistry {
 
     /// Get exports for a SRFI (used by evaluator)
     pub fn get_exports(&self, id: u32) -> Result<HashMap<String, Value>> {
-        let module = self.modules.get(&id).ok_or_else(|| {
-            LambdustError::runtime_error(format!("SRFI {} is not available", id))
-        })?;
+        let module = self
+            .modules
+            .get(&id)
+            .ok_or_else(|| LambdustError::runtime_error(format!("SRFI {} is not available", id)))?;
         Ok(module.exports())
     }
 
     /// Get exports for specific parts of a SRFI (used by evaluator)
     pub fn get_exports_for_parts(&self, id: u32, parts: &[&str]) -> Result<HashMap<String, Value>> {
-        let module = self.modules.get(&id).ok_or_else(|| {
-            LambdustError::runtime_error(format!("SRFI {} is not available", id))
-        })?;
+        let module = self
+            .modules
+            .get(&id)
+            .ok_or_else(|| LambdustError::runtime_error(format!("SRFI {} is not available", id)))?;
         module.exports_for_parts(parts)
     }
 }
