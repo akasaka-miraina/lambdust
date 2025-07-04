@@ -176,7 +176,7 @@ mod tests {
     // Integration tests for when evaluator integration is complete
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_creation_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -185,7 +185,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_predicate_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -201,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_set_and_ref_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -221,7 +221,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_size_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -242,7 +242,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_exists_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -269,7 +269,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_delete_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_keys_and_values_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -318,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_to_alist_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -334,7 +334,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_alist_to_hash_table_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -345,7 +345,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_copy_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -371,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_function_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -383,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_hash_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -392,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_ci_hash_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -407,7 +407,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_hash_table_ref_with_default_integration() {
         let mut interpreter = create_test_interpreter();
 

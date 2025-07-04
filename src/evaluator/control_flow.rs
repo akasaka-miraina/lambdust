@@ -147,7 +147,7 @@ impl Evaluator {
 
         let proc_expr = operands[0].clone();
 
-        // Create a captured continuation (simplified implementation)
+        // Create a captured continuation that holds the current continuation
         let captured_cont = Value::Procedure(Procedure::Continuation {
             continuation: Box::new(crate::value::Continuation {
                 stack: Vec::new(),

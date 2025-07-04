@@ -225,9 +225,15 @@ impl Evaluator {
                 Ok(Value::from_vector(values?))
             }
             Expr::Quote(expr) => Self::expr_to_value(*expr),
-            Expr::DottedList(_, _) => Err(LambdustError::syntax_error(
-                "Dotted lists not supported in quote context".to_string(),
-            )),
+            Expr::DottedList(elements, tail) => {
+                // Handle dotted list: (a b . c) -> cons(a, cons(b, c))
+                let mut result = Self::expr_to_value(*tail)?;
+                for expr in elements.into_iter().rev() {
+                    let value = Self::expr_to_value(expr)?;
+                    result = Value::cons(value, result);
+                }
+                Ok(result)
+            },
             Expr::Quasiquote(_) | Expr::Unquote(_) | Expr::UnquoteSplicing(_) => {
                 Err(LambdustError::syntax_error(
                     "Quasiquote forms not yet implemented in quote context".to_string(),
@@ -239,13 +245,14 @@ impl Evaluator {
     /// Evaluate quasiquote (simplified implementation)
     fn eval_quasiquote(
         &mut self,
-        _expr: Expr,
+        expr: Expr,
         _env: Rc<Environment>,
-        _cont: Continuation,
+        cont: Continuation,
     ) -> Result<Value> {
-        Err(LambdustError::syntax_error(
-            "Quasiquote not yet fully implemented".to_string(),
-        ))
+        // For basic quasiquote without unquote/unquote-splicing, 
+        // it's equivalent to quote
+        let value = Self::expr_to_value(expr)?;
+        self.apply_continuation(cont, value)
     }
 
     /// Evaluate vector
@@ -518,12 +525,15 @@ impl Evaluator {
                     self.eval_sequence(body, Rc::new(lambda_env), cont)
                 }
                 Procedure::Continuation { continuation: _captured_cont } => {
-                    // Apply captured continuation (simplified implementation)
+                    // Apply captured continuation (basic escape implementation)
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
-                    // For now, just return the value directly
-                    self.apply_continuation(cont, args[0].clone())
+                    
+                    // Basic escape: return the value directly to the captured continuation
+                    // This implements a simplified form of non-local exit
+                    // A full implementation would need to properly restore the captured continuation state
+                    Ok(args[0].clone())
                 }
                 Procedure::HostFunction { func, arity, .. } => {
                     // Check arity if specified

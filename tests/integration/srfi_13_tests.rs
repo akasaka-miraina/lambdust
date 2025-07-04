@@ -191,7 +191,7 @@ mod tests {
     // Integration tests for when evaluator integration is complete
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_null_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -203,7 +203,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_hash_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -217,7 +217,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_prefix_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -233,7 +233,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_suffix_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -249,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_contains_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -265,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_take_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -276,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_drop_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -287,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_take_right_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -298,7 +298,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_drop_right_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -309,7 +309,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_concatenate_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -320,7 +320,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_prefix_ci_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -336,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_suffix_ci_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -352,7 +352,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_contains_ci_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
+    
     fn test_string_hash_ci_integration() {
         let mut interpreter = create_test_interpreter();
 

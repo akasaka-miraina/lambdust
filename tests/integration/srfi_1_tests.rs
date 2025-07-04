@@ -215,7 +215,6 @@ mod tests {
     // Integration tests for when evaluator integration is complete
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
     fn test_take_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -230,7 +229,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
     fn test_drop_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -245,7 +243,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
     fn test_concatenate_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -263,7 +260,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete  
     fn test_filter_integration() {
         let mut interpreter = create_test_interpreter();
 
@@ -285,7 +281,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // Enable when evaluator integration is complete
     fn test_fold_integration() {
         let mut interpreter = create_test_interpreter();
 

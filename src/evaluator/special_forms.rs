@@ -518,6 +518,18 @@ impl Evaluator {
             let (next_test, next_consequent) = remaining_clauses[0].clone();
             let remaining = remaining_clauses[1..].to_vec();
 
+            // Special handling for else clause
+            if let Expr::Variable(name) = &next_test {
+                if name == "else" {
+                    if !remaining.is_empty() {
+                        return Err(LambdustError::syntax_error(
+                            "cond: else clause must be last".to_string(),
+                        ));
+                    }
+                    return self.eval_sequence(next_consequent, env, parent);
+                }
+            }
+
             let cond_cont = Continuation::CondTest {
                 consequent: next_consequent,
                 remaining_clauses: remaining,
