@@ -1090,15 +1090,10 @@ impl Evaluator {
             return Err(LambdustError::arity_error(1, operands.len()));
         }
 
-        // For now, create a simple continuation procedure
-        // In a full implementation, this would need to store the continuation somehow
-        let captured_cont = Value::Procedure(Procedure::Builtin {
-            name: "captured-continuation".to_string(),
-            arity: Some(1),
-            func: |_args| {
-                // Placeholder - full implementation needs access to the evaluator
-                Ok(Value::Undefined)
-            },
+        // Capture the current continuation as a procedure
+        // This continuation represents the "rest of the computation" after call/cc completes
+        let captured_cont = Value::Procedure(Procedure::CapturedContinuation {
+            continuation: Box::new(cont.clone()),
         });
 
         // Create a special continuation for call/cc
@@ -1563,9 +1558,29 @@ impl Evaluator {
                     let result = func(&args)?;
                     self.apply_continuation(cont, result)
                 }
-                Procedure::Continuation { .. } => Err(LambdustError::runtime_error(
-                    "Continuation procedures not yet implemented in formal evaluator".to_string(),
-                )),
+                Procedure::Continuation { continuation: _ } => {
+                    // Invoking a legacy continuation
+                    if args.len() != 1 {
+                        return Err(LambdustError::arity_error(1, args.len()));
+                    }
+                    
+                    // This is the old continuation system - not fully implemented
+                    Err(LambdustError::runtime_error(
+                        "Legacy continuation system not implemented".to_string(),
+                    ))
+                }
+                Procedure::CapturedContinuation { continuation } => {
+                    // Invoking a captured continuation from call/cc
+                    if args.len() != 1 {
+                        return Err(LambdustError::arity_error(1, args.len()));
+                    }
+                    
+                    // When a continuation is invoked, it "escapes" from the current computation
+                    // and resumes at the point where the continuation was captured
+                    // This completely abandons the current continuation chain
+                    let return_value = args[0].clone();
+                    self.apply_continuation(*continuation.clone(), return_value)
+                }
             },
             _ => Err(LambdustError::type_error(format!(
                 "Not a procedure: {operator}"

@@ -1,16 +1,14 @@
 //! Control flow functions for Scheme
 
 use crate::error::LambdustError;
-use crate::value::{Continuation, Procedure, Value};
+use crate::value::{Procedure, Value};
 use std::collections::HashMap;
 
 /// Register all control flow functions
 pub fn register_control_flow_functions(builtins: &mut HashMap<String, Value>) {
-    builtins.insert(
-        "call-with-current-continuation".to_string(),
-        call_cc_function(),
-    );
-    builtins.insert("call/cc".to_string(), call_cc_function()); // Alias
+    // Note: call/cc and call-with-current-continuation are handled directly
+    // in the formal evaluator as special forms, not as builtin functions
+    
     builtins.insert("raise".to_string(), raise_function());
     builtins.insert(
         "with-exception-handler".to_string(),
@@ -19,47 +17,6 @@ pub fn register_control_flow_functions(builtins: &mut HashMap<String, Value>) {
     builtins.insert("dynamic-wind".to_string(), dynamic_wind_function());
 }
 
-/// Implements the `call-with-current-continuation` (call/cc) function
-fn call_cc_function() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "call-with-current-continuation".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-
-            // The argument should be a procedure that takes one argument (the continuation)
-            let _proc = match &args[0] {
-                Value::Procedure(_) => &args[0],
-                _ => {
-                    return Err(LambdustError::type_error(format!(
-                        "call/cc: expected procedure, got {}",
-                        args[0]
-                    )));
-                }
-            };
-
-            // Create a continuation that captures the current call stack
-            // For now, we create a simplified continuation
-            let continuation = Continuation {
-                stack: Vec::new(), // Simplified - would capture actual stack in full implementation
-                env: std::rc::Rc::new(crate::environment::Environment::new()),
-            };
-
-            let _continuation_proc = Value::Procedure(Procedure::Continuation {
-                continuation: Box::new(continuation),
-            });
-
-            // For now, return a placeholder that indicates call/cc needs evaluator integration
-            Err(LambdustError::RuntimeError {
-                message: "call/cc: requires evaluator integration - not yet fully implemented"
-                    .to_string(),
-                context: Box::new(crate::error::ErrorContext::unknown()),
-            })
-        },
-    })
-}
 
 /// Implements the `raise` function for raising exceptions
 fn raise_function() -> Value {

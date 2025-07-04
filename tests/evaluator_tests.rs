@@ -72,7 +72,7 @@ mod formal_evaluator_tests {
     fn test_call_with_current_continuation() {
         let mut interpreter = Interpreter::new();
         
-        // Basic call/cc test
+        // Basic call/cc test - continuation not used
         let result = interpreter.eval("(call/cc (lambda (k) 42))").unwrap();
         assert_eq!(result, Value::from(42i64));
         
@@ -80,9 +80,26 @@ mod formal_evaluator_tests {
         let result = interpreter.eval("(call-with-current-continuation (lambda (k) 100))").unwrap();
         assert_eq!(result, Value::from(100i64));
         
-        // call/cc in arithmetic context
+        // call/cc in arithmetic context - continuation not used
         let result = interpreter.eval("(+ 1 (call/cc (lambda (k) 2)) 3)").unwrap();
         assert_eq!(result, Value::from(6i64));
+        
+        // Test escape continuation - the key test for true call/cc behavior
+        let result = interpreter.eval("(+ 1 (call/cc (lambda (k) (k 10) 2)) 3)").unwrap();
+        assert_eq!(result, Value::from(14i64)); // Should be 1 + 10 + 3, not 1 + 2 + 3
+        
+        // Test continuation escape from nested computation
+        let result = interpreter.eval(r#"
+            (call/cc (lambda (escape)
+                (+ 1 (* 2 (escape 42)) 3)))
+        "#).unwrap();
+        assert_eq!(result, Value::from(42i64)); // Should escape with 42, not compute the arithmetic
+        
+        // Test that continuation can be called with any value
+        let result = interpreter.eval(r#"
+            (call/cc (lambda (k) (k "hello")))
+        "#).unwrap();
+        assert_eq!(result, Value::String("hello".to_string()));
     }
 
     #[test]

@@ -1,5 +1,45 @@
 # Lambdust (λust) - Rust Scheme Interpreter
 
+## 🚀 現在の開発状況（次のClaude Codeインスタンスへの引き継ぎ）
+
+### 📊 最新の進捗状況
+- **R7RS Small実装**: 99%完了（doループは既に完全実装済みであることが判明）
+- **現在のタスク**: call/cc継続キャプチャのformal evaluator統合（Issue #6）
+- **次のタスク**: 例外処理システム（guard構文）の実装
+
+### 🔄 開発フローの遵守
+現在は **基本的な作業手順** に従って作業中です：
+1. ✅ **Issue作成**: Issue #6 "Implement call/cc continuation capture in formal evaluator"
+2. ✅ **ブランチ作成**: `feature/callcc-formal-evaluator-integration`ブランチで作業中
+3. 🔄 **設計・実装**: 基盤構造は完了、エスケープ継続の修正が必要（進行中）
+4. ⏳ **Pull Request**: エスケープ継続修正後にPR作成予定
+5. ⏳ **レビュー・マージ**: コードレビュー後、mainブランチにマージ
+
+### ⚠️ 現在の課題（call/cc実装）
+
+#### **完了済み**
+- `Procedure::CapturedContinuation`型の追加
+- `eval_call_cc`での基本的な継続キャプチャ
+- builtins/control_flow.rsからの重複実装削除
+- Display、PartialEq実装の更新
+
+#### **未完了・要修正**
+- **エスケープ継続が動作しない**: 継続を呼び出すと`Value::Undefined`が返される
+- **テスト失敗**: `(+ 1 (call/cc (lambda (k) (k 10) 2)) 3)`が期待値14ではなくエラー
+- **継続適用ロジック**: `apply_continuation`での正しいエスケープ処理が必要
+
+#### **次のインスタンスでの作業手順**
+1. **継続エスケープの修正**: `apply_procedure`の`CapturedContinuation`処理を修正
+2. **テスト確認**: エスケープ継続テストが正しく動作することを確認
+3. **Pull Request作成**: Issue #6の完了とPR作成
+4. **次の高優先度タスク**: 例外処理システム（guard構文）の実装開始
+
+### 🧪 重要な技術的コンテキスト
+- **評価器**: formal_evaluator.rsによるR7RS準拠CPS評価器に統一済み
+- **アーキテクチャ**: モジュール化完了（value.rs等のリファクタリング完了）
+- **テスト**: 120テスト中118テスト成功（2テスト失敗は既存課題、call/cc実装とは無関係）
+- **ブランチ**: `feature/callcc-formal-evaluator-integration`にプッシュ済み
+
 ## 重要
 
 コードコメントやCLAUDE.md以外のmarkdownドキュメントは英語で，CLAUDE.mdやチャットは日本語で行います．
@@ -83,8 +123,7 @@ lambdust/
 │   ├── lexer.rs         # 字句解析
 │   ├── parser.rs        # 構文解析
 │   ├── ast.rs           # AST定義
-│   ├── formal_evaluator.rs # R7RS準拠CPS評価器（メイン）
-│   ├── evaluator.rs     # 従来評価器（非推奨・段階的削除予定）
+│   ├── evaluator.rs     # R7RS準拠CPS評価器（メイン）
 │   ├── environment.rs   # 環境管理
 │   ├── builtins/        # 組み込み関数モジュール群
 │   │   ├── mod.rs       # 統合モジュール
