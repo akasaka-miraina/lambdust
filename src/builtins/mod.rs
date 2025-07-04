@@ -14,6 +14,7 @@ pub mod srfi_1;
 pub mod srfi_13;
 pub mod srfi_69;
 pub mod string_char;
+pub mod utils;
 pub mod vector;
 
 use crate::value::Value;

@@ -1,5 +1,10 @@
 //! Arithmetic operations for Scheme
 
+use crate::builtins::utils::{
+    check_arity_range, make_builtin_procedure, expect_number, 
+    apply_numeric_operation, compare_numbers, is_odd, is_even, is_zero, is_positive, is_negative
+};
+use crate::make_predicate;
 use crate::error::{LambdustError, Result};
 use crate::lexer::SchemeNumber;
 use crate::value::{Procedure, Value};
@@ -37,51 +42,14 @@ pub fn register_arithmetic_functions(builtins: &mut HashMap<String, Value>) {
     builtins.insert("max".to_string(), numeric_max());
 
     // Numeric predicates
-    builtins.insert("odd?".to_string(), predicate_odd());
-    builtins.insert("even?".to_string(), predicate_even());
-    builtins.insert("zero?".to_string(), predicate_zero());
-    builtins.insert("positive?".to_string(), predicate_positive());
-    builtins.insert("negative?".to_string(), predicate_negative());
+    builtins.insert("odd?".to_string(), make_predicate!("odd?", is_odd));
+    builtins.insert("even?".to_string(), make_predicate!("even?", is_even));
+    builtins.insert("zero?".to_string(), make_predicate!("zero?", is_zero));
+    builtins.insert("positive?".to_string(), make_predicate!("positive?", is_positive));
+    builtins.insert("negative?".to_string(), make_predicate!("negative?", is_negative));
 }
 
-// Helper function for adding two SchemeNumbers
-fn add_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
-    match (a, b) {
-        (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Integer(x + y)),
-        (SchemeNumber::Real(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(x + y)),
-        (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(*x as f64 + y)),
-        (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Real(x + *y as f64)),
-        _ => Err(LambdustError::type_error(format!("Cannot add {a} and {b}"))),
-    }
-}
-
-// Helper function for subtracting two SchemeNumbers
-fn sub_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
-    match (a, b) {
-        (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Integer(x - y)),
-        (SchemeNumber::Real(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(x - y)),
-        (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(*x as f64 - y)),
-        (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Real(x - *y as f64)),
-        _ => Err(LambdustError::type_error(format!(
-            "Cannot subtract {b} from {a}"
-        ))),
-    }
-}
-
-// Helper function for multiplying two SchemeNumbers
-fn mul_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
-    match (a, b) {
-        (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Integer(x * y)),
-        (SchemeNumber::Real(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(x * y)),
-        (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(*x as f64 * y)),
-        (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Real(x * *y as f64)),
-        _ => Err(LambdustError::type_error(format!(
-            "Cannot multiply {a} and {b}"
-        ))),
-    }
-}
-
-// Helper function for dividing two SchemeNumbers
+// Helper function for handling division with proper integer results
 fn div_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
     match (a, b) {
         (_, SchemeNumber::Integer(0)) => Err(LambdustError::division_by_zero()),
@@ -93,285 +61,162 @@ fn div_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
                 Ok(SchemeNumber::Real(*x as f64 / *y as f64))
             }
         }
-        (SchemeNumber::Real(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(x / y)),
-        (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => Ok(SchemeNumber::Real(*x as f64 / y)),
-        (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => Ok(SchemeNumber::Real(x / *y as f64)),
-        _ => Err(LambdustError::type_error(format!(
-            "Cannot divide {} by {}",
-            a, b
-        ))),
+        _ => apply_numeric_operation(a, b, "divide", |x, y| x / y),
     }
 }
 
 // Basic arithmetic operations
 
 fn arithmetic_add() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "+".to_string(),
-        arity: None, // Variadic
-        func: |args| {
-            let mut result = SchemeNumber::Integer(0);
-            for arg in args {
-                if let Some(num) = arg.as_number() {
-                    result = add_numbers(&result, num)?;
-                } else {
-                    return Err(LambdustError::type_error(format!(
-                        "+: expected number, got {}",
-                        arg
-                    )));
-                }
-            }
-            Ok(Value::Number(result))
-        },
+    make_builtin_procedure("+", None, |args| {
+        let mut result = SchemeNumber::Integer(0);
+        for arg in args {
+            let num = expect_number(arg, "+")?;
+            result = apply_numeric_operation(&result, num, "add", |x, y| x + y)?;
+        }
+        Ok(Value::Number(result))
     })
 }
 
 fn arithmetic_sub() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "-".to_string(),
-        arity: None, // At least 1 argument
-        func: |args| {
-            if args.is_empty() {
-                return Err(LambdustError::arity_error(1, 0));
+    make_builtin_procedure("-", None, |args| {
+        check_arity_range(args, 1, None)?;
+        
+        let first_num = expect_number(&args[0], "-")?;
+        if args.len() == 1 {
+            // Unary minus
+            match first_num {
+                SchemeNumber::Integer(x) => Ok(Value::Number(SchemeNumber::Integer(-x))),
+                SchemeNumber::Real(x) => Ok(Value::Number(SchemeNumber::Real(-x))),
+                _ => Err(LambdustError::type_error("Cannot negate this number")),
             }
-
-            if let Some(first_num) = args[0].as_number() {
-                if args.len() == 1 {
-                    // Unary minus
-                    match first_num {
-                        SchemeNumber::Integer(x) => Ok(Value::Number(SchemeNumber::Integer(-x))),
-                        SchemeNumber::Real(x) => Ok(Value::Number(SchemeNumber::Real(-x))),
-                        _ => Err(LambdustError::type_error("Cannot negate this number")),
-                    }
-                } else {
-                    // Binary minus
-                    let mut result = first_num.clone();
-                    for arg in &args[1..] {
-                        if let Some(num) = arg.as_number() {
-                            result = sub_numbers(&result, num)?;
-                        } else {
-                            return Err(LambdustError::type_error(format!(
-                                "-: expected number, got {}",
-                                arg
-                            )));
-                        }
-                    }
-                    Ok(Value::Number(result))
-                }
-            } else {
-                Err(LambdustError::type_error(format!(
-                    "-: expected number, got {}",
-                    args[0]
-                )))
+        } else {
+            // Binary minus
+            let mut result = first_num.clone();
+            for arg in &args[1..] {
+                let num = expect_number(arg, "-")?;
+                result = apply_numeric_operation(&result, num, "subtract", |x, y| x - y)?;
             }
-        },
+            Ok(Value::Number(result))
+        }
     })
 }
 
 fn arithmetic_mul() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "*".to_string(),
-        arity: None, // Variadic
-        func: |args| {
-            let mut result = SchemeNumber::Integer(1);
-            for arg in args {
-                if let Some(num) = arg.as_number() {
-                    result = mul_numbers(&result, num)?;
-                } else {
-                    return Err(LambdustError::type_error(format!(
-                        "*: expected number, got {}",
-                        arg
-                    )));
-                }
-            }
-            Ok(Value::Number(result))
-        },
+    make_builtin_procedure("*", None, |args| {
+        let mut result = SchemeNumber::Integer(1);
+        for arg in args {
+            let num = expect_number(arg, "*")?;
+            result = apply_numeric_operation(&result, num, "multiply", |x, y| x * y)?;
+        }
+        Ok(Value::Number(result))
     })
 }
 
 fn arithmetic_div() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "/".to_string(),
-        arity: None, // At least 1 argument
-        func: |args| {
-            if args.is_empty() {
-                return Err(LambdustError::arity_error(1, 0));
+    make_builtin_procedure("/", None, |args| {
+        check_arity_range(args, 1, None)?;
+        
+        let first_num = expect_number(&args[0], "/")?;
+        if args.len() == 1 {
+            // Reciprocal
+            match first_num {
+                SchemeNumber::Integer(0) => Err(LambdustError::division_by_zero()),
+                SchemeNumber::Real(f) if *f == 0.0 => Err(LambdustError::division_by_zero()),
+                SchemeNumber::Integer(x) => Ok(Value::Number(SchemeNumber::Real(1.0 / *x as f64))),
+                SchemeNumber::Real(x) => Ok(Value::Number(SchemeNumber::Real(1.0 / x))),
+                _ => Err(LambdustError::type_error("Cannot take reciprocal of this number")),
             }
-
-            if let Some(first_num) = args[0].as_number() {
-                if args.len() == 1 {
-                    // Reciprocal
-                    match first_num {
-                        SchemeNumber::Integer(0) => Err(LambdustError::division_by_zero()),
-                        SchemeNumber::Real(f) if *f == 0.0 => {
-                            Err(LambdustError::division_by_zero())
-                        }
-                        SchemeNumber::Integer(x) => {
-                            Ok(Value::Number(SchemeNumber::Real(1.0 / *x as f64)))
-                        }
-                        SchemeNumber::Real(x) => Ok(Value::Number(SchemeNumber::Real(1.0 / x))),
-                        _ => Err(LambdustError::type_error(
-                            "Cannot take reciprocal of this number",
-                        )),
-                    }
-                } else {
-                    // Division
-                    let mut result = first_num.clone();
-                    for arg in &args[1..] {
-                        if let Some(num) = arg.as_number() {
-                            result = div_numbers(&result, num)?;
-                        } else {
-                            return Err(LambdustError::type_error(format!(
-                                "/: expected number, got {}",
-                                arg
-                            )));
-                        }
-                    }
-                    Ok(Value::Number(result))
-                }
-            } else {
-                Err(LambdustError::type_error(format!(
-                    "/: expected number, got {}",
-                    args[0]
-                )))
+        } else {
+            // Division
+            let mut result = first_num.clone();
+            for arg in &args[1..] {
+                let num = expect_number(arg, "/")?;
+                result = div_numbers(&result, num)?;
             }
-        },
+            Ok(Value::Number(result))
+        }
     })
 }
 
 // Comparison operations
 
 fn arithmetic_eq() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "=".to_string(),
-        arity: None, // At least 2 arguments
-        func: |args| {
-            if args.len() < 2 {
-                return Err(LambdustError::arity_error(2, args.len()));
+    make_builtin_procedure("=", None, |args| {
+        check_arity_range(args, 2, None)?;
+        
+        let first = expect_number(&args[0], "=")?;
+        for arg in &args[1..] {
+            let num = expect_number(arg, "=")?;
+            if !compare_numbers(first, num, |x, y| (x - y).abs() < f64::EPSILON) {
+                return Ok(Value::Boolean(false));
             }
-
-            for arg in args {
-                if !arg.is_number() {
-                    return Err(LambdustError::type_error(format!(
-                        "=: expected number, got {}",
-                        arg
-                    )));
-                }
-            }
-
-            let first = args[0].as_number().unwrap();
-            for arg in &args[1..] {
-                let num = arg.as_number().unwrap();
-                if !numbers_equal(first, num) {
-                    return Ok(Value::Boolean(false));
-                }
-            }
-            Ok(Value::Boolean(true))
-        },
+        }
+        Ok(Value::Boolean(true))
     })
 }
 
 fn arithmetic_lt() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "<".to_string(),
-        arity: None, // At least 2 arguments
-        func: |args| {
-            if args.len() < 2 {
-                return Err(LambdustError::arity_error(2, args.len()));
+    make_builtin_procedure("<", None, |args| {
+        check_arity_range(args, 2, None)?;
+        
+        for i in 0..args.len() - 1 {
+            let current = expect_number(&args[i], "<")?;
+            let next = expect_number(&args[i + 1], "<")?;
+            
+            if !compare_numbers(current, next, |x, y| x < y) {
+                return Ok(Value::Boolean(false));
             }
-
-            for i in 0..args.len() - 1 {
-                let current = args[i].as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!("<: expected number, got {}", args[i]))
-                })?;
-                let next = args[i + 1].as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!("<: expected number, got {}", args[i + 1]))
-                })?;
-
-                if !number_less_than(current, next) {
-                    return Ok(Value::Boolean(false));
-                }
-            }
-            Ok(Value::Boolean(true))
-        },
+        }
+        Ok(Value::Boolean(true))
     })
 }
 
 fn arithmetic_le() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "<=".to_string(),
-        arity: None, // At least 2 arguments
-        func: |args| {
-            if args.len() < 2 {
-                return Err(LambdustError::arity_error(2, args.len()));
+    make_builtin_procedure("<=", None, |args| {
+        check_arity_range(args, 2, None)?;
+        
+        for i in 0..args.len() - 1 {
+            let current = expect_number(&args[i], "<=")?;
+            let next = expect_number(&args[i + 1], "<=")?;
+            
+            if !compare_numbers(current, next, |x, y| x <= y) {
+                return Ok(Value::Boolean(false));
             }
-
-            for i in 0..args.len() - 1 {
-                let current = args[i].as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!("<=: expected number, got {}", args[i]))
-                })?;
-                let next = args[i + 1].as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!("<=: expected number, got {}", args[i + 1]))
-                })?;
-
-                if number_less_than(next, current) {
-                    return Ok(Value::Boolean(false));
-                }
-            }
-            Ok(Value::Boolean(true))
-        },
+        }
+        Ok(Value::Boolean(true))
     })
 }
 
 fn arithmetic_gt() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: ">".to_string(),
-        arity: None, // At least 2 arguments
-        func: |args| {
-            if args.len() < 2 {
-                return Err(LambdustError::arity_error(2, args.len()));
+    make_builtin_procedure(">", None, |args| {
+        check_arity_range(args, 2, None)?;
+        
+        for i in 0..args.len() - 1 {
+            let current = expect_number(&args[i], ">")?;
+            let next = expect_number(&args[i + 1], ">")?;
+            
+            if !compare_numbers(current, next, |x, y| x > y) {
+                return Ok(Value::Boolean(false));
             }
-
-            for i in 0..args.len() - 1 {
-                let current = args[i].as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!(">: expected number, got {}", args[i]))
-                })?;
-                let next = args[i + 1].as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!(">: expected number, got {}", args[i + 1]))
-                })?;
-
-                if !number_less_than(next, current) {
-                    return Ok(Value::Boolean(false));
-                }
-            }
-            Ok(Value::Boolean(true))
-        },
+        }
+        Ok(Value::Boolean(true))
     })
 }
 
 fn arithmetic_ge() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: ">=".to_string(),
-        arity: None, // At least 2 arguments
-        func: |args| {
-            if args.len() < 2 {
-                return Err(LambdustError::arity_error(2, args.len()));
+    make_builtin_procedure(">=", None, |args| {
+        check_arity_range(args, 2, None)?;
+        
+        for i in 0..args.len() - 1 {
+            let current = expect_number(&args[i], ">=")?;
+            let next = expect_number(&args[i + 1], ">=")?;
+            
+            if !compare_numbers(current, next, |x, y| x >= y) {
+                return Ok(Value::Boolean(false));
             }
-
-            for i in 0..args.len() - 1 {
-                let current = args[i].as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!(">=: expected number, got {}", args[i]))
-                })?;
-                let next = args[i + 1].as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!(">=: expected number, got {}", args[i + 1]))
-                })?;
-
-                if number_less_than(current, next) {
-                    return Ok(Value::Boolean(false));
-                }
-            }
-            Ok(Value::Boolean(true))
-        },
+        }
+        Ok(Value::Boolean(true))
     })
 }
 
@@ -790,122 +635,11 @@ fn numeric_max() -> Value {
     })
 }
 
-// Numeric predicates
-
-fn predicate_odd() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "odd?".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-
-            match args[0].as_number() {
-                Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(n % 2 != 0)),
-                _ => Err(LambdustError::type_error(format!(
-                    "odd?: expected integer, got {}",
-                    args[0]
-                ))),
-            }
-        },
-    })
-}
-
-fn predicate_even() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "even?".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-
-            match args[0].as_number() {
-                Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(n % 2 == 0)),
-                _ => Err(LambdustError::type_error(format!(
-                    "even?: expected integer, got {}",
-                    args[0]
-                ))),
-            }
-        },
-    })
-}
-
-fn predicate_zero() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "zero?".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-
-            match args[0].as_number() {
-                Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(*n == 0)),
-                Some(SchemeNumber::Real(n)) => Ok(Value::Boolean(*n == 0.0)),
-                _ => Err(LambdustError::type_error(format!(
-                    "zero?: expected number, got {}",
-                    args[0]
-                ))),
-            }
-        },
-    })
-}
-
-fn predicate_positive() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "positive?".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-
-            match args[0].as_number() {
-                Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(*n > 0)),
-                Some(SchemeNumber::Real(n)) => Ok(Value::Boolean(*n > 0.0)),
-                _ => Err(LambdustError::type_error(format!(
-                    "positive?: expected number, got {}",
-                    args[0]
-                ))),
-            }
-        },
-    })
-}
-
-fn predicate_negative() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "negative?".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-
-            match args[0].as_number() {
-                Some(SchemeNumber::Integer(n)) => Ok(Value::Boolean(*n < 0)),
-                Some(SchemeNumber::Real(n)) => Ok(Value::Boolean(*n < 0.0)),
-                _ => Err(LambdustError::type_error(format!(
-                    "negative?: expected number, got {}",
-                    args[0]
-                ))),
-            }
-        },
-    })
-}
+// Numeric predicates are now implemented using the make_predicate! macro
+// for consistency and reduced code duplication
 
 // Helper functions
 
-fn numbers_equal(a: &SchemeNumber, b: &SchemeNumber) -> bool {
-    match (a, b) {
-        (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => x == y,
-        (SchemeNumber::Real(x), SchemeNumber::Real(y)) => x == y,
-        (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => *x as f64 == *y,
-        (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => *x == *y as f64,
-        _ => false,
-    }
-}
 
 fn number_less_than(a: &SchemeNumber, b: &SchemeNumber) -> bool {
     match (a, b) {

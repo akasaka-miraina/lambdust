@@ -48,6 +48,50 @@ impl Value {
         }
     }
 
+    /// Check if this value is a character
+    pub fn is_character(&self) -> bool {
+        matches!(self, Value::Character(_))
+    }
+
+    /// Get the character if this is a character
+    pub fn as_character(&self) -> Option<char> {
+        match self {
+            Value::Character(c) => Some(*c),
+            _ => None,
+        }
+    }
+
+    /// Check if this value is a vector
+    pub fn is_vector(&self) -> bool {
+        matches!(self, Value::Vector(_))
+    }
+
+    /// Get the vector if this is a vector
+    pub fn as_vector(&self) -> Option<&[Value]> {
+        match self {
+            Value::Vector(v) => Some(v),
+            _ => None,
+        }
+    }
+
+    /// Check if this value is null (alias for is_nil for compatibility)
+    pub fn is_null(&self) -> bool {
+        self.is_nil()
+    }
+
+    /// Check if this value is a boolean
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, Value::Boolean(_))
+    }
+
+    /// Get the boolean if this is a boolean
+    pub fn as_boolean(&self) -> Option<bool> {
+        match self {
+            Value::Boolean(b) => Some(*b),
+            _ => None,
+        }
+    }
+
     /// Check if this value is a hash table
     pub fn is_hash_table(&self) -> bool {
         matches!(self, Value::HashTable(_))
