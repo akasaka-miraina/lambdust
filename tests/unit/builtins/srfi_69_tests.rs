@@ -1,159 +1,159 @@
 //! Unit tests for SRFI 69: Basic Hash Tables implementation
 
-use lambdust::builtins::srfi_69::*;
+// Individual functions are no longer public - use interpreter integration
 use lambdust::interpreter::LambdustInterpreter;
 use lambdust::lexer::SchemeNumber;
 use lambdust::value::Value;
 
 #[test]
 fn test_hash_table_creation() {
-    let result = make_hash_table(&[]).unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    let result = interpreter.eval_string("(make-hash-table)").unwrap();
     assert!(matches!(result, Value::HashTable(_)));
 }
 
 #[test]
 fn test_hash_table_predicate() {
     let mut interpreter = LambdustInterpreter::new();
-    
-    let result = interpreter.eval_string("(hash-table? (make-hash-table))").unwrap();
+
+    let result = interpreter
+        .eval_string("(hash-table? (make-hash-table))")
+        .unwrap();
     assert_eq!(result, Value::Boolean(true));
 
-    let result = interpreter.eval_string("(hash-table? \"not a hash table\")").unwrap();
+    let result = interpreter
+        .eval_string("(hash-table? \"not a hash table\")")
+        .unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 
 #[test]
 fn test_hash_table_set_and_ref() {
-    let ht = make_hash_table(&[]).unwrap();
-    let key = Value::String("test-key".to_string());
-    let value = Value::Number(SchemeNumber::Integer(42));
-
-    // Set value
-    let result = hash_table_set(&[ht.clone(), key.clone(), value.clone()]);
-    assert!(result.is_ok());
-
+    let mut interpreter = LambdustInterpreter::new();
+    
+    // Create hash table and set value
+    interpreter.eval_string("(define ht (make-hash-table))").unwrap();
+    interpreter.eval_string("(hash-table-set! ht \"test-key\" 42)").unwrap();
+    
     // Get value
-    let result = hash_table_ref(&[ht, key]).unwrap();
-    assert_eq!(result, value);
+    let result = interpreter.eval_string("(hash-table-ref ht \"test-key\")").unwrap();
+    assert_eq!(result, Value::Number(SchemeNumber::Integer(42)));
 }
 
 #[test]
 fn test_hash_table_size() {
-    let ht = make_hash_table(&[]).unwrap();
-
+    let mut interpreter = LambdustInterpreter::new();
+    
+    // Create hash table
+    interpreter.eval_string("(define ht (make-hash-table))").unwrap();
+    
     // Initially empty
-    let result = hash_table_size(&[ht.clone()]).unwrap();
+    let result = interpreter.eval_string("(hash-table-size ht)").unwrap();
     assert_eq!(result, Value::Number(SchemeNumber::Integer(0)));
 
     // Add one item
-    let key = Value::String("test".to_string());
-    let value = Value::Number(SchemeNumber::Integer(123));
-    hash_table_set(&[ht.clone(), key, value]).unwrap();
-
-    let result = hash_table_size(&[ht]).unwrap();
+    interpreter.eval_string("(hash-table-set! ht \"test\" 123)").unwrap();
+    
+    let result = interpreter.eval_string("(hash-table-size ht)").unwrap();
     assert_eq!(result, Value::Number(SchemeNumber::Integer(1)));
 }
 
 #[test]
 fn test_hash_table_exists() {
-    let ht = make_hash_table(&[]).unwrap();
-    let key = Value::String("test-key".to_string());
-    let value = Value::Number(SchemeNumber::Integer(42));
-
+    let mut interpreter = LambdustInterpreter::new();
+    
+    // Create hash table
+    interpreter.eval_string("(define ht (make-hash-table))").unwrap();
+    
     // Key doesn't exist initially
-    let result = hash_table_exists(&[ht.clone(), key.clone()]).unwrap();
+    let result = interpreter.eval_string("(hash-table-exists? ht \"test-key\")").unwrap();
     assert_eq!(result, Value::Boolean(false));
 
     // Set value
-    hash_table_set(&[ht.clone(), key.clone(), value]).unwrap();
+    interpreter.eval_string("(hash-table-set! ht \"test-key\" 42)").unwrap();
 
     // Key now exists
-    let result = hash_table_exists(&[ht, key]).unwrap();
+    let result = interpreter.eval_string("(hash-table-exists? ht \"test-key\")").unwrap();
     assert_eq!(result, Value::Boolean(true));
 }
 
 #[test]
 fn test_hash_table_delete() {
-    let ht = make_hash_table(&[]).unwrap();
-    let key = Value::String("test-key".to_string());
-    let value = Value::Number(SchemeNumber::Integer(42));
-
-    // Set value
-    hash_table_set(&[ht.clone(), key.clone(), value]).unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    // Create hash table and set value
+    interpreter.eval_string("(define ht (make-hash-table))").unwrap();
+    interpreter.eval_string("(hash-table-set! ht \"test-key\" 42)").unwrap();
 
     // Delete value
-    let result = hash_table_delete(&[ht.clone(), key.clone()]).unwrap();
+    let result = interpreter.eval_string("(hash-table-delete! ht \"test-key\")").unwrap();
     assert_eq!(result, Value::Boolean(true));
 
     // Key no longer exists
-    let result = hash_table_exists(&[ht, key]).unwrap();
+    let result = interpreter.eval_string("(hash-table-exists? ht \"test-key\")").unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 
 #[test]
 fn test_hash_table_keys_and_values() {
-    let ht = make_hash_table(&[]).unwrap();
-    let key1 = Value::String("key1".to_string());
-    let key2 = Value::String("key2".to_string());
-    let value1 = Value::Number(SchemeNumber::Integer(1));
-    let value2 = Value::Number(SchemeNumber::Integer(2));
-
-    // Add items
-    hash_table_set(&[ht.clone(), key1, value1]).unwrap();
-    hash_table_set(&[ht.clone(), key2, value2]).unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    // Create hash table and add items
+    interpreter.eval_string("(define ht (make-hash-table))").unwrap();
+    interpreter.eval_string("(hash-table-set! ht \"key1\" 1)").unwrap();
+    interpreter.eval_string("(hash-table-set! ht \"key2\" 2)").unwrap();
 
     // Get keys
-    let keys = hash_table_keys(&[ht.clone()]).unwrap();
+    let keys = interpreter.eval_string("(hash-table-keys ht)").unwrap();
     assert!(keys.is_list());
 
     // Get values
-    let values = hash_table_values(&[ht]).unwrap();
+    let values = interpreter.eval_string("(hash-table-values ht)").unwrap();
     assert!(values.is_list());
 }
 
 #[test]
 fn test_hash_table_copy() {
-    let ht = make_hash_table(&[]).unwrap();
-    let key = Value::String("test-key".to_string());
-    let value = Value::Number(SchemeNumber::Integer(42));
-
-    // Set value in original
-    hash_table_set(&[ht.clone(), key.clone(), value.clone()]).unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    // Create hash table and set value
+    interpreter.eval_string("(define ht (make-hash-table))").unwrap();
+    interpreter.eval_string("(hash-table-set! ht \"test-key\" 42)").unwrap();
 
     // Copy hash table
-    let copy = hash_table_copy(&[ht]).unwrap();
+    interpreter.eval_string("(define copy (hash-table-copy ht))").unwrap();
 
     // Value should exist in copy
-    let result = hash_table_ref(&[copy, key]).unwrap();
-    assert_eq!(result, value);
+    let result = interpreter.eval_string("(hash-table-ref copy \"test-key\")").unwrap();
+    assert_eq!(result, Value::Number(SchemeNumber::Integer(42)));
 }
 
 #[test]
 fn test_hash_value() {
-    let value = Value::String("test".to_string());
-    let result = hash_value(&[value]).unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    let result = interpreter.eval_string("(hash \"test\")").unwrap();
     assert!(matches!(result, Value::Number(_)));
 
-    let value = Value::String("test".to_string());
-    let bound = Value::Number(SchemeNumber::Integer(1000));
-    let result = hash_value(&[value, bound]).unwrap();
+    let result = interpreter.eval_string("(hash \"test\" 1000)").unwrap();
     assert!(matches!(result, Value::Number(_)));
 }
 
 #[test]
-fn test_string_hash() {
-    let string = Value::String("hello".to_string());
-    let result = string_hash_impl(&[string]).unwrap();
+fn test_string_hash_impl() {
+    let mut interpreter = LambdustInterpreter::new();
+    
+    let result = interpreter.eval_string("(string-hash \"hello\")").unwrap();
     assert!(matches!(result, Value::Number(_)));
 }
 
 #[test]
 fn test_string_ci_hash() {
-    let string1 = Value::String("Hello".to_string());
-    let string2 = Value::String("HELLO".to_string());
-
-    let hash1 = string_ci_hash_impl(&[string1]).unwrap();
-    let hash2 = string_ci_hash_impl(&[string2]).unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    let hash1 = interpreter.eval_string("(string-ci-hash \"Hello\")").unwrap();
+    let hash2 = interpreter.eval_string("(string-ci-hash \"HELLO\")").unwrap();
 
     // Case-insensitive hashes should be equal
     assert_eq!(hash1, hash2);

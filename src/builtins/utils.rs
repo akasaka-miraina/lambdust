@@ -58,12 +58,11 @@ pub fn expect_two_strings<'a>(
     if args.len() < 2 {
         return Err(LambdustError::arity_error(2, args.len()));
     }
-    
+
     let s1 = expect_string(&args[0], func_name)?;
     let s2 = expect_string(&args[1], func_name)?;
     Ok((s1, s2))
 }
-
 
 /// Extract a symbol from a Value with error handling
 pub fn expect_symbol<'a>(value: &'a Value, func_name: &str) -> Result<&'a str, LambdustError> {
@@ -153,7 +152,7 @@ macro_rules! make_comparison {
             for pair in args.windows(2) {
                 let current = $extractor(&pair[0], $name)?;
                 let next = $extractor(&pair[1], $name)?;
-                
+
                 if !(current $op next) {
                     return Ok($crate::value::Value::Boolean(false));
                 }
