@@ -945,3 +945,31 @@ fn string_delete_function() -> Value {
         },
     })
 }
+
+/// SRFI 13 module implementation
+pub struct Srfi13;
+
+impl crate::srfi::SrfiModule for Srfi13 {
+    fn srfi_id(&self) -> u32 {
+        13
+    }
+
+    fn name(&self) -> &'static str {
+        "String Libraries"
+    }
+
+    fn parts(&self) -> Vec<&'static str> {
+        vec!["all"] // SRFI 13 doesn't have separate parts
+    }
+
+    fn exports(&self) -> HashMap<String, Value> {
+        let mut exports = HashMap::new();
+        register_srfi_13_functions(&mut exports);
+        exports
+    }
+
+    fn exports_for_parts(&self, _parts: &[&str]) -> Result<HashMap<String, Value>> {
+        // SRFI 13 exports all functions as one unit
+        Ok(self.exports())
+    }
+}

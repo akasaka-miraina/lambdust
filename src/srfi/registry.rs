@@ -11,6 +11,14 @@ pub struct SrfiRegistry {
     modules: HashMap<u32, Box<dyn SrfiModule>>,
 }
 
+impl std::fmt::Debug for SrfiRegistry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SrfiRegistry")
+            .field("modules", &self.modules.keys().collect::<Vec<_>>())
+            .finish()
+    }
+}
+
 impl SrfiRegistry {
     /// Create a new SRFI registry
     pub fn new() -> Self {
@@ -24,10 +32,13 @@ impl SrfiRegistry {
         let mut registry = Self::new();
 
         // Register standard SRFIs that are available
-        registry.register(Box::new(super::srfi_9::Srfi9));
-        registry.register(Box::new(super::srfi_45::Srfi45));
-        registry.register(Box::new(super::srfi_46::Srfi46));
-        registry.register(Box::new(super::srfi_97::Srfi97));
+        registry.register(Box::new(super::srfi_1::Srfi1));   // List Library
+        registry.register(Box::new(super::srfi_9::Srfi9));   // Define-record-type
+        registry.register(Box::new(super::srfi_13::Srfi13)); // String Libraries
+        registry.register(Box::new(super::srfi_45::Srfi45)); // Lazy evaluation
+        registry.register(Box::new(super::srfi_46::Srfi46)); // Syntax-rules extensions
+        registry.register(Box::new(super::srfi_69::Srfi69)); // Basic Hash Tables
+        registry.register(Box::new(super::srfi_97::Srfi97)); // SRFI Libraries
 
         registry
     }
@@ -94,6 +105,22 @@ impl SrfiRegistry {
         }
 
         Ok(exports)
+    }
+
+    /// Get exports for a SRFI (used by evaluator)
+    pub fn get_exports(&self, id: u32) -> Result<HashMap<String, Value>> {
+        let module = self.modules.get(&id).ok_or_else(|| {
+            LambdustError::runtime_error(format!("SRFI {} is not available", id))
+        })?;
+        Ok(module.exports())
+    }
+
+    /// Get exports for specific parts of a SRFI (used by evaluator)
+    pub fn get_exports_for_parts(&self, id: u32, parts: &[&str]) -> Result<HashMap<String, Value>> {
+        let module = self.modules.get(&id).ok_or_else(|| {
+            LambdustError::runtime_error(format!("SRFI {} is not available", id))
+        })?;
+        module.exports_for_parts(parts)
     }
 }
 

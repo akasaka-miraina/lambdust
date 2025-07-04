@@ -1,10 +1,10 @@
 //! Tests for lambda function integration with higher-order functions
 
-use lambdust::evaluator::FormalEvaluator;
+use lambdust::evaluator::Evaluator;
 use lambdust::value::Value;
 
 fn eval_str_formal(input: &str) -> Result<Value, Box<dyn std::error::Error>> {
-    let mut evaluator = FormalEvaluator::new();
+    let mut evaluator = Evaluator::new();
     Ok(evaluator.eval_string(input)?)
 }
 

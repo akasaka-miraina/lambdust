@@ -81,7 +81,7 @@ fn io_peek_char() -> Value {
 fn io_write_char() -> Value {
     make_builtin_procedure("write-char", Some(1), |args| {
         check_arity(args, 1)?;
-        
+
         match &args[0] {
             Value::Character(c) => {
                 print!("{}", c);
@@ -89,7 +89,8 @@ fn io_write_char() -> Value {
                 Ok(Value::Undefined)
             }
             _ => Err(LambdustError::type_error(format!(
-                "write-char: expected character, got {}", args[0]
+                "write-char: expected character, got {}",
+                args[0]
             ))),
         }
     })

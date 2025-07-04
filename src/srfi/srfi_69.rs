@@ -801,3 +801,31 @@ pub fn string_ci_hash_impl(args: &[Value]) -> Result<Value> {
         result as i64,
     )))
 }
+
+/// SRFI 69 module implementation
+pub struct Srfi69;
+
+impl crate::srfi::SrfiModule for Srfi69 {
+    fn srfi_id(&self) -> u32 {
+        69
+    }
+
+    fn name(&self) -> &'static str {
+        "Basic Hash Tables"
+    }
+
+    fn parts(&self) -> Vec<&'static str> {
+        vec!["all"] // SRFI 69 doesn't have separate parts
+    }
+
+    fn exports(&self) -> HashMap<String, Value> {
+        let mut exports = HashMap::new();
+        register_srfi_69_functions(&mut exports);
+        exports
+    }
+
+    fn exports_for_parts(&self, _parts: &[&str]) -> Result<HashMap<String, Value>> {
+        // SRFI 69 exports all functions as one unit
+        Ok(self.exports())
+    }
+}

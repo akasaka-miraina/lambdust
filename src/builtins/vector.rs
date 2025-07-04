@@ -36,25 +36,32 @@ fn vector_length() -> Value {
 fn vector_ref() -> Value {
     make_builtin_procedure("vector-ref", Some(2), |args| {
         check_arity(args, 2)?;
-        
+
         let vector = match &args[0] {
             Value::Vector(v) => v,
-            _ => return Err(LambdustError::type_error(format!(
-                "vector-ref: expected vector, got {}", args[0]
-            ))),
+            _ => {
+                return Err(LambdustError::type_error(format!(
+                    "vector-ref: expected vector, got {}",
+                    args[0]
+                )));
+            }
         };
 
         let index = match args[1].as_number() {
             Some(SchemeNumber::Integer(i)) if *i >= 0 => *i as usize,
-            _ => return Err(LambdustError::type_error(format!(
-                "vector-ref: expected non-negative integer, got {}", args[1]
-            ))),
+            _ => {
+                return Err(LambdustError::type_error(format!(
+                    "vector-ref: expected non-negative integer, got {}",
+                    args[1]
+                )));
+            }
         };
 
         if index >= vector.len() {
             return Err(LambdustError::runtime_error(format!(
                 "vector-ref: index {} out of bounds for vector of length {}",
-                index, vector.len()
+                index,
+                vector.len()
             )));
         }
 
@@ -70,9 +77,12 @@ fn vector_make() -> Value {
 
         let length = match args[0].as_number() {
             Some(SchemeNumber::Integer(n)) if *n >= 0 => *n as usize,
-            _ => return Err(LambdustError::type_error(format!(
-                "make-vector: expected non-negative integer, got {}", args[0]
-            ))),
+            _ => {
+                return Err(LambdustError::type_error(format!(
+                    "make-vector: expected non-negative integer, got {}",
+                    args[0]
+                )));
+            }
         };
 
         let fill_value = if args.len() == 2 {
@@ -88,11 +98,12 @@ fn vector_make() -> Value {
 fn vector_to_list() -> Value {
     make_builtin_procedure("vector->list", Some(1), |args| {
         check_arity(args, 1)?;
-        
+
         match &args[0] {
             Value::Vector(v) => Ok(Value::from_vector(v.clone())),
             _ => Err(LambdustError::type_error(format!(
-                "vector->list: expected vector, got {}", args[0]
+                "vector->list: expected vector, got {}",
+                args[0]
             ))),
         }
     })
@@ -101,11 +112,12 @@ fn vector_to_list() -> Value {
 fn list_to_vector() -> Value {
     make_builtin_procedure("list->vector", Some(1), |args| {
         check_arity(args, 1)?;
-        
+
         match args[0].to_vector() {
             Some(vec) => Ok(Value::Vector(vec)),
             None => Err(LambdustError::type_error(format!(
-                "list->vector: expected list, got {}", args[0]
+                "list->vector: expected list, got {}",
+                args[0]
             ))),
         }
     })

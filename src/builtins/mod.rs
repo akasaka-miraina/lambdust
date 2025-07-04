@@ -10,9 +10,7 @@ pub mod list_ops;
 pub mod misc;
 pub mod predicates;
 pub mod srfi;
-pub mod srfi_1;
-pub mod srfi_13;
-pub mod srfi_69;
+// SRFI modules moved to src/srfi/
 pub mod string_char;
 pub mod utils;
 pub mod vector;
@@ -38,9 +36,10 @@ pub fn create_builtins() -> HashMap<String, Value> {
     lazy::register_lazy_functions(&mut builtins);
     misc::register_misc_functions(&mut builtins);
     srfi::register_srfi_functions(&mut builtins);
-    srfi_1::register_srfi_1_functions(&mut builtins);
-    srfi_13::register_srfi_13_functions(&mut builtins);
-    srfi_69::register_srfi_69_functions(&mut builtins);
+    // SRFI functions now handled by module system
+    crate::srfi::srfi_1::register_srfi_1_functions(&mut builtins);
+    crate::srfi::srfi_13::register_srfi_13_functions(&mut builtins);
+    crate::srfi::srfi_69::register_srfi_69_functions(&mut builtins);
 
     builtins
 }

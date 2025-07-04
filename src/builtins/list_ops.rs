@@ -68,9 +68,7 @@ fn list_cons() -> Value {
 }
 
 fn list_list() -> Value {
-    make_builtin_procedure("list", None, |args| {
-        Ok(Value::from_vector(args.to_vec()))
-    })
+    make_builtin_procedure("list", None, |args| Ok(Value::from_vector(args.to_vec())))
 }
 
 fn list_length() -> Value {
@@ -169,7 +167,8 @@ fn list_set_car() -> Value {
                 Ok(args[0].clone())
             }
             _ => Err(LambdustError::type_error(format!(
-                "set-car!: expected pair, got {}", args[0]
+                "set-car!: expected pair, got {}",
+                args[0]
             ))),
         }
     })
@@ -188,7 +187,8 @@ fn list_set_cdr() -> Value {
                 Ok(args[0].clone())
             }
             _ => Err(LambdustError::type_error(format!(
-                "set-cdr!: expected pair, got {}", args[0]
+                "set-cdr!: expected pair, got {}",
+                args[0]
             ))),
         }
     })

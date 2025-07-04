@@ -4,9 +4,12 @@
 //! the standard `(import (srfi <id> [<parts>]))` syntax.
 
 pub mod registry;
+pub mod srfi_1;  // List Library
+pub mod srfi_9;  // Define-record-type
+pub mod srfi_13; // String Libraries
 pub mod srfi_45; // Lazy evaluation
 pub mod srfi_46; // Syntax-rules extensions
-pub mod srfi_9; // Define-record-type
+pub mod srfi_69; // Basic Hash Tables
 pub mod srfi_97; // SRFI Libraries
 
 pub use registry::SrfiRegistry;

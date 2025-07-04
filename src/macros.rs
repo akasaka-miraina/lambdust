@@ -450,6 +450,22 @@ impl Default for MacroExpander {
     }
 }
 
+/// Public helper function for expanding macros by name
+pub fn expand_macro(name: &str, args: &[Expr]) -> Result<Expr> {
+    let _expander = MacroExpander::new();
+    match name {
+        "let" => expand_let(args),
+        "let*" => expand_let_star(args),
+        "letrec" => expand_letrec(args),
+        "case" => expand_case(args),
+        "when" => expand_when(args),
+        "unless" => expand_unless(args),
+        _ => Err(LambdustError::syntax_error(format!(
+            "Unknown macro: {name}"
+        ))),
+    }
+}
+
 // Built-in macro transformers
 
 /// Expand let macro: (let ((var val) ...) body ...) -> ((lambda (var ...) body ...) val ...)

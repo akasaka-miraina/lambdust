@@ -94,7 +94,7 @@ pub mod value;
 
 pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
 pub use error::{LambdustError, Result};
-pub use evaluator::{Evaluator, FormalEvaluator};
+pub use evaluator::{Evaluator, eval_with_formal_semantics};
 pub use module_system::ModuleSystem;
 pub use srfi::SrfiRegistry;
 pub use value::Value;

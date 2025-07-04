@@ -298,3 +298,31 @@ fn every_placeholder(args: &[Value]) -> Result<Value> {
         "every: lambda functions require evaluator integration (not yet implemented)".to_string(),
     ))
 }
+
+/// SRFI 1 module implementation
+pub struct Srfi1;
+
+impl crate::srfi::SrfiModule for Srfi1 {
+    fn srfi_id(&self) -> u32 {
+        1
+    }
+
+    fn name(&self) -> &'static str {
+        "List Library"
+    }
+
+    fn parts(&self) -> Vec<&'static str> {
+        vec!["all"] // SRFI 1 doesn't have separate parts
+    }
+
+    fn exports(&self) -> HashMap<String, Value> {
+        let mut exports = HashMap::new();
+        register_srfi_1_functions(&mut exports);
+        exports
+    }
+
+    fn exports_for_parts(&self, _parts: &[&str]) -> Result<HashMap<String, Value>> {
+        // SRFI 1 exports all functions as one unit
+        Ok(self.exports())
+    }
+}

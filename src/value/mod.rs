@@ -59,5 +59,5 @@ pub enum Value {
     /// Promise values (SRFI 45 - lazy evaluation)
     Promise(Promise),
     /// Hash table values (SRFI 69)
-    HashTable(std::rc::Rc<std::cell::RefCell<crate::builtins::srfi_69::HashTable>>),
+    HashTable(std::rc::Rc<std::cell::RefCell<crate::srfi::srfi_69::HashTable>>),
 }
