@@ -191,6 +191,7 @@ cargo test evaluator_tests
 - [x] 字句解析器実装
 - [x] 構文解析器実装
 - [x] **評価器統合完了**（R7RS形式的意味論準拠CPS評価器に統一・従来evaluator完全削除）
+- [x] **🎯 評価器モジュール化完了（2025年1月）**: 2752行の巨大evaluator.rsを7つの機能別モジュールに分割・可読性と保守性向上
 - [x] 組み込み関数実装（99%完了：103個の標準関数）
 - [x] **例外処理システム完成**（raise, with-exception-handler, guard構文実装）
 - [x] マクロシステム実装（SRFI 9, 45, 46対応）
@@ -203,6 +204,7 @@ cargo test evaluator_tests
 - [x] **パフォーマンス最適化Phase 1**（継続インライン・末尾再帰・スタックオーバーフロー対策）
 - [x] **パフォーマンス最適化Phase 2完了**（Clone依存削減・重複実装排除・メモリ効率改善）
 - [x] **🎯 R7RS最終機能完成（2025年1月）**: doループ・call/cc・guard構文完全実装
+- [x] **🎯 SRFIモジュール統合（2025年1月）**: SRFI 1・13・69をsrc/srfi/ディレクトリに移動・統一SrfiModule trait実装
 
 ### R7RS Small実装完了ステータス（99.8%達成）
 
@@ -447,6 +449,14 @@ cargo test evaluator_tests
 - **評価器統合**: 重複する2つの評価器を単一のR7RS準拠evaluatorに統一 ✅
   - evaluator.rs: 完全統一CPS評価器（レガシーコード完全削除）
   - 例外処理システム統合（raise, with-exception-handler, guard）
+- **🎯 評価器モジュール化**: 2752行の巨大evaluator.rsを7つの機能別モジュールに分割 ✅
+  - src/evaluator/mod.rs: コア評価ロジック・継続適用（556行）
+  - src/evaluator/continuation.rs: 継続データ構造16種類（178行）
+  - src/evaluator/types.rs: 基本型定義・Evaluator構造体（152行）
+  - src/evaluator/special_forms.rs: 特殊形式評価（lambda, if, define等、564行）
+  - src/evaluator/control_flow.rs: 制御フロー（call/cc・例外・do等、622行）
+  - src/evaluator/higher_order.rs: 高階関数の特殊形式版（394行）
+  - src/evaluator/imports.rs: SRFIインポート機能（108行）
 - **モジュール化**: 2663行の巨大builtins.rsを10個の機能別モジュールに分割
   - arithmetic.rs（算術）、list_ops.rs（リスト）、string_char.rs（文字列・文字）
   - vector.rs（ベクタ）、predicates.rs（述語）、io.rs（I/O）
