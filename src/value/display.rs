@@ -59,6 +59,7 @@ impl fmt::Display for Value {
                 Procedure::Builtin { name, .. } => write!(f, "#<builtin {name}>"),
                 Procedure::HostFunction { name, .. } => write!(f, "#<host-function {name}>"),
                 Procedure::Continuation { .. } => write!(f, "#<continuation>"),
+                Procedure::CapturedContinuation { .. } => write!(f, "#<continuation>"),
             },
             Value::Vector(values) => {
                 write!(f, "#(")?;

@@ -42,6 +42,11 @@ pub enum Procedure {
         /// Captured continuation
         continuation: Box<Continuation>,
     },
+    /// Captured continuation from call/cc (evaluator internal)
+    CapturedContinuation {
+        /// Captured evaluator continuation
+        continuation: Box<crate::evaluator::Continuation>,
+    },
 }
 
 impl std::fmt::Debug for Procedure {
@@ -71,6 +76,9 @@ impl std::fmt::Debug for Procedure {
             Self::Continuation { continuation } => f
                 .debug_struct("Continuation")
                 .field("continuation", continuation)
+                .finish(),
+            Self::CapturedContinuation { .. } => f
+                .debug_struct("CapturedContinuation")
                 .finish(),
         }
     }
@@ -124,6 +132,9 @@ impl PartialEq for Procedure {
             ) => l_name == r_name && l_arity == r_arity,
             (Self::Continuation { continuation: _ }, Self::Continuation { continuation: _ }) => {
                 false // Continuations are never equal
+            }
+            (Self::CapturedContinuation { .. }, Self::CapturedContinuation { .. }) => {
+                false // Captured continuations are never equal
             }
             _ => false,
         }

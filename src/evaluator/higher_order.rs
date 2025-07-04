@@ -374,6 +374,16 @@ impl Evaluator {
                     // For now, just return the value directly
                     self.apply_continuation(cont, args[0].clone())
                 }
+                Procedure::CapturedContinuation {
+                    continuation: _captured_cont,
+                } => {
+                    // Apply captured continuation from evaluator
+                    if args.len() != 1 {
+                        return Err(LambdustError::arity_error(1, args.len()));
+                    }
+                    // Return the argument directly (simplified implementation)
+                    self.apply_continuation(cont, args[0].clone())
+                }
                 Procedure::HostFunction { func, arity, .. } => {
                     // Check arity if specified
                     if let Some(expected) = arity {
