@@ -15,12 +15,10 @@ use std::rc::Rc;
 pub struct HashTable {
     /// Internal storage using Rust HashMap
     table: HashMap<HashKey, Value>,
-    /// Equality predicate for keys (placeholder for future evaluator integration)
-    #[allow(dead_code)]
-    equality_predicate: Option<String>,
-    /// Hash function for keys (placeholder for future evaluator integration)  
-    #[allow(dead_code)]
-    hash_function: Option<String>,
+    /// Equality predicate for keys (evaluator integration ready)
+    equality_predicate: Option<Value>,
+    /// Hash function for keys (evaluator integration ready)
+    hash_function: Option<Value>,
 }
 
 /// Hash key wrapper to enable using Scheme values as hash keys
@@ -92,7 +90,7 @@ impl HashTable {
     }
 
     /// Create a new hash table with custom equality and hash functions
-    pub fn with_functions(equality: Option<String>, hash: Option<String>) -> Self {
+    pub fn with_functions(equality: Option<Value>, hash: Option<Value>) -> Self {
         Self {
             table: HashMap::new(),
             equality_predicate: equality,
@@ -150,6 +148,16 @@ impl HashTable {
     /// Clear all entries
     pub fn clear(&mut self) {
         self.table.clear();
+    }
+
+    /// Iterate over all key-value pairs
+    pub fn iter(&self) -> impl Iterator<Item = (&HashKey, &Value)> {
+        self.table.iter()
+    }
+
+    /// Insert a key-value pair (for merge operations)
+    pub fn insert_raw(&mut self, key: HashKey, value: Value) {
+        self.table.insert(key, value);
     }
 
     /// Get all key-value pairs as an association list
@@ -235,15 +243,15 @@ pub fn make_hash_table(args: &[Value]) -> Result<Value> {
     let equality = if args.is_empty() {
         None
     } else {
-        // For now, we'll store the function name as a string
-        // In a full implementation, this would be a procedure reference
-        Some("equal?".to_string())
+        // Store the actual procedure value for equality predicate
+        Some(args[0].clone())
     };
 
     let hash_func = if args.len() < 2 {
         None
     } else {
-        Some("hash".to_string())
+        // Store the actual procedure value for hash function
+        Some(args[1].clone())
     };
 
     let hash_table = HashTable::with_functions(equality, hash_func);
@@ -610,42 +618,30 @@ pub fn hash_table_copy(args: &[Value]) -> Result<Value> {
 
 // Placeholder functions for operations that need evaluator integration
 
-/// Create hash-table-walk function (placeholder)
+/// Create hash-table-walk function
 fn hash_table_walk_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "hash-table-walk".to_string(),
         arity: Some(2),
-        func: |_args| {
-            Err(LambdustError::runtime_error(
-                "hash-table-walk requires evaluator integration for procedure calls".to_string(),
-            ))
-        },
+        func: hash_table_walk,
     })
 }
 
-/// Create hash-table-fold function (placeholder)
+/// Create hash-table-fold function
 fn hash_table_fold_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "hash-table-fold".to_string(),
         arity: Some(3),
-        func: |_args| {
-            Err(LambdustError::runtime_error(
-                "hash-table-fold requires evaluator integration for procedure calls".to_string(),
-            ))
-        },
+        func: hash_table_fold,
     })
 }
 
-/// Create hash-table-merge! function (placeholder)
+/// Create hash-table-merge! function
 fn hash_table_merge_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "hash-table-merge!".to_string(),
-        arity: None,
-        func: |_args| {
-            Err(LambdustError::runtime_error(
-                "hash-table-merge! not yet implemented".to_string(),
-            ))
-        },
+        arity: None, // Variable arity, at least 1
+        func: hash_table_merge,
     })
 }
 
@@ -829,8 +825,187 @@ impl crate::srfi::SrfiModule for Srfi69 {
         exports
     }
 
-    fn exports_for_parts(&self, _parts: &[&str]) -> Result<HashMap<String, Value>> {
-        // SRFI 69 exports all functions as one unit
-        Ok(self.exports())
+    fn exports_for_parts(&self, parts: &[&str]) -> Result<HashMap<String, Value>> {
+        if parts.contains(&"all") {
+            return Ok(self.exports());
+        }
+
+        let all_exports = self.exports();
+        let mut filtered = HashMap::new();
+
+        for part in parts {
+            match *part {
+                "constructors" => {
+                    // Hash table constructors
+                    for name in &["make-hash-table"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "accessors" => {
+                    // Hash table accessors
+                    for name in &["hash-table-ref", "hash-table-set!", "hash-table-delete!", 
+                                 "hash-table-exists?", "hash-table-size"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "predicates" => {
+                    // Hash table predicates
+                    for name in &["hash-table?", "hash-table-exists?"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "conversion" => {
+                    // Conversion functions
+                    for name in &["hash-table->alist", "alist->hash-table", "hash-table-copy",
+                                 "hash-table-keys", "hash-table-values"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "hash-functions" => {
+                    // Hash functions
+                    for name in &["hash", "string-hash", "string-ci-hash"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "higher-order" => {
+                    // Higher-order functions (placeholder for future implementation)
+                    for name in &["hash-table-walk", "hash-table-fold", "hash-table-merge!"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                // Individual function names
+                name if all_exports.contains_key(name) => {
+                    if let Some(value) = all_exports.get(name) {
+                        filtered.insert(name.to_string(), value.clone());
+                    }
+                }
+                _ => {
+                    return Err(LambdustError::runtime_error(format!(
+                        "SRFI 69: unknown part '{}'", part
+                    )));
+                }
+            }
+        }
+
+        Ok(filtered)
     }
+}
+
+/// Hash-table-walk - apply procedure to all key-value pairs (builtin version)
+/// Note: This is a placeholder. Full functionality is available as a special form.
+pub fn hash_table_walk(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(LambdustError::arity_error(2, args.len()));
+    }
+
+    let hash_table = match &args[0] {
+        Value::HashTable(ht) => ht,
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
+    };
+
+    let proc = &args[1];
+
+    // Basic implementation for builtin procedures only
+    if let Value::Procedure(crate::value::Procedure::Builtin { func, .. }) = proc {
+        let ht = hash_table.borrow();
+        for (key, value) in ht.iter() {
+            let key_value = key.to_value();
+            let call_args = vec![key_value, value.clone()];
+            func(&call_args)?;
+        }
+        Ok(Value::Undefined)
+    } else {
+        Err(LambdustError::runtime_error(
+            "hash-table-walk: lambda procedures require evaluator integration (use as special form)".to_string(),
+        ))
+    }
+}
+
+/// Hash-table-fold - fold over all key-value pairs (builtin version)
+/// Note: This is a placeholder. Full functionality is available as a special form.
+pub fn hash_table_fold(args: &[Value]) -> Result<Value> {
+    if args.len() != 3 {
+        return Err(LambdustError::arity_error(3, args.len()));
+    }
+
+    let hash_table = match &args[0] {
+        Value::HashTable(ht) => ht,
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
+    };
+
+    let proc = &args[1];
+    let mut accumulator = args[2].clone();
+
+    // Basic implementation for builtin procedures only
+    if let Value::Procedure(crate::value::Procedure::Builtin { func, .. }) = proc {
+        let ht = hash_table.borrow();
+        for (key, value) in ht.iter() {
+            let key_value = key.to_value();
+            let call_args = vec![key_value, value.clone(), accumulator];
+            accumulator = func(&call_args)?;
+        }
+        Ok(accumulator)
+    } else {
+        Err(LambdustError::runtime_error(
+            "hash-table-fold: lambda procedures require evaluator integration (use as special form)".to_string(),
+        ))
+    }
+}
+
+/// Hash-table-merge! - merge multiple hash tables
+pub fn hash_table_merge(args: &[Value]) -> Result<Value> {
+    if args.is_empty() {
+        return Err(LambdustError::arity_error(1, args.len()));
+    }
+
+    let target_table = match &args[0] {
+        Value::HashTable(ht) => ht,
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
+    };
+
+    // Merge all source tables into the target
+    for source_arg in &args[1..] {
+        let source_table = match source_arg {
+            Value::HashTable(ht) => ht,
+            _ => {
+                return Err(LambdustError::type_error(
+                    "All arguments must be hash tables".to_string(),
+                ));
+            }
+        };
+
+        let source = source_table.borrow();
+        let mut target = target_table.borrow_mut();
+
+        // Copy all entries from source to target
+        for (key, value) in source.iter() {
+            target.insert_raw(key.clone(), value.clone());
+        }
+    }
+
+    Ok(Value::Undefined)
 }

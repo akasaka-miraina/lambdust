@@ -73,14 +73,14 @@ fn test_srfi_46_ellipsis_count() {
 
     // Test ellipsis variable
     let ellipsis_var = Expr::Variable("...".to_string());
-    assert_eq!(expander.count_ellipsis_level(&ellipsis_var), 1);
+    assert_eq!(MacroExpander::count_ellipsis_level(&ellipsis_var), 1);
 
     // Test nested ellipsis in list
     let nested = Expr::List(vec![
         Expr::Variable("...".to_string()),
         Expr::List(vec![Expr::Variable("...".to_string())]),
     ]);
-    assert_eq!(expander.count_ellipsis_level(&nested), 1);
+    assert_eq!(MacroExpander::count_ellipsis_level(&nested), 1);
 }
 
 #[test]

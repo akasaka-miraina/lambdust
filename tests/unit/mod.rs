@@ -8,6 +8,7 @@
 pub mod ast_tests;
 pub mod bridge_tests;
 pub mod environment_tests;
+pub mod evaluator;
 pub mod evaluator_tests;
 pub mod evaluator_import_tests;
 pub mod host_tests;

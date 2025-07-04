@@ -48,6 +48,17 @@ impl Evaluator {
             "fold" => self.eval_fold_special_form(operands, env, cont),
             "fold-right" => self.eval_fold_right_special_form(operands, env, cont),
             "filter" => self.eval_filter_special_form(operands, env, cont),
+            // Hash table higher-order functions
+            "hash-table-walk" => self.eval_hash_table_walk_special_form(operands, env, cont),
+            "hash-table-fold" => self.eval_hash_table_fold_special_form(operands, env, cont),
+            // Store system memory management
+            "memory-usage" => self.eval_memory_usage_special_form(operands, env, cont),
+            "memory-statistics" => self.eval_memory_statistics_special_form(operands, env, cont),
+            "collect-garbage" => self.eval_collect_garbage_special_form(operands, env, cont),
+            "set-memory-limit!" => self.eval_set_memory_limit_special_form(operands, env, cont),
+            "allocate-location" => self.eval_allocate_location_special_form(operands, env, cont),
+            "location-ref" => self.eval_location_ref_special_form(operands, env, cont),
+            "location-set!" => self.eval_location_set_special_form(operands, env, cont),
             // Import functionality
             "import" => self.eval_import(operands, env, cont),
             _ => {
@@ -416,7 +427,8 @@ impl Evaluator {
     }
 
     /// Apply special form continuations (delegated from main apply_continuation)
-    pub fn apply_special_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
+    /// Apply special form continuations (called from mod.rs)
+    pub fn apply_special_form_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
         match cont {
             Continuation::IfTest {
                 consequent,
@@ -461,7 +473,7 @@ impl Evaluator {
                 env,
                 parent,
             } => self.apply_or_continuation(value, remaining, env, *parent),
-            // Delegate other continuations
+            // Delegate other continuations back to control flow
             _ => self.apply_control_flow_continuation(cont, value),
         }
     }

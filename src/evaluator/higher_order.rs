@@ -391,4 +391,324 @@ impl Evaluator {
             )),
         }
     }
+
+    /// Evaluate hash-table-walk as special form
+    pub fn eval_hash_table_walk_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        let table_expr = operands[0].clone();
+        let proc_expr = operands[1].clone();
+
+        // Evaluate hash table
+        let table_value = self.eval(table_expr, env.clone(), Continuation::Identity)?;
+        let hash_table = match &table_value {
+            Value::HashTable(ht) => ht,
+            _ => {
+                return Err(LambdustError::type_error(
+                    "hash-table-walk: first argument must be a hash table".to_string(),
+                ));
+            }
+        };
+
+        // Evaluate procedure
+        let proc_value = self.eval(proc_expr, env.clone(), Continuation::Identity)?;
+
+        // Apply procedure to each key-value pair
+        let ht = hash_table.borrow();
+        for (key, value) in ht.iter() {
+            let key_value = key.to_value();
+            let call_args = vec![key_value, value.clone()];
+            
+            // Apply procedure to key-value pair
+            self.apply_procedure_with_evaluator(
+                proc_value.clone(),
+                call_args,
+                env.clone(),
+                Continuation::Identity,
+            )?;
+        }
+
+        self.apply_continuation(cont, Value::Undefined)
+    }
+
+    /// Evaluate hash-table-fold as special form
+    pub fn eval_hash_table_fold_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 3 {
+            return Err(LambdustError::arity_error(3, operands.len()));
+        }
+
+        let table_expr = operands[0].clone();
+        let proc_expr = operands[1].clone();
+        let init_expr = operands[2].clone();
+
+        // Evaluate hash table
+        let table_value = self.eval(table_expr, env.clone(), Continuation::Identity)?;
+        let hash_table = match &table_value {
+            Value::HashTable(ht) => ht,
+            _ => {
+                return Err(LambdustError::type_error(
+                    "hash-table-fold: first argument must be a hash table".to_string(),
+                ));
+            }
+        };
+
+        // Evaluate procedure
+        let proc_value = self.eval(proc_expr, env.clone(), Continuation::Identity)?;
+
+        // Evaluate initial value
+        let mut accumulator = self.eval(init_expr, env.clone(), Continuation::Identity)?;
+
+        // Fold over each key-value pair
+        let ht = hash_table.borrow();
+        for (key, value) in ht.iter() {
+            let key_value = key.to_value();
+            let call_args = vec![key_value, value.clone(), accumulator];
+            
+            // Apply procedure to key, value, and accumulator
+            accumulator = self.apply_procedure_with_evaluator(
+                proc_value.clone(),
+                call_args,
+                env.clone(),
+                Continuation::Identity,
+            )?;
+        }
+
+        self.apply_continuation(cont, accumulator)
+    }
+
+    /// Evaluate memory-usage as special form
+    pub fn eval_memory_usage_special_form(
+        &mut self,
+        operands: &[Expr],
+        _env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if !operands.is_empty() {
+            return Err(LambdustError::arity_error(0, operands.len()));
+        }
+
+        let usage = self.memory_usage();
+        let result = Value::Number(crate::lexer::SchemeNumber::Integer(usage as i64));
+        self.apply_continuation(cont, result)
+    }
+
+    /// Evaluate memory-statistics as special form
+    pub fn eval_memory_statistics_special_form(
+        &mut self,
+        operands: &[Expr],
+        _env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if !operands.is_empty() {
+            return Err(LambdustError::arity_error(0, operands.len()));
+        }
+
+        let stats = self.store_statistics();
+        
+        // Create association list with statistics (universal across store types)
+        let mut stats_pairs = vec![
+            Value::cons(
+                Value::Symbol("total-allocations".to_string()),
+                Value::Number(crate::lexer::SchemeNumber::Integer(stats.total_allocations() as i64)),
+            ),
+            Value::cons(
+                Value::Symbol("total-deallocations".to_string()),
+                Value::Number(crate::lexer::SchemeNumber::Integer(stats.total_deallocations() as i64)),
+            ),
+            Value::cons(
+                Value::Symbol("memory-usage".to_string()),
+                Value::Number(crate::lexer::SchemeNumber::Integer(stats.memory_usage() as i64)),
+            ),
+            Value::cons(
+                Value::Symbol("current-memory-usage".to_string()),
+                Value::Number(crate::lexer::SchemeNumber::Integer(self.memory_usage() as i64)),
+            ),
+        ];
+        
+        // Add store-type-specific statistics
+        match &stats {
+            crate::evaluator::types::StoreStatisticsWrapper::Traditional(traditional_stats) => {
+                stats_pairs.push(Value::cons(
+                    Value::Symbol("gc-cycles".to_string()),
+                    Value::Number(crate::lexer::SchemeNumber::Integer(traditional_stats.gc_cycles as i64)),
+                ));
+                if let Ok(store) = self.store() {
+                    stats_pairs.push(Value::cons(
+                        Value::Symbol("location-count".to_string()),
+                        Value::Number(crate::lexer::SchemeNumber::Integer(store.location_count() as i64)),
+                    ));
+                }
+                stats_pairs.push(Value::cons(
+                    Value::Symbol("store-type".to_string()),
+                    Value::Symbol("traditional-gc".to_string()),
+                ));
+            }
+            #[cfg(feature = "raii-store")]
+            crate::evaluator::types::StoreStatisticsWrapper::Raii(raii_stats) => {
+                stats_pairs.push(Value::cons(
+                    Value::Symbol("active-locations".to_string()),
+                    Value::Number(crate::lexer::SchemeNumber::Integer(raii_stats.active_locations as i64)),
+                ));
+                stats_pairs.push(Value::cons(
+                    Value::Symbol("peak-active-locations".to_string()),
+                    Value::Number(crate::lexer::SchemeNumber::Integer(raii_stats.peak_active_locations as i64)),
+                ));
+                stats_pairs.push(Value::cons(
+                    Value::Symbol("auto-cleanup-events".to_string()),
+                    Value::Number(crate::lexer::SchemeNumber::Integer(raii_stats.auto_cleanup_events as i64)),
+                ));
+                stats_pairs.push(Value::cons(
+                    Value::Symbol("store-type".to_string()),
+                    Value::Symbol("raii".to_string()),
+                ));
+            }
+        }
+        
+        let result = Value::from_vector(stats_pairs);
+        self.apply_continuation(cont, result)
+    }
+
+    /// Evaluate collect-garbage as special form
+    pub fn eval_collect_garbage_special_form(
+        &mut self,
+        operands: &[Expr],
+        _env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if !operands.is_empty() {
+            return Err(LambdustError::arity_error(0, operands.len()));
+        }
+
+        self.collect_garbage();
+        self.apply_continuation(cont, Value::Undefined)
+    }
+
+    /// Evaluate set-memory-limit! as special form
+    pub fn eval_set_memory_limit_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        let limit_expr = operands[0].clone();
+        let limit_value = self.eval(limit_expr, env.clone(), Continuation::Identity)?;
+        
+        let limit = match &limit_value {
+            Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
+            Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as usize,
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Memory limit must be an integer".to_string(),
+                ));
+            }
+        };
+
+        self.set_memory_limit(limit);
+        self.apply_continuation(cont, Value::Undefined)
+    }
+
+    /// Evaluate allocate-location as special form
+    pub fn eval_allocate_location_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        let value_expr = operands[0].clone();
+        let value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
+        
+        let _location_handle = self.allocate(value)?;
+        // For now, return the location handle's ID as a number
+        // In a full implementation, we'd need a Location value type
+        let location_id = _location_handle.id();
+        let result = Value::Number(crate::lexer::SchemeNumber::Integer(location_id as i64));
+        self.apply_continuation(cont, result)
+    }
+
+    /// Evaluate location-ref as special form
+    pub fn eval_location_ref_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        let location_expr = operands[0].clone();
+        let location_value = self.eval(location_expr, env.clone(), Continuation::Identity)?;
+        
+        let location_id = match &location_value {
+            Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Location reference must be an integer".to_string(),
+                ));
+            }
+        };
+
+        let location = crate::evaluator::types::Location::new(location_id);
+        
+        if let Some(value) = self.store_get(location) {
+            self.apply_continuation(cont, value.clone())
+        } else {
+            Err(LambdustError::runtime_error(format!(
+                "Invalid location: {}",
+                location
+            )))
+        }
+    }
+
+    /// Evaluate location-set! as special form
+    pub fn eval_location_set_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        let location_expr = operands[0].clone();
+        let value_expr = operands[1].clone();
+        
+        let location_value = self.eval(location_expr, env.clone(), Continuation::Identity)?;
+        let new_value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
+        
+        let location_id = match &location_value {
+            Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Location reference must be an integer".to_string(),
+                ));
+            }
+        };
+
+        let location = crate::evaluator::types::Location::new(location_id);
+        self.store_set(location, new_value)?;
+        
+        self.apply_continuation(cont, Value::Undefined)
+    }
 }

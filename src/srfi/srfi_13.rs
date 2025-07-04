@@ -968,8 +968,72 @@ impl crate::srfi::SrfiModule for Srfi13 {
         exports
     }
 
-    fn exports_for_parts(&self, _parts: &[&str]) -> Result<HashMap<String, Value>> {
-        // SRFI 13 exports all functions as one unit
-        Ok(self.exports())
+    fn exports_for_parts(&self, parts: &[&str]) -> Result<HashMap<String, Value>> {
+        if parts.contains(&"all") {
+            return Ok(self.exports());
+        }
+
+        let all_exports = self.exports();
+        let mut filtered = HashMap::new();
+
+        for part in parts {
+            match *part {
+                "predicates" => {
+                    // String predicate functions
+                    for name in &["string-null?", "string-prefix?", "string-suffix?", 
+                                 "string-prefix-ci?", "string-suffix-ci?"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "search" => {
+                    // String search functions
+                    for name in &["string-contains", "string-contains-ci"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "manipulation" => {
+                    // String manipulation functions
+                    for name in &["string-take", "string-drop", "string-take-right", 
+                                 "string-drop-right", "string-concatenate"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "hash" => {
+                    // Hash functions
+                    for name in &["string-hash", "string-hash-ci"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "higher-order" => {
+                    // Higher-order functions (placeholder for future implementation)
+                    for name in &["string-every", "string-any"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                // Individual function names
+                name if all_exports.contains_key(name) => {
+                    if let Some(value) = all_exports.get(name) {
+                        filtered.insert(name.to_string(), value.clone());
+                    }
+                }
+                _ => {
+                    return Err(LambdustError::runtime_error(format!(
+                        "SRFI 13: unknown part '{}'", part
+                    )));
+                }
+            }
+        }
+
+        Ok(filtered)
     }
 }

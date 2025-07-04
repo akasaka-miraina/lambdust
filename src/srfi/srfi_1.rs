@@ -24,6 +24,11 @@ pub fn register_srfi_1_functions(builtins: &mut HashMap<String, Value>) {
 
     // Note: fold, fold-right, filter are now handled as special forms in the evaluator
     // for full lambda integration support
+    // For SRFI import compatibility, we also register placeholder builtin versions
+    builtins.insert("fold".to_string(), fold_placeholder_function());
+    builtins.insert("fold-right".to_string(), fold_right_placeholder_function());
+    builtins.insert("map".to_string(), map_placeholder_function());
+    builtins.insert("filter".to_string(), filter_placeholder_function());
 
     builtins.insert("find".to_string(), find_function());
     builtins.insert("any".to_string(), any_function());
@@ -299,6 +304,90 @@ fn every_placeholder(args: &[Value]) -> Result<Value> {
     ))
 }
 
+/// Create fold placeholder function
+fn fold_placeholder_function() -> Value {
+    Value::Procedure(Procedure::Builtin {
+        name: "fold".to_string(),
+        arity: Some(3),
+        func: fold_placeholder,
+    })
+}
+
+/// Create fold-right placeholder function  
+fn fold_right_placeholder_function() -> Value {
+    Value::Procedure(Procedure::Builtin {
+        name: "fold-right".to_string(),
+        arity: Some(3),
+        func: fold_right_placeholder,
+    })
+}
+
+/// Create map placeholder function
+fn map_placeholder_function() -> Value {
+    Value::Procedure(Procedure::Builtin {
+        name: "map".to_string(),
+        arity: None, // Variable arity
+        func: map_placeholder,
+    })
+}
+
+/// Create filter placeholder function
+fn filter_placeholder_function() -> Value {
+    Value::Procedure(Procedure::Builtin {
+        name: "filter".to_string(),
+        arity: Some(2),
+        func: filter_placeholder,
+    })
+}
+
+/// Placeholder implementation for fold
+/// TODO: Implement proper evaluator integration for lambda support
+fn fold_placeholder(args: &[Value]) -> Result<Value> {
+    if args.len() != 3 {
+        return Err(LambdustError::arity_error(3, args.len()));
+    }
+
+    Err(LambdustError::runtime_error(
+        "fold: lambda functions require evaluator integration (not yet implemented)".to_string(),
+    ))
+}
+
+/// Placeholder implementation for fold-right
+/// TODO: Implement proper evaluator integration for lambda support
+fn fold_right_placeholder(args: &[Value]) -> Result<Value> {
+    if args.len() != 3 {
+        return Err(LambdustError::arity_error(3, args.len()));
+    }
+
+    Err(LambdustError::runtime_error(
+        "fold-right: lambda functions require evaluator integration (not yet implemented)".to_string(),
+    ))
+}
+
+/// Placeholder implementation for map
+/// TODO: Implement proper evaluator integration for lambda support
+fn map_placeholder(args: &[Value]) -> Result<Value> {
+    if args.len() < 2 {
+        return Err(LambdustError::arity_error(2, args.len()));
+    }
+
+    Err(LambdustError::runtime_error(
+        "map: lambda functions require evaluator integration (not yet implemented)".to_string(),
+    ))
+}
+
+/// Placeholder implementation for filter
+/// TODO: Implement proper evaluator integration for lambda support
+fn filter_placeholder(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(LambdustError::arity_error(2, args.len()));
+    }
+
+    Err(LambdustError::runtime_error(
+        "filter: lambda functions require evaluator integration (not yet implemented)".to_string(),
+    ))
+}
+
 /// SRFI 1 module implementation
 pub struct Srfi1;
 
@@ -321,8 +410,67 @@ impl crate::srfi::SrfiModule for Srfi1 {
         exports
     }
 
-    fn exports_for_parts(&self, _parts: &[&str]) -> Result<HashMap<String, Value>> {
-        // SRFI 1 exports all functions as one unit
-        Ok(self.exports())
+    fn exports_for_parts(&self, parts: &[&str]) -> Result<HashMap<String, Value>> {
+        if parts.contains(&"all") {
+            return Ok(self.exports());
+        }
+
+        let all_exports = self.exports();
+        let mut filtered = HashMap::new();
+
+        for part in parts {
+            match *part {
+                "fold" => {
+                    // Fold operations
+                    if let Some(value) = all_exports.get("fold") {
+                        filtered.insert("fold".to_string(), value.clone());
+                    }
+                    if let Some(value) = all_exports.get("fold-right") {
+                        filtered.insert("fold-right".to_string(), value.clone());
+                    }
+                }
+                "map" => {
+                    // Map operation
+                    if let Some(value) = all_exports.get("map") {
+                        filtered.insert("map".to_string(), value.clone());
+                    }
+                }
+                "filter" => {
+                    // Filter operation
+                    if let Some(value) = all_exports.get("filter") {
+                        filtered.insert("filter".to_string(), value.clone());
+                    }
+                }
+                "list-lib" => {
+                    // List manipulation functions
+                    for name in &["take", "drop", "concatenate", "delete-duplicates"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                "higher-order" => {
+                    // Higher-order functions
+                    for name in &["fold", "fold-right", "map", "filter", "find", "any", "every"] {
+                        if let Some(value) = all_exports.get(*name) {
+                            filtered.insert(name.to_string(), value.clone());
+                        }
+                    }
+                }
+                // Individual function names
+                name if all_exports.contains_key(name) => {
+                    if let Some(value) = all_exports.get(name) {
+                        filtered.insert(name.to_string(), value.clone());
+                    }
+                }
+                _ => {
+                    return Err(LambdustError::runtime_error(format!(
+                        "SRFI 1: unknown part '{}'", part
+                    )));
+                }
+            }
+        }
+
+        Ok(filtered)
     }
 }

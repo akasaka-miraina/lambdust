@@ -78,13 +78,18 @@ impl Evaluator {
             }
         };
 
-        // Parse optional parts specification (simplified for now)
-        let parts: Vec<&str> = vec!["all"];
+        // Parse optional parts specification
+        let parts = if srfi_parts.len() > 1 {
+            self.parse_import_parts(&srfi_parts[1..])?
+        } else {
+            vec!["all".to_string()]
+        };
 
         // Get exports from SRFI registry
         let exports = {
             let registry = self.srfi_registry_mut();
-            registry.get_exports_for_parts(srfi_number, &parts)?
+            let parts_refs: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
+            registry.get_exports_for_parts(srfi_number, &parts_refs)?
         };
 
         // Import functions into environment
@@ -96,10 +101,28 @@ impl Evaluator {
     }
 
     /// Parse import parts specification
-    #[allow(dead_code)]
-    fn parse_import_parts(&self, _parts_exprs: &[Expr]) -> Result<Vec<&str>> {
-        // For now, just support "all" 
-        // In a full implementation, this would parse specific part names
-        Ok(vec!["all"])
+    fn parse_import_parts(&self, parts_exprs: &[Expr]) -> Result<Vec<String>> {
+        let mut parts = Vec::new();
+        
+        for part_expr in parts_exprs {
+            match part_expr {
+                Expr::Variable(name) => {
+                    parts.push(name.clone());
+                }
+                _ => {
+                    return Err(LambdustError::syntax_error(
+                        "import: part names must be symbols".to_string(),
+                    ));
+                }
+            }
+        }
+        
+        if parts.is_empty() {
+            return Err(LambdustError::syntax_error(
+                "import: at least one part name required".to_string(),
+            ));
+        }
+        
+        Ok(parts)
     }
 }

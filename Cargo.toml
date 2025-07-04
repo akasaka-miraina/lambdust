@@ -58,3 +58,6 @@ no-std = []
 repl = ["dep:rustyline", "dep:clap"]
 debugger = []
 profiler = []
+
+# Memory management options
+raii-store = []  # RAII-based memory management (alternative to traditional GC)

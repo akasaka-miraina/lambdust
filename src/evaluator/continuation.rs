@@ -11,12 +11,88 @@ use std::rc::Rc;
 /// Dynamic point for dynamic-wind semantics
 #[derive(Debug, Clone)]
 pub struct DynamicPoint {
-    /// Before thunk
+    /// Before thunk (procedure to call on entry)
     pub before: Option<Value>,
-    /// After thunk
+    /// After thunk (procedure to call on exit)
     pub after: Option<Value>,
     /// Parent dynamic point
     pub parent: Option<Box<DynamicPoint>>,
+    /// Unique identifier for this dynamic point
+    pub id: usize,
+    /// Whether this dynamic point is active
+    pub active: bool,
+}
+
+impl DynamicPoint {
+    /// Create a new dynamic point
+    pub fn new(
+        before: Option<Value>,
+        after: Option<Value>,
+        parent: Option<Box<DynamicPoint>>,
+        id: usize,
+    ) -> Self {
+        DynamicPoint {
+            before,
+            after,
+            parent,
+            id,
+            active: true,
+        }
+    }
+
+    /// Mark this dynamic point as inactive
+    pub fn deactivate(&mut self) {
+        self.active = false;
+    }
+
+    /// Check if this dynamic point is active
+    pub fn is_active(&self) -> bool {
+        self.active
+    }
+
+    /// Get the depth of this dynamic point
+    pub fn depth(&self) -> usize {
+        match &self.parent {
+            Some(parent) => parent.depth() + 1,
+            None => 0,
+        }
+    }
+
+    /// Find the common ancestor with another dynamic point
+    pub fn common_ancestor(&self, other: &DynamicPoint) -> Option<usize> {
+        let mut self_path = Vec::new();
+        let mut current = Some(self);
+        
+        // Collect path from self to root
+        while let Some(point) = current {
+            self_path.push(point.id);
+            current = point.parent.as_ref().map(|p| p.as_ref());
+        }
+        
+        // Check if other's path intersects with self's path
+        let mut other_current = Some(other);
+        while let Some(point) = other_current {
+            if self_path.contains(&point.id) {
+                return Some(point.id);
+            }
+            other_current = point.parent.as_ref().map(|p| p.as_ref());
+        }
+        
+        None
+    }
+
+    /// Get all dynamic points from this to root
+    pub fn path_to_root(&self) -> Vec<usize> {
+        let mut path = Vec::new();
+        let mut current = Some(self);
+        
+        while let Some(point) = current {
+            path.push(point.id);
+            current = point.parent.as_ref().map(|p| p.as_ref());
+        }
+        
+        path
+    }
 }
 
 /// Continuation representation following R7RS semantics
@@ -197,6 +273,15 @@ pub enum Continuation {
         remaining_elements: Vec<Expr>,
         /// Environment for evaluation
         env: Rc<Environment>,
+        /// Parent continuation
+        parent: Box<Continuation>,
+    },
+    /// Dynamic-wind continuation (for after thunk execution)
+    DynamicWind {
+        /// After thunk to execute when unwinding
+        after_thunk: Value,
+        /// ID of the dynamic point
+        dynamic_point_id: usize,
         /// Parent continuation
         parent: Box<Continuation>,
     },

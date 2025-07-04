@@ -263,3 +263,131 @@ fn test_import_error_cases() {
     
     assert!(result.is_err());
 }
+
+#[test]
+fn test_import_partial_srfi_1() {
+    let mut evaluator = Evaluator::new();
+    
+    // Test (import (srfi 1 fold map))
+    let import_expr = Expr::List(vec![
+        Expr::Variable("import".to_string()),
+        Expr::List(vec![
+            Expr::Variable("srfi".to_string()),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+            Expr::Variable("fold".to_string()),
+            Expr::Variable("map".to_string()),
+        ]),
+    ]);
+    
+    let result = evaluator.eval(
+        import_expr,
+        evaluator.global_env.clone(),
+        Continuation::Identity,
+    );
+    
+    assert!(result.is_ok());
+    
+    // Test that fold is available
+    let fold_expr = Expr::List(vec![
+        Expr::Variable("fold".to_string()),
+        Expr::Variable("+".to_string()),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
+        Expr::List(vec![
+            Expr::Variable("quote".to_string()),
+            Expr::List(vec![
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
+            ]),
+        ]),
+    ]);
+    
+    let result = evaluator.eval(
+        fold_expr,
+        evaluator.global_env.clone(),
+        Continuation::Identity,
+    );
+    
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), Value::Number(SchemeNumber::Integer(3)));
+}
+
+#[test]
+fn test_import_partial_srfi_13() {
+    let mut evaluator = Evaluator::new();
+    
+    // Test (import (srfi 13 predicates))
+    let import_expr = Expr::List(vec![
+        Expr::Variable("import".to_string()),
+        Expr::List(vec![
+            Expr::Variable("srfi".to_string()),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(13))),
+            Expr::Variable("predicates".to_string()),
+        ]),
+    ]);
+    
+    let result = evaluator.eval(
+        import_expr,
+        evaluator.global_env.clone(),
+        Continuation::Identity,
+    );
+    
+    assert!(result.is_ok());
+    
+    // Test that string-null? is available
+    let string_null_expr = Expr::List(vec![
+        Expr::Variable("string-null?".to_string()),
+        Expr::Literal(Literal::String("".to_string())),
+    ]);
+    
+    let result = evaluator.eval(
+        string_null_expr,
+        evaluator.global_env.clone(),
+        Continuation::Identity,
+    );
+    
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), Value::Boolean(true));
+}
+
+#[test]
+fn test_import_partial_srfi_69() {
+    let mut evaluator = Evaluator::new();
+    
+    // Test (import (srfi 69 constructors accessors))
+    let import_expr = Expr::List(vec![
+        Expr::Variable("import".to_string()),
+        Expr::List(vec![
+            Expr::Variable("srfi".to_string()),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(69))),
+            Expr::Variable("constructors".to_string()),
+            Expr::Variable("accessors".to_string()),
+        ]),
+    ]);
+    
+    let result = evaluator.eval(
+        import_expr,
+        evaluator.global_env.clone(),
+        Continuation::Identity,
+    );
+    
+    assert!(result.is_ok());
+    
+    // Test that make-hash-table is available
+    let make_hash_expr = Expr::List(vec![
+        Expr::Variable("make-hash-table".to_string()),
+    ]);
+    
+    let result = evaluator.eval(
+        make_hash_expr,
+        evaluator.global_env.clone(),
+        Continuation::Identity,
+    );
+    
+    assert!(result.is_ok());
+    
+    // Check that result is a hash table
+    match result.unwrap() {
+        Value::HashTable(_) => (), // Success
+        _ => panic!("Expected hash table result"),
+    }
+}

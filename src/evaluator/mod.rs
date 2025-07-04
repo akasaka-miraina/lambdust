@@ -7,6 +7,8 @@ pub mod continuation;
 pub mod control_flow;
 pub mod higher_order;
 pub mod imports;
+#[cfg(feature = "raii-store")]
+pub mod raii_store;
 pub mod special_forms;
 pub mod types;
 
@@ -180,6 +182,15 @@ impl Evaluator {
                 | "fold"
                 | "fold-right"
                 | "filter"
+                | "hash-table-walk"
+                | "hash-table-fold"
+                | "memory-usage"
+                | "memory-statistics"
+                | "collect-garbage"
+                | "set-memory-limit!"
+                | "allocate-location"
+                | "location-ref"
+                | "location-set!"
                 | "import"
         )
     }
@@ -503,6 +514,24 @@ impl Evaluator {
             _ => Err(LambdustError::type_error(
                 "Cannot apply non-procedure".to_string(),
             )),
+        }
+    }
+
+    /// Apply special continuations (delegates to appropriate modules)
+    fn apply_special_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
+        // Try special form continuations first
+        match &cont {
+            Continuation::IfTest { .. }
+            | Continuation::CondTest { .. }
+            | Continuation::Assignment { .. }
+            | Continuation::Define { .. }
+            | Continuation::Begin { .. }
+            | Continuation::And { .. }
+            | Continuation::Or { .. } => {
+                self.apply_special_form_continuation(cont, value)
+            }
+            // Default to control flow continuations
+            _ => self.apply_control_flow_continuation(cont, value),
         }
     }
 
