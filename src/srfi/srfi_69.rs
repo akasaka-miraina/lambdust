@@ -16,8 +16,10 @@ pub struct HashTable {
     /// Internal storage using Rust HashMap
     table: HashMap<HashKey, Value>,
     /// Equality predicate for keys (evaluator integration ready)
+    #[allow(dead_code)]
     equality_predicate: Option<Value>,
     /// Hash function for keys (evaluator integration ready)
+    #[allow(dead_code)]
     hash_function: Option<Value>,
 }
 
@@ -73,6 +75,7 @@ impl HashKey {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for HashTable {
     fn default() -> Self {
         Self {

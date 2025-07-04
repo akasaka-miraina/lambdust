@@ -42,6 +42,7 @@ struct MemoryCell {
     /// Reference count for garbage collection
     ref_count: usize,
     /// Generation for generational GC
+    #[allow(dead_code)]
     generation: u32,
     /// Mark for mark-and-sweep GC
     marked: bool,
@@ -291,6 +292,7 @@ impl Store {
     }
 
     /// Estimate memory size of a value (approximation)
+    #[allow(clippy::only_used_in_recursion)]
     fn estimate_value_size(&self, value: &Value) -> usize {
         match value {
             Value::Boolean(_) => 1,
@@ -752,7 +754,6 @@ impl Evaluator {
     }
 
     /// Dynamic Points management methods
-
     /// Push a new dynamic point onto the stack
     pub fn push_dynamic_point(
         &mut self,

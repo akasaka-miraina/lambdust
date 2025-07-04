@@ -317,6 +317,7 @@ impl MacroExpander {
     }
 
     /// SRFI 46: Parse pattern with SRFI 46 extensions
+    #[allow(clippy::only_used_in_recursion)]
     pub fn parse_pattern_srfi46(&self, expr: &Expr) -> Result<Pattern> {
         match expr {
             Expr::Variable(name) => {
@@ -380,6 +381,7 @@ impl MacroExpander {
     }
 
     /// SRFI 46: Parse template with SRFI 46 extensions
+    #[allow(clippy::only_used_in_recursion)]
     pub fn parse_template_srfi46(&self, expr: &Expr) -> Result<Template> {
         match expr {
             Expr::Variable(name) => {

@@ -57,7 +57,7 @@ fn test_memory_statistics() {
         assert!(!stats_vec.is_empty());
         
         // Check that we have expected statistics keys
-        let expected_keys = vec![
+        let expected_keys = [
             "total-allocations",
             "total-deallocations", 
             "gc-cycles",

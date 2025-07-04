@@ -314,6 +314,7 @@ impl RaiiStoreManager {
     }
 
     /// Estimate memory size of a value (same as before)
+    #[allow(clippy::only_used_in_recursion)]
     fn estimate_value_size(&self, value: &Value) -> usize {
         match value {
             Value::Boolean(_) => 1,

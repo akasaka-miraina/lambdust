@@ -69,7 +69,7 @@ fn test_is_macro_call() {
 
 #[test]
 fn test_srfi_46_ellipsis_count() {
-    let expander = MacroExpander::new();
+    let _expander = MacroExpander::new();
 
     // Test ellipsis variable
     let ellipsis_var = Expr::Variable("...".to_string());
