@@ -103,6 +103,10 @@ impl fmt::Display for Value {
                 crate::value::PromiseState::Lazy { .. } => write!(f, "#<promise:lazy>"),
                 crate::value::PromiseState::Eager { value } => write!(f, "#<promise:eager:{}>", value),
             },
+            Value::HashTable(ht) => {
+                let table = ht.borrow();
+                write!(f, "#<hash-table size:{}>", table.size())
+            },
         }
     }
 }
@@ -127,6 +131,7 @@ impl std::fmt::Debug for Value {
             Self::External(arg0) => f.debug_tuple("External").field(arg0).finish(),
             Self::Record(arg0) => f.debug_tuple("Record").field(arg0).finish(),
             Self::Values(arg0) => f.debug_tuple("Values").field(arg0).finish(),
+            Self::HashTable(arg0) => f.debug_tuple("HashTable").field(arg0).finish(),
             Self::Continuation(arg0) => f.debug_tuple("Continuation").field(arg0).finish(),
             Self::Promise(arg0) => f.debug_tuple("Promise").field(arg0).finish(),
         }

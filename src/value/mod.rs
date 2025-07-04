@@ -58,6 +58,8 @@ pub enum Value {
     Continuation(Continuation),
     /// Promise values (SRFI 45 - lazy evaluation)
     Promise(Promise),
+    /// Hash table values (SRFI 69)
+    HashTable(std::rc::Rc<std::cell::RefCell<crate::builtins::srfi_69::HashTable>>),
 }
 
 #[cfg(test)]

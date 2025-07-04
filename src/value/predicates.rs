@@ -47,4 +47,9 @@ impl Value {
             _ => None,
         }
     }
+
+    /// Check if this value is a hash table
+    pub fn is_hash_table(&self) -> bool {
+        matches!(self, Value::HashTable(_))
+    }
 }

@@ -29,12 +29,25 @@ string-interner = "0.17"
 # For collections
 indexmap = "2.0"
 
+# For REPL functionality
+rustyline = { version = "14.0", optional = true }
+clap = { version = "4.0", optional = true }
+
 [dev-dependencies]
 criterion = "0.5"
+
+[[bench]]
+name = "performance_benchmark"
+harness = false
 
 [lib]
 name = "lambdust"
 crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "lambdust"
+path = "src/bin/repl.rs"
+required-features = ["repl"]
 
 [features]
 default = ["std"]
@@ -42,6 +55,6 @@ std = []
 no-std = []
 
 # Optional features for extended functionality
-repl = []
+repl = ["dep:rustyline", "dep:clap"]
 debugger = []
 profiler = []
