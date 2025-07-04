@@ -537,15 +537,15 @@ impl Evaluator {
                     Ok(args[0].clone())
                 }
                 Procedure::CapturedContinuation {
-                    continuation: _captured_cont,
+                    continuation: captured_cont,
                 } => {
                     // Apply captured continuation from evaluator
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
 
-                    // Basic escape: return the value directly
-                    Ok(args[0].clone())
+                    // Apply the captured continuation with the argument
+                    self.apply_continuation(*captured_cont.clone(), args[0].clone())
                 }
                 Procedure::HostFunction { func, arity, .. } => {
                     // Check arity if specified

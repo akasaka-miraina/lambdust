@@ -12,6 +12,10 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::rc::Rc;
 
+// Import control flow functions
+use crate::ast::Expr;
+use crate::evaluator::{Continuation};
+
 /// Location identifier for R7RS memory management
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Location(usize);
@@ -856,6 +860,136 @@ impl Evaluator {
                 "Dynamic-wind thunk must be a procedure".to_string(),
             )),
         }
+    }
+
+    // Control flow special forms
+    /// Evaluate do loop special form
+    pub fn eval_do(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_do(self, operands, env, cont)
+    }
+
+    /// Evaluate delay special form
+    pub fn eval_delay(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_delay(self, operands, env, cont)
+    }
+
+    /// Evaluate lazy special form
+    pub fn eval_lazy(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_lazy(self, operands, env, cont)
+    }
+
+    /// Evaluate force special form
+    pub fn eval_force(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_force(self, operands, env, cont)
+    }
+
+    /// Evaluate promise? predicate
+    pub fn eval_promise_predicate(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_promise_predicate(self, operands, env, cont)
+    }
+
+    /// Evaluate call/cc special form
+    pub fn eval_call_cc(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_call_cc(self, operands, env, cont)
+    }
+
+    /// Evaluate values special form
+    pub fn eval_values(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_values(self, operands, env, cont)
+    }
+
+    /// Evaluate call-with-values special form
+    pub fn eval_call_with_values(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_call_with_values(self, operands, env, cont)
+    }
+
+    /// Evaluate dynamic-wind special form
+    pub fn eval_dynamic_wind(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_dynamic_wind(self, operands, env, cont)
+    }
+
+    /// Evaluate raise special form
+    pub fn eval_raise(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_raise(self, operands, env, cont)
+    }
+
+    /// Evaluate with-exception-handler special form
+    pub fn eval_with_exception_handler(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_with_exception_handler(self, operands, env, cont)
+    }
+
+    /// Evaluate guard special form
+    pub fn eval_guard(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::eval_guard(self, operands, env, cont)
+    }
+
+    /// Apply control flow continuation
+    pub fn apply_control_flow_continuation(
+        &mut self,
+        cont: Continuation,
+        value: Value,
+    ) -> Result<Value> {
+        crate::evaluator::control_flow::apply_control_flow_continuation(self, cont, value)
     }
 }
 
