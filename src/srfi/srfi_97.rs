@@ -14,31 +14,34 @@ impl SrfiModule for Srfi97 {
     fn srfi_id(&self) -> u32 {
         97
     }
-    
+
     fn name(&self) -> &'static str {
         "SRFI Libraries"
     }
-    
+
     fn parts(&self) -> Vec<&'static str> {
         vec!["inquiry", "available"]
     }
-    
+
     fn exports(&self) -> HashMap<String, Value> {
         let mut exports = HashMap::new();
-        
+
         // SRFI inquiry functions
         exports.insert("srfi-available?".to_string(), srfi_available_function());
-        exports.insert("srfi-supported-ids".to_string(), srfi_supported_ids_function());
+        exports.insert(
+            "srfi-supported-ids".to_string(),
+            srfi_supported_ids_function(),
+        );
         exports.insert("srfi-name".to_string(), srfi_name_function());
         exports.insert("srfi-parts".to_string(), srfi_parts_function());
-        
+
         exports
     }
-    
+
     fn exports_for_parts(&self, parts: &[&str]) -> Result<HashMap<String, Value>> {
         let all_exports = self.exports();
         let mut filtered = HashMap::new();
-        
+
         for part in parts {
             match *part {
                 "inquiry" => {
@@ -60,13 +63,14 @@ impl SrfiModule for Srfi97 {
                     }
                 }
                 _ => {
-                    return Err(LambdustError::runtime_error(
-                        format!("Unknown SRFI 97 part: {}", part)
-                    ));
+                    return Err(LambdustError::runtime_error(format!(
+                        "Unknown SRFI 97 part: {}",
+                        part
+                    )));
                 }
             }
         }
-        
+
         Ok(filtered)
     }
 }
@@ -89,16 +93,16 @@ fn srfi_available_function() -> Value {
                         crate::lexer::SchemeNumber::Rational(num, den) => (*num / *den) as u32,
                         crate::lexer::SchemeNumber::Complex(real, _) => *real as u32,
                     };
-                    
+
                     // Check if this SRFI ID is supported
                     let supported = match id {
-                        9 => true,   // Define-record-type
-                        45 => true,  // Lazy evaluation
-                        46 => true,  // Syntax-rules extensions  
-                        97 => true,  // SRFI Libraries (self)
+                        9 => true,  // Define-record-type
+                        45 => true, // Lazy evaluation
+                        46 => true, // Syntax-rules extensions
+                        97 => true, // SRFI Libraries (self)
                         _ => false,
                     };
-                    
+
                     Ok(Value::Boolean(supported))
                 }
                 _ => Err(LambdustError::type_error(
@@ -126,7 +130,7 @@ fn srfi_supported_ids_function() -> Value {
                 Value::Number(crate::lexer::SchemeNumber::Integer(46)),
                 Value::Number(crate::lexer::SchemeNumber::Integer(97)),
             ];
-            
+
             Ok(Value::Vector(supported_ids))
         },
     })
@@ -150,17 +154,20 @@ fn srfi_name_function() -> Value {
                         crate::lexer::SchemeNumber::Rational(num, den) => (*num / *den) as u32,
                         crate::lexer::SchemeNumber::Complex(real, _) => *real as u32,
                     };
-                    
+
                     let name = match id {
                         9 => "Defining Record Types",
                         45 => "Primitives for Expressing Iterative Lazy Algorithms",
                         46 => "Basic Syntax-rules Extensions",
                         97 => "SRFI Libraries",
-                        _ => return Err(LambdustError::runtime_error(
-                            format!("Unknown SRFI: {}", id)
-                        )),
+                        _ => {
+                            return Err(LambdustError::runtime_error(format!(
+                                "Unknown SRFI: {}",
+                                id
+                            )));
+                        }
                     };
-                    
+
                     Ok(Value::String(name.to_string()))
                 }
                 _ => Err(LambdustError::type_error(
@@ -189,21 +196,25 @@ fn srfi_parts_function() -> Value {
                         crate::lexer::SchemeNumber::Rational(num, den) => (*num / *den) as u32,
                         crate::lexer::SchemeNumber::Complex(real, _) => *real as u32,
                     };
-                    
+
                     let parts = match id {
                         9 => vec!["records", "types"],
                         45 => vec!["lazy", "promises"],
                         46 => vec!["syntax", "ellipsis"],
                         97 => vec!["inquiry", "available"],
-                        _ => return Err(LambdustError::runtime_error(
-                            format!("Unknown SRFI: {}", id)
-                        )),
+                        _ => {
+                            return Err(LambdustError::runtime_error(format!(
+                                "Unknown SRFI: {}",
+                                id
+                            )));
+                        }
                     };
-                    
-                    let part_values: Vec<Value> = parts.into_iter()
+
+                    let part_values: Vec<Value> = parts
+                        .into_iter()
                         .map(|s| Value::String(s.to_string()))
                         .collect();
-                    
+
                     Ok(Value::Vector(part_values))
                 }
                 _ => Err(LambdustError::type_error(
@@ -212,61 +223,4 @@ fn srfi_parts_function() -> Value {
             }
         },
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_srfi_97_info() {
-        let srfi97 = Srfi97;
-        assert_eq!(srfi97.srfi_id(), 97);
-        assert_eq!(srfi97.name(), "SRFI Libraries");
-        assert!(srfi97.parts().contains(&"inquiry"));
-        assert!(srfi97.parts().contains(&"available"));
-    }
-    
-    #[test]
-    fn test_srfi_97_exports() {
-        let srfi97 = Srfi97;
-        let exports = srfi97.exports();
-        
-        assert!(exports.contains_key("srfi-available?"));
-        assert!(exports.contains_key("srfi-supported-ids"));
-        assert!(exports.contains_key("srfi-name"));
-        assert!(exports.contains_key("srfi-parts"));
-    }
-    
-    #[test]
-    fn test_srfi_available_function() {
-        let func = srfi_available_function();
-        if let Value::Procedure(Procedure::Builtin { func, .. }) = func {
-            // Test with supported SRFI
-            let result = func(&[Value::Number(crate::lexer::SchemeNumber::Integer(9))]).unwrap();
-            assert_eq!(result, Value::Boolean(true));
-            
-            // Test with unsupported SRFI
-            let result = func(&[Value::Number(crate::lexer::SchemeNumber::Integer(999))]).unwrap();
-            assert_eq!(result, Value::Boolean(false));
-        }
-    }
-    
-    #[test]
-    fn test_srfi_supported_ids_function() {
-        let func = srfi_supported_ids_function();
-        if let Value::Procedure(Procedure::Builtin { func, .. }) = func {
-            let result = func(&[]).unwrap();
-            assert!(matches!(result, Value::Vector(_)));
-        }
-    }
-    
-    #[test]
-    fn test_srfi_name_function() {
-        let func = srfi_name_function();
-        if let Value::Procedure(Procedure::Builtin { func, .. }) = func {
-            let result = func(&[Value::Number(crate::lexer::SchemeNumber::Integer(9))]).unwrap();
-            assert_eq!(result, Value::String("Defining Record Types".to_string()));
-        }
-    }
 }

@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Pair data structure for cons cells
-/// 
+///
 /// This uses Rc<RefCell<>> to allow efficient sharing across execution contexts
 /// while maintaining mutability for operations like set-car! and set-cdr!
 #[derive(Debug, Clone)]

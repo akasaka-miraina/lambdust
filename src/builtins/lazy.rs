@@ -36,7 +36,7 @@ fn force_function() -> Value {
 }
 
 /// Implements the `promise?` predicate
-fn promise_predicate() -> Value {
+pub fn promise_predicate() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "promise?".to_string(),
         arity: Some(1),
@@ -76,7 +76,11 @@ pub fn force_promise(
         PromiseState::Eager { value } => Ok((**value).clone()),
         PromiseState::Lazy { expr, env } => {
             // Evaluate the expression in the stored environment using formal evaluator
-            let result = evaluator.eval(expr.clone(), env.clone(), crate::evaluator::Continuation::Identity)?;
+            let result = evaluator.eval(
+                expr.clone(),
+                env.clone(),
+                crate::evaluator::Continuation::Identity,
+            )?;
 
             // If the result is another promise, force it recursively
             match result {
@@ -84,58 +88,5 @@ pub fn force_promise(
                 value => Ok(value),
             }
         }
-    }
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_promise_predicate() {
-        let predicate = promise_predicate();
-
-        // Test with promise
-        let promise = make_eager_promise(Value::Number(SchemeNumber::Integer(42)));
-        let result = match predicate {
-            Value::Procedure(Procedure::Builtin { func, .. }) => func(&[promise]),
-            _ => panic!("Expected builtin procedure"),
-        }
-        .unwrap();
-        assert_eq!(result, Value::Boolean(true));
-
-        // Test with non-promise
-        let non_promise = Value::Number(SchemeNumber::Integer(42));
-        let result = match predicate {
-            Value::Procedure(Procedure::Builtin { func, .. }) => func(&[non_promise]),
-            _ => panic!("Expected builtin procedure"),
-        }
-        .unwrap();
-        assert_eq!(result, Value::Boolean(false));
-    }
-
-    #[test]
-    fn test_make_promises() {
-        // Test eager promise
-        let eager = make_eager_promise(Value::Number(SchemeNumber::Integer(42)));
-        assert!(matches!(
-            eager,
-            Value::Promise(Promise {
-                state: PromiseState::Eager { .. }
-            })
-        ));
-
-        // Test lazy promise
-        let expr = Expr::Literal(crate::ast::Literal::Number(SchemeNumber::Integer(42)));
-        let env = Rc::new(Environment::new());
-        let lazy = make_lazy_promise(expr, env);
-        assert!(matches!(
-            lazy,
-            Value::Promise(Promise {
-                state: PromiseState::Lazy { .. }
-            })
-        ));
     }
 }

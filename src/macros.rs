@@ -9,13 +9,21 @@ pub type MacroTransformer = fn(&[Expr]) -> Result<Expr>;
 
 /// Macro definition
 #[derive(Debug, Clone)]
-pub struct Macro {
-    /// Macro name
-    pub name: String,
-    /// Macro transformer function
-    pub transformer: MacroTransformer,
-    /// Whether this is a syntax-rules macro
-    pub is_syntax_rules: bool,
+pub enum Macro {
+    /// Built-in macro with transformer function
+    Builtin {
+        /// Name of the builtin macro
+        name: String,
+        /// Transformer function for the macro
+        transformer: MacroTransformer,
+    },
+    /// Syntax-rules macro with pattern/template rules
+    SyntaxRules {
+        /// Name of the syntax-rules macro
+        name: String,
+        /// Transformer implementing syntax-rules pattern matching
+        transformer: SyntaxRulesTransformer,
+    },
 }
 
 /// Pattern for syntax-rules
@@ -69,6 +77,29 @@ pub struct SyntaxRule {
     pub template: Template,
 }
 
+/// Variable bindings from pattern matching
+pub type VariableBindings = HashMap<String, BindingValue>;
+
+/// Value bound to a pattern variable
+#[derive(Debug, Clone, PartialEq)]
+pub enum BindingValue {
+    /// Single expression binding
+    Single(Expr),
+    /// Multiple expressions (from ellipsis)
+    Multiple(Vec<Expr>),
+    /// Nested bindings (from nested ellipsis)
+    Nested(Vec<BindingValue>),
+}
+
+/// Syntax-rules transformer for generic macro definitions
+#[derive(Debug, Clone)]
+pub struct SyntaxRulesTransformer {
+    /// List of literals (identifiers that must match exactly)
+    pub literals: Vec<String>,
+    /// List of transformation rules
+    pub rules: Vec<SyntaxRule>,
+}
+
 /// Macro expansion context
 #[derive(Debug, Clone)]
 pub struct MacroExpander {
@@ -88,85 +119,89 @@ impl MacroExpander {
         expander
     }
 
+    /// Define a new syntax-rules macro
+    pub fn define_syntax_rules_macro(
+        &mut self,
+        name: String,
+        literals: Vec<String>,
+        rules: Vec<SyntaxRule>,
+    ) {
+        let transformer = SyntaxRulesTransformer::new(literals, rules);
+        self.macros
+            .insert(name.clone(), Macro::SyntaxRules { name, transformer });
+    }
+
     /// Add built-in macros
     fn add_builtin_macros(&mut self) {
         // let macro
         self.macros.insert(
             "let".to_string(),
-            Macro {
+            Macro::Builtin {
                 name: "let".to_string(),
                 transformer: expand_let,
-                is_syntax_rules: false,
             },
         );
 
         // let* macro
         self.macros.insert(
             "let*".to_string(),
-            Macro {
+            Macro::Builtin {
                 name: "let*".to_string(),
                 transformer: expand_let_star,
-                is_syntax_rules: false,
             },
         );
 
         // letrec macro
         self.macros.insert(
             "letrec".to_string(),
-            Macro {
+            Macro::Builtin {
                 name: "letrec".to_string(),
                 transformer: expand_letrec,
-                is_syntax_rules: false,
             },
         );
 
         // cond macro
         self.macros.insert(
             "cond".to_string(),
-            Macro {
+            Macro::Builtin {
                 name: "cond".to_string(),
                 transformer: expand_cond,
-                is_syntax_rules: false,
             },
         );
 
         // case macro
         self.macros.insert(
             "case".to_string(),
-            Macro {
+            Macro::Builtin {
                 name: "case".to_string(),
                 transformer: expand_case,
-                is_syntax_rules: false,
             },
         );
 
         // when macro
         self.macros.insert(
             "when".to_string(),
-            Macro {
+            Macro::Builtin {
                 name: "when".to_string(),
                 transformer: expand_when,
-                is_syntax_rules: false,
             },
         );
 
         // unless macro
         self.macros.insert(
             "unless".to_string(),
-            Macro {
+            Macro::Builtin {
                 name: "unless".to_string(),
                 transformer: expand_unless,
-                is_syntax_rules: false,
             },
         );
 
         // define-record-type macro (SRFI 9)
         self.macros.insert(
             "define-record-type".to_string(),
-            Macro {
+            Macro::Builtin {
                 name: "define-record-type".to_string(),
                 transformer: expand_define_record_type,
-                is_syntax_rules: false,
             },
         );
     }
@@ -189,8 +224,15 @@ impl MacroExpander {
                 match &exprs[0] {
                     Expr::Variable(name) => {
                         if let Some(macro_def) = self.macros.get(name) {
-                            let args = &exprs[1..];
-                            (macro_def.transformer)(args)
+                            match macro_def {
+                                Macro::Builtin { transformer, .. } => {
+                                    let args = &exprs[1..];
+                                    transformer(args)
+                                }
+                                Macro::SyntaxRules { transformer, .. } => {
+                                    transformer.transform(&expr)
+                                }
+                            }
                         } else {
                             Ok(expr) // Not a macro
                         }
@@ -234,6 +276,13 @@ impl MacroExpander {
             Expr::UnquoteSplicing(expr) => {
                 Ok(Expr::UnquoteSplicing(Box::new(self.expand_all(*expr)?)))
             }
+            Expr::Vector(exprs) => {
+                let mut expanded_exprs = Vec::new();
+                for expr in exprs {
+                    expanded_exprs.push(self.expand_all(expr)?);
+                }
+                Ok(Expr::Vector(expanded_exprs))
+            }
             Expr::DottedList(exprs, tail) => {
                 let mut expanded_exprs = Vec::new();
                 for expr in exprs {
@@ -248,26 +297,19 @@ impl MacroExpander {
 
     /// Define a new macro
     pub fn define_macro(&mut self, name: String, transformer: MacroTransformer) {
-        self.macros.insert(
-            name.clone(),
-            Macro {
-                name,
-                transformer,
-                is_syntax_rules: false,
-            },
-        );
+        self.macros
+            .insert(name.clone(), Macro::Builtin { name, transformer });
     }
 
     // Removed the `has_nested_ellipsis` method as it was dead code.
 
     /// SRFI 46: Count ellipsis nesting level
-    #[allow(clippy::only_used_in_recursion)]
-    fn count_ellipsis_level(&self, expr: &Expr) -> usize {
+    pub fn count_ellipsis_level(expr: &Expr) -> usize {
         match expr {
             Expr::Variable(name) if name == "..." => 1,
             Expr::List(exprs) => exprs
                 .iter()
-                .map(|e| self.count_ellipsis_level(e))
+                .map(Self::count_ellipsis_level)
                 .max()
                 .unwrap_or(0),
             _ => 0,
@@ -275,6 +317,7 @@ impl MacroExpander {
     }
 
     /// SRFI 46: Parse pattern with SRFI 46 extensions
+    #[allow(clippy::only_used_in_recursion)]
     pub fn parse_pattern_srfi46(&self, expr: &Expr) -> Result<Pattern> {
         match expr {
             Expr::Variable(name) => {
@@ -304,7 +347,7 @@ impl MacroExpander {
 
                             // Check for nested ellipsis (SRFI 46)
                             let ellipsis_count = if i + 1 < exprs.len() {
-                                self.count_ellipsis_level(&exprs[i + 1])
+                                Self::count_ellipsis_level(&exprs[i + 1])
                             } else {
                                 0
                             };
@@ -338,6 +381,7 @@ impl MacroExpander {
     }
 
     /// SRFI 46: Parse template with SRFI 46 extensions
+    #[allow(clippy::only_used_in_recursion)]
     pub fn parse_template_srfi46(&self, expr: &Expr) -> Result<Template> {
         match expr {
             Expr::Variable(name) => {
@@ -367,7 +411,7 @@ impl MacroExpander {
 
                             // Check for nested ellipsis (SRFI 46)
                             let ellipsis_count = if i + 1 < exprs.len() {
-                                self.count_ellipsis_level(&exprs[i + 1])
+                                Self::count_ellipsis_level(&exprs[i + 1])
                             } else {
                                 0
                             };
@@ -407,6 +451,22 @@ impl Default for MacroExpander {
     }
 }
 
+/// Public helper function for expanding macros by name
+pub fn expand_macro(name: &str, args: &[Expr]) -> Result<Expr> {
+    let _expander = MacroExpander::new();
+    match name {
+        "let" => expand_let(args),
+        "let*" => expand_let_star(args),
+        "letrec" => expand_letrec(args),
+        "case" => expand_case(args),
+        "when" => expand_when(args),
+        "unless" => expand_unless(args),
+        _ => Err(LambdustError::syntax_error(format!(
+            "Unknown macro: {name}"
+        ))),
+    }
+}
+
 // Built-in macro transformers
 
 /// Expand let macro: (let ((var val) ...) body ...) -> ((lambda (var ...) body ...) val ...)
@@ -430,15 +490,15 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
         }
     };
 
-    let mut vars = Vec::new();
-    let mut vals = Vec::new();
+    let mut variables = Vec::new();
+    let mut values = Vec::new();
 
     for binding in binding_list {
         match binding {
             Expr::List(parts) if parts.len() == 2 => match &parts[0] {
                 Expr::Variable(var) => {
-                    vars.push(Expr::Variable(var.clone()));
-                    vals.push(parts[1].clone());
+                    variables.push(Expr::Variable(var.clone()));
+                    values.push(parts[1].clone());
                 }
                 _ => {
                     return Err(LambdustError::syntax_error(
@@ -456,14 +516,14 @@ fn expand_let(args: &[Expr]) -> Result<Expr> {
 
     // Create lambda expression
     let lambda = Expr::List({
-        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(vars)];
+        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(variables)];
         lambda_expr.extend(body.iter().cloned());
         lambda_expr
     });
 
     // Create application
     let mut application = vec![lambda];
-    application.extend(vals);
+    application.extend(values);
 
     Ok(Expr::List(application))
 }
@@ -536,22 +596,22 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
         }
     };
 
-    let mut vars = Vec::new();
+    let mut variables = Vec::new();
     let mut assignments = Vec::new();
-    let mut undefined_vals = Vec::new();
+    let mut undefined_values = Vec::new();
 
     for binding in binding_list {
         match binding {
             Expr::List(parts) if parts.len() == 2 => {
                 match &parts[0] {
                     Expr::Variable(var) => {
-                        vars.push(Expr::Variable(var.clone()));
+                        variables.push(Expr::Variable(var.clone()));
                         assignments.push(Expr::List(vec![
                             Expr::Variable("set!".to_string()),
                             Expr::Variable(var.clone()),
                             parts[1].clone(),
                         ]));
-                        undefined_vals.push(Expr::Variable("#f".to_string())); // Use #f as undefined
+                        undefined_values.push(Expr::Variable("#f".to_string())); // Use #f as undefined
                     }
                     _ => {
                         return Err(LambdustError::syntax_error(
@@ -573,14 +633,14 @@ fn expand_letrec(args: &[Expr]) -> Result<Expr> {
     lambda_body.extend(body.iter().cloned());
 
     let lambda = Expr::List({
-        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(vars)];
+        let mut lambda_expr = vec![Expr::Variable("lambda".to_string()), Expr::List(variables)];
         lambda_expr.extend(lambda_body);
         lambda_expr
     });
 
     // Create application with undefined values
     let mut application = vec![lambda];
-    application.extend(undefined_vals);
+    application.extend(undefined_values);
 
     Ok(Expr::List(application))
 }
@@ -1040,238 +1100,420 @@ fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
     ))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::tokenize;
-    use crate::parser::parse;
-
-    fn parse_expr(input: &str) -> Expr {
-        let tokens = tokenize(input).unwrap();
-        parse(tokens).unwrap()
+impl SyntaxRulesTransformer {
+    /// Create a new syntax-rules transformer
+    pub fn new(literals: Vec<String>, rules: Vec<SyntaxRule>) -> Self {
+        Self { literals, rules }
     }
 
-    #[test]
-    fn test_expand_let() {
-        let expander = MacroExpander::new();
-        let expr = parse_expr("(let ((x 1) (y 2)) (+ x y))");
-        let expanded = expander.expand_macro(expr).unwrap();
-
-        // Should expand to ((lambda (x y) (+ x y)) 1 2)
-        match expanded {
-            Expr::List(exprs) => {
-                assert_eq!(exprs.len(), 3);
-                assert!(matches!(exprs[0], Expr::List(_))); // lambda expression
+    /// Transform input expression using syntax-rules
+    pub fn transform(&self, expr: &Expr) -> Result<Expr> {
+        // Try each rule in order until one matches
+        for rule in &self.rules {
+            if let Ok(bindings) = self.pattern_match(&rule.pattern, expr) {
+                return self.template_expand(&rule.template, &bindings);
             }
-            _ => panic!("Expected list expression"),
+        }
+
+        Err(LambdustError::macro_error_old(format!(
+            "No syntax-rules pattern matched: {expr:?}"
+        )))
+    }
+
+    /// Match pattern against expression, returning variable bindings
+    fn pattern_match(&self, pattern: &Pattern, expr: &Expr) -> Result<VariableBindings> {
+        let mut bindings = HashMap::new();
+        self.pattern_match_impl(pattern, expr, &mut bindings)?;
+        Ok(bindings)
+    }
+
+    /// Implementation of pattern matching
+    fn pattern_match_impl(
+        &self,
+        pattern: &Pattern,
+        expr: &Expr,
+        bindings: &mut VariableBindings,
+    ) -> Result<()> {
+        match (pattern, expr) {
+            // Literal patterns must match exactly
+            (Pattern::Literal(lit), Expr::Variable(var)) => {
+                if lit == var || self.literals.contains(lit) {
+                    Ok(())
+                } else {
+                    Err(LambdustError::macro_error_old(format!(
+                        "Literal mismatch: expected {lit}, got {var}"
+                    )))
+                }
+            }
+
+            // Variable patterns bind to any expression
+            (Pattern::Variable(var), expr) => {
+                if self.literals.contains(var) {
+                    // Literal variable must match exactly
+                    if let Expr::Variable(expr_var) = expr {
+                        if var == expr_var {
+                            Ok(())
+                        } else {
+                            Err(LambdustError::macro_error_old(format!(
+                                "Literal variable mismatch: expected {var}, got {expr_var}"
+                            )))
+                        }
+                    } else {
+                        Err(LambdustError::macro_error_old(format!(
+                            "Expected literal {var}, got expression: {expr:?}"
+                        )))
+                    }
+                } else {
+                    // Pattern variable binds to expression
+                    bindings.insert(var.clone(), BindingValue::Single(expr.clone()));
+                    Ok(())
+                }
+            }
+
+            // List patterns
+            (Pattern::List(patterns), Expr::List(exprs)) => {
+                self.match_list_patterns(patterns, exprs, bindings)
+            }
+
+            // Vector patterns (SRFI 46) - treating as lists for now
+            (Pattern::Vector(patterns), Expr::List(exprs)) => {
+                self.match_vector_patterns(patterns, exprs, bindings)
+            }
+
+            // Dotted patterns
+            (Pattern::Dotted(patterns, rest_pattern), Expr::List(exprs)) => {
+                self.match_dotted_patterns(patterns, rest_pattern, exprs, bindings)
+            }
+
+            // Ellipsis patterns
+            (Pattern::Ellipsis(_pattern), _) => {
+                // This should be handled by list pattern matching
+                Err(LambdustError::macro_error_old(
+                    "Ellipsis pattern not in list context".to_string(),
+                ))
+            }
+
+            // Nested ellipsis patterns (SRFI 46)
+            (Pattern::NestedEllipsis(_pattern, _level), _) => {
+                // This should be handled by list pattern matching
+                Err(LambdustError::macro_error_old(
+                    "Nested ellipsis pattern not in list context".to_string(),
+                ))
+            }
+
+            // Type mismatches
+            _ => Err(LambdustError::macro_error_old(format!(
+                "Pattern type mismatch: {pattern:?} vs {expr:?}"
+            ))),
         }
     }
 
-    #[test]
-    fn test_expand_cond() {
-        let expander = MacroExpander::new();
-        let expr = parse_expr("(cond ((< x 0) 'negative) ((> x 0) 'positive) (else 'zero))");
-        let expanded = expander.expand_macro(expr).unwrap();
+    /// Match list patterns with ellipsis support
+    fn match_list_patterns(
+        &self,
+        patterns: &[Pattern],
+        exprs: &[Expr],
+        bindings: &mut VariableBindings,
+    ) -> Result<()> {
+        let mut pattern_idx = 0;
+        let mut expr_idx = 0;
 
-        // Should expand to nested if expressions
-        match expanded {
-            Expr::List(exprs) => {
-                assert_eq!(exprs[0], Expr::Variable("if".to_string()));
+        while pattern_idx < patterns.len() && expr_idx < exprs.len() {
+            match &patterns[pattern_idx] {
+                Pattern::Ellipsis(ellipsis_pattern) => {
+                    // Match zero or more expressions with the ellipsis pattern
+                    let mut matched_exprs = Vec::new();
+
+                    // Determine how many expressions to match
+                    let remaining_patterns = patterns.len() - pattern_idx - 1;
+                    let remaining_exprs = exprs.len() - expr_idx;
+
+                    if remaining_exprs >= remaining_patterns {
+                        let ellipsis_count = remaining_exprs - remaining_patterns;
+
+                        for _ in 0..ellipsis_count {
+                            matched_exprs.push(exprs[expr_idx].clone());
+                            expr_idx += 1;
+                        }
+
+                        // Store ellipsis bindings
+                        self.store_ellipsis_bindings(ellipsis_pattern, &matched_exprs, bindings)?;
+                    }
+
+                    pattern_idx += 1;
+                }
+
+                Pattern::NestedEllipsis(ellipsis_pattern, level) => {
+                    // Handle nested ellipsis (SRFI 46)
+                    self.match_nested_ellipsis(
+                        ellipsis_pattern,
+                        *level,
+                        &exprs[expr_idx..],
+                        bindings,
+                    )?;
+                    // For now, consume all remaining expressions
+                    expr_idx = exprs.len();
+                    pattern_idx += 1;
+                }
+
+                _ => {
+                    // Regular pattern matching
+                    self.pattern_match_impl(&patterns[pattern_idx], &exprs[expr_idx], bindings)?;
+                    pattern_idx += 1;
+                    expr_idx += 1;
+                }
             }
-            _ => panic!("Expected if expression"),
         }
-    }
 
-    #[test]
-    fn test_expand_when() {
-        let expander = MacroExpander::new();
-        let expr = parse_expr("(when (> x 0) (display x) (newline))");
-        let expanded = expander.expand_macro(expr).unwrap();
-
-        // Should expand to (if (> x 0) (begin (display x) (newline)))
-        match expanded {
-            Expr::List(exprs) => {
-                assert_eq!(exprs[0], Expr::Variable("if".to_string()));
-                assert_eq!(exprs.len(), 3);
-            }
-            _ => panic!("Expected if expression"),
-        }
-    }
-
-    #[test]
-    fn test_is_macro_call() {
-        let expander = MacroExpander::new();
-        let let_expr = parse_expr("(let ((x 1)) x)");
-        let regular_expr = parse_expr("(+ 1 2)");
-
-        assert!(expander.is_macro_call(&let_expr));
-        assert!(!expander.is_macro_call(&regular_expr));
-    }
-
-    #[test]
-    fn test_srfi_46_ellipsis_count() {
-        let expander = MacroExpander::new();
-
-        // Test ellipsis variable
-        let ellipsis_var = Expr::Variable("...".to_string());
-        assert_eq!(expander.count_ellipsis_level(&ellipsis_var), 1);
-
-        // Test nested ellipsis in list
-        let nested = Expr::List(vec![
-            Expr::Variable("...".to_string()),
-            Expr::List(vec![Expr::Variable("...".to_string())]),
-        ]);
-        assert_eq!(expander.count_ellipsis_level(&nested), 1);
-    }
-
-    #[test]
-    fn test_srfi_46_pattern_parsing() {
-        let expander = MacroExpander::new();
-
-        // Test simple pattern
-        let simple = Expr::Variable("x".to_string());
-        let pattern = expander.parse_pattern_srfi46(&simple).unwrap();
-        assert_eq!(pattern, Pattern::Variable("x".to_string()));
-
-        // Test list pattern
-        let list = Expr::List(vec![
-            Expr::Variable("x".to_string()),
-            Expr::Variable("y".to_string()),
-            Expr::Variable("z".to_string()),
-        ]);
-        let pattern = expander.parse_pattern_srfi46(&list).unwrap();
-        assert!(matches!(pattern, Pattern::List(_)));
-
-        // Test ellipsis pattern
-        let ellipsis = Expr::List(vec![
-            Expr::Variable("x".to_string()),
-            Expr::Variable("...".to_string()),
-        ]);
-        let pattern = expander.parse_pattern_srfi46(&ellipsis).unwrap();
-        if let Pattern::List(patterns) = pattern {
-            assert_eq!(patterns.len(), 1);
-            assert!(matches!(patterns[0], Pattern::Ellipsis(_)));
+        // Check if all patterns and expressions were consumed
+        if pattern_idx < patterns.len() || expr_idx < exprs.len() {
+            Err(LambdustError::macro_error_old(format!(
+                "List length mismatch: {} patterns vs {} expressions",
+                patterns.len(),
+                exprs.len()
+            )))
         } else {
-            panic!("Expected list pattern with ellipsis");
+            Ok(())
         }
     }
 
-    #[test]
-    fn test_srfi_46_template_parsing() {
-        let expander = MacroExpander::new();
-
-        // Test simple template
-        let simple = Expr::Variable("x".to_string());
-        let template = expander.parse_template_srfi46(&simple).unwrap();
-        assert_eq!(template, Template::Variable("x".to_string()));
-
-        // Test list template
-        let list = Expr::List(vec![
-            Expr::Variable("x".to_string()),
-            Expr::Variable("y".to_string()),
-            Expr::Variable("z".to_string()),
-        ]);
-        let template = expander.parse_template_srfi46(&list).unwrap();
-        assert!(matches!(template, Template::List(_)));
-
-        // Test ellipsis template
-        let ellipsis = Expr::List(vec![
-            Expr::Variable("x".to_string()),
-            Expr::Variable("...".to_string()),
-        ]);
-        let template = expander.parse_template_srfi46(&ellipsis).unwrap();
-        if let Template::List(templates) = template {
-            assert_eq!(templates.len(), 1);
-            assert!(matches!(templates[0], Template::Ellipsis(_)));
-        } else {
-            panic!("Expected list template with ellipsis");
-        }
+    /// Match vector patterns
+    fn match_vector_patterns(
+        &self,
+        patterns: &[Pattern],
+        exprs: &[Expr],
+        bindings: &mut VariableBindings,
+    ) -> Result<()> {
+        // For vectors, we can reuse list pattern matching logic
+        self.match_list_patterns(patterns, exprs, bindings)
     }
 
-    #[test]
-    fn test_expand_define_record_type() {
-        let expander = MacroExpander::new();
+    /// Match dotted patterns  
+    fn match_dotted_patterns(
+        &self,
+        patterns: &[Pattern],
+        rest_pattern: &Pattern,
+        exprs: &[Expr],
+        bindings: &mut VariableBindings,
+    ) -> Result<()> {
+        if exprs.len() < patterns.len() {
+            return Err(LambdustError::macro_error_old(
+                "Not enough expressions for dotted pattern".to_string(),
+            ));
+        }
 
-        // Test basic define-record-type expansion
-        let expr = parse_expr(
-            r#"
-            (define-record-type point
-              (make-point x y)
-              point?
-              (x point-x set-point-x!)
-              (y point-y set-point-y!))
-        "#,
-        );
+        // Match fixed patterns
+        for (i, pattern) in patterns.iter().enumerate() {
+            self.pattern_match_impl(pattern, &exprs[i], bindings)?;
+        }
 
-        let expanded = expander.expand_macro(expr).unwrap();
+        // Match rest pattern with remaining expressions
+        let rest_exprs = &exprs[patterns.len()..];
+        let rest_list = Expr::List(rest_exprs.to_vec());
+        self.pattern_match_impl(rest_pattern, &rest_list, bindings)?;
 
-        // Should expand to a begin expression with multiple definitions
-        match expanded {
-            Expr::List(exprs) if !exprs.is_empty() => {
-                if let Expr::Variable(name) = &exprs[0] {
-                    assert_eq!(name, "begin");
+        Ok(())
+    }
+
+    /// Store ellipsis bindings for multiple matched expressions
+    fn store_ellipsis_bindings(
+        &self,
+        pattern: &Pattern,
+        exprs: &[Expr],
+        bindings: &mut VariableBindings,
+    ) -> Result<()> {
+        match pattern {
+            Pattern::Variable(var) => {
+                if !self.literals.contains(var) {
+                    bindings.insert(var.clone(), BindingValue::Multiple(exprs.to_vec()));
                 }
-                // Should contain multiple define expressions for constructor, predicate, and accessors
-                assert!(exprs.len() > 3); // begin + at least constructor, predicate, and accessors
+                Ok(())
             }
-            _ => panic!("Expected begin expression with definitions"),
+            Pattern::List(patterns) => {
+                // Handle ellipsis within list patterns
+                for expr in exprs {
+                    if let Expr::List(sub_exprs) = expr {
+                        self.match_list_patterns(patterns, sub_exprs, bindings)?;
+                    } else {
+                        return Err(LambdustError::macro_error_old(
+                            "Expected list in ellipsis pattern".to_string(),
+                        ));
+                    }
+                }
+                Ok(())
+            }
+            _ => Err(LambdustError::macro_error_old(format!(
+                "Unsupported ellipsis pattern: {pattern:?}"
+            ))),
         }
     }
 
-    #[test]
-    fn test_expand_define_record_type_minimal() {
-        let expander = MacroExpander::new();
+    /// Handle nested ellipsis patterns (SRFI 46)
+    fn match_nested_ellipsis(
+        &self,
+        _pattern: &Pattern,
+        _level: usize,
+        _exprs: &[Expr],
+        _bindings: &mut VariableBindings,
+    ) -> Result<()> {
+        // Placeholder for nested ellipsis implementation
+        // This is a complex feature that requires careful handling of nesting levels
+        Ok(())
+    }
 
-        // Test minimal define-record-type with no fields
-        let expr = parse_expr(
-            r#"
-            (define-record-type empty-record
-              (make-empty-record)
-              empty-record?)
-        "#,
-        );
+    /// Expand template using variable bindings
+    fn template_expand(&self, template: &Template, bindings: &VariableBindings) -> Result<Expr> {
+        match template {
+            Template::Literal(lit) => Ok(Expr::Variable(lit.clone())),
 
-        let expanded = expander.expand_macro(expr).unwrap();
-
-        // Should still expand to a begin expression
-        match expanded {
-            Expr::List(exprs) if !exprs.is_empty() => {
-                if let Expr::Variable(name) = &exprs[0] {
-                    assert_eq!(name, "begin");
+            Template::Variable(var) => {
+                if let Some(binding) = bindings.get(var) {
+                    match binding {
+                        BindingValue::Single(expr) => Ok(expr.clone()),
+                        BindingValue::Multiple(_exprs) => Err(LambdustError::macro_error_old(
+                            format!("Variable {var} bound to multiple values, not single value"),
+                        )),
+                        BindingValue::Nested(_nested) => Err(LambdustError::macro_error_old(
+                            format!("Variable {var} bound to nested values, not single value"),
+                        )),
+                    }
+                } else {
+                    // Unbound variable becomes literal
+                    Ok(Expr::Variable(var.clone()))
                 }
-                // Should contain at least constructor and predicate
-                assert!(exprs.len() >= 3); // begin + constructor + predicate
             }
-            _ => panic!("Expected begin expression with definitions"),
+
+            Template::List(templates) => {
+                let mut result_exprs = Vec::new();
+
+                for template in templates {
+                    match template {
+                        Template::Ellipsis(ellipsis_template) => {
+                            let expanded =
+                                self.expand_ellipsis_template(ellipsis_template, bindings)?;
+                            result_exprs.extend(expanded);
+                        }
+                        _ => {
+                            let expanded = self.template_expand(template, bindings)?;
+                            result_exprs.push(expanded);
+                        }
+                    }
+                }
+
+                Ok(Expr::List(result_exprs))
+            }
+
+            Template::Vector(templates) => {
+                let mut result_exprs = Vec::new();
+
+                for template in templates {
+                    let expanded = self.template_expand(template, bindings)?;
+                    result_exprs.push(expanded);
+                }
+
+                Ok(Expr::List(result_exprs)) // Vector support pending AST update
+            }
+
+            Template::Dotted(templates, rest_template) => {
+                let mut result_exprs = Vec::new();
+
+                for template in templates {
+                    let expanded = self.template_expand(template, bindings)?;
+                    result_exprs.push(expanded);
+                }
+
+                let rest_expanded = self.template_expand(rest_template, bindings)?;
+                // For simplicity, add rest as final element (proper dotted list handling would be more complex)
+                result_exprs.push(rest_expanded);
+
+                Ok(Expr::List(result_exprs))
+            }
+
+            Template::Ellipsis(_) => Err(LambdustError::macro_error_old(
+                "Ellipsis template not in list context".to_string(),
+            )),
+
+            Template::NestedEllipsis(_template, _level) => {
+                // Placeholder for nested ellipsis expansion
+                Ok(Expr::List(Vec::new()))
+            }
         }
     }
 
-    #[test]
-    fn test_expand_define_record_type_field_without_modifier() {
-        let expander = MacroExpander::new();
-
-        // Test define-record-type with field that has no modifier
-        let expr = parse_expr(
-            r#"
-            (define-record-type person
-              (make-person name age)
-              person?
-              (name person-name)
-              (age person-age set-person-age!))
-        "#,
-        );
-
-        let expanded = expander.expand_macro(expr).unwrap();
-
-        // Should expand successfully even with mixed field specifications
-        match expanded {
-            Expr::List(exprs) if !exprs.is_empty() => {
-                if let Expr::Variable(name) = &exprs[0] {
-                    assert_eq!(name, "begin");
+    /// Expand ellipsis template
+    fn expand_ellipsis_template(
+        &self,
+        template: &Template,
+        bindings: &VariableBindings,
+    ) -> Result<Vec<Expr>> {
+        match template {
+            Template::Variable(var) => {
+                if let Some(binding) = bindings.get(var) {
+                    match binding {
+                        BindingValue::Multiple(exprs) => Ok(exprs.clone()),
+                        BindingValue::Single(expr) => Ok(vec![expr.clone()]),
+                        BindingValue::Nested(_) => Ok(Vec::new()), // Placeholder
+                    }
+                } else {
+                    Ok(Vec::new())
                 }
-                assert!(exprs.len() > 4); // begin + constructor + predicate + accessors
             }
-            _ => panic!("Expected begin expression with definitions"),
+
+            Template::List(templates) => {
+                // For list templates in ellipsis, we need to coordinate expansion
+                // This is a simplified implementation
+                let mut result = Vec::new();
+
+                // Find the first ellipsis-bound variable to determine iteration count
+                let mut max_count = 0;
+                for template in templates {
+                    if let Template::Variable(var) = template {
+                        if let Some(BindingValue::Multiple(exprs)) = bindings.get(var) {
+                            max_count = max_count.max(exprs.len());
+                        }
+                    }
+                }
+
+                // Generate expressions for each iteration
+                for i in 0..max_count {
+                    let mut iter_exprs = Vec::new();
+
+                    for template in templates {
+                        match template {
+                            Template::Variable(var) => {
+                                if let Some(binding) = bindings.get(var) {
+                                    match binding {
+                                        BindingValue::Multiple(exprs) => {
+                                            if i < exprs.len() {
+                                                iter_exprs.push(exprs[i].clone());
+                                            }
+                                        }
+                                        BindingValue::Single(expr) => {
+                                            iter_exprs.push(expr.clone());
+                                        }
+                                        BindingValue::Nested(_) => {} // Placeholder
+                                    }
+                                } else {
+                                    iter_exprs.push(Expr::Variable(var.clone()));
+                                }
+                            }
+                            _ => {
+                                let expanded = self.template_expand(template, bindings)?;
+                                iter_exprs.push(expanded);
+                            }
+                        }
+                    }
+
+                    result.push(Expr::List(iter_exprs));
+                }
+
+                Ok(result)
+            }
+
+            _ => {
+                let expanded = self.template_expand(template, bindings)?;
+                Ok(vec![expanded])
+            }
         }
     }
 }

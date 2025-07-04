@@ -14,67 +14,45 @@ impl SrfiModule for Srfi46 {
     fn srfi_id(&self) -> u32 {
         46
     }
-    
+
     fn name(&self) -> &'static str {
         "Basic Syntax-rules Extensions"
     }
-    
+
     fn parts(&self) -> Vec<&'static str> {
         vec!["syntax", "ellipsis"]
     }
-    
+
     fn exports(&self) -> HashMap<String, Value> {
         // SRFI 46 doesn't export runtime functions, but macro-related utilities
         // These would be handled by the macro system rather than runtime functions
-        
+
         // For completeness, we could export some macro-related utilities
         // but the main functionality is in the macro expander
-        
+
         HashMap::new()
     }
-    
+
     fn exports_for_parts(&self, parts: &[&str]) -> Result<HashMap<String, Value>> {
         let filtered = HashMap::new();
-        
+
         for part in parts {
             match *part {
                 "syntax" => {
                     // Syntax-related exports (none for now)
                 }
                 "ellipsis" => {
-                    // Ellipsis-related exports (none for now) 
+                    // Ellipsis-related exports (none for now)
                 }
                 _ => {
-                    return Err(LambdustError::runtime_error(
-                        format!("Unknown SRFI 46 part: {}", part)
-                    ));
+                    return Err(LambdustError::runtime_error(format!(
+                        "Unknown SRFI 46 part: {}",
+                        part
+                    )));
                 }
             }
         }
-        
-        Ok(filtered)
-    }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_srfi_46_info() {
-        let srfi46 = Srfi46;
-        assert_eq!(srfi46.srfi_id(), 46);
-        assert_eq!(srfi46.name(), "Basic Syntax-rules Extensions");
-        assert!(srfi46.parts().contains(&"syntax"));
-        assert!(srfi46.parts().contains(&"ellipsis"));
-    }
-    
-    #[test]
-    fn test_srfi_46_exports() {
-        let srfi46 = Srfi46;
-        let exports = srfi46.exports();
-        
-        // SRFI 46 is primarily about macro syntax, so no runtime exports
-        assert!(exports.is_empty());
+        Ok(filtered)
     }
 }
