@@ -194,7 +194,7 @@ cargo test evaluator_tests
 - [x] **例外処理システム完成**（raise, with-exception-handler, guard構文実装）
 - [x] マクロシステム実装（SRFI 9, 45, 46対応）
 - [x] **外部API完全実装**（ホスト連携・マーシャリング・型安全性確保）
-- [x] **テスト完備**（109テスト + 13ドキュメントテスト全パス）
+- [x] **テスト完備**（274テスト + 13ドキュメントテスト全パス）
 - [x] ドキュメント整備
 - [x] CI/CD パイプライン構築（GitHub Actions）
 - [x] 開発フロー整備（Issue/PRテンプレート、GitHub Copilot統合）
@@ -273,8 +273,10 @@ cargo test evaluator_tests
    - 基本I/O: read, write, read-char, write-char, peek-char
    - 述語: eof-object?, char-ready?
 
-8. **高階関数**
-   - apply, map, for-each（完全実装）
+8. **高階関数** ✅
+   - apply, map, for-each（evaluator統合完全実装）
+   - fold, fold-right, filter（evaluator統合完全実装）
+   - lambda式完全サポート、クロージャ対応
 
 9. **継続・例外処理** (5関数)
    - 継続: call/cc, call-with-current-continuation
@@ -291,10 +293,11 @@ cargo test evaluator_tests
 12. **エラーハンドリング**
     - error関数（irritant対応）
 
-13. **SRFI 1: List Library（基本実装完了）** 🆕
+13. **SRFI 1: List Library（Lambda統合完了）** ✅ 🆕
     - 非高階関数: take, drop, concatenate, delete-duplicates（完全動作）
-    - 高階関数プレースホルダー: fold, fold-right, filter, find, any, every
-    - 11テスト全パス、evaluator統合による完全実装は今後の課題
+    - 高階関数: fold, fold-right, filter（evaluator統合・lambda式サポート完全実装）
+    - プレースホルダー: find, any, every（builtin関数のみサポート）
+    - 15テスト全パス、主要な高階関数はlambda式完全対応
 
 14. **SRFI 13: String Libraries（基本実装完了）** 🆕
     - 基本文字列操作: string-null?, string-hash, string-hash-ci（完全動作）
@@ -395,9 +398,17 @@ cargo test evaluator_tests
     - 統合テスト: 13ファイル（完全システム機能）
     - 構造最適化: モジュール分割・保守性向上
 
+19. **Lambda関数統合システム** ✅ 🆕
+    - evaluator統合版higher-order関数: map, apply, fold, fold-right, filter（完全動作）
+    - special form化: 従来のbuiltin関数から特別フォームに移行
+    - lambda式完全サポート: ユーザー定義関数・クロージャ対応
+    - 包括的テストスイート: 10テスト（lambda統合機能）
+    - SRFI 1統合: 主要な高階関数のlambda式サポート
+    - アーキテクチャ改善: static builtin → evaluator-aware特別フォーム
+
 #### 🚀 次期開発予定
 
-- **Lambda関数統合**: evaluator統合によるlambda式高階関数サポート
+- **SRFI拡張統合**: SRFI 13・69の高階関数lambda統合サポート
 - **パフォーマンス最適化**: 継続渡しスタイルの高速化
 - **REPL機能拡張**: タブ補完・シンタックスハイライト・デバッガー統合
 

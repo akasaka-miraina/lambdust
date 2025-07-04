@@ -474,7 +474,7 @@ impl Evaluator {
                 | "map"
                 | "apply"
                 | "fold"
-                | "fold-right" 
+                | "fold-right"
                 | "filter"
         )
     }
@@ -2431,10 +2431,10 @@ impl Evaluator {
                     self.eval_sequence(body, Rc::new(new_env), Continuation::Identity)
                 }
             }
-            Value::Procedure(Procedure::HostFunction { func, .. }) => {
-                func(&args)
-            }
-            Value::Procedure(Procedure::Continuation { continuation: _continuation }) => {
+            Value::Procedure(Procedure::HostFunction { func, .. }) => func(&args),
+            Value::Procedure(Procedure::Continuation {
+                continuation: _continuation,
+            }) => {
                 // Handle continuation procedures
                 if args.len() != 1 {
                     return Err(LambdustError::arity_error(1, args.len()));
@@ -2474,7 +2474,9 @@ impl Evaluator {
             if vec.len() != length {
                 return Err(LambdustError::runtime_error(format!(
                     "map: all lists must have the same length, list {} has length {} but expected {}",
-                    i + 1, vec.len(), length
+                    i + 1,
+                    vec.len(),
+                    length
                 )));
             }
         }
@@ -2500,14 +2502,14 @@ impl Evaluator {
 
         // Build the argument list from all provided arguments
         let mut apply_args = Vec::new();
-        
+
         // Add intermediate arguments (if any)
-        for arg in &args[1..args.len()-1] {
+        for arg in &args[1..args.len() - 1] {
             apply_args.push(arg.clone());
         }
 
         // The last argument should be a list
-        let last_arg = &args[args.len()-1];
+        let last_arg = &args[args.len() - 1];
         let last_list = last_arg.to_vector().ok_or_else(|| {
             LambdustError::type_error("apply: last argument must be a proper list".to_string())
         })?;
@@ -2529,10 +2531,8 @@ impl Evaluator {
         })?;
 
         for item in list {
-            accumulator = self.apply_procedure_with_evaluator(
-                proc.clone(), 
-                vec![accumulator, item]
-            )?;
+            accumulator =
+                self.apply_procedure_with_evaluator(proc.clone(), vec![accumulator, item])?;
         }
 
         Ok(accumulator)
@@ -2547,15 +2547,15 @@ impl Evaluator {
         let proc = args[0].clone();
         let mut accumulator = args[1].clone();
         let list = args[2].to_vector().ok_or_else(|| {
-            LambdustError::type_error("fold-right: third argument must be a proper list".to_string())
+            LambdustError::type_error(
+                "fold-right: third argument must be a proper list".to_string(),
+            )
         })?;
 
         // Process from right to left
         for item in list.into_iter().rev() {
-            accumulator = self.apply_procedure_with_evaluator(
-                proc.clone(), 
-                vec![item, accumulator]
-            )?;
+            accumulator =
+                self.apply_procedure_with_evaluator(proc.clone(), vec![item, accumulator])?;
         }
 
         Ok(accumulator)
@@ -2575,10 +2575,8 @@ impl Evaluator {
         let mut results = Vec::new();
 
         for item in list {
-            let keep = self.apply_procedure_with_evaluator(
-                predicate.clone(), 
-                vec![item.clone()]
-            )?;
+            let keep =
+                self.apply_procedure_with_evaluator(predicate.clone(), vec![item.clone()])?;
             if keep.is_truthy() {
                 results.push(item);
             }
