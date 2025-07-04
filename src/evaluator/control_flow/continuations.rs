@@ -3,8 +3,8 @@
 //! This module implements continuation handling logic for control flow constructs,
 //! providing centralized continuation application for all control flow operations.
 
-use crate::evaluator::{Continuation, Evaluator};
 use crate::error::{LambdustError, Result};
+use crate::evaluator::{Continuation, Evaluator};
 use crate::value::Value;
 
 /// Apply control flow continuations
@@ -34,7 +34,9 @@ pub fn apply_control_flow_continuation(
             producer_expr,
             env,
             parent,
-        } => evaluator.apply_call_with_values_step1_continuation(value, producer_expr, env, *parent),
+        } => {
+            evaluator.apply_call_with_values_step1_continuation(value, producer_expr, env, *parent)
+        }
         Continuation::CallWithValuesStep2 {
             consumer,
             env,

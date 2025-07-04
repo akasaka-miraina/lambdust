@@ -6,8 +6,8 @@
 pub mod arithmetic_tests;
 pub mod lazy_tests;
 pub mod list_ops_tests;
-pub mod string_char_tests;
 pub mod srfi_13_tests;
 pub mod srfi_1_tests;
 pub mod srfi_69_tests;
 pub mod srfi_tests;
+pub mod string_char_tests;

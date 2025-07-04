@@ -9,7 +9,7 @@ pub mod types;
 
 // Re-export public types for convenience
 pub use expander::MacroExpander;
-pub use pattern_matching::{Pattern, Template, SyntaxRule};
+pub use pattern_matching::{Pattern, SyntaxRule, Template};
 pub use syntax_rules::SyntaxRulesTransformer;
 pub use types::{BindingValue, Macro, MacroTransformer, VariableBindings};
 
@@ -34,5 +34,3 @@ pub fn expand_macro(name: &str, args: &[Expr]) -> Result<Expr> {
         ))),
     }
 }
-
-

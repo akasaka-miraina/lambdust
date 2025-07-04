@@ -16,8 +16,8 @@ use crate::ast::Expr;
 use crate::error::{LambdustError, Result};
 use std::collections::HashMap;
 
-use super::pattern_matching::{Pattern, Template, SyntaxRule};
-use super::types::{VariableBindings, BindingValue};
+use super::pattern_matching::{Pattern, SyntaxRule, Template};
+use super::types::{BindingValue, VariableBindings};
 
 /// Syntax-rules transformer for generic macro definitions
 #[derive(Debug, Clone)]

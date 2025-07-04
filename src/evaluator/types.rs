@@ -14,7 +14,7 @@ use std::rc::Rc;
 
 // Import control flow functions
 use crate::ast::Expr;
-use crate::evaluator::{Continuation};
+use crate::evaluator::Continuation;
 
 /// Location identifier for R7RS memory management
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -37,7 +37,8 @@ pub fn eval_do(
 
     // Initialize variables with init expressions
     for (var, init_expr, _) in &bindings {
-        let init_value = evaluator.eval(init_expr.clone(), do_env.clone(), Continuation::Identity)?;
+        let init_value =
+            evaluator.eval(init_expr.clone(), do_env.clone(), Continuation::Identity)?;
         do_env.define(var.clone(), init_value);
     }
 

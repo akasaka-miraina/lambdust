@@ -8,7 +8,7 @@ use std::collections::HashMap;
 pub fn register_control_flow_functions(builtins: &mut HashMap<String, Value>) {
     // Note: call/cc and call-with-current-continuation are handled directly
     // in the formal evaluator as special forms, not as builtin functions
-    
+
     builtins.insert("raise".to_string(), raise_function());
     builtins.insert(
         "with-exception-handler".to_string(),
@@ -16,7 +16,6 @@ pub fn register_control_flow_functions(builtins: &mut HashMap<String, Value>) {
     );
     builtins.insert("dynamic-wind".to_string(), dynamic_wind_function());
 }
-
 
 /// Implements the `raise` function for raising exceptions
 fn raise_function() -> Value {

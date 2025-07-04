@@ -104,8 +104,7 @@ pub fn eval_guard(
     let body_exprs = operands[1..].to_vec();
 
     // Create guard exception handler
-    let guard_handler =
-        create_guard_handler(condition_var, clauses, else_exprs, env.clone())?;
+    let guard_handler = create_guard_handler(condition_var, clauses, else_exprs, env.clone())?;
 
     // Install handler
     let handler_info = ExceptionHandlerInfo {
@@ -218,7 +217,11 @@ fn create_guard_handler(
 // Additional functions for Evaluator impl
 impl Evaluator {
     /// Raise an exception
-    pub(super) fn raise_exception(&mut self, exception: Value, cont: Continuation) -> Result<Value> {
+    pub(super) fn raise_exception(
+        &mut self,
+        exception: Value,
+        cont: Continuation,
+    ) -> Result<Value> {
         // Find and call the nearest exception handler
         if let Some(handler_info) = self.exception_handlers().last() {
             let handler = handler_info.handler.clone();
@@ -228,7 +231,9 @@ impl Evaluator {
                 Value::External(ref external_obj) => {
                     // Check if this is a GuardHandler
                     if external_obj.type_name == "GuardHandler" {
-                        if let Some(guard_handler) = external_obj.data.downcast_ref::<GuardHandler>() {
+                        if let Some(guard_handler) =
+                            external_obj.data.downcast_ref::<GuardHandler>()
+                        {
                             // Process guard handler dynamically
                             self.process_guard_handler(guard_handler, exception, handler_env, cont)
                         } else {
@@ -286,7 +291,11 @@ impl Evaluator {
         // Evaluate each guard clause in order
         for (condition_expr, result_exprs) in &guard_handler.clauses {
             // Evaluate the condition expression
-            match self.eval(condition_expr.clone(), Rc::new(guard_env.clone()), Continuation::Identity) {
+            match self.eval(
+                condition_expr.clone(),
+                Rc::new(guard_env.clone()),
+                Continuation::Identity,
+            ) {
                 Ok(condition_result) => {
                     // Check if condition is true (any non-#f value is true in Scheme)
                     if !matches!(condition_result, Value::Boolean(false)) {
@@ -310,7 +319,7 @@ impl Evaluator {
         // by removing this handler and trying the next one
         self.exception_handlers_mut().pop();
         let result = self.raise_exception(exception, cont);
-        
+
         // Restore the handler stack
         let external_obj = ExternalObject {
             id: 0,
@@ -322,7 +331,7 @@ impl Evaluator {
             env: handler_env,
         };
         self.exception_handlers_mut().push(handler_info);
-        
+
         result
     }
 
@@ -350,7 +359,7 @@ impl Evaluator {
         result
     }
 
-    /// Apply guard clause continuation 
+    /// Apply guard clause continuation
     pub(super) fn apply_guard_clause_continuation(
         &mut self,
         value: Value,
