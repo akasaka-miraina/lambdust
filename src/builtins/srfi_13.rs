@@ -1060,4 +1060,3 @@ fn string_delete_function() -> Value {
         },
     })
 }
-

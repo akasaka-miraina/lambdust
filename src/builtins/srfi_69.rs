@@ -810,4 +810,3 @@ pub fn string_ci_hash_impl(args: &[Value]) -> Result<Value> {
         result as i64,
     )))
 }
-

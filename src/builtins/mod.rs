@@ -27,7 +27,8 @@ pub fn create_builtins() -> HashMap<String, Value> {
     arithmetic::register_arithmetic_functions(&mut builtins);
     control_flow::register_control_flow_functions(&mut builtins);
     list_ops::register_list_functions(&mut builtins);
-    higher_order::register_higher_order_functions(&mut builtins);
+    // Note: higher_order functions are now handled as special forms in the evaluator
+    // higher_order::register_higher_order_functions(&mut builtins);
     predicates::register_predicate_functions(&mut builtins);
     string_char::register_string_char_functions(&mut builtins);
     vector::register_vector_functions(&mut builtins);

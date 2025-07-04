@@ -56,4 +56,3 @@ impl SrfiModule for Srfi46 {
         Ok(filtered)
     }
 }
-

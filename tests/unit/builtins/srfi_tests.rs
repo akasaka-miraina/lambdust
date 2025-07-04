@@ -1,8 +1,8 @@
 //! Unit tests for SRFI built-in functions
 
 use lambdust::builtins::srfi::{
-    extract_integer_from_number, srfi_available_function, srfi_name_function,
-    srfi_parts_function, srfi_supported_ids_function,
+    extract_integer_from_number, srfi_available_function, srfi_name_function, srfi_parts_function,
+    srfi_supported_ids_function,
 };
 use lambdust::lexer::SchemeNumber;
 use lambdust::value::{Procedure, Value};

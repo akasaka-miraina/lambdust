@@ -3,8 +3,8 @@
 //! These tests were extracted from src/srfi/srfi_9.rs
 
 use lambdust::lexer::SchemeNumber;
-use lambdust::srfi::srfi_9::Srfi9;
 use lambdust::srfi::SrfiModule;
+use lambdust::srfi::srfi_9::Srfi9;
 use lambdust::value::{Procedure, Value};
 
 #[test]
@@ -31,7 +31,7 @@ fn test_srfi_9_exports() {
 fn test_record_operations() {
     let srfi9 = Srfi9;
     let exports = srfi9.exports();
-    
+
     // Test make-record
     let make_record = exports.get("make-record").unwrap();
     if let Value::Procedure(Procedure::Builtin { func, .. }) = make_record {

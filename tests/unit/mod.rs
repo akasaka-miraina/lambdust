@@ -21,10 +21,11 @@ pub mod value_tests;
 // Builtin functions unit tests
 pub mod builtins;
 pub mod higher_order_tests;
+pub mod lambda_integration_tests;
 
 // SRFI and module system unit tests
-pub mod srfi;
 pub mod module_system_tests;
+pub mod srfi;
 
 // Additional unit tests will be added here as they are extracted
 // from source files and moved to this directory.

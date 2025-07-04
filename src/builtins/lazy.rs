@@ -90,4 +90,3 @@ pub fn force_promise(
         }
     }
 }
-

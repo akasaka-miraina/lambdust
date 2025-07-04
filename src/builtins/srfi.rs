@@ -157,4 +157,3 @@ pub fn extract_integer_from_number(n: &crate::lexer::SchemeNumber) -> Result<u32
         )),
     }
 }
-

@@ -166,4 +166,3 @@ fn promise_predicate() -> Value {
         },
     })
 }
-

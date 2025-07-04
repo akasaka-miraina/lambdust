@@ -471,6 +471,11 @@ impl Evaluator {
                 | "raise"
                 | "with-exception-handler"
                 | "guard"
+                | "map"
+                | "apply"
+                | "fold"
+                | "fold-right" 
+                | "filter"
         )
     }
 
@@ -524,6 +529,13 @@ impl Evaluator {
             "raise" => self.eval_raise(operands, env, cont),
             "with-exception-handler" => self.eval_with_exception_handler(operands, env, cont),
             "guard" => self.eval_guard(operands, env, cont),
+
+            // Higher-order functions (evaluator-integrated)
+            "map" => self.eval_map_special_form(operands, env, cont),
+            "apply" => self.eval_apply_special_form(operands, env, cont),
+            "fold" => self.eval_fold_special_form(operands, env, cont),
+            "fold-right" => self.eval_fold_right_special_form(operands, env, cont),
+            "filter" => self.eval_filter_special_form(operands, env, cont),
 
             // This should never be reached if is_special_form is correct
             _ => Err(LambdustError::syntax_error(format!(
@@ -1410,24 +1422,35 @@ impl Evaluator {
     }
 
     /// Convert evaluator continuation to value continuation for call/cc
-    fn convert_continuation_to_value(&self, cont: &Continuation, env: Rc<Environment>) -> crate::value::Continuation {
+    fn convert_continuation_to_value(
+        &self,
+        cont: &Continuation,
+        env: Rc<Environment>,
+    ) -> crate::value::Continuation {
         // Convert continuation chain to stack frames for value representation
         let mut stack = vec![];
         self.collect_continuation_stack(cont, &mut stack);
-        
-        crate::value::Continuation {
-            stack,
-            env,
-        }
+
+        crate::value::Continuation { stack, env }
     }
 
     /// Recursively collect continuation stack frames
-    fn collect_continuation_stack(&self, cont: &Continuation, stack: &mut Vec<crate::value::StackFrame>) {
+    #[allow(clippy::only_used_in_recursion)]
+    fn collect_continuation_stack(
+        &self,
+        cont: &Continuation,
+        stack: &mut Vec<crate::value::StackFrame>,
+    ) {
         match cont {
             Continuation::Identity => {
                 // Base case: identity continuation
             }
-            Continuation::Application { remaining_args, env, parent, .. } => {
+            Continuation::Application {
+                remaining_args,
+                env,
+                parent,
+                ..
+            } => {
                 // Add current application frame
                 if let Some(expr) = remaining_args.first() {
                     stack.push(crate::value::StackFrame {
@@ -2038,7 +2061,9 @@ impl Evaluator {
                         self.apply_continuation(cont, result)
                     }
                 }
-                Procedure::Continuation { continuation: _continuation } => {
+                Procedure::Continuation {
+                    continuation: _continuation,
+                } => {
                     // Call/cc continuation: return the value directly (simulating escape)
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
@@ -2074,10 +2099,8 @@ pub fn eval_with_formal_semantics(expr: Expr, env: Rc<Environment>) -> Result<Va
 impl Evaluator {
     /// Push an exception handler onto the stack
     fn push_exception_handler(&mut self, handler: Value, env: Rc<Environment>) {
-        self.exception_handlers.push(ExceptionHandlerInfo {
-            handler,
-            env,
-        });
+        self.exception_handlers
+            .push(ExceptionHandlerInfo { handler, env });
     }
 
     /// Pop an exception handler from the stack
@@ -2166,8 +2189,9 @@ impl Evaluator {
 
         // Try each guard clause in order
         for (condition_expr, result_exprs) in clauses {
-            let condition_result = self.eval(condition_expr, guard_env_rc.clone(), Continuation::Identity)?;
-            
+            let condition_result =
+                self.eval(condition_expr, guard_env_rc.clone(), Continuation::Identity)?;
+
             // If condition is true (non-#f), execute this clause
             if !matches!(condition_result, Value::Boolean(false)) {
                 // Evaluate result expressions in the guard environment
@@ -2208,7 +2232,7 @@ impl Evaluator {
 
         // First evaluate the handler expression
         let handler_value = self.eval(handler_expr, env.clone(), Continuation::Identity)?;
-        
+
         // Verify that the handler is a procedure
         if !matches!(handler_value, Value::Procedure(_)) {
             return Err(LambdustError::type_error(
@@ -2351,7 +2375,7 @@ impl Evaluator {
     ) -> Result<Value> {
         // Pop the exception handler from the stack since evaluation is complete
         self.pop_exception_handler();
-        
+
         // Continue with the value
         self.apply_continuation(parent, value)
     }
@@ -2371,5 +2395,305 @@ impl Evaluator {
 
         // Normal completion: just pass the value through
         self.apply_continuation(parent, value)
+    }
+
+    /// Apply a procedure to arguments with evaluator integration for lambda functions
+    pub fn apply_procedure_with_evaluator(
+        &mut self,
+        proc: Value,
+        args: Vec<Value>,
+    ) -> Result<Value> {
+        match proc {
+            Value::Procedure(Procedure::Builtin { func, arity, .. }) => {
+                // Check arity for builtin functions
+                if let Some(expected) = arity {
+                    if args.len() != expected {
+                        return Err(LambdustError::arity_error(expected, args.len()));
+                    }
+                }
+                func(&args)
+            }
+            Value::Procedure(Procedure::Lambda {
+                params,
+                variadic,
+                body,
+                closure,
+            }) => {
+                // Create new environment with parameter bindings
+                let new_env = closure.bind_parameters(&params, &args, variadic)?;
+
+                // Evaluate body in the new environment
+                if body.is_empty() {
+                    Ok(Value::Undefined)
+                } else if body.len() == 1 {
+                    self.eval(body[0].clone(), Rc::new(new_env), Continuation::Identity)
+                } else {
+                    self.eval_sequence(body, Rc::new(new_env), Continuation::Identity)
+                }
+            }
+            Value::Procedure(Procedure::HostFunction { func, .. }) => {
+                func(&args)
+            }
+            Value::Procedure(Procedure::Continuation { continuation: _continuation }) => {
+                // Handle continuation procedures
+                if args.len() != 1 {
+                    return Err(LambdustError::arity_error(1, args.len()));
+                }
+                Ok(args[0].clone())
+            }
+            _ => Err(LambdustError::type_error(format!(
+                "Not a procedure: {proc}"
+            ))),
+        }
+    }
+
+    /// Evaluator-aware map implementation
+    pub fn eval_map(&mut self, args: Vec<Value>) -> Result<Value> {
+        if args.len() < 2 {
+            return Err(LambdustError::arity_error(2, args.len()));
+        }
+
+        let proc = args[0].clone();
+        let lists = &args[1..];
+
+        // Convert all arguments to vectors for easier iteration
+        let mut vectors = Vec::new();
+        for list in lists {
+            vectors.push(list.to_vector().ok_or_else(|| {
+                LambdustError::type_error("map: argument is not a proper list".to_string())
+            })?);
+        }
+
+        // Check that all lists have the same length
+        if vectors.is_empty() {
+            return Ok(Value::from_vector(vec![]));
+        }
+
+        let length = vectors[0].len();
+        for (i, vec) in vectors.iter().enumerate() {
+            if vec.len() != length {
+                return Err(LambdustError::runtime_error(format!(
+                    "map: all lists must have the same length, list {} has length {} but expected {}",
+                    i + 1, vec.len(), length
+                )));
+            }
+        }
+
+        // Apply the procedure to each set of arguments
+        let mut results = Vec::new();
+        for i in 0..length {
+            let call_args: Vec<Value> = vectors.iter().map(|vec| vec[i].clone()).collect();
+            let result = self.apply_procedure_with_evaluator(proc.clone(), call_args)?;
+            results.push(result);
+        }
+
+        Ok(Value::from_vector(results))
+    }
+
+    /// Evaluator-aware apply implementation
+    pub fn eval_apply(&mut self, args: Vec<Value>) -> Result<Value> {
+        if args.len() < 2 {
+            return Err(LambdustError::arity_error(2, args.len()));
+        }
+
+        let proc = args[0].clone();
+
+        // Build the argument list from all provided arguments
+        let mut apply_args = Vec::new();
+        
+        // Add intermediate arguments (if any)
+        for arg in &args[1..args.len()-1] {
+            apply_args.push(arg.clone());
+        }
+
+        // The last argument should be a list
+        let last_arg = &args[args.len()-1];
+        let last_list = last_arg.to_vector().ok_or_else(|| {
+            LambdustError::type_error("apply: last argument must be a proper list".to_string())
+        })?;
+        apply_args.extend(last_list);
+
+        self.apply_procedure_with_evaluator(proc, apply_args)
+    }
+
+    /// Evaluator-aware fold implementation (left fold)
+    pub fn eval_fold(&mut self, args: Vec<Value>) -> Result<Value> {
+        if args.len() != 3 {
+            return Err(LambdustError::arity_error(3, args.len()));
+        }
+
+        let proc = args[0].clone();
+        let mut accumulator = args[1].clone();
+        let list = args[2].to_vector().ok_or_else(|| {
+            LambdustError::type_error("fold: third argument must be a proper list".to_string())
+        })?;
+
+        for item in list {
+            accumulator = self.apply_procedure_with_evaluator(
+                proc.clone(), 
+                vec![accumulator, item]
+            )?;
+        }
+
+        Ok(accumulator)
+    }
+
+    /// Evaluator-aware fold-right implementation (right fold)
+    pub fn eval_fold_right(&mut self, args: Vec<Value>) -> Result<Value> {
+        if args.len() != 3 {
+            return Err(LambdustError::arity_error(3, args.len()));
+        }
+
+        let proc = args[0].clone();
+        let mut accumulator = args[1].clone();
+        let list = args[2].to_vector().ok_or_else(|| {
+            LambdustError::type_error("fold-right: third argument must be a proper list".to_string())
+        })?;
+
+        // Process from right to left
+        for item in list.into_iter().rev() {
+            accumulator = self.apply_procedure_with_evaluator(
+                proc.clone(), 
+                vec![item, accumulator]
+            )?;
+        }
+
+        Ok(accumulator)
+    }
+
+    /// Evaluator-aware filter implementation
+    pub fn eval_filter(&mut self, args: Vec<Value>) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(LambdustError::arity_error(2, args.len()));
+        }
+
+        let predicate = args[0].clone();
+        let list = args[1].to_vector().ok_or_else(|| {
+            LambdustError::type_error("filter: second argument must be a proper list".to_string())
+        })?;
+
+        let mut results = Vec::new();
+
+        for item in list {
+            let keep = self.apply_procedure_with_evaluator(
+                predicate.clone(), 
+                vec![item.clone()]
+            )?;
+            if keep.is_truthy() {
+                results.push(item);
+            }
+        }
+
+        Ok(Value::from_vector(results))
+    }
+
+    /// Special form wrapper for map
+    fn eval_map_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() < 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        // Evaluate all operands first
+        let mut values = Vec::new();
+        for operand in operands {
+            values.push(self.eval(operand.clone(), env.clone(), Continuation::Identity)?);
+        }
+
+        // Use the evaluator-integrated map implementation
+        let result = self.eval_map(values)?;
+        self.apply_continuation(cont, result)
+    }
+
+    /// Special form wrapper for apply
+    fn eval_apply_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() < 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        // Evaluate all operands first
+        let mut values = Vec::new();
+        for operand in operands {
+            values.push(self.eval(operand.clone(), env.clone(), Continuation::Identity)?);
+        }
+
+        // Use the evaluator-integrated apply implementation
+        let result = self.eval_apply(values)?;
+        self.apply_continuation(cont, result)
+    }
+
+    /// Special form wrapper for fold
+    fn eval_fold_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 3 {
+            return Err(LambdustError::arity_error(3, operands.len()));
+        }
+
+        // Evaluate all operands first
+        let mut values = Vec::new();
+        for operand in operands {
+            values.push(self.eval(operand.clone(), env.clone(), Continuation::Identity)?);
+        }
+
+        // Use the evaluator-integrated fold implementation
+        let result = self.eval_fold(values)?;
+        self.apply_continuation(cont, result)
+    }
+
+    /// Special form wrapper for fold-right
+    fn eval_fold_right_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 3 {
+            return Err(LambdustError::arity_error(3, operands.len()));
+        }
+
+        // Evaluate all operands first
+        let mut values = Vec::new();
+        for operand in operands {
+            values.push(self.eval(operand.clone(), env.clone(), Continuation::Identity)?);
+        }
+
+        // Use the evaluator-integrated fold-right implementation
+        let result = self.eval_fold_right(values)?;
+        self.apply_continuation(cont, result)
+    }
+
+    /// Special form wrapper for filter
+    fn eval_filter_special_form(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.len() != 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        // Evaluate all operands first
+        let mut values = Vec::new();
+        for operand in operands {
+            values.push(self.eval(operand.clone(), env.clone(), Continuation::Identity)?);
+        }
+
+        // Use the evaluator-integrated filter implementation
+        let result = self.eval_filter(values)?;
+        self.apply_continuation(cont, result)
     }
 }

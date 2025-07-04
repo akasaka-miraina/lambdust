@@ -21,6 +21,10 @@ pub fn register_srfi_1_functions(builtins: &mut HashMap<String, Value>) {
     // Higher-order functions implemented in higher_order module
     // These are now properly implemented for builtin functions
     // Lambda function support requires future evaluator integration
+    
+    // Note: fold, fold-right, filter are now handled as special forms in the evaluator
+    // for full lambda integration support
+    
     builtins.insert("find".to_string(), find_function());
     builtins.insert("any".to_string(), any_function());
     builtins.insert("every".to_string(), every_function());
@@ -294,4 +298,3 @@ fn every_placeholder(args: &[Value]) -> Result<Value> {
         "every: lambda functions require evaluator integration (not yet implemented)".to_string(),
     ))
 }
-

@@ -18,7 +18,7 @@ mod exception_tests {
         if let Err(e) = result {
             assert!(
                 e.to_string()
-                    .contains("Exception raised: \"This is an error\"")
+                    .contains("Uncaught exception: \"This is an error\"")
             );
         }
 
@@ -26,7 +26,7 @@ mod exception_tests {
         let result = interpreter.eval("(raise 'error-symbol)");
         assert!(result.is_err());
         if let Err(e) = result {
-            assert!(e.to_string().contains("Exception raised: error-symbol"));
+            assert!(e.to_string().contains("Uncaught exception: error-symbol"));
         }
     }
 

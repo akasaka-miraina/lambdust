@@ -16,8 +16,7 @@ fn test_hash_table_predicate() {
     let result = hash_table_predicate(&[ht]).unwrap();
     assert_eq!(result, Value::Boolean(true));
 
-    let result =
-        hash_table_predicate(&[Value::String("not a hash table".to_string())]).unwrap();
+    let result = hash_table_predicate(&[Value::String("not a hash table".to_string())]).unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 

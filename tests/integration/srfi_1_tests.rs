@@ -59,14 +59,11 @@ mod tests {
     fn test_fold_function_exists() {
         let mut interpreter = create_test_interpreter();
 
-        // Test that fold function exists (placeholder implementation)
-        let result = interpreter.eval_string("fold");
+        // Test that fold function works (now implemented as special form in evaluator)
+        let result = interpreter.eval_string("(fold + 0 '(1 2 3))");
         assert!(result.is_ok());
-
-        if let Ok(Value::Procedure(_)) = result {
-            // Function exists as a procedure
-        } else {
-            panic!("fold should be a procedure");
+        if let Ok(value) = result {
+            assert_eq!(value, Value::from(6i64));
         }
     }
 
@@ -74,14 +71,11 @@ mod tests {
     fn test_fold_right_function_exists() {
         let mut interpreter = create_test_interpreter();
 
-        // Test that fold-right function exists (placeholder implementation)
-        let result = interpreter.eval_string("fold-right");
+        // Test that fold-right function works (now implemented as special form in evaluator)
+        let result = interpreter.eval_string("(fold-right cons '() '(1 2 3))");
         assert!(result.is_ok());
-
-        if let Ok(Value::Procedure(_)) = result {
-            // Function exists as a procedure
-        } else {
-            panic!("fold-right should be a procedure");
+        if let Ok(value) = result {
+            assert_eq!(value, Value::from_vector(vec![Value::from(1i64), Value::from(2i64), Value::from(3i64)]));
         }
     }
 
@@ -89,14 +83,11 @@ mod tests {
     fn test_filter_function_exists() {
         let mut interpreter = create_test_interpreter();
 
-        // Test that filter function exists (placeholder implementation)
-        let result = interpreter.eval_string("filter");
+        // Test that filter function works (now implemented as special form in evaluator)
+        let result = interpreter.eval_string("(filter (lambda (x) (> x 2)) '(1 2 3 4 5))");
         assert!(result.is_ok());
-
-        if let Ok(Value::Procedure(_)) = result {
-            // Function exists as a procedure
-        } else {
-            panic!("filter should be a procedure");
+        if let Ok(value) = result {
+            assert_eq!(value, Value::from_vector(vec![Value::from(3i64), Value::from(4i64), Value::from(5i64)]));
         }
     }
 
@@ -149,21 +140,18 @@ mod tests {
     fn test_srfi_1_library_available() {
         let mut interpreter = create_test_interpreter();
 
-        // Test that SRFI 1 functions are available
-        let functions = vec![
+        // Test that SRFI 1 functions are available as procedures
+        let procedures = vec![
             "take",
             "drop",
             "concatenate",
             "delete-duplicates",
-            "fold",
-            "fold-right",
-            "filter",
             "find",
             "any",
             "every",
         ];
 
-        for func_name in functions {
+        for func_name in procedures {
             let result = interpreter.eval_string(func_name);
             assert!(result.is_ok(), "Function {} should be available", func_name);
 
@@ -171,6 +159,23 @@ mod tests {
                 // Function exists as a procedure
             } else {
                 panic!("{} should be a procedure", func_name);
+            }
+        }
+
+        // Test that special forms work (fold, fold-right, filter)
+        let special_forms = vec![
+            ("fold", "(fold + 0 '(1 2 3))", Value::from(6i64)),
+            ("fold-right", "(fold-right cons '() '(1 2 3))", 
+             Value::from_vector(vec![Value::from(1i64), Value::from(2i64), Value::from(3i64)])),
+            ("filter", "(filter (lambda (x) (> x 2)) '(1 2 3 4 5))", 
+             Value::from_vector(vec![Value::from(3i64), Value::from(4i64), Value::from(5i64)])),
+        ];
+
+        for (name, test_expr, expected) in special_forms {
+            let result = interpreter.eval_string(test_expr);
+            assert!(result.is_ok(), "Special form {} should work", name);
+            if let Ok(value) = result {
+                assert_eq!(value, expected, "Special form {} should return expected value", name);
             }
         }
     }
