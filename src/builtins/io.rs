@@ -1,5 +1,6 @@
 //! I/O operations for Scheme
 
+use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::LambdustError;
 use crate::value::{Procedure, Value};
 use std::collections::HashMap;
@@ -19,34 +20,22 @@ pub fn register_io_functions(builtins: &mut HashMap<String, Value>) {
 }
 
 fn io_display() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "display".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-            match &args[0] {
-                Value::String(s) => print!("{}", s),
-                other => print!("{}", other),
-            }
-            std::io::Write::flush(&mut std::io::stdout()).ok();
-            Ok(Value::Undefined)
-        },
+    make_builtin_procedure("display", Some(1), |args| {
+        check_arity(args, 1)?;
+        match &args[0] {
+            Value::String(s) => print!("{}", s),
+            other => print!("{}", other),
+        }
+        std::io::Write::flush(&mut std::io::stdout()).ok();
+        Ok(Value::Undefined)
     })
 }
 
 fn io_newline() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "newline".to_string(),
-        arity: Some(0),
-        func: |args| {
-            if !args.is_empty() {
-                return Err(LambdustError::arity_error(0, args.len()));
-            }
-            println!();
-            Ok(Value::Undefined)
-        },
+    make_builtin_procedure("newline", Some(0), |args| {
+        check_arity(args, 0)?;
+        println!();
+        Ok(Value::Undefined)
     })
 }
 
@@ -65,17 +54,11 @@ fn io_read() -> Value {
 }
 
 fn io_write() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "write".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-            print!("{}", args[0]);
-            std::io::Write::flush(&mut std::io::stdout()).ok();
-            Ok(Value::Undefined)
-        },
+    make_builtin_procedure("write", Some(1), |args| {
+        check_arity(args, 1)?;
+        print!("{}", args[0]);
+        std::io::Write::flush(&mut std::io::stdout()).ok();
+        Ok(Value::Undefined)
     })
 }
 

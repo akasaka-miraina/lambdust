@@ -1,13 +1,13 @@
 //! String and character operations for Scheme
 
 use crate::builtins::utils::{
-    check_arity, make_builtin_procedure, expect_number, expect_string,
-    expect_character, expect_integer_index, string_char_at
+    check_arity, expect_character, expect_integer_index, expect_number, expect_string,
+    make_builtin_procedure, string_char_at,
 };
-use crate::{make_string_comparison, make_char_comparison};
 use crate::error::LambdustError;
 use crate::lexer::SchemeNumber;
 use crate::value::{Procedure, Value};
+use crate::{make_char_comparison, make_string_comparison};
 use std::collections::HashMap;
 
 /// Register all string and character functions
@@ -17,11 +17,26 @@ pub fn register_string_char_functions(builtins: &mut HashMap<String, Value>) {
     builtins.insert("string-ref".to_string(), string_ref());
     builtins.insert("string-append".to_string(), string_append());
     builtins.insert("substring".to_string(), string_substring());
-    builtins.insert("string=?".to_string(), make_string_comparison!("string=?", ==));
-    builtins.insert("string<?".to_string(), make_string_comparison!("string<?", <));
-    builtins.insert("string>?".to_string(), make_string_comparison!("string>?", >));
-    builtins.insert("string<=?".to_string(), make_string_comparison!("string<=?", <=));
-    builtins.insert("string>=?".to_string(), make_string_comparison!("string>=?", >=));
+    builtins.insert(
+        "string=?".to_string(),
+        make_string_comparison!("string=?", ==),
+    );
+    builtins.insert(
+        "string<?".to_string(),
+        make_string_comparison!("string<?", <),
+    );
+    builtins.insert(
+        "string>?".to_string(),
+        make_string_comparison!("string>?", >),
+    );
+    builtins.insert(
+        "string<=?".to_string(),
+        make_string_comparison!("string<=?", <=),
+    );
+    builtins.insert(
+        "string>=?".to_string(),
+        make_string_comparison!("string>=?", >=),
+    );
     builtins.insert("make-string".to_string(), string_make());
     builtins.insert("string".to_string(), string_constructor());
 
@@ -50,7 +65,9 @@ fn string_length() -> Value {
     make_builtin_procedure("string-length", Some(1), |args| {
         check_arity(args, 1)?;
         let s = expect_string(&args[0], "string-length")?;
-        Ok(Value::Number(SchemeNumber::Integer(s.chars().count() as i64)))
+        Ok(Value::Number(SchemeNumber::Integer(
+            s.chars().count() as i64
+        )))
     })
 }
 
@@ -138,14 +155,16 @@ fn string_make() -> Value {
         }
 
         let length = expect_integer_index(&args[0], "make-string")?;
-        
+
         let fill_char = if args.len() == 2 {
             expect_character(&args[1], "make-string")?
         } else {
             ' ' // Default space character
         };
 
-        Ok(Value::String(std::iter::repeat_n(fill_char, length).collect()))
+        Ok(Value::String(
+            std::iter::repeat_n(fill_char, length).collect(),
+        ))
     })
 }
 
@@ -172,14 +191,15 @@ fn integer_to_char() -> Value {
     make_builtin_procedure("integer->char", Some(1), |args| {
         check_arity(args, 1)?;
         let num = expect_number(&args[0], "integer->char")?;
-        
+
         match num {
             SchemeNumber::Integer(n) => {
                 if *n >= 0 && *n <= 127 {
                     Ok(Value::Character(*n as u8 as char))
                 } else {
                     Err(LambdustError::runtime_error(format!(
-                        "integer->char: value {} out of ASCII range", n
+                        "integer->char: value {} out of ASCII range",
+                        n
                     )))
                 }
             }

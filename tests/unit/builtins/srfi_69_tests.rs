@@ -1,6 +1,7 @@
 //! Unit tests for SRFI 69: Basic Hash Tables implementation
 
 use lambdust::builtins::srfi_69::*;
+use lambdust::interpreter::LambdustInterpreter;
 use lambdust::lexer::SchemeNumber;
 use lambdust::value::Value;
 
@@ -12,11 +13,12 @@ fn test_hash_table_creation() {
 
 #[test]
 fn test_hash_table_predicate() {
-    let ht = make_hash_table(&[]).unwrap();
-    let result = hash_table_predicate(&[ht]).unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    let result = interpreter.eval_string("(hash-table? (make-hash-table))").unwrap();
     assert_eq!(result, Value::Boolean(true));
 
-    let result = hash_table_predicate(&[Value::String("not a hash table".to_string())]).unwrap();
+    let result = interpreter.eval_string("(hash-table? \"not a hash table\")").unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 

@@ -3,13 +3,16 @@
 use lambdust::builtins::srfi_13::*;
 use lambdust::lexer::SchemeNumber;
 use lambdust::value::Value;
+use lambdust::interpreter::LambdustInterpreter;
 
 #[test]
 fn test_string_null() {
-    let result = string_null(&[Value::String("".to_string())]).unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    let result = interpreter.eval_string("(string-null? \"\")").unwrap();
     assert_eq!(result, Value::Boolean(true));
 
-    let result = string_null(&[Value::String("hello".to_string())]).unwrap();
+    let result = interpreter.eval_string("(string-null? \"hello\")").unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 
@@ -28,35 +31,24 @@ fn test_string_hash() {
 
 #[test]
 fn test_string_prefix() {
-    let result = string_prefix(&[
-        Value::String("hel".to_string()),
-        Value::String("hello".to_string()),
-    ])
-    .unwrap();
+    let mut interpreter = LambdustInterpreter::new();
+    
+    let result = interpreter.eval_string("(string-prefix? \"hel\" \"hello\")").unwrap();
     assert_eq!(result, Value::Boolean(true));
 
-    let result = string_prefix(&[
-        Value::String("world".to_string()),
-        Value::String("hello".to_string()),
-    ])
-    .unwrap();
+    let result = interpreter.eval_string("(string-prefix? \"world\" \"hello\")").unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 
 #[test]
 fn test_string_suffix() {
-    let result = string_suffix(&[
-        Value::String("llo".to_string()),
-        Value::String("hello".to_string()),
-    ])
+    let mut interpreter = LambdustInterpreter::new();
+    
+    let result = interpreter.eval_string("(string-suffix? \"llo\" \"hello\")")
     .unwrap();
     assert_eq!(result, Value::Boolean(true));
 
-    let result = string_suffix(&[
-        Value::String("world".to_string()),
-        Value::String("hello".to_string()),
-    ])
-    .unwrap();
+    let result = interpreter.eval_string("(string-suffix? \"world\" \"hello\")").unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 

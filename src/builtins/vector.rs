@@ -1,5 +1,6 @@
 //! Vector operations for Scheme
 
+use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::LambdustError;
 use crate::lexer::SchemeNumber;
 use crate::value::{Procedure, Value};
@@ -16,30 +17,21 @@ pub fn register_vector_functions(builtins: &mut HashMap<String, Value>) {
 }
 
 fn vector_constructor() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "vector".to_string(),
-        arity: None, // Variadic
-        func: |args| Ok(Value::Vector(args.to_vec())),
+    make_builtin_procedure("vector", None, |args| {
+        Ok(Value::Vector(args.to_vec()))
     })
 }
 
 fn vector_length() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "vector-length".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
-            }
-
-            match &args[0] {
-                Value::Vector(v) => Ok(Value::Number(SchemeNumber::Integer(v.len() as i64))),
-                _ => Err(LambdustError::type_error(format!(
-                    "vector-length: expected vector, got {}",
-                    args[0]
-                ))),
-            }
-        },
+    make_builtin_procedure("vector-length", Some(1), |args| {
+        check_arity(args, 1)?;
+        match &args[0] {
+            Value::Vector(v) => Ok(Value::Number(SchemeNumber::Integer(v.len() as i64))),
+            _ => Err(LambdustError::type_error(format!(
+                "vector-length: expected vector, got {}",
+                args[0]
+            ))),
+        }
     })
 }
 

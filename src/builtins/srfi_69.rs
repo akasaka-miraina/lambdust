@@ -3,6 +3,7 @@
 //! This module implements the SRFI 69 Basic Hash Tables, providing
 //! comprehensive hash table (dictionary) functionality for R7RS Scheme.
 
+use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
 use crate::value::{Procedure, Value};
 use std::cell::RefCell;
@@ -246,20 +247,10 @@ pub fn make_hash_table(args: &[Value]) -> Result<Value> {
 
 /// Create hash-table? function
 fn hash_table_predicate_function() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "hash-table?".to_string(),
-        arity: Some(1),
-        func: hash_table_predicate,
+    make_builtin_procedure("hash-table?", Some(1), |args| {
+        check_arity(args, 1)?;
+        Ok(Value::Boolean(matches!(&args[0], Value::HashTable(_))))
     })
-}
-
-/// Hash-table? - test if value is a hash table
-pub fn hash_table_predicate(args: &[Value]) -> Result<Value> {
-    if args.len() != 1 {
-        return Err(LambdustError::arity_error(1, args.len()));
-    }
-
-    Ok(Value::Boolean(matches!(&args[0], Value::HashTable(_))))
 }
 
 /// Create hash-table-ref function

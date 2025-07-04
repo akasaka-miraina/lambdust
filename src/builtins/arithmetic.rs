@@ -1,12 +1,12 @@
 //! Arithmetic operations for Scheme
 
 use crate::builtins::utils::{
-    check_arity_range, make_builtin_procedure, expect_number, 
-    apply_numeric_operation, compare_numbers, is_odd, is_even, is_zero, is_positive, is_negative
+    apply_numeric_operation, check_arity_range, compare_numbers, expect_number, is_even,
+    is_negative, is_odd, is_positive, is_zero, make_builtin_procedure,
 };
-use crate::make_predicate;
 use crate::error::{LambdustError, Result};
 use crate::lexer::SchemeNumber;
+use crate::make_predicate;
 use crate::value::{Procedure, Value};
 use std::collections::HashMap;
 
@@ -45,8 +45,14 @@ pub fn register_arithmetic_functions(builtins: &mut HashMap<String, Value>) {
     builtins.insert("odd?".to_string(), make_predicate!("odd?", is_odd));
     builtins.insert("even?".to_string(), make_predicate!("even?", is_even));
     builtins.insert("zero?".to_string(), make_predicate!("zero?", is_zero));
-    builtins.insert("positive?".to_string(), make_predicate!("positive?", is_positive));
-    builtins.insert("negative?".to_string(), make_predicate!("negative?", is_negative));
+    builtins.insert(
+        "positive?".to_string(),
+        make_predicate!("positive?", is_positive),
+    );
+    builtins.insert(
+        "negative?".to_string(),
+        make_predicate!("negative?", is_negative),
+    );
 }
 
 // Helper function for handling division with proper integer results
@@ -81,7 +87,7 @@ fn arithmetic_add() -> Value {
 fn arithmetic_sub() -> Value {
     make_builtin_procedure("-", None, |args| {
         check_arity_range(args, 1, None)?;
-        
+
         let first_num = expect_number(&args[0], "-")?;
         if args.len() == 1 {
             // Unary minus
@@ -116,7 +122,7 @@ fn arithmetic_mul() -> Value {
 fn arithmetic_div() -> Value {
     make_builtin_procedure("/", None, |args| {
         check_arity_range(args, 1, None)?;
-        
+
         let first_num = expect_number(&args[0], "/")?;
         if args.len() == 1 {
             // Reciprocal
@@ -125,7 +131,9 @@ fn arithmetic_div() -> Value {
                 SchemeNumber::Real(f) if *f == 0.0 => Err(LambdustError::division_by_zero()),
                 SchemeNumber::Integer(x) => Ok(Value::Number(SchemeNumber::Real(1.0 / *x as f64))),
                 SchemeNumber::Real(x) => Ok(Value::Number(SchemeNumber::Real(1.0 / x))),
-                _ => Err(LambdustError::type_error("Cannot take reciprocal of this number")),
+                _ => Err(LambdustError::type_error(
+                    "Cannot take reciprocal of this number",
+                )),
             }
         } else {
             // Division
@@ -144,7 +152,7 @@ fn arithmetic_div() -> Value {
 fn arithmetic_eq() -> Value {
     make_builtin_procedure("=", None, |args| {
         check_arity_range(args, 2, None)?;
-        
+
         let first = expect_number(&args[0], "=")?;
         for arg in &args[1..] {
             let num = expect_number(arg, "=")?;
@@ -159,11 +167,11 @@ fn arithmetic_eq() -> Value {
 fn arithmetic_lt() -> Value {
     make_builtin_procedure("<", None, |args| {
         check_arity_range(args, 2, None)?;
-        
+
         for i in 0..args.len() - 1 {
             let current = expect_number(&args[i], "<")?;
             let next = expect_number(&args[i + 1], "<")?;
-            
+
             if !compare_numbers(current, next, |x, y| x < y) {
                 return Ok(Value::Boolean(false));
             }
@@ -175,11 +183,11 @@ fn arithmetic_lt() -> Value {
 fn arithmetic_le() -> Value {
     make_builtin_procedure("<=", None, |args| {
         check_arity_range(args, 2, None)?;
-        
+
         for i in 0..args.len() - 1 {
             let current = expect_number(&args[i], "<=")?;
             let next = expect_number(&args[i + 1], "<=")?;
-            
+
             if !compare_numbers(current, next, |x, y| x <= y) {
                 return Ok(Value::Boolean(false));
             }
@@ -191,11 +199,11 @@ fn arithmetic_le() -> Value {
 fn arithmetic_gt() -> Value {
     make_builtin_procedure(">", None, |args| {
         check_arity_range(args, 2, None)?;
-        
+
         for i in 0..args.len() - 1 {
             let current = expect_number(&args[i], ">")?;
             let next = expect_number(&args[i + 1], ">")?;
-            
+
             if !compare_numbers(current, next, |x, y| x > y) {
                 return Ok(Value::Boolean(false));
             }
@@ -207,11 +215,11 @@ fn arithmetic_gt() -> Value {
 fn arithmetic_ge() -> Value {
     make_builtin_procedure(">=", None, |args| {
         check_arity_range(args, 2, None)?;
-        
+
         for i in 0..args.len() - 1 {
             let current = expect_number(&args[i], ">=")?;
             let next = expect_number(&args[i + 1], ">=")?;
-            
+
             if !compare_numbers(current, next, |x, y| x >= y) {
                 return Ok(Value::Boolean(false));
             }
@@ -639,7 +647,6 @@ fn numeric_max() -> Value {
 // for consistency and reduced code duplication
 
 // Helper functions
-
 
 fn number_less_than(a: &SchemeNumber, b: &SchemeNumber) -> bool {
     match (a, b) {

@@ -3,6 +3,9 @@
 //! This module implements the SRFI 13 String Libraries, providing
 //! comprehensive string processing functions for R7RS Scheme.
 
+use crate::builtins::utils::{
+    check_arity, check_arity_range, expect_string, expect_two_strings, make_builtin_procedure,
+};
 use crate::error::{LambdustError, Result};
 use crate::value::{Procedure, Value};
 use std::collections::HashMap;
@@ -91,25 +94,11 @@ pub fn register_srfi_13_functions(builtins: &mut HashMap<String, Value>) {
 
 /// Create string-null? function
 fn string_null_function() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "string-null?".to_string(),
-        arity: Some(1),
-        func: string_null,
+    make_builtin_procedure("string-null?", Some(1), |args| {
+        check_arity(args, 1)?;
+        let s = expect_string(&args[0], "string-null?")?;
+        Ok(Value::Boolean(s.is_empty()))
     })
-}
-
-/// String-null? - test if string is empty
-pub fn string_null(args: &[Value]) -> Result<Value> {
-    if args.len() != 1 {
-        return Err(LambdustError::arity_error(1, args.len()));
-    }
-
-    match &args[0] {
-        Value::String(s) => Ok(Value::Boolean(s.is_empty())),
-        _ => Err(LambdustError::type_error(
-            "Argument must be a string".to_string(),
-        )),
-    }
 }
 
 /// Create string-every function
@@ -388,148 +377,44 @@ pub fn string_hash_ci(args: &[Value]) -> Result<Value> {
 
 /// Create string-prefix? function
 fn string_prefix_function() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "string-prefix?".to_string(),
-        arity: None, // 2-4 args
-        func: string_prefix,
+    make_builtin_procedure("string-prefix?", None, |args| {
+        check_arity_range(args, 2, Some(4))?;
+        let (s1, s2) = expect_two_strings(args, "string-prefix?")?;
+        // For simplicity, ignore optional start/end parameters for now
+        Ok(Value::Boolean(s2.starts_with(s1)))
     })
-}
-
-/// String-prefix? - test if first string is prefix of second
-pub fn string_prefix(args: &[Value]) -> Result<Value> {
-    if args.len() < 2 || args.len() > 4 {
-        return Err(LambdustError::arity_error(2, args.len()));
-    }
-
-    let s1 = match &args[0] {
-        Value::String(s) => s,
-        _ => {
-            return Err(LambdustError::type_error(
-                "First argument must be a string".to_string(),
-            ));
-        }
-    };
-
-    let s2 = match &args[1] {
-        Value::String(s) => s,
-        _ => {
-            return Err(LambdustError::type_error(
-                "Second argument must be a string".to_string(),
-            ));
-        }
-    };
-
-    // For simplicity, ignore optional start/end parameters for now
-    Ok(Value::Boolean(s2.starts_with(s1)))
 }
 
 /// Create string-suffix? function
 fn string_suffix_function() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "string-suffix?".to_string(),
-        arity: None, // 2-4 args
-        func: string_suffix,
+    make_builtin_procedure("string-suffix?", None, |args| {
+        check_arity_range(args, 2, Some(4))?;
+        let (s1, s2) = expect_two_strings(args, "string-suffix?")?;
+        // For simplicity, ignore optional start/end parameters for now
+        Ok(Value::Boolean(s2.ends_with(s1)))
     })
-}
-
-/// String-suffix? - test if first string is suffix of second
-pub fn string_suffix(args: &[Value]) -> Result<Value> {
-    if args.len() < 2 || args.len() > 4 {
-        return Err(LambdustError::arity_error(2, args.len()));
-    }
-
-    let s1 = match &args[0] {
-        Value::String(s) => s,
-        _ => {
-            return Err(LambdustError::type_error(
-                "First argument must be a string".to_string(),
-            ));
-        }
-    };
-
-    let s2 = match &args[1] {
-        Value::String(s) => s,
-        _ => {
-            return Err(LambdustError::type_error(
-                "Second argument must be a string".to_string(),
-            ));
-        }
-    };
-
-    // For simplicity, ignore optional start/end parameters for now
-    Ok(Value::Boolean(s2.ends_with(s1)))
 }
 
 /// Create string-prefix-ci? function
 fn string_prefix_ci_function() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "string-prefix-ci?".to_string(),
-        arity: None, // 2-4 args
-        func: string_prefix_ci,
+    make_builtin_procedure("string-prefix-ci?", None, |args| {
+        check_arity_range(args, 2, Some(4))?;
+        let (s1, s2) = expect_two_strings(args, "string-prefix-ci?")?;
+        let s1_lower = s1.to_lowercase();
+        let s2_lower = s2.to_lowercase();
+        Ok(Value::Boolean(s2_lower.starts_with(&s1_lower)))
     })
-}
-
-/// String-prefix-ci? - case-insensitive prefix test
-pub fn string_prefix_ci(args: &[Value]) -> Result<Value> {
-    if args.len() < 2 || args.len() > 4 {
-        return Err(LambdustError::arity_error(2, args.len()));
-    }
-
-    let s1 = match &args[0] {
-        Value::String(s) => s.to_lowercase(),
-        _ => {
-            return Err(LambdustError::type_error(
-                "First argument must be a string".to_string(),
-            ));
-        }
-    };
-
-    let s2 = match &args[1] {
-        Value::String(s) => s.to_lowercase(),
-        _ => {
-            return Err(LambdustError::type_error(
-                "Second argument must be a string".to_string(),
-            ));
-        }
-    };
-
-    Ok(Value::Boolean(s2.starts_with(&s1)))
 }
 
 /// Create string-suffix-ci? function
 fn string_suffix_ci_function() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "string-suffix-ci?".to_string(),
-        arity: None, // 2-4 args
-        func: string_suffix_ci,
+    make_builtin_procedure("string-suffix-ci?", None, |args| {
+        check_arity_range(args, 2, Some(4))?;
+        let (s1, s2) = expect_two_strings(args, "string-suffix-ci?")?;
+        let s1_lower = s1.to_lowercase();
+        let s2_lower = s2.to_lowercase();
+        Ok(Value::Boolean(s2_lower.ends_with(&s1_lower)))
     })
-}
-
-/// String-suffix-ci? - case-insensitive suffix test
-pub fn string_suffix_ci(args: &[Value]) -> Result<Value> {
-    if args.len() < 2 || args.len() > 4 {
-        return Err(LambdustError::arity_error(2, args.len()));
-    }
-
-    let s1 = match &args[0] {
-        Value::String(s) => s.to_lowercase(),
-        _ => {
-            return Err(LambdustError::type_error(
-                "First argument must be a string".to_string(),
-            ));
-        }
-    };
-
-    let s2 = match &args[1] {
-        Value::String(s) => s.to_lowercase(),
-        _ => {
-            return Err(LambdustError::type_error(
-                "Second argument must be a string".to_string(),
-            ));
-        }
-    };
-
-    Ok(Value::Boolean(s2.ends_with(&s1)))
 }
 
 // Placeholder functions for complex operations that need evaluator integration

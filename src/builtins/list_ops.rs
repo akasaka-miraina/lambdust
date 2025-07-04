@@ -1,5 +1,6 @@
 //! List operations for Scheme
 
+use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::LambdustError;
 use crate::value::{Procedure, Value};
 use std::collections::HashMap;
@@ -28,46 +29,34 @@ pub fn register_list_functions(builtins: &mut HashMap<String, Value>) {
 // Basic list operations
 
 fn list_car() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "car".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
+    make_builtin_procedure("car", Some(1), |args| {
+        check_arity(args, 1)?;
+        match &args[0] {
+            Value::Pair(pair_ref) => {
+                let pair = pair_ref.borrow();
+                Ok(pair.car.clone())
             }
-            match &args[0] {
-                Value::Pair(pair_ref) => {
-                    let pair = pair_ref.borrow();
-                    Ok(pair.car.clone())
-                }
-                _ => Err(LambdustError::type_error(format!(
-                    "car: expected pair, got {}",
-                    args[0]
-                ))),
-            }
-        },
+            _ => Err(LambdustError::type_error(format!(
+                "car: expected pair, got {}",
+                args[0]
+            ))),
+        }
     })
 }
 
 fn list_cdr() -> Value {
-    Value::Procedure(Procedure::Builtin {
-        name: "cdr".to_string(),
-        arity: Some(1),
-        func: |args| {
-            if args.len() != 1 {
-                return Err(LambdustError::arity_error(1, args.len()));
+    make_builtin_procedure("cdr", Some(1), |args| {
+        check_arity(args, 1)?;
+        match &args[0] {
+            Value::Pair(pair_ref) => {
+                let pair = pair_ref.borrow();
+                Ok(pair.cdr.clone())
             }
-            match &args[0] {
-                Value::Pair(pair_ref) => {
-                    let pair = pair_ref.borrow();
-                    Ok(pair.cdr.clone())
-                }
-                _ => Err(LambdustError::type_error(format!(
-                    "cdr: expected pair, got {}",
-                    args[0]
-                ))),
-            }
-        },
+            _ => Err(LambdustError::type_error(format!(
+                "cdr: expected pair, got {}",
+                args[0]
+            ))),
+        }
     })
 }
 

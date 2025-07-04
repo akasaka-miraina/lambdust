@@ -17,7 +17,11 @@ pub fn check_arity(args: &[Value], expected: usize) -> Result<(), LambdustError>
 }
 
 /// Check function arity within a range
-pub fn check_arity_range(args: &[Value], min: usize, max: Option<usize>) -> Result<(), LambdustError> {
+pub fn check_arity_range(
+    args: &[Value],
+    min: usize,
+    max: Option<usize>,
+) -> Result<(), LambdustError> {
     if args.len() < min {
         return Err(LambdustError::arity_error(min, args.len()));
     }
@@ -30,7 +34,10 @@ pub fn check_arity_range(args: &[Value], min: usize, max: Option<usize>) -> Resu
 }
 
 /// Extract a number from a Value with error handling
-pub fn expect_number<'a>(value: &'a Value, func_name: &str) -> Result<&'a SchemeNumber, LambdustError> {
+pub fn expect_number<'a>(
+    value: &'a Value,
+    func_name: &str,
+) -> Result<&'a SchemeNumber, LambdustError> {
     value.as_number().ok_or_else(|| {
         LambdustError::type_error(format!("{}: expected number, got {}", func_name, value))
     })
@@ -42,6 +49,21 @@ pub fn expect_string<'a>(value: &'a Value, func_name: &str) -> Result<&'a str, L
         LambdustError::type_error(format!("{}: expected string, got {}", func_name, value))
     })
 }
+
+/// Extract two strings from first two arguments with error handling
+pub fn expect_two_strings<'a>(
+    args: &'a [Value],
+    func_name: &str,
+) -> Result<(&'a str, &'a str), LambdustError> {
+    if args.len() < 2 {
+        return Err(LambdustError::arity_error(2, args.len()));
+    }
+    
+    let s1 = expect_string(&args[0], func_name)?;
+    let s2 = expect_string(&args[1], func_name)?;
+    Ok((s1, s2))
+}
+
 
 /// Extract a symbol from a Value with error handling
 pub fn expect_symbol<'a>(value: &'a Value, func_name: &str) -> Result<&'a str, LambdustError> {
@@ -63,8 +85,9 @@ pub fn expect_integer_index(value: &Value, func_name: &str) -> Result<usize, Lam
         Some(SchemeNumber::Integer(i)) if *i >= 0 => Ok(*i as usize),
         Some(SchemeNumber::Real(f)) if f.fract() == 0.0 && *f >= 0.0 => Ok(*f as usize),
         _ => Err(LambdustError::type_error(format!(
-            "{}: expected non-negative integer, got {}", func_name, value
-        )))
+            "{}: expected non-negative integer, got {}",
+            func_name, value
+        ))),
     }
 }
 
@@ -74,13 +97,19 @@ pub fn expect_integer(value: &Value, func_name: &str) -> Result<i64, LambdustErr
         Some(SchemeNumber::Integer(i)) => Ok(*i),
         Some(SchemeNumber::Real(f)) if f.fract() == 0.0 => Ok(*f as i64),
         _ => Err(LambdustError::type_error(format!(
-            "{}: expected integer, got {}", func_name, value
-        )))
+            "{}: expected integer, got {}",
+            func_name, value
+        ))),
     }
 }
 
 /// Check bounds for index access operations
-pub fn check_bounds(index: usize, length: usize, func_name: &str, collection_type: &str) -> Result<(), LambdustError> {
+pub fn check_bounds(
+    index: usize,
+    length: usize,
+    func_name: &str,
+    collection_type: &str,
+) -> Result<(), LambdustError> {
     if index >= length {
         return Err(LambdustError::runtime_error(format!(
             "{}: index {} out of bounds for {} of length {}",
@@ -114,16 +143,16 @@ macro_rules! make_predicate {
     };
 }
 
-/// Macro to create string comparison functions
+/// Macro to create comparison functions for any type with an extractor function
 #[macro_export]
-macro_rules! make_string_comparison {
-    ($name:expr, $op:tt) => {
+macro_rules! make_comparison {
+    ($name:expr, $op:tt, $extractor:expr) => {
         $crate::builtins::utils::make_builtin_procedure($name, None, |args| {
             $crate::builtins::utils::check_arity_range(args, 2, None)?;
-            
-            for i in 0..args.len() - 1 {
-                let current = $crate::builtins::utils::expect_string(&args[i], $name)?;
-                let next = $crate::builtins::utils::expect_string(&args[i + 1], $name)?;
+
+            for pair in args.windows(2) {
+                let current = $extractor(&pair[0], $name)?;
+                let next = $extractor(&pair[1], $name)?;
                 
                 if !(current $op next) {
                     return Ok($crate::value::Value::Boolean(false));
@@ -134,23 +163,19 @@ macro_rules! make_string_comparison {
     };
 }
 
+/// Macro to create string comparison functions
+#[macro_export]
+macro_rules! make_string_comparison {
+    ($name:expr, $op:tt) => {
+        $crate::make_comparison!($name, $op, $crate::builtins::utils::expect_string)
+    };
+}
+
 /// Macro to create character comparison functions
 #[macro_export]
 macro_rules! make_char_comparison {
     ($name:expr, $op:tt) => {
-        $crate::builtins::utils::make_builtin_procedure($name, None, |args| {
-            $crate::builtins::utils::check_arity_range(args, 2, None)?;
-            
-            for i in 0..args.len() - 1 {
-                let current = $crate::builtins::utils::expect_character(&args[i], $name)?;
-                let next = $crate::builtins::utils::expect_character(&args[i + 1], $name)?;
-                
-                if !(current $op next) {
-                    return Ok($crate::value::Value::Boolean(false));
-                }
-            }
-            Ok($crate::value::Value::Boolean(true))
-        })
+        $crate::make_comparison!($name, $op, $crate::builtins::utils::expect_character)
     };
 }
 
@@ -169,13 +194,20 @@ where
         (SchemeNumber::Real(x), SchemeNumber::Real(y)) => (*x, *y),
         (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => (*x as f64, *y),
         (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => (*x, *y as f64),
-        _ => return Err(LambdustError::type_error(format!("Cannot {} {} and {}", op_name, a, b))),
+        _ => {
+            return Err(LambdustError::type_error(format!(
+                "Cannot {} {} and {}",
+                op_name, a, b
+            )));
+        }
     };
 
     let result = operation(x, y);
-    
+
     // If both inputs were integers and result is a whole number, keep as integer
-    if matches!((a, b), (SchemeNumber::Integer(_), SchemeNumber::Integer(_))) && result.fract() == 0.0 {
+    if matches!((a, b), (SchemeNumber::Integer(_), SchemeNumber::Integer(_)))
+        && result.fract() == 0.0
+    {
         Ok(SchemeNumber::Integer(result as i64))
     } else {
         Ok(SchemeNumber::Real(result))
@@ -183,11 +215,7 @@ where
 }
 
 /// Apply a numeric comparison operation to two SchemeNumbers
-pub fn compare_numbers<F>(
-    a: &SchemeNumber,
-    b: &SchemeNumber,
-    operation: F,
-) -> bool
+pub fn compare_numbers<F>(a: &SchemeNumber, b: &SchemeNumber, operation: F) -> bool
 where
     F: Fn(f64, f64) -> bool,
 {
@@ -206,13 +234,15 @@ where
 pub fn expect_list_to_vector(value: &Value, func_name: &str) -> Result<Vec<Value>, LambdustError> {
     if !value.is_list() {
         return Err(LambdustError::type_error(format!(
-            "{}: expected list, got {}", func_name, value
+            "{}: expected list, got {}",
+            func_name, value
         )));
     }
-    
+
     value.to_vector().ok_or_else(|| {
         LambdustError::type_error(format!(
-            "{}: expected proper list, got improper list", func_name
+            "{}: expected proper list, got improper list",
+            func_name
         ))
     })
 }
@@ -222,14 +252,14 @@ pub fn safe_string_slice(s: &str, start: usize, end: Option<usize>) -> &str {
     let chars: Vec<char> = s.chars().collect();
     let start_idx = start.min(chars.len());
     let end_idx = end.unwrap_or(chars.len()).min(chars.len());
-    
+
     if start_idx >= end_idx {
         return "";
     }
-    
+
     let start_byte = chars.iter().take(start_idx).map(|c| c.len_utf8()).sum();
     let end_byte = chars.iter().take(end_idx).map(|c| c.len_utf8()).sum();
-    
+
     &s[start_byte..end_byte]
 }
 
@@ -239,7 +269,9 @@ pub fn string_char_at(s: &str, index: usize, func_name: &str) -> Result<char, La
     if index >= chars.len() {
         return Err(LambdustError::runtime_error(format!(
             "{}: index {} out of bounds for string of length {}",
-            func_name, index, chars.len()
+            func_name,
+            index,
+            chars.len()
         )));
     }
     Ok(chars[index])
@@ -392,7 +424,7 @@ mod tests {
     fn test_expect_number() {
         let value = Value::from(42i64);
         assert!(expect_number(&value, "test").is_ok());
-        
+
         let value = Value::from("not a number");
         assert!(expect_number(&value, "test").is_err());
     }
@@ -401,10 +433,10 @@ mod tests {
     fn test_apply_numeric_operation() {
         let a = SchemeNumber::Integer(10);
         let b = SchemeNumber::Integer(5);
-        
+
         let result = apply_numeric_operation(&a, &b, "add", |x, y| x + y).unwrap();
         assert_eq!(result, SchemeNumber::Integer(15));
-        
+
         let result = apply_numeric_operation(&a, &b, "divide", |x, y| x / y).unwrap();
         assert_eq!(result, SchemeNumber::Integer(2)); // 10/5 = 2 (exact result)
     }
@@ -413,7 +445,7 @@ mod tests {
     fn test_compare_numbers() {
         let a = SchemeNumber::Integer(10);
         let b = SchemeNumber::Integer(5);
-        
+
         assert!(compare_numbers(&a, &b, |x, y| x > y));
         assert!(!compare_numbers(&a, &b, |x, y| x < y));
         assert!(!compare_numbers(&a, &b, |x, y| x == y));
