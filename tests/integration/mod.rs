@@ -14,8 +14,8 @@ pub mod r7rs_compliance_tests;
 pub mod syntax_rules_tests;
 
 // SRFI implementation integration tests
-pub mod srfi_1_tests;
 pub mod srfi_13_tests;
+pub mod srfi_1_tests;
 pub mod srfi_69_tests;
 pub mod srfi_97_tests;
 pub mod srfi_tests;

@@ -21,7 +21,7 @@ impl fmt::Display for Value {
                 write!(f, "(")?;
                 let pair = pair_ref.borrow();
                 write!(f, "{}", pair.car)?;
-                
+
                 let mut current = pair.cdr.clone();
                 loop {
                     match current {
@@ -101,12 +101,14 @@ impl fmt::Display for Value {
             Value::Continuation(_) => write!(f, "#<continuation>"),
             Value::Promise(promise) => match &promise.state {
                 crate::value::PromiseState::Lazy { .. } => write!(f, "#<promise:lazy>"),
-                crate::value::PromiseState::Eager { value } => write!(f, "#<promise:eager:{}>", value),
+                crate::value::PromiseState::Eager { value } => {
+                    write!(f, "#<promise:eager:{}>", value)
+                }
             },
             Value::HashTable(ht) => {
                 let table = ht.borrow();
                 write!(f, "#<hash-table size:{}>", table.size())
-            },
+            }
         }
     }
 }
@@ -122,7 +124,10 @@ impl std::fmt::Debug for Value {
             Self::Symbol(arg0) => f.debug_tuple("Symbol").field(arg0).finish(),
             Self::Pair(pair_ref) => {
                 let pair = pair_ref.borrow();
-                f.debug_tuple("Pair").field(&pair.car).field(&pair.cdr).finish()
+                f.debug_tuple("Pair")
+                    .field(&pair.car)
+                    .field(&pair.cdr)
+                    .finish()
             }
             Self::Nil => write!(f, "Nil"),
             Self::Procedure(arg0) => f.debug_tuple("Procedure").field(arg0).finish(),

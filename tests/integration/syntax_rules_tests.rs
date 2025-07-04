@@ -1,9 +1,9 @@
 //! Syntax-rules macro system tests
-//! 
+//!
 //! Tests for the enhanced syntax-rules macro system including SRFI 46 features.
 
-use lambdust::macros::{MacroExpander, Pattern, Template, SyntaxRule};
 use lambdust::ast::Expr;
+use lambdust::macros::{MacroExpander, Pattern, SyntaxRule, Template};
 
 #[cfg(test)]
 mod tests {
@@ -23,23 +23,21 @@ mod tests {
     #[test]
     fn test_syntax_rules_transformer_creation() {
         let literals = vec![];
-        let rules = vec![
-            SyntaxRule {
-                pattern: Pattern::List(vec![
-                    Pattern::Literal("my-when".to_string()),
-                    Pattern::Variable("test".to_string()),
-                    Pattern::Ellipsis(Box::new(Pattern::Variable("body".to_string()))),
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("my-when".to_string()),
+                Pattern::Variable("test".to_string()),
+                Pattern::Ellipsis(Box::new(Pattern::Variable("body".to_string()))),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("if".to_string()),
+                Template::Variable("test".to_string()),
+                Template::List(vec![
+                    Template::Literal("begin".to_string()),
+                    Template::Ellipsis(Box::new(Template::Variable("body".to_string()))),
                 ]),
-                template: Template::List(vec![
-                    Template::Literal("if".to_string()),
-                    Template::Variable("test".to_string()),
-                    Template::List(vec![
-                        Template::Literal("begin".to_string()),
-                        Template::Ellipsis(Box::new(Template::Variable("body".to_string()))),
-                    ]),
-                ]),
-            }
-        ];
+            ]),
+        }];
 
         let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
         assert_eq!(transformer.literals.len(), 0);
@@ -49,23 +47,21 @@ mod tests {
     #[test]
     fn test_simple_pattern_matching() {
         let literals = vec![];
-        let rules = vec![
-            SyntaxRule {
-                pattern: Pattern::List(vec![
-                    Pattern::Literal("my-when".to_string()),
-                    Pattern::Variable("test".to_string()),
-                    Pattern::Variable("body".to_string()),
-                ]),
-                template: Template::List(vec![
-                    Template::Literal("if".to_string()),
-                    Template::Variable("test".to_string()),
-                    Template::Variable("body".to_string()),
-                ]),
-            }
-        ];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("my-when".to_string()),
+                Pattern::Variable("test".to_string()),
+                Pattern::Variable("body".to_string()),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("if".to_string()),
+                Template::Variable("test".to_string()),
+                Template::Variable("body".to_string()),
+            ]),
+        }];
 
         let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
-        
+
         let input = Expr::List(vec![
             create_test_expr("my-when"),
             create_test_expr("test-condition"),
@@ -87,21 +83,19 @@ mod tests {
     #[test]
     fn test_ellipsis_pattern_matching() {
         let literals = vec![];
-        let rules = vec![
-            SyntaxRule {
-                pattern: Pattern::List(vec![
-                    Pattern::Literal("my-begin".to_string()),
-                    Pattern::Ellipsis(Box::new(Pattern::Variable("expr".to_string()))),
-                ]),
-                template: Template::List(vec![
-                    Template::Literal("begin".to_string()),
-                    Template::Ellipsis(Box::new(Template::Variable("expr".to_string()))),
-                ]),
-            }
-        ];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("my-begin".to_string()),
+                Pattern::Ellipsis(Box::new(Pattern::Variable("expr".to_string()))),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("begin".to_string()),
+                Template::Ellipsis(Box::new(Template::Variable("expr".to_string()))),
+            ]),
+        }];
 
         let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
-        
+
         let input = Expr::List(vec![
             create_test_expr("my-begin"),
             create_test_expr("expr1"),
@@ -124,29 +118,23 @@ mod tests {
     #[test]
     fn test_macro_expander_syntax_rules_integration() {
         let mut expander = MacroExpander::new();
-        
+
         // Define a simple my-when macro
         let literals = vec![];
-        let rules = vec![
-            SyntaxRule {
-                pattern: Pattern::List(vec![
-                    Pattern::Literal("my-when".to_string()),
-                    Pattern::Variable("test".to_string()),
-                    Pattern::Variable("body".to_string()),
-                ]),
-                template: Template::List(vec![
-                    Template::Literal("if".to_string()),
-                    Template::Variable("test".to_string()),
-                    Template::Variable("body".to_string()),
-                ]),
-            }
-        ];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("my-when".to_string()),
+                Pattern::Variable("test".to_string()),
+                Pattern::Variable("body".to_string()),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("if".to_string()),
+                Template::Variable("test".to_string()),
+                Template::Variable("body".to_string()),
+            ]),
+        }];
 
-        expander.define_syntax_rules_macro(
-            "my-when".to_string(),
-            literals,
-            rules,
-        );
+        expander.define_syntax_rules_macro("my-when".to_string(), literals, rules);
 
         // Test expansion
         let input = Expr::List(vec![
@@ -170,21 +158,19 @@ mod tests {
     #[test]
     fn test_literal_matching() {
         let literals = vec!["else".to_string()];
-        let rules = vec![
-            SyntaxRule {
-                pattern: Pattern::List(vec![
-                    Pattern::Literal("my-cond".to_string()),
-                    Pattern::List(vec![
-                        Pattern::Literal("else".to_string()),
-                        Pattern::Variable("result".to_string()),
-                    ]),
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("my-cond".to_string()),
+                Pattern::List(vec![
+                    Pattern::Literal("else".to_string()),
+                    Pattern::Variable("result".to_string()),
                 ]),
-                template: Template::Variable("result".to_string()),
-            }
-        ];
+            ]),
+            template: Template::Variable("result".to_string()),
+        }];
 
         let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
-        
+
         let input = Expr::List(vec![
             create_test_expr("my-cond"),
             Expr::List(vec![
@@ -201,23 +187,21 @@ mod tests {
     #[test]
     fn test_pattern_matching_failure() {
         let literals = vec![];
-        let rules = vec![
-            SyntaxRule {
-                pattern: Pattern::List(vec![
-                    Pattern::Literal("my-when".to_string()),
-                    Pattern::Variable("test".to_string()),
-                    Pattern::Variable("body".to_string()),
-                ]),
-                template: Template::List(vec![
-                    Template::Literal("if".to_string()),
-                    Template::Variable("test".to_string()),
-                    Template::Variable("body".to_string()),
-                ]),
-            }
-        ];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("my-when".to_string()),
+                Pattern::Variable("test".to_string()),
+                Pattern::Variable("body".to_string()),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("if".to_string()),
+                Template::Variable("test".to_string()),
+                Template::Variable("body".to_string()),
+            ]),
+        }];
 
         let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
-        
+
         // Wrong number of arguments
         let input = Expr::List(vec![
             create_test_expr("my-when"),
@@ -231,48 +215,32 @@ mod tests {
     #[test]
     fn test_ellipsis_with_multiple_variables() {
         let literals = vec![];
-        let rules = vec![
-            SyntaxRule {
-                pattern: Pattern::List(vec![
-                    Pattern::Literal("my-let".to_string()),
-                    Pattern::List(vec![
-                        Pattern::Ellipsis(Box::new(
-                            Pattern::List(vec![
-                                Pattern::Variable("var".to_string()),
-                                Pattern::Variable("val".to_string()),
-                            ])
-                        )),
-                    ]),
-                    Pattern::Variable("body".to_string()),
-                ]),
-                template: Template::List(vec![
-                    Template::Literal("let-impl".to_string()),
-                    Template::List(vec![
-                        Template::Ellipsis(Box::new(
-                            Template::List(vec![
-                                Template::Variable("var".to_string()),
-                                Template::Variable("val".to_string()),
-                            ])
-                        )),
-                    ]),
-                    Template::Variable("body".to_string()),
-                ]),
-            }
-        ];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("my-let".to_string()),
+                Pattern::List(vec![Pattern::Ellipsis(Box::new(Pattern::List(vec![
+                    Pattern::Variable("var".to_string()),
+                    Pattern::Variable("val".to_string()),
+                ])))]),
+                Pattern::Variable("body".to_string()),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("let-impl".to_string()),
+                Template::List(vec![Template::Ellipsis(Box::new(Template::List(vec![
+                    Template::Variable("var".to_string()),
+                    Template::Variable("val".to_string()),
+                ])))]),
+                Template::Variable("body".to_string()),
+            ]),
+        }];
 
         let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
-        
+
         let input = Expr::List(vec![
             create_test_expr("my-let"),
             Expr::List(vec![
-                Expr::List(vec![
-                    create_test_expr("x"),
-                    create_test_expr("1"),
-                ]),
-                Expr::List(vec![
-                    create_test_expr("y"),
-                    create_test_expr("2"),
-                ]),
+                Expr::List(vec![create_test_expr("x"), create_test_expr("1")]),
+                Expr::List(vec![create_test_expr("y"), create_test_expr("2")]),
             ]),
             create_test_expr("body-expr"),
         ]);
@@ -292,27 +260,19 @@ mod tests {
     #[test]
     fn test_nested_ellipsis_basic() {
         let literals = vec![];
-        let rules = vec![
-            SyntaxRule {
-                pattern: Pattern::List(vec![
-                    Pattern::Literal("nested-test".to_string()),
-                    Pattern::NestedEllipsis(
-                        Box::new(Pattern::Variable("item".to_string())),
-                        1
-                    ),
-                ]),
-                template: Template::List(vec![
-                    Template::Literal("nested-result".to_string()),
-                    Template::NestedEllipsis(
-                        Box::new(Template::Variable("item".to_string())),
-                        1
-                    ),
-                ]),
-            }
-        ];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("nested-test".to_string()),
+                Pattern::NestedEllipsis(Box::new(Pattern::Variable("item".to_string())), 1),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("nested-result".to_string()),
+                Template::NestedEllipsis(Box::new(Template::Variable("item".to_string())), 1),
+            ]),
+        }];
 
         let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
-        
+
         let input = Expr::List(vec![
             create_test_expr("nested-test"),
             create_test_expr("item1"),

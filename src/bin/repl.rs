@@ -4,8 +4,8 @@
 //! It supports interactive evaluation, command history, and basic editing features.
 
 use clap::{Arg, Command};
-use lambdust::interpreter::LambdustInterpreter;
 use lambdust::error::LambdustError;
+use lambdust::interpreter::LambdustInterpreter;
 use rustyline::error::ReadlineError;
 use rustyline::{DefaultEditor, Result as RustylineResult};
 use std::path::Path;
@@ -256,8 +256,13 @@ impl Repl {
             Err(LambdustError::TypeError { message, .. }) => {
                 println!("Type error: {}", message);
             }
-            Err(LambdustError::ArityError { expected, actual, .. }) => {
-                println!("Arity error: expected {} arguments, got {}", expected, actual);
+            Err(LambdustError::ArityError {
+                expected, actual, ..
+            }) => {
+                println!(
+                    "Arity error: expected {} arguments, got {}",
+                    expected, actual
+                );
             }
             Err(LambdustError::SyntaxError { message, .. }) => {
                 println!("Syntax error: {}", message);
@@ -293,7 +298,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = Command::new("lambdust")
         .version(VERSION)
         .about("Interactive R7RS Scheme interpreter")
-        .long_about("Lambdust provides an interactive environment for evaluating R7RS Scheme expressions.")
+        .long_about(
+            "Lambdust provides an interactive environment for evaluating R7RS Scheme expressions.",
+        )
         .arg(
             Arg::new("file")
                 .help("Scheme file to load and execute")
@@ -365,7 +372,7 @@ mod tests {
             enable_history: false,
             ..Default::default()
         };
-        
+
         let repl = Repl::new_with_config(config);
         assert!(repl.is_ok());
     }
@@ -376,7 +383,8 @@ mod tests {
             show_banner: false,
             enable_history: false,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         assert!(repl.is_complete_expression("42"));
         assert!(repl.is_complete_expression("(+ 1 2)"));
@@ -393,7 +401,8 @@ mod tests {
             show_banner: false,
             enable_history: false,
             ..Default::default()
-        }).unwrap();
+        })
+        .unwrap();
 
         // Test help command
         let result = repl.handle_special_command("(help)");

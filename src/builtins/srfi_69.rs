@@ -5,9 +5,9 @@
 
 use crate::error::{LambdustError, Result};
 use crate::value::{Procedure, Value};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::cell::RefCell;
 
 /// Hash table implementation for SRFI 69
 #[derive(Debug, Clone)]
@@ -148,11 +148,15 @@ impl HashTable {
 
     /// Get all key-value pairs as an association list
     pub fn to_alist(&self) -> Value {
-        let pairs: Vec<Value> = self.table.iter().map(|(k, v)| {
-            let key = k.to_value();
-            let pair_data = crate::value::PairData::new(key, v.clone());
-            Value::Pair(Rc::new(RefCell::new(pair_data)))
-        }).collect();
+        let pairs: Vec<Value> = self
+            .table
+            .iter()
+            .map(|(k, v)| {
+                let key = k.to_value();
+                let pair_data = crate::value::PairData::new(key, v.clone());
+                Value::Pair(Rc::new(RefCell::new(pair_data)))
+            })
+            .collect();
         Value::from_vector(pairs)
     }
 }
@@ -162,27 +166,45 @@ pub fn register_srfi_69_functions(builtins: &mut HashMap<String, Value>) {
     // Hash table constructors
     builtins.insert("make-hash-table".to_string(), make_hash_table_function());
     builtins.insert("hash-table?".to_string(), hash_table_predicate_function());
-    
+
     // Hash table access
     builtins.insert("hash-table-ref".to_string(), hash_table_ref_function());
-    builtins.insert("hash-table-ref/default".to_string(), hash_table_ref_default_function());
+    builtins.insert(
+        "hash-table-ref/default".to_string(),
+        hash_table_ref_default_function(),
+    );
     builtins.insert("hash-table-set!".to_string(), hash_table_set_function());
-    builtins.insert("hash-table-delete!".to_string(), hash_table_delete_function());
-    builtins.insert("hash-table-exists?".to_string(), hash_table_exists_function());
-    
+    builtins.insert(
+        "hash-table-delete!".to_string(),
+        hash_table_delete_function(),
+    );
+    builtins.insert(
+        "hash-table-exists?".to_string(),
+        hash_table_exists_function(),
+    );
+
     // Hash table information
     builtins.insert("hash-table-size".to_string(), hash_table_size_function());
     builtins.insert("hash-table-keys".to_string(), hash_table_keys_function());
-    builtins.insert("hash-table-values".to_string(), hash_table_values_function());
-    builtins.insert("hash-table->alist".to_string(), hash_table_to_alist_function());
-    builtins.insert("alist->hash-table".to_string(), alist_to_hash_table_function());
-    
+    builtins.insert(
+        "hash-table-values".to_string(),
+        hash_table_values_function(),
+    );
+    builtins.insert(
+        "hash-table->alist".to_string(),
+        hash_table_to_alist_function(),
+    );
+    builtins.insert(
+        "alist->hash-table".to_string(),
+        alist_to_hash_table_function(),
+    );
+
     // Hash table operations
     builtins.insert("hash-table-walk".to_string(), hash_table_walk_function());
     builtins.insert("hash-table-fold".to_string(), hash_table_fold_function());
     builtins.insert("hash-table-copy".to_string(), hash_table_copy_function());
     builtins.insert("hash-table-merge!".to_string(), hash_table_merge_function());
-    
+
     // Utilities
     builtins.insert("hash".to_string(), hash_function());
     builtins.insert("string-hash".to_string(), string_hash_function());
@@ -257,11 +279,19 @@ pub fn hash_table_ref(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let key = &args[1];
-    let default = if args.len() == 3 { Some(&args[2]) } else { None };
+    let default = if args.len() == 3 {
+        Some(&args[2])
+    } else {
+        None
+    };
 
     let ht = hash_table.borrow();
     match ht.get(key)? {
@@ -270,7 +300,9 @@ pub fn hash_table_ref(args: &[Value]) -> Result<Value> {
             if let Some(def) = default {
                 Ok(def.clone())
             } else {
-                Err(LambdustError::runtime_error("Key not found in hash table".to_string()))
+                Err(LambdustError::runtime_error(
+                    "Key not found in hash table".to_string(),
+                ))
             }
         }
     }
@@ -312,7 +344,11 @@ pub fn hash_table_set(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let key = args[1].clone();
@@ -340,7 +376,11 @@ pub fn hash_table_delete(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let key = &args[1];
@@ -369,7 +409,11 @@ pub fn hash_table_exists(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let key = &args[1];
@@ -395,11 +439,17 @@ pub fn hash_table_size(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let ht = hash_table.borrow();
-    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(ht.size() as i64)))
+    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+        ht.size() as i64,
+    )))
 }
 
 /// Create hash-table-keys function
@@ -419,7 +469,11 @@ pub fn hash_table_keys(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let ht = hash_table.borrow();
@@ -443,7 +497,11 @@ pub fn hash_table_values(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let ht = hash_table.borrow();
@@ -467,7 +525,11 @@ pub fn hash_table_to_alist(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let ht = hash_table.borrow();
@@ -491,14 +553,17 @@ pub fn alist_to_hash_table(args: &[Value]) -> Result<Value> {
 
     let alist = &args[0];
     if !alist.is_list() {
-        return Err(LambdustError::type_error("First argument must be an association list".to_string()));
+        return Err(LambdustError::type_error(
+            "First argument must be an association list".to_string(),
+        ));
     }
 
     let mut hash_table = HashTable::new();
-    
-    let list_vec = alist.to_vector().ok_or_else(|| 
-        LambdustError::type_error("First argument must be a proper list"))?;
-    
+
+    let list_vec = alist
+        .to_vector()
+        .ok_or_else(|| LambdustError::type_error("First argument must be a proper list"))?;
+
     for item in list_vec {
         match item {
             Value::Pair(pair_ref) => {
@@ -507,7 +572,11 @@ pub fn alist_to_hash_table(args: &[Value]) -> Result<Value> {
                 let value = pair.cdr.clone();
                 hash_table.set(key, value)?;
             }
-            _ => return Err(LambdustError::type_error("Association list must contain pairs".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Association list must contain pairs".to_string(),
+                ));
+            }
         }
     }
 
@@ -531,7 +600,11 @@ pub fn hash_table_copy(args: &[Value]) -> Result<Value> {
 
     let hash_table = match &args[0] {
         Value::HashTable(ht) => ht,
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let ht = hash_table.borrow();
@@ -546,9 +619,11 @@ fn hash_table_walk_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "hash-table-walk".to_string(),
         arity: Some(2),
-        func: |_args| Err(LambdustError::runtime_error(
-            "hash-table-walk requires evaluator integration for procedure calls".to_string()
-        )),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "hash-table-walk requires evaluator integration for procedure calls".to_string(),
+            ))
+        },
     })
 }
 
@@ -557,9 +632,11 @@ fn hash_table_fold_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "hash-table-fold".to_string(),
         arity: Some(3),
-        func: |_args| Err(LambdustError::runtime_error(
-            "hash-table-fold requires evaluator integration for procedure calls".to_string()
-        )),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "hash-table-fold requires evaluator integration for procedure calls".to_string(),
+            ))
+        },
     })
 }
 
@@ -568,9 +645,11 @@ fn hash_table_merge_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "hash-table-merge!".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error(
-            "hash-table-merge! not yet implemented".to_string()
-        )),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "hash-table-merge! not yet implemented".to_string(),
+            ))
+        },
     })
 }
 
@@ -594,7 +673,11 @@ pub fn hash_value(args: &[Value]) -> Result<Value> {
         match &args[1] {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as u32,
             Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as u32,
-            _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Second argument must be an integer".to_string(),
+                ));
+            }
         }
     } else {
         u32::MAX
@@ -613,7 +696,9 @@ pub fn hash_value(args: &[Value]) -> Result<Value> {
         hash
     };
 
-    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(result as i64)))
+    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+        result as i64,
+    )))
 }
 
 /// Create string-hash function
@@ -633,14 +718,22 @@ pub fn string_hash_impl(args: &[Value]) -> Result<Value> {
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let bound = if args.len() == 2 {
         match &args[1] {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as u32,
             Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as u32,
-            _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Second argument must be an integer".to_string(),
+                ));
+            }
         }
     } else {
         u32::MAX
@@ -658,7 +751,9 @@ pub fn string_hash_impl(args: &[Value]) -> Result<Value> {
         hash
     };
 
-    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(result as i64)))
+    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+        result as i64,
+    )))
 }
 
 /// Create string-ci-hash function
@@ -678,14 +773,22 @@ pub fn string_ci_hash_impl(args: &[Value]) -> Result<Value> {
 
     let string = match &args[0] {
         Value::String(s) => s.to_lowercase(),
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let bound = if args.len() == 2 {
         match &args[1] {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as u32,
             Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as u32,
-            _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Second argument must be an integer".to_string(),
+                ));
+            }
         }
     } else {
         u32::MAX
@@ -703,164 +806,8 @@ pub fn string_ci_hash_impl(args: &[Value]) -> Result<Value> {
         hash
     };
 
-    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(result as i64)))
+    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+        result as i64,
+    )))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_hash_table_creation() {
-        let result = make_hash_table(&[]).unwrap();
-        assert!(matches!(result, Value::HashTable(_)));
-    }
-
-    #[test]
-    fn test_hash_table_predicate() {
-        let ht = make_hash_table(&[]).unwrap();
-        let result = hash_table_predicate(&[ht]).unwrap();
-        assert_eq!(result, Value::Boolean(true));
-
-        let result = hash_table_predicate(&[Value::String("not a hash table".to_string())]).unwrap();
-        assert_eq!(result, Value::Boolean(false));
-    }
-
-    #[test]
-    fn test_hash_table_set_and_ref() {
-        let ht = make_hash_table(&[]).unwrap();
-        let key = Value::String("test-key".to_string());
-        let value = Value::Number(SchemeNumber::Integer(42));
-
-        // Set value
-        let result = hash_table_set(&[ht.clone(), key.clone(), value.clone()]);
-        assert!(result.is_ok());
-
-        // Get value
-        let result = hash_table_ref(&[ht, key]).unwrap();
-        assert_eq!(result, value);
-    }
-
-    #[test]
-    fn test_hash_table_size() {
-        let ht = make_hash_table(&[]).unwrap();
-        
-        // Initially empty
-        let result = hash_table_size(&[ht.clone()]).unwrap();
-        assert_eq!(result, Value::Number(SchemeNumber::Integer(0)));
-
-        // Add one item
-        let key = Value::String("test".to_string());
-        let value = Value::Number(SchemeNumber::Integer(123));
-        hash_table_set(&[ht.clone(), key, value]).unwrap();
-
-        let result = hash_table_size(&[ht]).unwrap();
-        assert_eq!(result, Value::Number(SchemeNumber::Integer(1)));
-    }
-
-    #[test]
-    fn test_hash_table_exists() {
-        let ht = make_hash_table(&[]).unwrap();
-        let key = Value::String("test-key".to_string());
-        let value = Value::Number(SchemeNumber::Integer(42));
-
-        // Key doesn't exist initially
-        let result = hash_table_exists(&[ht.clone(), key.clone()]).unwrap();
-        assert_eq!(result, Value::Boolean(false));
-
-        // Set value
-        hash_table_set(&[ht.clone(), key.clone(), value]).unwrap();
-
-        // Key now exists
-        let result = hash_table_exists(&[ht, key]).unwrap();
-        assert_eq!(result, Value::Boolean(true));
-    }
-
-    #[test]
-    fn test_hash_table_delete() {
-        let ht = make_hash_table(&[]).unwrap();
-        let key = Value::String("test-key".to_string());
-        let value = Value::Number(SchemeNumber::Integer(42));
-
-        // Set value
-        hash_table_set(&[ht.clone(), key.clone(), value]).unwrap();
-
-        // Delete value
-        let result = hash_table_delete(&[ht.clone(), key.clone()]).unwrap();
-        assert_eq!(result, Value::Boolean(true));
-
-        // Key no longer exists
-        let result = hash_table_exists(&[ht, key]).unwrap();
-        assert_eq!(result, Value::Boolean(false));
-    }
-
-    #[test]
-    fn test_hash_table_keys_and_values() {
-        let ht = make_hash_table(&[]).unwrap();
-        let key1 = Value::String("key1".to_string());
-        let key2 = Value::String("key2".to_string());
-        let value1 = Value::Number(SchemeNumber::Integer(1));
-        let value2 = Value::Number(SchemeNumber::Integer(2));
-
-        // Add items
-        hash_table_set(&[ht.clone(), key1, value1]).unwrap();
-        hash_table_set(&[ht.clone(), key2, value2]).unwrap();
-
-        // Get keys
-        let keys = hash_table_keys(&[ht.clone()]).unwrap();
-        assert!(keys.is_list());
-
-        // Get values
-        let values = hash_table_values(&[ht]).unwrap();
-        assert!(values.is_list());
-    }
-
-    #[test]
-    fn test_hash_table_copy() {
-        let ht = make_hash_table(&[]).unwrap();
-        let key = Value::String("test-key".to_string());
-        let value = Value::Number(SchemeNumber::Integer(42));
-
-        // Set value in original
-        hash_table_set(&[ht.clone(), key.clone(), value.clone()]).unwrap();
-
-        // Copy hash table
-        let copy = hash_table_copy(&[ht]).unwrap();
-
-        // Value should exist in copy
-        let result = hash_table_ref(&[copy, key]).unwrap();
-        assert_eq!(result, value);
-    }
-
-    #[test]
-    fn test_hash_value() {
-        let value = Value::String("test".to_string());
-        let result = hash_value(&[value]).unwrap();
-        assert!(matches!(result, Value::Number(_)));
-
-        let value = Value::String("test".to_string());
-        let bound = Value::Number(SchemeNumber::Integer(1000));
-        let result = hash_value(&[value, bound]).unwrap();
-        assert!(matches!(result, Value::Number(_)));
-    }
-
-    #[test]
-    fn test_string_hash() {
-        let string = Value::String("hello".to_string());
-        let result = string_hash_impl(&[string]).unwrap();
-        assert!(matches!(result, Value::Number(_)));
-    }
-
-    #[test]
-    fn test_string_ci_hash() {
-        let string1 = Value::String("Hello".to_string());
-        let string2 = Value::String("HELLO".to_string());
-        
-        let hash1 = string_ci_hash_impl(&[string1]).unwrap();
-        let hash2 = string_ci_hash_impl(&[string2]).unwrap();
-        
-        // Case-insensitive hashes should be equal
-        assert_eq!(hash1, hash2);
-    }
-}

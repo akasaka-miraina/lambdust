@@ -13,11 +13,17 @@ pub fn register_srfi_1_functions(builtins: &mut HashMap<String, Value>) {
     builtins.insert("take".to_string(), take_function());
     builtins.insert("drop".to_string(), drop_function());
     builtins.insert("concatenate".to_string(), concatenate_function());
-    builtins.insert("delete-duplicates".to_string(), delete_duplicates_function());
-    
+    builtins.insert(
+        "delete-duplicates".to_string(),
+        delete_duplicates_function(),
+    );
+
     // Higher-order functions implemented in higher_order module
     // These are now properly implemented for builtin functions
     // Lambda function support requires future evaluator integration
+    builtins.insert("find".to_string(), find_function());
+    builtins.insert("any".to_string(), any_function());
+    builtins.insert("every".to_string(), every_function());
 }
 
 /// Create take function
@@ -74,23 +80,32 @@ pub fn take(args: &[Value]) -> Result<Value> {
     let n = &args[1];
 
     if !list.is_list() {
-        return Err(LambdustError::type_error("First argument must be a list".to_string()));
+        return Err(LambdustError::type_error(
+            "First argument must be a list".to_string(),
+        ));
     }
 
     let n_val = match n {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
         Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as i64,
-        _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Second argument must be an integer".to_string(),
+            ));
+        }
     };
 
     if n_val < 0 {
-        return Err(LambdustError::runtime_error("Cannot take negative number of elements".to_string()));
+        return Err(LambdustError::runtime_error(
+            "Cannot take negative number of elements".to_string(),
+        ));
     }
 
-    let list_vec = list.to_vector().ok_or_else(|| 
-        LambdustError::type_error("First argument must be a list"))?;
+    let list_vec = list
+        .to_vector()
+        .ok_or_else(|| LambdustError::type_error("First argument must be a list"))?;
     let take_count = std::cmp::min(n_val as usize, list_vec.len());
-    
+
     let result: Vec<Value> = list_vec.into_iter().take(take_count).collect();
     Ok(Value::from_vector(result))
 }
@@ -107,23 +122,32 @@ pub fn drop(args: &[Value]) -> Result<Value> {
     let n = &args[1];
 
     if !list.is_list() {
-        return Err(LambdustError::type_error("First argument must be a list".to_string()));
+        return Err(LambdustError::type_error(
+            "First argument must be a list".to_string(),
+        ));
     }
 
     let n_val = match n {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
         Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as i64,
-        _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Second argument must be an integer".to_string(),
+            ));
+        }
     };
 
     if n_val < 0 {
-        return Err(LambdustError::runtime_error("Cannot drop negative number of elements".to_string()));
+        return Err(LambdustError::runtime_error(
+            "Cannot drop negative number of elements".to_string(),
+        ));
     }
 
-    let list_vec = list.to_vector().ok_or_else(|| 
-        LambdustError::type_error("First argument must be a list"))?;
+    let list_vec = list
+        .to_vector()
+        .ok_or_else(|| LambdustError::type_error("First argument must be a list"))?;
     let drop_count = std::cmp::min(n_val as usize, list_vec.len());
-    
+
     let result: Vec<Value> = list_vec.into_iter().skip(drop_count).collect();
     Ok(Value::from_vector(result))
 }
@@ -137,16 +161,19 @@ pub fn drop(args: &[Value]) -> Result<Value> {
 /// (concatenate lists)
 pub fn concatenate(args: &[Value]) -> Result<Value> {
     let mut result = Vec::new();
-    
+
     for arg in args {
         if !arg.is_list() {
-            return Err(LambdustError::type_error("All arguments must be lists".to_string()));
+            return Err(LambdustError::type_error(
+                "All arguments must be lists".to_string(),
+            ));
         }
-        let vec = arg.to_vector().ok_or_else(|| 
-            LambdustError::type_error("All arguments must be lists"))?;
+        let vec = arg
+            .to_vector()
+            .ok_or_else(|| LambdustError::type_error("All arguments must be lists"))?;
         result.extend(vec);
     }
-    
+
     Ok(Value::from_vector(result))
 }
 
@@ -160,13 +187,16 @@ pub fn delete_duplicates(args: &[Value]) -> Result<Value> {
 
     let list = &args[0];
     if !list.is_list() {
-        return Err(LambdustError::type_error("First argument must be a list".to_string()));
+        return Err(LambdustError::type_error(
+            "First argument must be a list".to_string(),
+        ));
     }
 
-    let list_vec = list.to_vector().ok_or_else(|| 
-        LambdustError::type_error("First argument must be a list"))?;
+    let list_vec = list
+        .to_vector()
+        .ok_or_else(|| LambdustError::type_error("First argument must be a list"))?;
     let mut result = Vec::new();
-    
+
     // Simple implementation using equal? semantics
     for item in list_vec {
         let mut found = false;
@@ -180,7 +210,7 @@ pub fn delete_duplicates(args: &[Value]) -> Result<Value> {
             result.push(item);
         }
     }
-    
+
     Ok(Value::from_vector(result))
 }
 
@@ -202,88 +232,66 @@ fn values_equal(a: &Value, b: &Value) -> Result<bool> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_take() {
-        let list = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(1)),
-            Value::Number(SchemeNumber::Integer(2)),
-            Value::Number(SchemeNumber::Integer(3)),
-            Value::Number(SchemeNumber::Integer(4)),
-        ]);
-        let n = Value::Number(SchemeNumber::Integer(2));
-        
-        let result = take(&[list, n]).unwrap();
-        let expected = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(1)),
-            Value::Number(SchemeNumber::Integer(2)),
-        ]);
-        
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_drop() {
-        let list = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(1)),
-            Value::Number(SchemeNumber::Integer(2)),
-            Value::Number(SchemeNumber::Integer(3)),
-            Value::Number(SchemeNumber::Integer(4)),
-        ]);
-        let n = Value::Number(SchemeNumber::Integer(2));
-        
-        let result = drop(&[list, n]).unwrap();
-        let expected = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(3)),
-            Value::Number(SchemeNumber::Integer(4)),
-        ]);
-        
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_concatenate() {
-        let list1 = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(1)),
-            Value::Number(SchemeNumber::Integer(2)),
-        ]);
-        let list2 = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(3)),
-            Value::Number(SchemeNumber::Integer(4)),
-        ]);
-        
-        let result = concatenate(&[list1, list2]).unwrap();
-        let expected = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(1)),
-            Value::Number(SchemeNumber::Integer(2)),
-            Value::Number(SchemeNumber::Integer(3)),
-            Value::Number(SchemeNumber::Integer(4)),
-        ]);
-        
-        assert_eq!(result, expected);
-    }
-
-    #[test]
-    fn test_delete_duplicates() {
-        let list = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(1)),
-            Value::Number(SchemeNumber::Integer(2)),
-            Value::Number(SchemeNumber::Integer(1)),
-            Value::Number(SchemeNumber::Integer(3)),
-            Value::Number(SchemeNumber::Integer(2)),
-        ]);
-        
-        let result = delete_duplicates(&[list]).unwrap();
-        let expected = Value::from_vector(vec![
-            Value::Number(SchemeNumber::Integer(1)),
-            Value::Number(SchemeNumber::Integer(2)),
-            Value::Number(SchemeNumber::Integer(3)),
-        ]);
-        
-        assert_eq!(result, expected);
-    }
+/// Create find function (placeholder implementation)
+fn find_function() -> Value {
+    Value::Procedure(Procedure::Builtin {
+        name: "find".to_string(),
+        arity: Some(2),
+        func: find_placeholder,
+    })
 }
+
+/// Create any function (placeholder implementation)
+fn any_function() -> Value {
+    Value::Procedure(Procedure::Builtin {
+        name: "any".to_string(),
+        arity: Some(2),
+        func: any_placeholder,
+    })
+}
+
+/// Create every function (placeholder implementation)
+fn every_function() -> Value {
+    Value::Procedure(Procedure::Builtin {
+        name: "every".to_string(),
+        arity: Some(2),
+        func: every_placeholder,
+    })
+}
+
+/// Placeholder implementation for find
+/// TODO: Implement proper evaluator integration for lambda support
+fn find_placeholder(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(LambdustError::arity_error(2, args.len()));
+    }
+
+    Err(LambdustError::runtime_error(
+        "find: lambda functions require evaluator integration (not yet implemented)".to_string(),
+    ))
+}
+
+/// Placeholder implementation for any
+/// TODO: Implement proper evaluator integration for lambda support
+fn any_placeholder(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(LambdustError::arity_error(2, args.len()));
+    }
+
+    Err(LambdustError::runtime_error(
+        "any: lambda functions require evaluator integration (not yet implemented)".to_string(),
+    ))
+}
+
+/// Placeholder implementation for every
+/// TODO: Implement proper evaluator integration for lambda support
+fn every_placeholder(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(LambdustError::arity_error(2, args.len()));
+    }
+
+    Err(LambdustError::runtime_error(
+        "every: lambda functions require evaluator integration (not yet implemented)".to_string(),
+    ))
+}
+

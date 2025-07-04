@@ -144,6 +144,35 @@ cargo fmt
 cargo clippy
 ```
 
+## テスト方針
+
+### テストコードの配置
+
+プロジェクトでは、テストコードとプロダクションコードを明確に分離します：
+
+- **src/配下**: プロダクションコードのみ。`#[test]`や`#[cfg(test)]`を含まない
+- **tests/unit/配下**: 単体テスト。src配下の実装ファイルと対になる名前で配置
+- **tests/integration/配下**: 統合テスト。機能別にグループ化
+
+### テストファイル命名規則
+
+- `src/foo.rs` → `tests/unit/foo_tests.rs`
+- `src/bar/baz.rs` → `tests/unit/bar_baz_tests.rs`
+- 例：`src/evaluator.rs` → `tests/unit/evaluator_tests.rs`
+
+### テスト実行
+
+```bash
+# 全テスト実行
+cargo test
+
+# 単体テストのみ
+cargo test --test mod
+
+# 特定のテストファイル
+cargo test evaluator_tests
+```
+
 ## 開発フロー
 
 プロジェクトではpre-commitフックを使用してコード品質を自動チェックしています：

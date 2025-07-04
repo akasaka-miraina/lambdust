@@ -10,6 +10,8 @@ pub enum Token {
     LeftParen,
     /// Right parenthesis ')'
     RightParen,
+    /// Vector start '#('
+    VectorStart,
     /// Quote '
     Quote,
     /// Quasiquote `
@@ -53,6 +55,7 @@ impl fmt::Display for Token {
         match self {
             Token::LeftParen => write!(f, "("),
             Token::RightParen => write!(f, ")"),
+            Token::VectorStart => write!(f, "#("),
             Token::Quote => write!(f, "'"),
             Token::Quasiquote => write!(f, "`"),
             Token::Unquote => write!(f, ","),
@@ -335,6 +338,11 @@ impl<'a> Lexer<'a> {
             Some('#') => {
                 if self.peek() == Some('\\') {
                     self.read_character().map(Some)
+                } else if self.peek() == Some('(') {
+                    // Vector literal #(
+                    self.advance(); // Skip #
+                    self.advance(); // Skip (
+                    Ok(Some(Token::VectorStart))
                 } else {
                     self.read_symbol().map(Some)
                 }
@@ -365,4 +373,3 @@ pub fn tokenize(input: &str) -> Result<Vec<Token>> {
 
     Ok(tokens)
 }
-

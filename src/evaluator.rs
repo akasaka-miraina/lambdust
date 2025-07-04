@@ -59,6 +59,17 @@ pub enum Continuation {
         /// Parent continuation
         parent: Box<Continuation>,
     },
+    /// Cond clause test continuation
+    CondTest {
+        /// Current clause consequent (expressions to evaluate if test is true)
+        consequent: Vec<Expr>,
+        /// Remaining clauses to check if test is false
+        remaining_clauses: Vec<(Expr, Vec<Expr>)>,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+        /// Parent continuation
+        parent: Box<Continuation>,
+    },
     /// Assignment continuation
     Assignment {
         /// Variable to assign
@@ -175,6 +186,17 @@ pub enum Continuation {
         clauses: Vec<(Expr, Vec<Expr>)>,
         /// Else clause expressions (if any)
         else_exprs: Option<Vec<Expr>>,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+        /// Parent continuation
+        parent: Box<Continuation>,
+    },
+    /// Vector evaluation continuation
+    VectorEval {
+        /// Elements evaluated so far
+        evaluated_elements: Vec<Value>,
+        /// Remaining elements to evaluate
+        remaining_elements: Vec<Expr>,
         /// Environment for evaluation
         env: Rc<Environment>,
         /// Parent continuation
@@ -299,7 +321,7 @@ impl Evaluator {
         if self.recursion_depth >= self.max_recursion_depth {
             return Err(LambdustError::stack_overflow());
         }
-        
+
         self.recursion_depth += 1;
         let result = match expr {
             // Constants: E[K]ρκσ = κ(K[K])
@@ -317,12 +339,18 @@ impl Evaluator {
             // Quote: E['E]ρκσ = κ(E[E])
             Expr::Quote(expr) => self.eval_quote(*expr, cont),
 
+            // Quasiquote: E[`E]ρκσ = κ(quasiquote-expand(E))
+            Expr::Quasiquote(expr) => self.eval_quasiquote(*expr, env, cont),
+
+            // Vector: evaluate all elements
+            Expr::Vector(exprs) => self.eval_vector(exprs, env, cont),
+
             // Other forms
             _ => Err(LambdustError::syntax_error(format!(
                 "Unsupported expression: {expr:?}"
             ))),
         };
-        
+
         self.recursion_depth -= 1;
         result
     }
@@ -407,12 +435,29 @@ impl Evaluator {
 
     /// Check if a name is a special form
     fn is_special_form(&self, name: &str) -> bool {
-        matches!(name,
-            "lambda" | "if" | "set!" | "quote" | "define" | "begin" |
-            "and" | "or" | "do" | "call/cc" | "call-with-current-continuation" |
-            "values" | "call-with-values" | "dynamic-wind" |
-            "delay" | "lazy" | "force" |
-            "raise" | "with-exception-handler" | "guard"
+        matches!(
+            name,
+            "lambda"
+                | "if"
+                | "set!"
+                | "quote"
+                | "define"
+                | "begin"
+                | "and"
+                | "or"
+                | "cond"
+                | "do"
+                | "call/cc"
+                | "call-with-current-continuation"
+                | "values"
+                | "call-with-values"
+                | "dynamic-wind"
+                | "delay"
+                | "lazy"
+                | "force"
+                | "raise"
+                | "with-exception-handler"
+                | "guard"
         )
     }
 
@@ -440,33 +485,37 @@ impl Evaluator {
             "quote" => self.eval_quote_special_form(operands, cont),
             "define" => self.eval_define(operands, env, cont),
             "begin" => self.eval_begin(operands, env, cont),
-            
+
             // Boolean forms
             "and" => self.eval_and(operands, env, cont),
             "or" => self.eval_or(operands, env, cont),
-            
+
+            // Conditional forms
+            "cond" => self.eval_cond(operands, env, cont),
+
             // Control flow
             "do" => self.eval_do(operands, env, cont),
             "call/cc" | "call-with-current-continuation" => self.eval_call_cc(operands, env, cont),
-            
+
             // Multiple values
             "values" => self.eval_values(operands, env, cont),
             "call-with-values" => self.eval_call_with_values(operands, env, cont),
             "dynamic-wind" => self.eval_dynamic_wind(operands, env, cont),
-            
+
             // Lazy evaluation
             "delay" => self.eval_delay(operands, env, cont),
             "lazy" => self.eval_lazy(operands, env, cont),
             "force" => self.eval_force(operands, env, cont),
-            
+
             // Exception handling
             "raise" => self.eval_raise(operands, env, cont),
             "with-exception-handler" => self.eval_with_exception_handler(operands, env, cont),
             "guard" => self.eval_guard(operands, env, cont),
-            
+
             // This should never be reached if is_special_form is correct
             _ => Err(LambdustError::syntax_error(format!(
-                "Internal error: Unknown special form: {}", name
+                "Internal error: Unknown special form: {}",
+                name
             ))),
         }
     }
@@ -577,6 +626,76 @@ impl Evaluator {
         self.eval(test, env, if_cont)
     }
 
+    /// Evaluate cond expression
+    fn eval_cond(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if operands.is_empty() {
+            return Err(LambdustError::syntax_error("cond: no clauses".to_string()));
+        }
+
+        // Parse clauses: (test expr...) or (else expr...)
+        let mut clauses = Vec::new();
+        let mut else_clause = None;
+
+        for operand in operands {
+            match operand {
+                Expr::List(clause_parts) if !clause_parts.is_empty() => {
+                    let test = clause_parts[0].clone();
+                    let exprs = clause_parts[1..].to_vec();
+
+                    // Check for else clause
+                    if let Expr::Variable(name) = &test {
+                        if name == "else" {
+                            if else_clause.is_some() {
+                                return Err(LambdustError::syntax_error(
+                                    "cond: multiple else clauses".to_string(),
+                                ));
+                            }
+                            else_clause = Some(exprs);
+                            continue;
+                        }
+                    }
+
+                    clauses.push((test, exprs));
+                }
+                _ => {
+                    return Err(LambdustError::syntax_error(
+                        "cond: clause must be a list".to_string(),
+                    ));
+                }
+            }
+        }
+
+        // If we have an else clause, add it as the final clause with a #t test
+        if let Some(else_exprs) = else_clause {
+            clauses.push((Expr::Literal(Literal::Boolean(true)), else_exprs));
+        }
+
+        if clauses.is_empty() {
+            return Err(LambdustError::syntax_error(
+                "cond: no valid clauses".to_string(),
+            ));
+        }
+
+        // Start evaluating the first clause
+        let mut clauses_iter = clauses.into_iter();
+        let (first_test, first_consequent) = clauses_iter.next().unwrap();
+        let remaining_clauses: Vec<_> = clauses_iter.collect();
+
+        let cond_cont = Continuation::CondTest {
+            consequent: first_consequent,
+            remaining_clauses,
+            env: env.clone(),
+            parent: Box::new(cont),
+        };
+
+        self.eval(first_test, env, cond_cont)
+    }
+
     /// Evaluate set! expression
     fn eval_set(
         &mut self,
@@ -614,6 +733,145 @@ impl Evaluator {
         self.apply_continuation(cont, quoted_value)
     }
 
+    /// Evaluate quasiquote expression
+    fn eval_quasiquote(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        let expanded = self.expand_quasiquote(expr, 1, env.clone())?;
+        self.eval(expanded, env, cont)
+    }
+
+    /// Evaluate vector literal
+    fn eval_vector(
+        &mut self,
+        exprs: Vec<Expr>,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if exprs.is_empty() {
+            // Empty vector
+            let empty_vector = Value::Vector(vec![]);
+            return self.apply_continuation(cont, empty_vector);
+        }
+
+        // Evaluate first expression
+        let first_expr = exprs[0].clone();
+        let remaining_exprs = exprs[1..].to_vec();
+
+        let vector_cont = Continuation::VectorEval {
+            evaluated_elements: vec![],
+            remaining_elements: remaining_exprs,
+            env: env.clone(),
+            parent: Box::new(cont),
+        };
+
+        self.eval(first_expr, env, vector_cont)
+    }
+
+    /// Expand quasiquote expression
+    ///
+    /// This implements the R7RS quasiquote expansion algorithm:
+    /// - Level 0: We are inside unquote, evaluate expression
+    /// - Level 1+: We are in quasiquote, handle nested structure
+    #[allow(clippy::only_used_in_recursion)]
+    fn expand_quasiquote(&self, expr: Expr, level: i32, _env: Rc<Environment>) -> Result<Expr> {
+        match expr {
+            // Unquote: ,expr
+            Expr::Unquote(inner) => {
+                if level == 1 {
+                    // At level 1, unquote should be evaluated
+                    Ok(*inner)
+                } else {
+                    // Nested quasiquote, decrease level
+                    Ok(Expr::Unquote(Box::new(self.expand_quasiquote(
+                        *inner,
+                        level - 1,
+                        _env,
+                    )?)))
+                }
+            }
+
+            // Nested quasiquote: `expr
+            Expr::Quasiquote(inner) => {
+                // Increase level for nested quasiquote
+                Ok(Expr::Quasiquote(Box::new(self.expand_quasiquote(
+                    *inner,
+                    level + 1,
+                    _env,
+                )?)))
+            }
+
+            // List: handle each element
+            Expr::List(exprs) => {
+                // Check if any element is an unquote or unquote-splicing
+                let has_unquotes = exprs
+                    .iter()
+                    .any(|e| matches!(e, Expr::Unquote(_) | Expr::UnquoteSplicing(_)));
+
+                if !has_unquotes && level == 1 {
+                    // No unquotes at level 1, treat as quote
+                    Ok(Expr::Quote(Box::new(Expr::List(exprs))))
+                } else {
+                    // Has unquotes or nested, need expansion
+                    let mut result = Vec::new();
+                    for expr in exprs {
+                        // Check for unquote-splicing first
+                        match &expr {
+                            Expr::UnquoteSplicing(inner) if level == 1 => {
+                                // This should splice the result, but for now we'll treat it as regular unquote
+                                // Full splicing implementation would require more complex list handling
+                                result.push(*inner.clone());
+                            }
+                            _ => {
+                                result.push(self.expand_quasiquote(expr, level, _env.clone())?);
+                            }
+                        }
+                    }
+                    Ok(Expr::List(result))
+                }
+            }
+
+            // Vector: handle each element
+            Expr::Vector(exprs) => {
+                // Check if any element is an unquote or unquote-splicing
+                let has_unquotes = exprs
+                    .iter()
+                    .any(|e| matches!(e, Expr::Unquote(_) | Expr::UnquoteSplicing(_)));
+
+                if !has_unquotes && level == 1 {
+                    // No unquotes at level 1, treat as quote
+                    Ok(Expr::Quote(Box::new(Expr::Vector(exprs))))
+                } else {
+                    // Has unquotes or nested, need expansion
+                    let mut result = Vec::new();
+                    for expr in exprs {
+                        result.push(self.expand_quasiquote(expr, level, _env.clone())?);
+                    }
+                    Ok(Expr::Vector(result))
+                }
+            }
+
+            // DottedList: handle each element
+            Expr::DottedList(exprs, tail) => {
+                let mut result = Vec::new();
+                for expr in exprs {
+                    result.push(self.expand_quasiquote(expr, level, _env.clone())?);
+                }
+                let expanded_tail = self.expand_quasiquote(*tail, level, _env)?;
+                Ok(Expr::DottedList(result, Box::new(expanded_tail)))
+            }
+
+            // All other expressions at level 1 should be quoted
+            _ if level == 1 => Ok(Expr::Quote(Box::new(expr))),
+
+            // All other expressions at other levels are left as-is
+            _ => Ok(expr),
+        }
+    }
+
     /// Convert expression to value (for quote)
     #[allow(clippy::only_used_in_recursion)]
     fn expr_to_value(&self, expr: Expr) -> Result<Value> {
@@ -632,6 +890,13 @@ impl Evaluator {
                     values.push(self.expr_to_value(expr)?);
                 }
                 Ok(Value::from_vector(values))
+            }
+            Expr::Vector(exprs) => {
+                let mut values = Vec::new();
+                for expr in exprs {
+                    values.push(self.expr_to_value(expr)?);
+                }
+                Ok(Value::Vector(values))
             }
             _ => Err(LambdustError::runtime_error(
                 "Cannot quote this expression".to_string(),
@@ -814,13 +1079,12 @@ impl Evaluator {
                 let body = operands[1..].to_vec();
 
                 // Create lambda expression: (lambda (params...) body...)
-                let lambda_expr = Expr::List(vec![
-                    Expr::Variable("lambda".to_string()),
-                    Expr::List(params),
-                ]
-                .into_iter()
-                .chain(body)
-                .collect());
+                let lambda_expr = Expr::List(
+                    vec![Expr::Variable("lambda".to_string()), Expr::List(params)]
+                        .into_iter()
+                        .chain(body)
+                        .collect(),
+                );
 
                 let define_cont = Continuation::Define {
                     variable: func_name,
@@ -911,12 +1175,12 @@ impl Evaluator {
 
         // Parse variable bindings
         let bindings = self.parse_do_bindings(&operands[0])?;
-        
+
         // Parse test and result expressions
         let test_result = self.parse_do_test_result(&operands[1])?;
         let test = test_result.0;
         let result_exprs = test_result.1;
-        
+
         // Body expressions
         let body_exprs = operands[2..].to_vec();
 
@@ -945,14 +1209,18 @@ impl Evaluator {
                 self.continue_do_loop(bindings, test, result_exprs, body_exprs, do_env, cont)
             } else {
                 // Execute body in sequence
-                self.eval_begin(&body_exprs, do_env.clone(), Continuation::Do {
-                    bindings,
-                    test,
-                    result_exprs,
-                    body_exprs: body_exprs.clone(),
-                    env: do_env,
-                    parent: Box::new(cont),
-                })
+                self.eval_begin(
+                    &body_exprs,
+                    do_env.clone(),
+                    Continuation::Do {
+                        bindings,
+                        test,
+                        result_exprs,
+                        body_exprs: body_exprs.clone(),
+                        env: do_env,
+                        parent: Box::new(cont),
+                    },
+                )
             }
         }
     }
@@ -1031,12 +1299,12 @@ impl Evaluator {
                 updates.push((var.clone(), step_value));
             }
         }
-        
+
         // Apply all updates
         for (var, value) in updates {
             env.set(&var, value)?;
         }
-        
+
         // Check test again
         let test_value = self.eval_sync(test.clone(), env.clone())?;
         if test_value.is_truthy() {
@@ -1053,14 +1321,18 @@ impl Evaluator {
             if body_exprs.is_empty() {
                 self.continue_do_loop(bindings, test, result_exprs, body_exprs, env, cont)
             } else {
-                self.eval_begin(&body_exprs, env.clone(), Continuation::Do {
-                    bindings,
-                    test,
-                    result_exprs,
-                    body_exprs: body_exprs.clone(),
-                    env,
-                    parent: Box::new(cont),
-                })
+                self.eval_begin(
+                    &body_exprs,
+                    env.clone(),
+                    Continuation::Do {
+                        bindings,
+                        test,
+                        result_exprs,
+                        body_exprs: body_exprs.clone(),
+                        env,
+                        parent: Box::new(cont),
+                    },
+                )
             }
         }
     }
@@ -1201,6 +1473,18 @@ impl Evaluator {
                 env,
                 parent,
             } => self.apply_if_test_continuation(value, consequent, alternate, env, *parent),
+            Continuation::CondTest {
+                consequent,
+                remaining_clauses,
+                env,
+                parent,
+            } => self.apply_cond_test_continuation(
+                value,
+                consequent,
+                remaining_clauses,
+                env,
+                *parent,
+            ),
             Continuation::Assignment {
                 variable,
                 env,
@@ -1248,10 +1532,16 @@ impl Evaluator {
                 body_exprs,
                 env,
                 parent,
-            } => self.apply_do_continuation(value, bindings, test, result_exprs, body_exprs, env, *parent),
-            Continuation::Captured { cont } => {
-                self.apply_captured_continuation(value, *cont)
-            }
+            } => self.apply_do_continuation(
+                value,
+                bindings,
+                test,
+                result_exprs,
+                body_exprs,
+                env,
+                *parent,
+            ),
+            Continuation::Captured { cont } => self.apply_captured_continuation(value, *cont),
             Continuation::CallCc {
                 captured_cont,
                 env,
@@ -1268,7 +1558,42 @@ impl Evaluator {
                 else_exprs,
                 env,
                 parent,
-            } => self.apply_guard_clause_continuation(value, condition_var, clauses, else_exprs, env, *parent),
+            } => self.apply_guard_clause_continuation(
+                value,
+                condition_var,
+                clauses,
+                else_exprs,
+                env,
+                *parent,
+            ),
+            Continuation::VectorEval {
+                mut evaluated_elements,
+                remaining_elements,
+                env,
+                parent,
+            } => {
+                // Add the current value to evaluated elements
+                evaluated_elements.push(value);
+
+                if remaining_elements.is_empty() {
+                    // All elements evaluated, create vector
+                    let vector = Value::Vector(evaluated_elements);
+                    self.apply_continuation(*parent, vector)
+                } else {
+                    // Continue evaluating remaining elements
+                    let next_expr = remaining_elements[0].clone();
+                    let remaining = remaining_elements[1..].to_vec();
+
+                    let vector_cont = Continuation::VectorEval {
+                        evaluated_elements,
+                        remaining_elements: remaining,
+                        env: env.clone(),
+                        parent,
+                    };
+
+                    self.eval(next_expr, env, vector_cont)
+                }
+            }
         }
     }
 
@@ -1296,7 +1621,7 @@ impl Evaluator {
     ) -> Result<Value> {
         // Add this argument to evaluated arguments
         evaluated_args.push(value);
-        
+
         // Continue evaluating remaining arguments
         self.eval_args(operator, remaining_args, evaluated_args, env, parent)
     }
@@ -1316,6 +1641,50 @@ impl Evaluator {
             self.eval(alt, env, parent)
         } else {
             self.apply_continuation(parent, Value::Undefined)
+        }
+    }
+
+    /// Apply cond test continuation
+    fn apply_cond_test_continuation(
+        &mut self,
+        value: Value,
+        consequent: Vec<Expr>,
+        remaining_clauses: Vec<(Expr, Vec<Expr>)>,
+        env: Rc<Environment>,
+        parent: Continuation,
+    ) -> Result<Value> {
+        if value.is_truthy() {
+            // Test passed, evaluate consequent expressions
+            if consequent.is_empty() {
+                // If no consequent expressions, return the test result
+                self.apply_continuation(parent, value)
+            } else if consequent.len() == 1 {
+                // Single expression, evaluate it
+                self.eval(consequent[0].clone(), env, parent)
+            } else {
+                // Multiple expressions, evaluate as begin
+                self.eval_begin(&consequent, env, parent)
+            }
+        } else {
+            // Test failed, try next clause
+            if remaining_clauses.is_empty() {
+                // No more clauses, return undefined (R7RS specifies this)
+                self.apply_continuation(parent, Value::Undefined)
+            } else {
+                // Try next clause
+                let mut remaining_iter = remaining_clauses.into_iter();
+                let (next_test, next_consequent) = remaining_iter.next().unwrap();
+                let remaining: Vec<_> = remaining_iter.collect();
+
+                let cond_cont = Continuation::CondTest {
+                    consequent: next_consequent,
+                    remaining_clauses: remaining,
+                    env: env.clone(),
+                    parent: Box::new(parent),
+                };
+
+                self.eval(next_test, env, cond_cont)
+            }
         }
     }
 
@@ -1363,8 +1732,7 @@ impl Evaluator {
         let producer = value;
 
         // Call the producer with no arguments to get the values
-        let producer_result =
-            self.apply_procedure(producer, Vec::new(), Continuation::Identity)?;
+        let producer_result = self.apply_procedure(producer, Vec::new(), Continuation::Identity)?;
 
         // Convert the result to arguments for the consumer
         let consumer_args = match producer_result {
@@ -1484,11 +1852,7 @@ impl Evaluator {
     }
 
     /// Apply captured continuation
-    fn apply_captured_continuation(
-        &mut self,
-        value: Value,
-        cont: Continuation,
-    ) -> Result<Value> {
+    fn apply_captured_continuation(&mut self, value: Value, cont: Continuation) -> Result<Value> {
         // A captured continuation was invoked
         self.apply_continuation(cont, value)
     }
@@ -1503,12 +1867,8 @@ impl Evaluator {
     ) -> Result<Value> {
         // The procedure has been evaluated, now call it with the captured continuation
         match value {
-            Value::Procedure(_) => {
-                self.apply_procedure(value, vec![captured_cont], parent)
-            }
-            _ => Err(LambdustError::type_error(
-                "Not a procedure".to_string(),
-            )),
+            Value::Procedure(_) => self.apply_procedure(value, vec![captured_cont], parent),
+            _ => Err(LambdustError::type_error("Not a procedure".to_string())),
         }
     }
 
@@ -1547,7 +1907,7 @@ impl Evaluator {
 
     /// Apply evaluation order strategy to arguments
     /// This models the "unspecified order" semantics in R7RS
-    fn apply_evaluation_order(&self, mut args: Vec<Expr>) -> Vec<Expr> {
+    pub fn apply_evaluation_order(&self, mut args: Vec<Expr>) -> Vec<Expr> {
         match self.eval_order {
             EvalOrder::LeftToRight => args, // Natural order
             EvalOrder::RightToLeft => {
@@ -1584,7 +1944,7 @@ impl Evaluator {
                         }
                     }
                     let result = func(&args)?;
-                    
+
                     // Tail call optimization: avoid continuation for identity
                     if is_tail_call {
                         Ok(result)
@@ -1617,7 +1977,7 @@ impl Evaluator {
                 }
                 Procedure::HostFunction { func, .. } => {
                     let result = func(&args)?;
-                    
+
                     // Tail call optimization: avoid continuation for identity
                     if is_tail_call {
                         Ok(result)
@@ -1668,9 +2028,10 @@ impl Evaluator {
         // for exception handlers
         let exception_expr = operands[0].clone();
         let exception_value = self.eval(exception_expr, env, Continuation::Identity)?;
-        
+
         Err(LambdustError::runtime_error(format!(
-            "Exception raised: {}", exception_value
+            "Exception raised: {}",
+            exception_value
         )))
     }
 
@@ -1726,7 +2087,10 @@ impl Evaluator {
 
     /// Parse guard specification: (var clause1 clause2 ... [else clause])
     #[allow(clippy::type_complexity)]
-    fn parse_guard_spec(&self, spec: &Expr) -> Result<(String, Vec<(Expr, Vec<Expr>)>, Option<Vec<Expr>>)> {
+    fn parse_guard_spec(
+        &self,
+        spec: &Expr,
+    ) -> Result<(String, Vec<(Expr, Vec<Expr>)>, Option<Vec<Expr>>)> {
         if let Expr::List(spec_items) = spec {
             if spec_items.is_empty() {
                 return Err(LambdustError::syntax_error(
@@ -1810,350 +2174,5 @@ impl Evaluator {
         // In a full implementation, this would process the exception
         // through the guard clauses
         self.apply_continuation(parent, value)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::tokenize;
-    use crate::parser::parse;
-
-    fn eval_str_formal(input: &str) -> Result<Value> {
-        let tokens = tokenize(input)?;
-        let ast = parse(tokens)?;
-        let env = Rc::new(Environment::with_builtins());
-        eval_with_formal_semantics(ast, env)
-    }
-
-    #[test]
-    fn test_formal_literals() {
-        assert_eq!(eval_str_formal("42").unwrap(), Value::from(42i64));
-        assert_eq!(eval_str_formal("#t").unwrap(), Value::Boolean(true));
-        assert_eq!(eval_str_formal("\"hello\"").unwrap(), Value::from("hello"));
-    }
-
-    #[test]
-    fn test_formal_quote() {
-        assert_eq!(
-            eval_str_formal("'x").unwrap(),
-            Value::Symbol("x".to_string())
-        );
-        assert_eq!(
-            eval_str_formal("'(1 2 3)").unwrap(),
-            Value::from_vector(vec![
-                Value::from(1i64),
-                Value::from(2i64),
-                Value::from(3i64)
-            ])
-        );
-    }
-
-    #[test]
-    fn test_formal_lambda() {
-        let result = eval_str_formal("(lambda (x) x)").unwrap();
-        assert!(result.is_procedure());
-    }
-
-    #[test]
-    fn test_formal_if() {
-        assert_eq!(eval_str_formal("(if #t 1 2)").unwrap(), Value::from(1i64));
-        assert_eq!(eval_str_formal("(if #f 1 2)").unwrap(), Value::from(2i64));
-    }
-
-    #[test]
-    fn test_formal_values() {
-        let result = eval_str_formal("(values 1 2 3)").unwrap();
-        assert_eq!(
-            result,
-            Value::Values(vec![
-                Value::from(1i64),
-                Value::from(2i64),
-                Value::from(3i64)
-            ])
-        );
-    }
-
-    #[test]
-    fn test_evaluation_order_strategies() {
-        // Test different evaluation order strategies
-        let mut eval_ltr = FormalEvaluator::with_eval_order(EvalOrder::LeftToRight);
-        let mut eval_rtl = FormalEvaluator::with_eval_order(EvalOrder::RightToLeft);
-        let mut eval_unspec = FormalEvaluator::with_eval_order(EvalOrder::Unspecified);
-
-        let env = Rc::new(Environment::with_builtins());
-
-        // Test literal evaluation (should be same regardless of order)
-        let lit_expr = Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(42)));
-        let cont = Continuation::Identity;
-
-        let result_ltr = eval_ltr
-            .eval(lit_expr.clone(), env.clone(), cont.clone())
-            .unwrap();
-        let result_rtl = eval_rtl
-            .eval(lit_expr.clone(), env.clone(), cont.clone())
-            .unwrap();
-        let result_unspec = eval_unspec.eval(lit_expr, env, cont).unwrap();
-
-        assert_eq!(result_ltr, Value::from(42i64));
-        assert_eq!(result_rtl, Value::from(42i64));
-        assert_eq!(result_unspec, Value::from(42i64));
-    }
-
-    #[test]
-    fn test_argument_order_independence() {
-        // Test that expressions that should be order-independent work correctly
-        // (This is a simplified test - real order independence testing would be more complex)
-
-        use crate::lexer::SchemeNumber;
-
-        let args = vec![
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
-        ];
-
-        let eval = FormalEvaluator::new();
-
-        // Test left-to-right order
-        let ordered_ltr = eval.apply_evaluation_order(args.clone());
-        assert_eq!(ordered_ltr.len(), 3);
-
-        // Test that reordering doesn't affect literal values
-        let eval_rtl = FormalEvaluator::with_eval_order(EvalOrder::RightToLeft);
-        let ordered_rtl = eval_rtl.apply_evaluation_order(args);
-        assert_eq!(ordered_rtl.len(), 3);
-    }
-
-    #[test]
-    fn test_formal_call_with_values() {
-        // Test call-with-values with single value
-        let result = eval_str_formal("(call-with-values (lambda () 42) (lambda (x) x))").unwrap();
-        assert_eq!(result, Value::from(42i64));
-
-        // Test call-with-values with multiple values
-        let result = eval_str_formal(
-            "(call-with-values (lambda () (values 1 2 3)) (lambda (x y z) (+ x y z)))",
-        )
-        .unwrap();
-        assert_eq!(result, Value::from(6i64));
-
-        // Test call-with-values with values producer
-        let result =
-            eval_str_formal("(call-with-values (lambda () (values 10 20)) (lambda (a b) (* a b)))")
-                .unwrap();
-        assert_eq!(result, Value::from(200i64));
-    }
-
-    #[test]
-    fn test_formal_call_with_values_errors() {
-        // Test call-with-values with wrong arity
-        let result = eval_str_formal("(call-with-values)");
-        assert!(result.is_err());
-
-        let result = eval_str_formal("(call-with-values (lambda () 1))");
-        assert!(result.is_err());
-
-        let result = eval_str_formal("(call-with-values (lambda () 1) (lambda (x) x) extra)");
-        assert!(result.is_err());
-
-        // Test call-with-values with non-procedure arguments
-        let result = eval_str_formal("(call-with-values 42 (lambda (x) x))");
-        assert!(result.is_err());
-
-        let result = eval_str_formal("(call-with-values (lambda () 1) 42)");
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_formal_multi_value_continuations() {
-        // Test that the formal evaluator properly handles multiple values in continuations
-        // This ensures that the CPS implementation correctly propagates multi-value contexts
-
-        // Test simple multi-value propagation
-        let result = eval_str_formal("(values 1 2 3)").unwrap();
-        assert_eq!(
-            result,
-            Value::Values(vec![
-                Value::from(1i64),
-                Value::from(2i64),
-                Value::from(3i64)
-            ])
-        );
-
-        // Test multi-value in call-with-values (more complex CPS case)
-        let result = eval_str_formal(
-            "(call-with-values (lambda () (values 5 10 15)) (lambda (a b c) (+ a b c)))",
-        )
-        .unwrap();
-        assert_eq!(result, Value::from(30i64));
-    }
-
-    #[test]
-    fn test_formal_begin() {
-        // Test empty begin
-        let result = eval_str_formal("(begin)").unwrap();
-        assert_eq!(result, Value::Undefined);
-
-        // Test single expression begin
-        let result = eval_str_formal("(begin 42)").unwrap();
-        assert_eq!(result, Value::from(42i64));
-
-        // Test multiple expression begin
-        let result = eval_str_formal("(begin (+ 1 2) (* 3 4) (- 10 5))").unwrap();
-        assert_eq!(result, Value::from(5i64));
-    }
-
-    #[test]
-    fn test_formal_define() {
-        // Test simple define
-        let result = eval_str_formal("(begin (define x 42) x)").unwrap();
-        assert_eq!(result, Value::from(42i64));
-
-        // Test define with complex expression
-        let result = eval_str_formal("(begin (define y (+ 10 20)) y)").unwrap();
-        assert_eq!(result, Value::from(30i64));
-    }
-
-    #[test]
-    fn test_formal_and() {
-        // Test empty and
-        let result = eval_str_formal("(and)").unwrap();
-        assert_eq!(result, Value::Boolean(true));
-
-        // Test single expression and
-        let result = eval_str_formal("(and 42)").unwrap();
-        assert_eq!(result, Value::from(42i64));
-
-        // Test and with all true values
-        let result = eval_str_formal("(and 1 2 3)").unwrap();
-        assert_eq!(result, Value::from(3i64));
-
-        // Test and with false value (short-circuit)
-        let result = eval_str_formal("(and 1 #f 3)").unwrap();
-        assert_eq!(result, Value::Boolean(false));
-    }
-
-    #[test]
-    fn test_formal_or() {
-        // Test empty or
-        let result = eval_str_formal("(or)").unwrap();
-        assert_eq!(result, Value::Boolean(false));
-
-        // Test single expression or
-        let result = eval_str_formal("(or 42)").unwrap();
-        assert_eq!(result, Value::from(42i64));
-
-        // Test or with first true value (short-circuit)
-        let result = eval_str_formal("(or 1 2 3)").unwrap();
-        assert_eq!(result, Value::from(1i64));
-
-        // Test or with all false values
-        let result = eval_str_formal("(or #f #f #f)").unwrap();
-        assert_eq!(result, Value::Boolean(false));
-
-        // Test or with true value at end
-        let result = eval_str_formal("(or #f #f 42)").unwrap();
-        assert_eq!(result, Value::from(42i64));
-    }
-
-    #[test]
-    fn test_formal_do() {
-        // Test do loop with immediate termination
-        let result = eval_str_formal(
-            "(do ((i 5)) ((> i 3) i))"
-        ).unwrap();
-        assert_eq!(result, Value::from(5i64));
-
-        // Test do loop with step expression
-        let result = eval_str_formal(
-            "(do ((i 0 (+ i 1))) ((>= i 3) i))"
-        ).unwrap();
-        assert_eq!(result, Value::from(3i64));
-    }
-    
-    #[test]
-    fn test_formal_do_with_step() {
-        // Test do loop with step expression and accumulator
-        let result = eval_str_formal(
-            "(do ((i 0 (+ i 2)) (sum 0 (+ sum i))) ((>= i 10) sum))"
-        ).unwrap();
-        // i: 0, 2, 4, 6, 8, 10
-        // sum: 0, 0, 2, 6, 12, 20
-        assert_eq!(result, Value::from(20i64));
-    }
-    
-    #[test]
-    fn test_formal_do_no_step() {
-        // Test do loop without step expression (variable unchanged)
-        let result = eval_str_formal(
-            "(do ((i 5)) ((< i 10) i))"
-        ).unwrap();
-        assert_eq!(result, Value::from(5i64));
-    }
-
-    #[test]
-    fn test_formal_delay() {
-        // Test delay creates a promise
-        let result = eval_str_formal("(delay (+ 1 2))").unwrap();
-        assert!(matches!(result, Value::Promise(_)));
-    }
-
-    #[test]
-    fn test_formal_lazy() {
-        // Test lazy creates a promise
-        let result = eval_str_formal("(lazy (+ 1 2))").unwrap();
-        assert!(matches!(result, Value::Promise(_)));
-    }
-
-    #[test]
-    fn test_formal_call_cc_basic() {
-        // Basic call/cc test
-        let result = eval_str_formal("(call/cc (lambda (k) 42))").unwrap();
-        assert_eq!(result, Value::from(42i64));
-    }
-
-    #[test]
-    fn test_formal_call_cc_escape() {
-        // Test call/cc with escape continuation
-        let result = eval_str_formal("(+ 1 (call/cc (lambda (k) 2)) 3)").unwrap();
-        assert_eq!(result, Value::from(6i64));
-    }
-
-    #[test]
-    fn test_formal_force() {
-        // Test force evaluates a promise
-        let result = eval_str_formal("(force (delay (+ 1 2)))").unwrap();
-        // Note: This will fail until force is properly implemented to actually force promises
-        // For now, just test that it doesn't crash and returns some value
-        assert!(!matches!(result, Value::Undefined));
-    }
-
-    #[test]
-    fn test_formal_raise() {
-        // Test raise creates an error
-        let result = eval_str_formal("(raise 'test-error)");
-        assert!(result.is_err());
-        if let Err(e) = result {
-            assert!(e.to_string().contains("Exception raised: test-error"));
-        }
-    }
-
-    #[test]
-    fn test_formal_with_exception_handler_basic() {
-        // Test basic with-exception-handler syntax
-        // For now, this just tests parsing and basic execution
-        let result = eval_str_formal("(with-exception-handler (lambda (obj) 'handled) (lambda () 42))");
-        // Should succeed with current implementation
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_formal_guard_basic() {
-        // Test basic guard syntax
-        // For now, this just tests parsing and basic execution
-        let result = eval_str_formal("(guard (e ((eq? e 'test) 'caught) (else 'not-caught)) 42)");
-        // Should succeed with current implementation and return 42
-        assert_eq!(result.unwrap(), Value::from(42i64));
     }
 }

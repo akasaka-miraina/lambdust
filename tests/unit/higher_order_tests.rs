@@ -23,11 +23,7 @@ fn test_map_with_builtin_function() {
             for arg in args {
                 match arg {
                     Value::Number(SchemeNumber::Integer(n)) => sum += n,
-                    _ => {
-                        return Err(LambdustError::type_error(
-                            "+ requires numbers".to_string(),
-                        ))
-                    }
+                    _ => return Err(LambdustError::type_error("+ requires numbers".to_string())),
                 }
             }
             Ok(Value::Number(SchemeNumber::Integer(sum)))
@@ -68,11 +64,7 @@ fn test_apply_with_builtin_function() {
             for arg in args {
                 match arg {
                     Value::Number(SchemeNumber::Integer(n)) => sum += n,
-                    _ => {
-                        return Err(LambdustError::type_error(
-                            "+ requires numbers".to_string(),
-                        ))
-                    }
+                    _ => return Err(LambdustError::type_error("+ requires numbers".to_string())),
                 }
             }
             Ok(Value::Number(SchemeNumber::Integer(sum)))
@@ -103,11 +95,7 @@ fn test_fold_with_builtin_function() {
             for arg in args {
                 match arg {
                     Value::Number(SchemeNumber::Integer(n)) => sum += n,
-                    _ => {
-                        return Err(LambdustError::type_error(
-                            "+ requires numbers".to_string(),
-                        ))
-                    }
+                    _ => return Err(LambdustError::type_error("+ requires numbers".to_string())),
                 }
             }
             Ok(Value::Number(SchemeNumber::Integer(sum)))

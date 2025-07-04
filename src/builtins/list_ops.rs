@@ -206,7 +206,9 @@ fn list_set_car() -> Value {
             match &args[0] {
                 Value::Pair(_) => {
                     // Use the new set_car! functionality for true mutation
-                    args[0].set_car(args[1].clone()).map_err(LambdustError::runtime_error)?;
+                    args[0]
+                        .set_car(args[1].clone())
+                        .map_err(LambdustError::runtime_error)?;
                     Ok(args[0].clone())
                 }
                 _ => Err(LambdustError::RuntimeError {
@@ -233,7 +235,9 @@ fn list_set_cdr() -> Value {
             match &args[0] {
                 Value::Pair(_) => {
                     // Use the new set_cdr! functionality for true mutation
-                    args[0].set_cdr(args[1].clone()).map_err(LambdustError::runtime_error)?;
+                    args[0]
+                        .set_cdr(args[1].clone())
+                        .map_err(LambdustError::runtime_error)?;
                     Ok(args[0].clone())
                 }
                 _ => Err(LambdustError::RuntimeError {

@@ -50,6 +50,7 @@ impl Parser {
     pub fn parse_expression(&mut self) -> Result<Expr> {
         match self.current_token() {
             Some(Token::LeftParen) => self.parse_list(),
+            Some(Token::VectorStart) => self.parse_vector(),
             Some(Token::Quote) => self.parse_quote(),
             Some(Token::Quasiquote) => self.parse_quasiquote(),
             Some(Token::Unquote) => self.parse_unquote(),
@@ -141,6 +142,28 @@ impl Parser {
         Ok(Expr::UnquoteSplicing(Box::new(expr)))
     }
 
+    /// Parse a vector expression
+    fn parse_vector(&mut self) -> Result<Expr> {
+        self.consume_token(); // consume #(
+        let mut elements = Vec::new();
+
+        while let Some(token) = self.current_token() {
+            match token {
+                Token::RightParen => {
+                    self.consume_token(); // consume )
+                    return Ok(Expr::Vector(elements));
+                }
+                _ => {
+                    elements.push(self.parse_expression()?);
+                }
+            }
+        }
+
+        Err(LambdustError::parse_error(
+            "Expected closing parenthesis for vector".to_string(),
+        ))
+    }
+
     /// Parse an atomic expression (literal or symbol)
     fn parse_atom(&mut self, token: Token) -> Result<Expr> {
         self.consume_token(); // consume the token
@@ -167,7 +190,7 @@ impl Parser {
 /// Parse a vector of tokens into a single expression (for REPL use)
 pub fn parse(tokens: Vec<Token>) -> Result<Expr> {
     if tokens.is_empty() {
-        return Ok(Expr::Literal(Literal::Nil));
+        return Err(LambdustError::parse_error("Unexpected end of input"));
     }
 
     let mut parser = Parser::new(tokens);
@@ -196,4 +219,3 @@ pub fn parse_multiple(tokens: Vec<Token>) -> Result<Vec<Expr>> {
     let mut parser = Parser::new(tokens);
     parser.parse_all()
 }
-

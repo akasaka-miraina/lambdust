@@ -14,31 +14,31 @@ impl SrfiModule for Srfi9 {
     fn srfi_id(&self) -> u32 {
         9
     }
-    
+
     fn name(&self) -> &'static str {
         "Defining Record Types"
     }
-    
+
     fn parts(&self) -> Vec<&'static str> {
         vec!["records", "types"]
     }
-    
+
     fn exports(&self) -> HashMap<String, Value> {
         let mut exports = HashMap::new();
-        
+
         // Record operations (from existing builtins/misc.rs)
         exports.insert("make-record".to_string(), record_make());
         exports.insert("record-of-type?".to_string(), record_predicate());
         exports.insert("record-field".to_string(), record_field_get());
         exports.insert("record-set-field!".to_string(), record_field_set());
-        
+
         exports
     }
-    
+
     fn exports_for_parts(&self, parts: &[&str]) -> Result<HashMap<String, Value>> {
         let all_exports = self.exports();
         let mut filtered = HashMap::new();
-        
+
         for part in parts {
             match *part {
                 "records" => {
@@ -54,13 +54,14 @@ impl SrfiModule for Srfi9 {
                     }
                 }
                 _ => {
-                    return Err(LambdustError::runtime_error(
-                        format!("Unknown SRFI 9 part: {}", part)
-                    ));
+                    return Err(LambdustError::runtime_error(format!(
+                        "Unknown SRFI 9 part: {}",
+                        part
+                    )));
                 }
             }
         }
-        
+
         Ok(filtered)
     }
 }
@@ -233,43 +234,3 @@ fn record_field_set() -> Value {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-    
-    #[test]
-    fn test_srfi_9_info() {
-        let srfi9 = Srfi9;
-        assert_eq!(srfi9.srfi_id(), 9);
-        assert_eq!(srfi9.name(), "Defining Record Types");
-        assert!(srfi9.parts().contains(&"records"));
-        assert!(srfi9.parts().contains(&"types"));
-    }
-    
-    #[test]
-    fn test_srfi_9_exports() {
-        let srfi9 = Srfi9;
-        let exports = srfi9.exports();
-        
-        assert!(exports.contains_key("make-record"));
-        assert!(exports.contains_key("record-of-type?"));
-        assert!(exports.contains_key("record-field"));
-        assert!(exports.contains_key("record-set-field!"));
-    }
-    
-    #[test]
-    fn test_record_operations() {
-        // Test make-record
-        let make_record = record_make();
-        if let Value::Procedure(Procedure::Builtin { func, .. }) = make_record {
-            let args = vec![
-                Value::Symbol("person".to_string()),
-                Value::String("Alice".to_string()),
-                Value::Number(SchemeNumber::Integer(30)),
-            ];
-            let result = func(&args).unwrap();
-            assert!(matches!(result, Value::Record(_)));
-        }
-    }
-}

@@ -14,31 +14,31 @@ impl SrfiModule for Srfi45 {
     fn srfi_id(&self) -> u32 {
         45
     }
-    
+
     fn name(&self) -> &'static str {
         "Primitives for Expressing Iterative Lazy Algorithms"
     }
-    
+
     fn parts(&self) -> Vec<&'static str> {
         vec!["lazy", "promises"]
     }
-    
+
     fn exports(&self) -> HashMap<String, Value> {
         let mut exports = HashMap::new();
-        
+
         // Lazy evaluation primitives
         exports.insert("delay".to_string(), delay_function());
         exports.insert("lazy".to_string(), lazy_function());
         exports.insert("force".to_string(), force_function());
         exports.insert("promise?".to_string(), promise_predicate());
-        
+
         exports
     }
-    
+
     fn exports_for_parts(&self, parts: &[&str]) -> Result<HashMap<String, Value>> {
         let all_exports = self.exports();
         let mut filtered = HashMap::new();
-        
+
         for part in parts {
             match *part {
                 "lazy" => {
@@ -63,13 +63,14 @@ impl SrfiModule for Srfi45 {
                     }
                 }
                 _ => {
-                    return Err(LambdustError::runtime_error(
-                        format!("Unknown SRFI 45 part: {}", part)
-                    ));
+                    return Err(LambdustError::runtime_error(format!(
+                        "Unknown SRFI 45 part: {}",
+                        part
+                    )));
                 }
             }
         }
-        
+
         Ok(filtered)
     }
 }
@@ -141,9 +142,7 @@ fn force_function() -> Value {
                             // Full implementation would evaluate the expression
                             Ok(Value::Undefined)
                         }
-                        PromiseState::Eager { value } => {
-                            Ok((**value).clone())
-                        }
+                        PromiseState::Eager { value } => Ok((**value).clone()),
                     }
                 }
                 // If not a promise, return as-is (R7RS behavior)
@@ -168,37 +167,3 @@ fn promise_predicate() -> Value {
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    
-    #[test]
-    fn test_srfi_45_info() {
-        let srfi45 = Srfi45;
-        assert_eq!(srfi45.srfi_id(), 45);
-        assert_eq!(srfi45.name(), "Primitives for Expressing Iterative Lazy Algorithms");
-        assert!(srfi45.parts().contains(&"lazy"));
-        assert!(srfi45.parts().contains(&"promises"));
-    }
-    
-    #[test]
-    fn test_srfi_45_exports() {
-        let srfi45 = Srfi45;
-        let exports = srfi45.exports();
-        
-        assert!(exports.contains_key("delay"));
-        assert!(exports.contains_key("lazy"));
-        assert!(exports.contains_key("force"));
-        assert!(exports.contains_key("promise?"));
-    }
-    
-    #[test]
-    fn test_promise_predicate() {
-        let promise_pred = promise_predicate();
-        if let Value::Procedure(Procedure::Builtin { func, .. }) = promise_pred {
-            // Test with non-promise
-            let result = func(&[Value::Number(crate::lexer::SchemeNumber::Integer(42))]).unwrap();
-            assert_eq!(result, Value::Boolean(false));
-        }
-    }
-}
