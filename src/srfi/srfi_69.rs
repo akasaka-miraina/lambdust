@@ -75,15 +75,20 @@ impl HashKey {
     }
 }
 
-impl HashTable {
-    /// Create a new hash table
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Self {
+impl Default for HashTable {
+    fn default() -> Self {
         Self {
             table: HashMap::new(),
             equality_predicate: None,
             hash_function: None,
         }
+    }
+}
+
+impl HashTable {
+    /// Create a new hash table
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Create a new hash table with custom equality and hash functions

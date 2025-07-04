@@ -304,13 +304,12 @@ impl MacroExpander {
     // Removed the `has_nested_ellipsis` method as it was dead code.
 
     /// SRFI 46: Count ellipsis nesting level
-    #[allow(clippy::only_used_in_recursion)]
-    pub fn count_ellipsis_level(&self, expr: &Expr) -> usize {
+    pub fn count_ellipsis_level(expr: &Expr) -> usize {
         match expr {
             Expr::Variable(name) if name == "..." => 1,
             Expr::List(exprs) => exprs
                 .iter()
-                .map(|e| self.count_ellipsis_level(e))
+                .map(Self::count_ellipsis_level)
                 .max()
                 .unwrap_or(0),
             _ => 0,
@@ -347,7 +346,7 @@ impl MacroExpander {
 
                             // Check for nested ellipsis (SRFI 46)
                             let ellipsis_count = if i + 1 < exprs.len() {
-                                self.count_ellipsis_level(&exprs[i + 1])
+                                Self::count_ellipsis_level(&exprs[i + 1])
                             } else {
                                 0
                             };
@@ -410,7 +409,7 @@ impl MacroExpander {
 
                             // Check for nested ellipsis (SRFI 46)
                             let ellipsis_count = if i + 1 < exprs.len() {
-                                self.count_ellipsis_level(&exprs[i + 1])
+                                Self::count_ellipsis_level(&exprs[i + 1])
                             } else {
                                 0
                             };
