@@ -266,6 +266,15 @@ pub enum EvalOrder {
     Unspecified,
 }
 
+/// Exception handler information for exception handling
+#[derive(Debug, Clone)]
+pub struct ExceptionHandlerInfo {
+    /// Handler procedure
+    pub handler: Value,
+    /// Handler environment
+    pub env: Rc<Environment>,
+}
+
 /// Formal evaluator implementing R7RS semantics
 #[derive(Debug)]
 pub struct Evaluator {
@@ -283,6 +292,8 @@ pub struct Evaluator {
     recursion_depth: usize,
     /// Maximum recursion depth
     max_recursion_depth: usize,
+    /// Exception handlers stack for exception handling
+    exception_handlers: Vec<ExceptionHandlerInfo>,
 }
 
 impl Evaluator {
@@ -295,6 +306,7 @@ impl Evaluator {
             global_env: Rc::new(Environment::with_builtins()),
             recursion_depth: 0,
             max_recursion_depth: 1000, // Configurable recursion limit
+            exception_handlers: Vec::new(),
         }
     }
 
@@ -307,6 +319,7 @@ impl Evaluator {
             global_env: Rc::new(Environment::with_builtins()),
             recursion_depth: 0,
             max_recursion_depth: 1000,
+            exception_handlers: Vec::new(),
         }
     }
 
@@ -1396,6 +1409,51 @@ impl Evaluator {
         // Note: actual forcing will be handled in apply_continuation when we get a Promise value
     }
 
+    /// Convert evaluator continuation to value continuation for call/cc
+    fn convert_continuation_to_value(&self, cont: &Continuation, env: Rc<Environment>) -> crate::value::Continuation {
+        // Convert continuation chain to stack frames for value representation
+        let mut stack = vec![];
+        self.collect_continuation_stack(cont, &mut stack);
+        
+        crate::value::Continuation {
+            stack,
+            env,
+        }
+    }
+
+    /// Recursively collect continuation stack frames
+    fn collect_continuation_stack(&self, cont: &Continuation, stack: &mut Vec<crate::value::StackFrame>) {
+        match cont {
+            Continuation::Identity => {
+                // Base case: identity continuation
+            }
+            Continuation::Application { remaining_args, env, parent, .. } => {
+                // Add current application frame
+                if let Some(expr) = remaining_args.first() {
+                    stack.push(crate::value::StackFrame {
+                        expr: expr.clone(),
+                        env: env.clone(),
+                    });
+                }
+                self.collect_continuation_stack(parent, stack);
+            }
+            Continuation::Operator { args, env, parent } => {
+                // Add operator evaluation frame
+                if let Some(expr) = args.first() {
+                    stack.push(crate::value::StackFrame {
+                        expr: expr.clone(),
+                        env: env.clone(),
+                    });
+                }
+                self.collect_continuation_stack(parent, stack);
+            }
+            _ => {
+                // For other continuation types, just recurse to parent if available
+                // This is a simplified version - full implementation would handle all cases
+            }
+        }
+    }
+
     /// Evaluate call/cc expression
     fn eval_call_cc(
         &mut self,
@@ -1407,15 +1465,10 @@ impl Evaluator {
             return Err(LambdustError::arity_error(1, operands.len()));
         }
 
-        // For now, create a simple continuation procedure
-        // In a full implementation, this would need to store the continuation somehow
-        let captured_cont = Value::Procedure(Procedure::Builtin {
-            name: "captured-continuation".to_string(),
-            arity: Some(1),
-            func: |_args| {
-                // Note: This function is handled as a special form in eval_call_cc
-                Ok(Value::Undefined)
-            },
+        // Capture the current continuation by converting evaluator continuation to value continuation
+        let value_cont = self.convert_continuation_to_value(&cont, env.clone());
+        let captured_cont = Value::Procedure(Procedure::Continuation {
+            continuation: Box::new(value_cont),
         });
 
         // Create a special continuation for call/cc
@@ -1985,9 +2038,16 @@ impl Evaluator {
                         self.apply_continuation(cont, result)
                     }
                 }
-                Procedure::Continuation { .. } => Err(LambdustError::runtime_error(
-                    "Continuation procedures not yet implemented in formal evaluator".to_string(),
-                )),
+                Procedure::Continuation { continuation: _continuation } => {
+                    // Call/cc continuation: return the value directly (simulating escape)
+                    if args.len() != 1 {
+                        return Err(LambdustError::arity_error(1, args.len()));
+                    }
+                    // For now, return the value directly
+                    // In a full implementation, this would restore the captured continuation
+                    // TODO: Implement proper continuation restoration and non-local exit
+                    Ok(args[0].clone())
+                }
             },
             _ => Err(LambdustError::type_error(format!(
                 "Not a procedure: {operator}"
@@ -2012,27 +2072,124 @@ pub fn eval_with_formal_semantics(expr: Expr, env: Rc<Environment>) -> Result<Va
 }
 
 impl Evaluator {
-    /// Evaluate raise expression
+    /// Push an exception handler onto the stack
+    fn push_exception_handler(&mut self, handler: Value, env: Rc<Environment>) {
+        self.exception_handlers.push(ExceptionHandlerInfo {
+            handler,
+            env,
+        });
+    }
+
+    /// Pop an exception handler from the stack
+    fn pop_exception_handler(&mut self) -> Option<ExceptionHandlerInfo> {
+        self.exception_handlers.pop()
+    }
+
+    /// Evaluate raise expression  
     fn eval_raise(
         &mut self,
         operands: &[Expr],
         env: Rc<Environment>,
-        _cont: Continuation,
+        cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 1 {
             return Err(LambdustError::arity_error(1, operands.len()));
         }
 
-        // For now, evaluate the exception object and return a runtime error
-        // In a full implementation, this would search the continuation stack
-        // for exception handlers
+        // Evaluate the exception object
         let exception_expr = operands[0].clone();
         let exception_value = self.eval(exception_expr, env, Continuation::Identity)?;
 
-        Err(LambdustError::runtime_error(format!(
-            "Exception raised: {}",
-            exception_value
-        )))
+        // Search for exception handlers by looking for guard clauses in the continuation chain
+        self.find_and_invoke_exception_handler(exception_value, cont)
+    }
+
+    /// Find and invoke the appropriate exception handler
+    fn find_and_invoke_exception_handler(
+        &mut self,
+        exception_value: Value,
+        cont: Continuation,
+    ) -> Result<Value> {
+        // Search the continuation chain for guard clauses
+        match cont {
+            Continuation::GuardClause {
+                condition_var,
+                clauses,
+                else_exprs,
+                env,
+                parent,
+            } => {
+                // Found a guard clause - process the exception through it
+                self.process_guard_exception(
+                    exception_value,
+                    condition_var,
+                    clauses,
+                    else_exprs,
+                    env,
+                    *parent,
+                )
+            }
+            _ => {
+                // No guard clause found, check exception handler stack
+                if let Some(handler_info) = self.exception_handlers.last() {
+                    let handler = handler_info.handler.clone();
+                    self.exception_handlers.pop();
+                    self.apply_procedure(handler, vec![exception_value], cont)
+                } else {
+                    // No exception handler found - propagate as runtime error
+                    Err(LambdustError::runtime_error(format!(
+                        "Uncaught exception: {}",
+                        exception_value
+                    )))
+                }
+            }
+        }
+    }
+
+    /// Process exception through guard clauses
+    fn process_guard_exception(
+        &mut self,
+        exception_value: Value,
+        condition_var: String,
+        clauses: Vec<(Expr, Vec<Expr>)>,
+        else_exprs: Option<Vec<Expr>>,
+        env: Rc<Environment>,
+        parent: Continuation,
+    ) -> Result<Value> {
+        // Pop the guard handler from the exception handler stack
+        self.pop_exception_handler();
+
+        // Create a new environment with the exception bound to the condition variable
+        let guard_env = Environment::with_parent(env);
+        guard_env.define(condition_var.clone(), exception_value.clone());
+        let guard_env_rc = Rc::new(guard_env);
+
+        // Try each guard clause in order
+        for (condition_expr, result_exprs) in clauses {
+            let condition_result = self.eval(condition_expr, guard_env_rc.clone(), Continuation::Identity)?;
+            
+            // If condition is true (non-#f), execute this clause
+            if !matches!(condition_result, Value::Boolean(false)) {
+                // Evaluate result expressions in the guard environment
+                if result_exprs.len() == 1 {
+                    return self.eval(result_exprs[0].clone(), guard_env_rc, parent);
+                } else {
+                    return self.eval_begin(&result_exprs, guard_env_rc, parent);
+                }
+            }
+        }
+
+        // No clause matched, try else clause
+        if let Some(else_result_exprs) = else_exprs {
+            if else_result_exprs.len() == 1 {
+                self.eval(else_result_exprs[0].clone(), guard_env_rc, parent)
+            } else {
+                self.eval_begin(&else_result_exprs, guard_env_rc, parent)
+            }
+        } else {
+            // No else clause, re-raise the exception
+            self.find_and_invoke_exception_handler(exception_value, parent)
+        }
     }
 
     /// Evaluate with-exception-handler expression
@@ -2046,13 +2203,32 @@ impl Evaluator {
             return Err(LambdustError::arity_error(2, operands.len()));
         }
 
-        let _handler_expr = operands[0].clone();
+        let handler_expr = operands[0].clone();
         let thunk_expr = operands[1].clone();
 
-        // For now, just call the thunk (evaluate it as a function call with no arguments)
-        // In a full implementation, this would install the exception handler
+        // First evaluate the handler expression
+        let handler_value = self.eval(handler_expr, env.clone(), Continuation::Identity)?;
+        
+        // Verify that the handler is a procedure
+        if !matches!(handler_value, Value::Procedure(_)) {
+            return Err(LambdustError::type_error(
+                "Exception handler must be a procedure".to_string(),
+            ));
+        }
+
+        // Push the handler onto the exception handler stack
+        self.push_exception_handler(handler_value.clone(), env.clone());
+
+        // Create a continuation that will pop the handler when done
+        let exception_handler_cont = Continuation::ExceptionHandler {
+            handler: handler_value,
+            env: env.clone(),
+            parent: Box::new(cont),
+        };
+
+        // Evaluate the thunk (call it with no arguments)
         let thunk_call = Expr::List(vec![thunk_expr]);
-        self.eval(thunk_call, env, cont)
+        self.eval(thunk_call, env, exception_handler_cont)
     }
 
     /// Evaluate guard expression
@@ -2072,16 +2248,35 @@ impl Evaluator {
         let guard_spec = &operands[0];
         let body_exprs = &operands[1..];
 
-        let (_condition_var, _clauses, _else_exprs) = self.parse_guard_spec(guard_spec)?;
+        let (condition_var, clauses, else_exprs) = self.parse_guard_spec(guard_spec)?;
 
-        // For now, just evaluate the body normally without exception handling
-        // In a full implementation, this would set up exception handling continuations
-        // If an exception occurs, it would be caught and processed through the clauses
-        // For now, just return the body result
+        // Create a guard-specific exception handler
+        let guard_handler = Value::Procedure(Procedure::Builtin {
+            name: "guard-handler".to_string(),
+            arity: Some(1),
+            func: |_args| {
+                // This is a placeholder - the actual handling is done in apply_guard_clause_continuation
+                Ok(Value::Undefined)
+            },
+        });
+
+        // Push the guard handler onto the exception handler stack
+        self.push_exception_handler(guard_handler, env.clone());
+
+        // Create a guard clause continuation
+        let guard_cont = Continuation::GuardClause {
+            condition_var,
+            clauses,
+            else_exprs,
+            env: env.clone(),
+            parent: Box::new(cont),
+        };
+
+        // Evaluate the body with guard protection
         if body_exprs.len() == 1 {
-            self.eval(body_exprs[0].clone(), env, cont)
+            self.eval(body_exprs[0].clone(), env, guard_cont)
         } else {
-            self.eval_begin(body_exprs, env, cont)
+            self.eval_begin(body_exprs, env, guard_cont)
         }
     }
 
@@ -2154,9 +2349,10 @@ impl Evaluator {
         _env: Rc<Environment>,
         parent: Continuation,
     ) -> Result<Value> {
-        // For now, just continue with the value
-        // In a full implementation, this would install the exception handler
-        // and continue evaluation with exception handling active
+        // Pop the exception handler from the stack since evaluation is complete
+        self.pop_exception_handler();
+        
+        // Continue with the value
         self.apply_continuation(parent, value)
     }
 
@@ -2170,9 +2366,10 @@ impl Evaluator {
         _env: Rc<Environment>,
         parent: Continuation,
     ) -> Result<Value> {
-        // For now, just continue with the value
-        // In a full implementation, this would process the exception
-        // through the guard clauses
+        // Pop the guard handler from the exception handler stack
+        self.pop_exception_handler();
+
+        // Normal completion: just pass the value through
         self.apply_continuation(parent, value)
     }
 }
