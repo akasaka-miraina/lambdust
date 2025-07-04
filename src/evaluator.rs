@@ -1091,7 +1091,7 @@ impl Evaluator {
         }
 
         // Capture the current continuation as a procedure
-        // This continuation represents the "rest of the computation"
+        // This continuation represents the "rest of the computation" after call/cc completes
         let captured_cont = Value::Procedure(Procedure::CapturedContinuation {
             continuation: Box::new(cont.clone()),
         });
@@ -1577,6 +1577,7 @@ impl Evaluator {
                     
                     // When a continuation is invoked, it "escapes" from the current computation
                     // and resumes at the point where the continuation was captured
+                    // This completely abandons the current continuation chain
                     let return_value = args[0].clone();
                     self.apply_continuation(*continuation.clone(), return_value)
                 }

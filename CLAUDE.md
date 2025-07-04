@@ -123,8 +123,7 @@ lambdust/
 │   ├── lexer.rs         # 字句解析
 │   ├── parser.rs        # 構文解析
 │   ├── ast.rs           # AST定義
-│   ├── formal_evaluator.rs # R7RS準拠CPS評価器（メイン）
-│   ├── evaluator.rs     # 従来評価器（非推奨・段階的削除予定）
+│   ├── evaluator.rs     # R7RS準拠CPS評価器（メイン）
 │   ├── environment.rs   # 環境管理
 │   ├── builtins/        # 組み込み関数モジュール群
 │   │   ├── mod.rs       # 統合モジュール
