@@ -53,7 +53,7 @@ pub fn eval_do(
     };
 
     // Start the loop by evaluating the test
-    evaluator.eval(do_cont.test().clone(), do_env, do_cont)
+    evaluator.eval(do_cont.test_unchecked().clone(), do_env, do_cont)
 }
 
 /// Parse do bindings
@@ -199,10 +199,20 @@ impl Evaluator {
 
 impl Continuation {
     /// Helper method to extract test from Do continuation
-    pub fn test(&self) -> &Expr {
+    /// Returns None if not a Do continuation (type-safe alternative to panic)
+    pub fn test(&self) -> Option<&Expr> {
+        match self {
+            Continuation::Do { test, .. } => Some(test),
+            _ => None,
+        }
+    }
+
+    /// Helper method to extract test from Do continuation (unsafe but fast)
+    /// Only use when you are certain the continuation is a Do continuation
+    pub fn test_unchecked(&self) -> &Expr {
         match self {
             Continuation::Do { test, .. } => test,
-            _ => panic!("test() called on non-Do continuation"),
+            _ => unreachable!("test_unchecked() called on non-Do continuation"),
         }
     }
 }

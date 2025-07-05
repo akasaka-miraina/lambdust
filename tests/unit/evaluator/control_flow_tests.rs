@@ -400,7 +400,7 @@ mod continuation_tests {
 
         let extracted_test = do_cont.test();
         match extracted_test {
-            Expr::Literal(Literal::Number(SchemeNumber::Real(n))) => assert_eq!(*n, 42.0),
+            Some(Expr::Literal(Literal::Number(SchemeNumber::Real(n)))) => assert_eq!(*n, 42.0),
             other => panic!("Expected number literal, got {:?}", other),
         }
     }

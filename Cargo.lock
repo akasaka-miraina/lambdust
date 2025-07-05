@@ -408,6 +408,7 @@ dependencies = [
  "num-rational",
  "num-traits",
  "rustyline",
+ "smallvec",
  "string-interner",
  "thiserror",
 ]

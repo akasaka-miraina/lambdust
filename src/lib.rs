@@ -72,9 +72,11 @@
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
 
+pub mod adaptive_memory;
 pub mod ast;
 pub mod bridge;
 pub mod builtins;
+pub mod cps_inlining;
 pub mod environment;
 pub mod error;
 pub mod evaluator;
@@ -83,20 +85,28 @@ pub mod interpreter;
 pub mod lexer;
 pub mod macros;
 pub mod marshal;
+pub mod memory_pool;
 pub mod module_system;
+pub mod optimized_collections;
 pub mod parser;
 pub mod srfi;
+pub mod stack_monitor;
 pub mod value;
 
 // REPL module will be implemented in future versions
 // #[cfg(feature = "repl")]
 // pub mod repl;
 
+pub use adaptive_memory::{AdaptiveMemoryManager, MemoryPressure, AllocationStrategy};
 pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
+pub use cps_inlining::{CpsInliner, InliningDecision, ChainStrategy};
 pub use error::{LambdustError, Result};
 pub use evaluator::{Evaluator, eval_with_formal_semantics};
+pub use memory_pool::{ValuePool, PoolStats, ContinuationPool, ContinuationPoolStats};
 pub use module_system::ModuleSystem;
+pub use optimized_collections::{SliceRef, CowVec, ArgVec, ExprVec};
 pub use srfi::SrfiRegistry;
+pub use stack_monitor::{StackMonitor, StackFrameType, OptimizationRecommendation};
 pub use value::Value;
 
 /// The main interpreter struct that provides the public API

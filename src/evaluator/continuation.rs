@@ -8,6 +8,153 @@ use crate::environment::Environment;
 use crate::value::Value;
 use std::rc::Rc;
 
+/// Lightweight continuation operations for common cases
+/// This enum represents simple continuations that can be inlined for performance
+#[derive(Debug, Clone)]
+pub enum LightContinuation {
+    /// Identity continuation (direct return)
+    Identity,
+    /// Simple value accumulation
+    Values(Vec<Value>),
+    /// Variable assignment operation
+    Assignment {
+        /// Variable name to assign to
+        var_name: String,
+        /// Environment for the assignment
+        env: Rc<Environment>,
+    },
+    /// Begin sequence evaluation
+    Begin {
+        /// Remaining expressions to evaluate
+        remaining: Vec<Expr>,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+    },
+    /// Simple application with evaluated operator and arguments
+    SimpleApplication {
+        /// The operator to apply
+        operator: Value,
+        /// All arguments (already evaluated)
+        args: Vec<Value>,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+    },
+    /// If test evaluation with pre-evaluated test result
+    IfTest {
+        /// Consequent expression
+        consequent: Expr,
+        /// Alternate expression (if any) 
+        alternate: Option<Expr>,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+    },
+    /// Define operation with variable name
+    Define {
+        /// Variable to define
+        variable: String,
+        /// Environment for definition
+        env: Rc<Environment>,
+    },
+}
+
+impl LightContinuation {
+    /// Check if a continuation can be converted to a lightweight variant
+    pub fn from_continuation(cont: &Continuation) -> Option<Self> {
+        match cont {
+            Continuation::Identity => Some(LightContinuation::Identity),
+            
+            // Simple cases with Identity parent
+            Continuation::Values { values, parent } if matches!(**parent, Continuation::Identity) => {
+                Some(LightContinuation::Values(values.clone()))
+            }
+            Continuation::Assignment { variable, env, parent } if matches!(**parent, Continuation::Identity) => {
+                Some(LightContinuation::Assignment {
+                    var_name: variable.clone(),
+                    env: env.clone(),
+                })
+            }
+            Continuation::Begin { remaining, env, parent } 
+                if matches!(**parent, Continuation::Identity) && remaining.is_empty() => {
+                Some(LightContinuation::Begin {
+                    remaining: remaining.clone(),
+                    env: env.clone(),
+                })
+            }
+            Continuation::Define { variable, env, parent } if matches!(**parent, Continuation::Identity) => {
+                Some(LightContinuation::Define {
+                    variable: variable.clone(),
+                    env: env.clone(),
+                })
+            }
+            
+            // More complex cases that can still be optimized
+            Continuation::Application { operator, evaluated_args, remaining_args, env, parent }
+                if remaining_args.is_empty() && matches!(**parent, Continuation::Identity) => {
+                Some(LightContinuation::SimpleApplication {
+                    operator: operator.clone(),
+                    args: evaluated_args.clone(),
+                    env: env.clone(),
+                })
+            }
+            Continuation::IfTest { consequent, alternate, env, parent } 
+                if matches!(**parent, Continuation::Identity) => {
+                Some(LightContinuation::IfTest {
+                    consequent: consequent.clone(),
+                    alternate: alternate.clone(),
+                    env: env.clone(),
+                })
+            }
+            
+            _ => None,
+        }
+    }
+
+    /// Apply a lightweight continuation (inlined for performance)
+    #[inline]
+    pub fn apply(self, value: Value) -> Result<Value, crate::error::LambdustError> {
+        match self {
+            LightContinuation::Identity => Ok(value),
+            LightContinuation::Values(mut values) => {
+                values.push(value);
+                Ok(Value::Values(values))
+            }
+            LightContinuation::Assignment { var_name, env } => {
+                env.set(&var_name, value.clone())?;
+                Ok(value)
+            }
+            LightContinuation::Begin { remaining, env: _ } => {
+                if remaining.is_empty() {
+                    Ok(value)
+                } else {
+                    // For complex Begin operations, fall back to full continuation
+                    Err(crate::error::LambdustError::runtime_error(
+                        "Complex Begin operation requires full continuation".to_string()
+                    ))
+                }
+            }
+            LightContinuation::SimpleApplication { operator: _, args: _, env: _ } => {
+                // For SimpleApplication, we would need access to evaluator to apply procedure
+                // This requires a different design pattern - return special marker for now
+                Err(crate::error::LambdustError::runtime_error(
+                    "SimpleApplication requires evaluator context".to_string()
+                ))
+            }
+            LightContinuation::IfTest { consequent: _, alternate: _, env: _ } => {
+                // IfTest requires evaluator to evaluate consequent/alternate
+                // This requires a different design pattern - return special marker for now
+                Err(crate::error::LambdustError::runtime_error(
+                    "IfTest requires evaluator context".to_string()
+                ))
+            }
+            LightContinuation::Define { variable, env } => {
+                // Define operation can be inlined
+                env.define(variable, value.clone());
+                Ok(value)
+            }
+        }
+    }
+}
+
 /// Dynamic point for dynamic-wind semantics
 #[derive(Debug, Clone)]
 pub struct DynamicPoint {
@@ -296,4 +443,101 @@ pub enum Continuation {
         /// Parent continuation
         parent: Box<Continuation>,
     },
+}
+
+impl Continuation {
+    /// Calculate the depth of continuation chain
+    pub fn depth(&self) -> usize {
+        match self {
+            Continuation::Identity => 0,
+            Continuation::Application { parent, .. } => parent.depth() + 1,
+            Continuation::Operator { parent, .. } => parent.depth() + 1,
+            Continuation::IfTest { parent, .. } => parent.depth() + 1,
+            Continuation::Assignment { parent, .. } => parent.depth() + 1,
+            Continuation::Begin { parent, .. } => parent.depth() + 1,
+            Continuation::Values { parent, .. } => parent.depth() + 1,
+            Continuation::ValuesAccumulate { parent, .. } => parent.depth() + 1,
+            Continuation::VectorEval { parent, .. } => parent.depth() + 1,
+            Continuation::Define { parent, .. } => parent.depth() + 1,
+            Continuation::CallCc { parent, .. } => parent.depth() + 1,
+            Continuation::Do { parent, .. } => parent.depth() + 1,
+            Continuation::DynamicWind { parent, .. } => parent.depth() + 1,
+            Continuation::ExceptionHandler { parent, .. } => parent.depth() + 1,
+            Continuation::GuardClause { parent, .. } => parent.depth() + 1,
+            Continuation::CondTest { parent, .. } => parent.depth() + 1,
+            Continuation::And { parent, .. } => parent.depth() + 1,
+            Continuation::Or { parent, .. } => parent.depth() + 1,
+            Continuation::CallWithValuesStep1 { parent, .. } => parent.depth() + 1,
+            Continuation::CallWithValuesStep2 { parent, .. } => parent.depth() + 1,
+            Continuation::Captured { .. } => 0, // Captured continuations don't have parents
+        }
+    }
+
+    /// Find the root (deepest) continuation in the chain
+    /// This is used for complete non-local exit in call/cc
+    pub fn find_root_continuation(&self) -> &Continuation {
+        match self {
+            Continuation::Identity => self,
+            Continuation::Application { parent, .. } => parent.find_root_continuation(),
+            Continuation::Operator { parent, .. } => parent.find_root_continuation(),
+            Continuation::IfTest { parent, .. } => parent.find_root_continuation(),
+            Continuation::Assignment { parent, .. } => parent.find_root_continuation(),
+            Continuation::Begin { parent, .. } => parent.find_root_continuation(),
+            Continuation::Values { parent, .. } => parent.find_root_continuation(),
+            Continuation::ValuesAccumulate { parent, .. } => parent.find_root_continuation(),
+            Continuation::VectorEval { parent, .. } => parent.find_root_continuation(),
+            Continuation::Define { parent, .. } => parent.find_root_continuation(),
+            Continuation::CallCc { parent, .. } => parent.find_root_continuation(),
+            Continuation::Do { parent, .. } => parent.find_root_continuation(),
+            Continuation::DynamicWind { parent, .. } => parent.find_root_continuation(),
+            Continuation::ExceptionHandler { parent, .. } => parent.find_root_continuation(),
+            Continuation::GuardClause { parent, .. } => parent.find_root_continuation(),
+            Continuation::CondTest { parent, .. } => parent.find_root_continuation(),
+            Continuation::And { parent, .. } => parent.find_root_continuation(),
+            Continuation::Or { parent, .. } => parent.find_root_continuation(),
+            Continuation::CallWithValuesStep1 { parent, .. } => parent.find_root_continuation(),
+            Continuation::CallWithValuesStep2 { parent, .. } => parent.find_root_continuation(),
+            Continuation::Captured { cont } => cont.find_root_continuation(),
+        }
+    }
+
+    /// Check if this continuation represents an intermediate computation
+    /// These continuations should be skipped during non-local exit
+    pub fn is_intermediate_computation(&self) -> bool {
+        matches!(
+            self,
+            Continuation::Application { .. }
+                | Continuation::Operator { .. }
+                | Continuation::Values { .. }
+                | Continuation::ValuesAccumulate { .. }
+                | Continuation::VectorEval { .. }
+        )
+    }
+
+    /// Get the parent continuation, if any
+    pub fn parent(&self) -> Option<&Continuation> {
+        match self {
+            Continuation::Identity => None,
+            Continuation::Application { parent, .. } => Some(parent),
+            Continuation::Operator { parent, .. } => Some(parent),
+            Continuation::IfTest { parent, .. } => Some(parent),
+            Continuation::Assignment { parent, .. } => Some(parent),
+            Continuation::Begin { parent, .. } => Some(parent),
+            Continuation::Values { parent, .. } => Some(parent),
+            Continuation::ValuesAccumulate { parent, .. } => Some(parent),
+            Continuation::VectorEval { parent, .. } => Some(parent),
+            Continuation::Define { parent, .. } => Some(parent),
+            Continuation::CallCc { parent, .. } => Some(parent),
+            Continuation::Do { parent, .. } => Some(parent),
+            Continuation::DynamicWind { parent, .. } => Some(parent),
+            Continuation::ExceptionHandler { parent, .. } => Some(parent),
+            Continuation::GuardClause { parent, .. } => Some(parent),
+            Continuation::CondTest { parent, .. } => Some(parent),
+            Continuation::And { parent, .. } => Some(parent),
+            Continuation::Or { parent, .. } => Some(parent),
+            Continuation::CallWithValuesStep1 { parent, .. } => Some(parent),
+            Continuation::CallWithValuesStep2 { parent, .. } => Some(parent),
+            Continuation::Captured { .. } => None, // Captured continuations don't have logical parents
+        }
+    }
 }

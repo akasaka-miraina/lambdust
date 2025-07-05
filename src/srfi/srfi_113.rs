@@ -253,7 +253,7 @@ impl super::SrfiModule for Srfi113 {
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
-                    
+
                     let is_set = match &args[0] {
                         Value::External(obj) => obj.type_name == "set",
                         _ => false,
@@ -407,7 +407,7 @@ impl super::SrfiModule for Srfi113 {
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
-                    
+
                     let is_bag = match &args[0] {
                         Value::External(obj) => obj.type_name == "bag",
                         _ => false,
@@ -458,21 +458,21 @@ mod tests {
     #[test]
     fn test_set_operations() {
         let mut set = Set::new();
-        
+
         // Test insertion
         assert!(set.insert(Value::from(1i64)));
         assert!(set.insert(Value::from(2i64)));
         assert!(!set.insert(Value::from(1i64))); // Duplicate should return false
-        
+
         // Test size and emptiness
         assert_eq!(set.size(), 2);
         assert!(!set.is_empty());
-        
+
         // Test contains
         assert!(set.contains(&Value::from(1i64)));
         assert!(set.contains(&Value::from(2i64)));
         assert!(!set.contains(&Value::from(3i64)));
-        
+
         // Test removal
         assert!(set.remove(&Value::from(1i64)));
         assert!(!set.remove(&Value::from(3i64))); // Not in set
@@ -482,21 +482,21 @@ mod tests {
     #[test]
     fn test_bag_operations() {
         let mut bag = Bag::new();
-        
+
         // Test insertion with duplicates
         bag.insert(Value::from(1i64));
         bag.insert(Value::from(1i64));
         bag.insert(Value::from(2i64));
-        
+
         // Test counts
         assert_eq!(bag.count(&Value::from(1i64)), 2);
         assert_eq!(bag.count(&Value::from(2i64)), 1);
         assert_eq!(bag.count(&Value::from(3i64)), 0);
-        
+
         // Test size
         assert_eq!(bag.size(), 3);
         assert!(!bag.is_empty());
-        
+
         // Test removal
         assert!(bag.remove_one(&Value::from(1i64)));
         assert_eq!(bag.count(&Value::from(1i64)), 1);
@@ -507,14 +507,14 @@ mod tests {
     fn test_srfi_procedures() {
         let srfi = Srfi113;
         let exports = srfi.exports();
-        
+
         // Test set constructor
         let set_proc = exports.get("set").unwrap();
         if let Value::Procedure(Procedure::Builtin { func, .. }) = set_proc {
             let result = func(&[Value::from(1i64), Value::from(2i64), Value::from(1i64)]).unwrap();
             assert!(matches!(result, Value::External(_)));
         }
-        
+
         // Test bag constructor
         let bag_proc = exports.get("bag").unwrap();
         if let Value::Procedure(Procedure::Builtin { func, .. }) = bag_proc {

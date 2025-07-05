@@ -10,21 +10,21 @@ use std::collections::HashMap;
 /// Compare two SchemeNumbers for sorting
 fn compare_numbers(a: &SchemeNumber, b: &SchemeNumber) -> std::cmp::Ordering {
     use std::cmp::Ordering;
-    
+
     let a_val = match a {
         SchemeNumber::Integer(i) => *i as f64,
         SchemeNumber::Real(r) => *r,
         SchemeNumber::Rational(num, den) => *num as f64 / *den as f64,
         SchemeNumber::Complex(r, _) => *r, // Compare by real part only
     };
-    
+
     let b_val = match b {
         SchemeNumber::Integer(i) => *i as f64,
         SchemeNumber::Real(r) => *r,
         SchemeNumber::Rational(num, den) => *num as f64 / *den as f64,
         SchemeNumber::Complex(r, _) => *r, // Compare by real part only
     };
-    
+
     a_val.partial_cmp(&b_val).unwrap_or(Ordering::Equal)
 }
 
@@ -130,13 +130,11 @@ impl super::SrfiModule for Srfi132 {
 
                     if let Value::Vector(values) = vector {
                         let mut sorted_values = values.clone();
-                        
+
                         // Sort using numeric comparison for now
-                        sorted_values.sort_by(|a, b| {
-                            match (a.as_number(), b.as_number()) {
-                                (Some(na), Some(nb)) => compare_numbers(na, nb),
-                                _ => std::cmp::Ordering::Equal,
-                            }
+                        sorted_values.sort_by(|a, b| match (a.as_number(), b.as_number()) {
+                            (Some(na), Some(nb)) => compare_numbers(na, nb),
+                            _ => std::cmp::Ordering::Equal,
                         });
 
                         Ok(Value::Vector(sorted_values))
@@ -230,12 +228,12 @@ mod tests {
     fn test_list_sort() {
         let srfi = Srfi132;
         let exports = srfi.exports();
-        
+
         let sort_proc = exports.get("list-sort").unwrap();
         if let Value::Procedure(Procedure::Builtin { func, .. }) = sort_proc {
             // Create a dummy comparator (for testing, we'll pass a dummy value)
             let dummy_comparator = Value::Boolean(true); // This will be ignored in our simplified implementation
-            
+
             // Create an unsorted list [3, 1, 4, 1, 5]
             let unsorted_list = Value::from_vector(vec![
                 Value::from(3i64),
@@ -244,9 +242,9 @@ mod tests {
                 Value::from(1i64),
                 Value::from(5i64),
             ]);
-            
+
             let result = func(&[dummy_comparator, unsorted_list]).unwrap();
-            
+
             // Should be sorted as [1, 1, 3, 4, 5]
             if let Some(sorted_vec) = result.to_vector() {
                 assert_eq!(sorted_vec.len(), 5);
@@ -256,7 +254,7 @@ mod tests {
                 assert_eq!(sorted_vec[3], Value::from(4i64));
                 assert_eq!(sorted_vec[4], Value::from(5i64));
             } else {
-                panic!("Expected list result");
+                panic!("Test assertion failed: Expected list result");
             }
         }
     }
@@ -265,28 +263,28 @@ mod tests {
     fn test_vector_sort() {
         let srfi = Srfi132;
         let exports = srfi.exports();
-        
+
         let sort_proc = exports.get("vector-sort").unwrap();
         if let Value::Procedure(Procedure::Builtin { func, .. }) = sort_proc {
             // Create a dummy comparator
             let dummy_comparator = Value::Boolean(true);
-            
+
             // Create an unsorted vector
             let unsorted_vector = Value::Vector(vec![
                 Value::from(42i64),
                 Value::from(1i64),
                 Value::from(17i64),
             ]);
-            
+
             let result = func(&[dummy_comparator, unsorted_vector]).unwrap();
-            
+
             if let Value::Vector(sorted_vec) = result {
                 assert_eq!(sorted_vec.len(), 3);
                 assert_eq!(sorted_vec[0], Value::from(1i64));
                 assert_eq!(sorted_vec[1], Value::from(17i64));
                 assert_eq!(sorted_vec[2], Value::from(42i64));
             } else {
-                panic!("Expected vector result");
+                panic!("Test assertion failed: Expected vector result");
             }
         }
     }
@@ -295,16 +293,21 @@ mod tests {
     fn test_sorted_predicates() {
         let srfi = Srfi132;
         let exports = srfi.exports();
-        
+
         let list_sorted_proc = exports.get("list-sorted?").unwrap();
         let vector_sorted_proc = exports.get("vector-sorted?").unwrap();
-        
+
         if let (
-            Value::Procedure(Procedure::Builtin { func: list_func, .. }),
-            Value::Procedure(Procedure::Builtin { func: vector_func, .. }),
-        ) = (list_sorted_proc, vector_sorted_proc) {
+            Value::Procedure(Procedure::Builtin {
+                func: list_func, ..
+            }),
+            Value::Procedure(Procedure::Builtin {
+                func: vector_func, ..
+            }),
+        ) = (list_sorted_proc, vector_sorted_proc)
+        {
             let dummy_comparator = Value::Boolean(true);
-            
+
             // Test sorted list
             let sorted_list = Value::from_vector(vec![
                 Value::from(1i64),
@@ -313,7 +316,7 @@ mod tests {
             ]);
             let is_sorted = list_func(&[dummy_comparator.clone(), sorted_list]).unwrap();
             assert_eq!(is_sorted, Value::Boolean(true));
-            
+
             // Test unsorted list
             let unsorted_list = Value::from_vector(vec![
                 Value::from(3i64),
@@ -322,7 +325,7 @@ mod tests {
             ]);
             let is_sorted = list_func(&[dummy_comparator.clone(), unsorted_list]).unwrap();
             assert_eq!(is_sorted, Value::Boolean(false));
-            
+
             // Test sorted vector
             let sorted_vector = Value::Vector(vec![
                 Value::from(1i64),
@@ -331,7 +334,7 @@ mod tests {
             ]);
             let is_sorted = vector_func(&[dummy_comparator.clone(), sorted_vector]).unwrap();
             assert_eq!(is_sorted, Value::Boolean(true));
-            
+
             // Test unsorted vector
             let unsorted_vector = Value::Vector(vec![
                 Value::from(3i64),

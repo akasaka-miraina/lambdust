@@ -6,6 +6,7 @@
 
 // Core system integration tests
 pub mod bridge_tests;
+pub mod call_cc_deep_exit_tests;
 pub mod error_handling_tests;
 pub mod evaluator_tests;
 pub mod exception_handling_tests;

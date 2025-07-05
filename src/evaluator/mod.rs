@@ -19,7 +19,7 @@ use crate::macros::expand_macro;
 use crate::value::{Procedure, Value};
 
 // Re-export main types
-pub use continuation::{Continuation, DynamicPoint};
+pub use continuation::{Continuation, DynamicPoint, LightContinuation};
 pub use types::*;
 
 use std::rc::Rc;
@@ -283,6 +283,11 @@ impl Evaluator {
 
     /// Apply continuation: κ(v)
     pub fn apply_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
+        // Performance optimization: Try lightweight continuation first
+        if let Some(light_cont) = LightContinuation::from_continuation(&cont) {
+            return light_cont.apply(value);
+        }
+
         match cont {
             // Inline simple identity continuation for performance
             Continuation::Identity => Ok(value),
@@ -540,14 +545,20 @@ impl Evaluator {
                     continuation: captured_cont,
                 } => {
                     // Apply captured continuation from evaluator
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
+                    // R7RS allows continuations to be called with multiple values,
+                    // but only the first value is used (others are ignored)
+                    // If no arguments are provided, use #<void> as the default value
+                    let escape_value = if args.is_empty() {
+                        Value::Undefined
+                    } else {
+                        args[0].clone()
+                    };
 
                     // Apply the captured continuation with complete non-local exit
+                    // Use only the first argument, following R7RS semantics
                     self.apply_captured_continuation_with_non_local_exit(
                         *captured_cont.clone(),
-                        args[0].clone(),
+                        escape_value,
                     )
                 }
                 Procedure::HostFunction { func, arity, .. } => {
@@ -637,30 +648,49 @@ impl Evaluator {
         captured_cont: Continuation,
         escape_value: Value,
     ) -> Result<Value> {
-        // Perform complete non-local exit by directly applying the captured continuation
-        // This abandons all intermediate computation contexts and returns directly
-        // to the point where the continuation was captured
+        // Perform complete non-local exit by recursively skipping ALL intermediate
+        // computations until we reach the true capture point
+        self.apply_captured_continuation_complete_exit(captured_cont, escape_value)
+    }
 
-        // The key insight: when a captured continuation is invoked, we want to
-        // abandon ALL intermediate computation and jump directly to the captured point.
-        // This is different from normal continuation application which processes
-        // the current continuation chain.
-
+    /// Recursively skip all intermediate computations to implement complete non-local exit
+    fn apply_captured_continuation_complete_exit(
+        &mut self,
+        captured_cont: Continuation,
+        escape_value: Value,
+    ) -> Result<Value> {
         match captured_cont {
-            // For call/cc captured continuations, we need special handling
+            // For CallCc continuation, skip to its parent (the capture point)
             Continuation::CallCc { parent, .. } => {
-                // Jump directly to the parent continuation, skipping the CallCc wrapper
-                // This implements the non-local exit behavior
+                // This is where call/cc was originally called, so we apply the parent
+                // continuation with the escape value
                 self.apply_continuation(*parent, escape_value)
             }
-            // For Application continuations from call/cc, implement non-local exit
-            // by jumping to the parent instead of completing the application
+            // For Application continuations, we need to distinguish between:
+            // 1. call/cc escape (should skip all intermediate computation)
+            // 2. captured continuation reuse (should preserve computation context)
+            // 
+            // The fundamental issue is that both cases look the same at this point.
+            // For now, implement proper escape behavior by skipping Application continuations.
+            // This means continuation reuse might not work correctly for certain cases,
+            // but call/cc escape semantics will be preserved.
             Continuation::Application { parent, .. } => {
-                // Jump directly to the parent continuation, skipping the Application
-                // This provides true call/cc non-local exit semantics
-                self.apply_continuation(*parent, escape_value)
+                // Skip the Application and continue up the chain
+                // This implements proper call/cc escape semantics
+                self.apply_captured_continuation_complete_exit(*parent, escape_value)
             }
-            // For other continuation types, apply directly
+            // For other intermediate computation continuations, skip them entirely
+            cont if cont.is_intermediate_computation() => {
+                if let Some(parent) = cont.parent() {
+                    // Recursively skip up the chain until we find a non-intermediate continuation
+                    self.apply_captured_continuation_complete_exit(parent.clone(), escape_value)
+                } else {
+                    // If we reach the top with no parent, return the escape value directly
+                    Ok(escape_value)
+                }
+            }
+            // For non-intermediate continuations (like Identity, Define, etc.),
+            // apply them normally as they represent valid continuation points
             _ => self.apply_continuation(captured_cont, escape_value),
         }
     }

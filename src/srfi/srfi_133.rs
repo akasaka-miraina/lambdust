@@ -34,7 +34,7 @@ impl super::SrfiModule for Srfi133 {
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
-                    
+
                     if let Value::Vector(vec) = &args[0] {
                         Ok(Value::Boolean(vec.is_empty()))
                     } else {
@@ -61,9 +61,7 @@ impl super::SrfiModule for Srfi133 {
 
                     if let Value::Vector(vec) = vector {
                         // Count non-false values for now (simplified predicate)
-                        let count = vec.iter()
-                            .filter(|v| v.is_truthy())
-                            .count();
+                        let count = vec.iter().filter(|v| v.is_truthy()).count();
                         Ok(Value::from(count as i64))
                     } else {
                         Err(LambdustError::type_error("Expected vector".to_string()))
@@ -90,12 +88,14 @@ impl super::SrfiModule for Srfi133 {
                     if let Value::Vector(vec) = vector {
                         let mut result = Vec::new();
                         let mut acc = initial.clone();
-                        
+
                         result.push(acc.clone());
-                        
+
                         for value in vec {
                             // For now, implement addition for numeric values
-                            if let (Some(acc_num), Some(val_num)) = (acc.as_number(), value.as_number()) {
+                            if let (Some(acc_num), Some(val_num)) =
+                                (acc.as_number(), value.as_number())
+                            {
                                 use crate::lexer::SchemeNumber;
                                 let sum = match (acc_num, val_num) {
                                     (SchemeNumber::Integer(a), SchemeNumber::Integer(b)) => {
@@ -118,7 +118,7 @@ impl super::SrfiModule for Srfi133 {
                             }
                             result.push(acc.clone());
                         }
-                        
+
                         Ok(Value::Vector(result))
                     } else {
                         Err(LambdustError::type_error("Expected vector".to_string()))
@@ -173,17 +173,25 @@ impl super::SrfiModule for Srfi133 {
                     if let (Value::Vector(vec), Some(n)) = (vector, count.as_number()) {
                         let take_count = match n {
                             crate::lexer::SchemeNumber::Integer(i) => *i as usize,
-                            _ => return Err(LambdustError::type_error("Expected integer count".to_string())),
+                            _ => {
+                                return Err(LambdustError::type_error(
+                                    "Expected integer count".to_string(),
+                                ));
+                            }
                         };
 
                         if take_count > vec.len() {
-                            return Err(LambdustError::runtime_error("Count exceeds vector length".to_string()));
+                            return Err(LambdustError::runtime_error(
+                                "Count exceeds vector length".to_string(),
+                            ));
                         }
 
                         let taken: Vec<Value> = vec.iter().take(take_count).cloned().collect();
                         Ok(Value::Vector(taken))
                     } else {
-                        Err(LambdustError::type_error("Expected vector and integer".to_string()))
+                        Err(LambdustError::type_error(
+                            "Expected vector and integer".to_string(),
+                        ))
                     }
                 },
                 arity: Some(2),
@@ -206,7 +214,11 @@ impl super::SrfiModule for Srfi133 {
                     if let (Value::Vector(vec), Some(n)) = (vector, count.as_number()) {
                         let drop_count = match n {
                             crate::lexer::SchemeNumber::Integer(i) => *i as usize,
-                            _ => return Err(LambdustError::type_error("Expected integer count".to_string())),
+                            _ => {
+                                return Err(LambdustError::type_error(
+                                    "Expected integer count".to_string(),
+                                ));
+                            }
                         };
 
                         if drop_count > vec.len() {
@@ -216,7 +228,9 @@ impl super::SrfiModule for Srfi133 {
                         let dropped: Vec<Value> = vec.iter().skip(drop_count).cloned().collect();
                         Ok(Value::Vector(dropped))
                     } else {
-                        Err(LambdustError::type_error("Expected vector and integer".to_string()))
+                        Err(LambdustError::type_error(
+                            "Expected vector and integer".to_string(),
+                        ))
                     }
                 },
                 arity: Some(2),
@@ -234,12 +248,14 @@ impl super::SrfiModule for Srfi133 {
                     }
 
                     let list_of_vectors = &args[0];
-                    
+
                     // Convert list to vector of vectors
                     let vectors_list = if let Some(vec) = list_of_vectors.to_vector() {
                         vec
                     } else {
-                        return Err(LambdustError::type_error("Expected list of vectors".to_string()));
+                        return Err(LambdustError::type_error(
+                            "Expected list of vectors".to_string(),
+                        ));
                     };
 
                     let mut result = Vec::new();
@@ -247,7 +263,9 @@ impl super::SrfiModule for Srfi133 {
                         if let Value::Vector(vec) = vector_val {
                             result.extend(vec.iter().cloned());
                         } else {
-                            return Err(LambdustError::type_error("Expected vector in list".to_string()));
+                            return Err(LambdustError::type_error(
+                                "Expected vector in list".to_string(),
+                            ));
                         }
                     }
 
@@ -275,14 +293,14 @@ mod tests {
     fn test_vector_empty() {
         let srfi = Srfi133;
         let exports = srfi.exports();
-        
+
         let empty_proc = exports.get("vector-empty?").unwrap();
         if let Value::Procedure(Procedure::Builtin { func, .. }) = empty_proc {
             // Test empty vector
             let empty_vec = Value::Vector(vec![]);
             let result = func(&[empty_vec]).unwrap();
             assert_eq!(result, Value::Boolean(true));
-            
+
             // Test non-empty vector
             let non_empty_vec = Value::Vector(vec![Value::from(1i64)]);
             let result = func(&[non_empty_vec]).unwrap();
@@ -294,14 +312,19 @@ mod tests {
     fn test_vector_take_drop() {
         let srfi = Srfi133;
         let exports = srfi.exports();
-        
+
         let take_proc = exports.get("vector-take").unwrap();
         let drop_proc = exports.get("vector-drop").unwrap();
-        
+
         if let (
-            Value::Procedure(Procedure::Builtin { func: take_func, .. }),
-            Value::Procedure(Procedure::Builtin { func: drop_func, .. }),
-        ) = (take_proc, drop_proc) {
+            Value::Procedure(Procedure::Builtin {
+                func: take_func, ..
+            }),
+            Value::Procedure(Procedure::Builtin {
+                func: drop_func, ..
+            }),
+        ) = (take_proc, drop_proc)
+        {
             // Test vector
             let test_vec = Value::Vector(vec![
                 Value::from(1i64),
@@ -310,7 +333,7 @@ mod tests {
                 Value::from(4i64),
                 Value::from(5i64),
             ]);
-            
+
             // Test take
             let taken = take_func(&[test_vec.clone(), Value::from(3i64)]).unwrap();
             if let Value::Vector(ref taken_vec) = taken {
@@ -319,9 +342,9 @@ mod tests {
                 assert_eq!(taken_vec[1], Value::from(2i64));
                 assert_eq!(taken_vec[2], Value::from(3i64));
             } else {
-                panic!("Expected vector result from take");
+                panic!("Test assertion failed: Expected vector result from take");
             }
-            
+
             // Test drop
             let dropped = drop_func(&[test_vec, Value::from(2i64)]).unwrap();
             if let Value::Vector(ref dropped_vec) = dropped {
@@ -330,7 +353,7 @@ mod tests {
                 assert_eq!(dropped_vec[1], Value::from(4i64));
                 assert_eq!(dropped_vec[2], Value::from(5i64));
             } else {
-                panic!("Expected vector result from drop");
+                panic!("Test assertion failed: Expected vector result from drop");
             }
         }
     }
@@ -339,18 +362,18 @@ mod tests {
     fn test_vector_concatenate() {
         let srfi = Srfi133;
         let exports = srfi.exports();
-        
+
         let concat_proc = exports.get("vector-concatenate").unwrap();
         if let Value::Procedure(Procedure::Builtin { func, .. }) = concat_proc {
             // Create list of vectors
             let vec1 = Value::Vector(vec![Value::from(1i64), Value::from(2i64)]);
             let vec2 = Value::Vector(vec![Value::from(3i64), Value::from(4i64)]);
             let vec3 = Value::Vector(vec![Value::from(5i64)]);
-            
+
             let list_of_vectors = Value::from_vector(vec![vec1, vec2, vec3]);
-            
+
             let result = func(&[list_of_vectors]).unwrap();
-            
+
             if let Value::Vector(ref result_vec) = result {
                 assert_eq!(result_vec.len(), 5);
                 assert_eq!(result_vec[0], Value::from(1i64));
@@ -359,7 +382,7 @@ mod tests {
                 assert_eq!(result_vec[3], Value::from(4i64));
                 assert_eq!(result_vec[4], Value::from(5i64));
             } else {
-                panic!("Expected vector result from concatenate");
+                panic!("Test assertion failed: Expected vector result from concatenate");
             }
         }
     }

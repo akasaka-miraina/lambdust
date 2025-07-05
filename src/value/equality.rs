@@ -32,9 +32,7 @@ impl Value {
             (Value::Values(a), Value::Values(b)) => {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.equal(y))
             }
-            (Value::Box(a), Value::Box(b)) => {
-                a.unbox().equal(&b.unbox())
-            }
+            (Value::Box(a), Value::Box(b)) => a.unbox().equal(&b.unbox()),
             _ => false,
         }
     }
