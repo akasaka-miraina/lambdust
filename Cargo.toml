@@ -28,6 +28,7 @@ string-interner = "0.17"
 
 # For collections
 indexmap = "2.0"
+smallvec = "1.11"
 
 # For REPL functionality
 rustyline = { version = "14.0", optional = true }

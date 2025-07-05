@@ -3,6 +3,7 @@
 //! This module implements evaluation of special forms like lambda, if, define, etc.
 
 use crate::ast::Expr;
+use crate::builtins::utils::make_boolean;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{Continuation, Evaluator};
@@ -358,7 +359,7 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         if operands.is_empty() {
-            return self.apply_continuation(cont, Value::Boolean(true));
+            return self.apply_continuation(cont, make_boolean(true));
         }
 
         let first = operands[0].clone();
@@ -381,7 +382,7 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         if operands.is_empty() {
-            return self.apply_continuation(cont, Value::Boolean(false));
+            return self.apply_continuation(cont, make_boolean(false));
         }
 
         let first = operands[0].clone();
@@ -590,7 +591,7 @@ impl Evaluator {
         parent: Continuation,
     ) -> Result<Value> {
         if !value.is_truthy() {
-            self.apply_continuation(parent, Value::Boolean(false))
+            self.apply_continuation(parent, make_boolean(false))
         } else if remaining.is_empty() {
             self.apply_continuation(parent, value)
         } else {
@@ -618,7 +619,7 @@ impl Evaluator {
         if value.is_truthy() {
             self.apply_continuation(parent, value)
         } else if remaining.is_empty() {
-            self.apply_continuation(parent, Value::Boolean(false))
+            self.apply_continuation(parent, make_boolean(false))
         } else {
             let first = remaining[0].clone();
             let rest = remaining[1..].to_vec();

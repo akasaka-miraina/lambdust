@@ -137,7 +137,7 @@ macro_rules! make_predicate {
     ($name:expr, $predicate:expr) => {
         $crate::builtins::utils::make_builtin_procedure($name, Some(1), |args| {
             $crate::builtins::utils::check_arity(args, 1)?;
-            Ok($crate::value::Value::Boolean($predicate(&args[0])))
+            Ok($crate::builtins::utils::make_boolean($predicate(&args[0])))
         })
     };
 }
@@ -154,10 +154,10 @@ macro_rules! make_comparison {
                 let next = $extractor(&pair[1], $name)?;
 
                 if !(current $op next) {
-                    return Ok($crate::value::Value::Boolean(false));
+                    return Ok($crate::builtins::utils::make_boolean(false));
                 }
             }
-            Ok($crate::value::Value::Boolean(true))
+            Ok($crate::builtins::utils::make_boolean(true))
         })
     };
 }
@@ -396,6 +396,30 @@ pub fn is_negative(value: &Value) -> bool {
         Some(SchemeNumber::Real(n)) => *n < 0.0,
         _ => false,
     }
+}
+
+/// Create an optimized boolean value using memory pool
+/// This reduces allocation overhead for frequent boolean operations
+pub fn make_boolean(value: bool) -> Value {
+    Value::new_boolean(value)
+}
+
+/// Create an optimized integer value using memory pool
+/// This reduces allocation overhead for small integers
+pub fn make_integer(value: i64) -> Value {
+    Value::new_integer(value)
+}
+
+/// Create an optimized nil value using memory pool  
+/// This reduces allocation overhead for nil values
+pub fn make_nil() -> Value {
+    Value::new_nil()
+}
+
+/// Create an optimized symbol value using symbol interning
+/// This reduces string allocation overhead for symbols
+pub fn make_symbol(symbol: &str) -> Value {
+    Value::new_symbol(symbol)
 }
 
 #[cfg(test)]

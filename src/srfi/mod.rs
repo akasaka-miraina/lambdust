@@ -5,7 +5,12 @@
 
 pub mod registry;
 pub mod srfi_1; // List Library
+pub mod srfi_111; // Boxes
+pub mod srfi_113; // Sets and Bags
+pub mod srfi_125; // Intermediate Hash Tables
 pub mod srfi_13; // String Libraries
+pub mod srfi_132; // Sort Libraries
+pub mod srfi_133; // Vector Libraries
 pub mod srfi_45; // Lazy evaluation
 pub mod srfi_46; // Syntax-rules extensions
 pub mod srfi_69; // Basic Hash Tables

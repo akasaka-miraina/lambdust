@@ -400,15 +400,15 @@ mod continuation_tests {
 
         let extracted_test = do_cont.test();
         match extracted_test {
-            Expr::Literal(Literal::Number(SchemeNumber::Real(n))) => assert_eq!(*n, 42.0),
+            Some(Expr::Literal(Literal::Number(SchemeNumber::Real(n)))) => assert_eq!(*n, 42.0),
             other => panic!("Expected number literal, got {:?}", other),
         }
     }
 
     #[test]
-    #[should_panic(expected = "test() called on non-Do continuation")]
+    #[should_panic(expected = "test_unchecked() called on non-Do continuation")]
     fn test_continuation_test_method_panic() {
         let identity_cont = Continuation::Identity;
-        let _ = identity_cont.test(); // Should panic
+        let _ = identity_cont.test_unchecked(); // Should panic
     }
 }

@@ -39,6 +39,11 @@ impl SrfiRegistry {
         registry.register(Box::new(super::srfi_46::Srfi46)); // Syntax-rules extensions
         registry.register(Box::new(super::srfi_69::Srfi69)); // Basic Hash Tables
         registry.register(Box::new(super::srfi_97::Srfi97)); // SRFI Libraries
+        registry.register(Box::new(super::srfi_111::Srfi111)); // Boxes
+        registry.register(Box::new(super::srfi_113::Srfi113)); // Sets and Bags
+        registry.register(Box::new(super::srfi_125::Srfi125)); // Intermediate Hash Tables
+        registry.register(Box::new(super::srfi_132::Srfi132)); // Sort Libraries
+        registry.register(Box::new(super::srfi_133::Srfi133)); // Vector Libraries
 
         registry
     }

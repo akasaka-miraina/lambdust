@@ -60,4 +60,6 @@ pub enum Value {
     Promise(Promise),
     /// Hash table values (SRFI 69)
     HashTable(std::rc::Rc<std::cell::RefCell<crate::srfi::srfi_69::HashTable>>),
+    /// Box values (SRFI 111)
+    Box(crate::srfi::srfi_111::Box),
 }

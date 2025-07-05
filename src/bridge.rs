@@ -1,7 +1,7 @@
 //! Bridge API for connecting Lambdust with external applications
 
 use crate::error::{LambdustError, Result};
-use crate::evaluator::Evaluator;
+use crate::evaluator::types::Evaluator;
 use crate::value::{Procedure, Value};
 use std::any::Any;
 use std::collections::HashMap;

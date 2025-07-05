@@ -18,7 +18,10 @@ pub mod lexer_tests;
 pub mod lib_tests;
 pub mod macros_tests;
 pub mod marshal_tests;
+pub mod memory_pool_tests;
 pub mod parser_tests;
+pub mod performance_optimization_tests;
+pub mod phase_3c_optimization_tests;
 pub mod value_tests;
 
 // Builtin functions unit tests

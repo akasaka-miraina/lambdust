@@ -52,12 +52,41 @@ impl Evaluator {
         self.apply_procedure(procedure, vec![captured_cont], env, parent)
     }
 
-    /// Apply captured continuation
+    /// Apply captured continuation with complete non-local exit
     pub(super) fn apply_captured_continuation(
         &mut self,
         value: Value,
         cont: Continuation,
     ) -> Result<Value> {
-        self.apply_continuation(cont, value)
+        // Implement complete non-local exit by skipping all intermediate computations
+        self.apply_captured_continuation_with_complete_exit(cont, value)
+    }
+
+    /// Apply captured continuation with complete non-local exit semantics
+    /// This is the core of call/cc's non-local exit behavior
+    fn apply_captured_continuation_with_complete_exit(
+        &mut self,
+        captured_cont: Continuation,
+        escape_value: Value,
+    ) -> Result<Value> {
+        // For call/cc, we need to completely bypass all intermediate continuations
+        // and jump directly to the captured point
+        match captured_cont {
+            // For CallCc continuation, skip to its parent (the capture point)
+            Continuation::CallCc { parent, .. } => {
+                self.apply_continuation(*parent, escape_value)
+            }
+            // For intermediate computation continuations, skip them entirely
+            cont if cont.is_intermediate_computation() => {
+                if let Some(parent) = cont.parent() {
+                    self.apply_captured_continuation_with_complete_exit(parent.clone(), escape_value)
+                } else {
+                    // No parent, this is the final destination
+                    Ok(escape_value)
+                }
+            }
+            // For non-intermediate continuations, apply normally
+            _ => self.apply_continuation(captured_cont, escape_value),
+        }
     }
 }

@@ -96,4 +96,9 @@ impl Value {
     pub fn is_hash_table(&self) -> bool {
         matches!(self, Value::HashTable(_))
     }
+
+    /// Check if this value is a box
+    pub fn is_box(&self) -> bool {
+        matches!(self, Value::Box(_))
+    }
 }

@@ -22,16 +22,15 @@ impl Evaluator {
             return Err(LambdustError::arity_error(2, operands.len()));
         }
 
-        let proc_expr = operands[0].clone();
-        let list_exprs = operands[1..].to_vec();
+        let (proc_expr, list_exprs) = operands.split_first().unwrap();
 
         // Evaluate procedure first
-        let proc_value = self.eval(proc_expr, env.clone(), Continuation::Identity)?;
+        let proc_value = self.eval(proc_expr.clone(), env.clone(), Continuation::Identity)?;
 
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr, env.clone(), Continuation::Identity)?;
+            let list_value = self.eval(list_expr.clone(), env.clone(), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "map: all arguments except the first must be lists".to_string(),
@@ -162,7 +161,7 @@ impl Evaluator {
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr, env.clone(), Continuation::Identity)?;
+            let list_value = self.eval(list_expr.clone(), env.clone(), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "fold: all list arguments must be lists".to_string(),
@@ -220,7 +219,7 @@ impl Evaluator {
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr, env.clone(), Continuation::Identity)?;
+            let list_value = self.eval(list_expr.clone(), env.clone(), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "fold-right: all list arguments must be lists".to_string(),

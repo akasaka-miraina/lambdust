@@ -110,6 +110,9 @@ impl fmt::Display for Value {
                 let table = ht.borrow();
                 write!(f, "#<hash-table size:{}>", table.size())
             }
+            Value::Box(box_val) => {
+                write!(f, "#<box:{}>", box_val.unbox())
+            }
         }
     }
 }
@@ -140,6 +143,7 @@ impl std::fmt::Debug for Value {
             Self::HashTable(arg0) => f.debug_tuple("HashTable").field(arg0).finish(),
             Self::Continuation(arg0) => f.debug_tuple("Continuation").field(arg0).finish(),
             Self::Promise(arg0) => f.debug_tuple("Promise").field(arg0).finish(),
+            Self::Box(arg0) => f.debug_tuple("Box").field(arg0).finish(),
         }
     }
 }

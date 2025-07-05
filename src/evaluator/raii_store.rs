@@ -346,6 +346,7 @@ impl RaiiStoreManager {
             Value::Continuation(_) => 96,
             Value::Nil => 8,
             Value::Undefined => 8,
+            Value::Box(_) => 24, // Rc<RefCell<Value>> overhead
         }
     }
 }
