@@ -545,7 +545,10 @@ impl Evaluator {
                     }
 
                     // Apply the captured continuation with complete non-local exit
-                    self.apply_captured_continuation_with_non_local_exit(*captured_cont.clone(), args[0].clone())
+                    self.apply_captured_continuation_with_non_local_exit(
+                        *captured_cont.clone(),
+                        args[0].clone(),
+                    )
                 }
                 Procedure::HostFunction { func, arity, .. } => {
                     // Check arity if specified
@@ -637,13 +640,12 @@ impl Evaluator {
         // Perform complete non-local exit by directly applying the captured continuation
         // This abandons all intermediate computation contexts and returns directly
         // to the point where the continuation was captured
-        
-        
+
         // The key insight: when a captured continuation is invoked, we want to
         // abandon ALL intermediate computation and jump directly to the captured point.
         // This is different from normal continuation application which processes
         // the current continuation chain.
-        
+
         match captured_cont {
             // For call/cc captured continuations, we need special handling
             Continuation::CallCc { parent, .. } => {
@@ -659,9 +661,7 @@ impl Evaluator {
                 self.apply_continuation(*parent, escape_value)
             }
             // For other continuation types, apply directly
-            _ => {
-                self.apply_continuation(captured_cont, escape_value)
-            }
+            _ => self.apply_continuation(captured_cont, escape_value),
         }
     }
 }
