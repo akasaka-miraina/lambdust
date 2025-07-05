@@ -283,10 +283,11 @@ impl Evaluator {
 
     /// Apply continuation: κ(v)
     pub fn apply_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
-        // Performance optimization: Try lightweight continuation first
-        if let Some(light_cont) = LightContinuation::from_continuation(&cont) {
-            return light_cont.apply(value);
-        }
+        // Performance optimization: Try lightweight continuation first  
+        // TODO: Re-enable after fixing SimpleApplication and IfTest context requirements
+        // if let Some(light_cont) = LightContinuation::from_continuation(&cont) {
+        //     return light_cont.apply(value);
+        // }
 
         match cont {
             // Inline simple identity continuation for performance
