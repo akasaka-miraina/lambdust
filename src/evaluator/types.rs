@@ -321,6 +321,7 @@ impl Store {
             Value::Continuation(_) => 96, // Continuation overhead
             Value::Nil => 8,
             Value::Undefined => 8,
+            Value::Box(_) => 32, // Box overhead
         }
     }
 

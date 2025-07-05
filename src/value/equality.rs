@@ -32,6 +32,9 @@ impl Value {
             (Value::Values(a), Value::Values(b)) => {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.equal(y))
             }
+            (Value::Box(a), Value::Box(b)) => {
+                a.unbox().equal(&b.unbox())
+            }
             _ => false,
         }
     }
@@ -46,6 +49,9 @@ impl Value {
             (Value::Nil, Value::Nil) => true,
             (Value::Record(_), Value::Record(_)) | (Value::Values(_), Value::Values(_)) => {
                 std::ptr::eq(self, other)
+            }
+            (Value::Box(a), Value::Box(b)) => {
+                a == b // Use Box's PartialEq which checks Rc pointer equality
             }
             _ => std::ptr::eq(self, other),
         }
