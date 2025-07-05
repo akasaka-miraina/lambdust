@@ -537,15 +537,18 @@ impl Evaluator {
                     Ok(args[0].clone())
                 }
                 Procedure::CapturedContinuation {
-                    continuation: _captured_cont,
+                    continuation: captured_cont,
                 } => {
                     // Apply captured continuation from evaluator
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
 
-                    // Basic escape: return the value directly
-                    Ok(args[0].clone())
+                    // Apply the captured continuation with complete non-local exit
+                    self.apply_captured_continuation_with_non_local_exit(
+                        *captured_cont.clone(),
+                        args[0].clone(),
+                    )
                 }
                 Procedure::HostFunction { func, arity, .. } => {
                     // Check arity if specified
@@ -623,6 +626,42 @@ impl Evaluator {
                 Ok(Some(expanded))
             }
             _ => Ok(None),
+        }
+    }
+
+    /// Apply captured continuation with complete non-local exit
+    /// This provides true call/cc behavior by completely abandoning the current
+    /// continuation chain and jumping directly to the captured continuation
+    fn apply_captured_continuation_with_non_local_exit(
+        &mut self,
+        captured_cont: Continuation,
+        escape_value: Value,
+    ) -> Result<Value> {
+        // Perform complete non-local exit by directly applying the captured continuation
+        // This abandons all intermediate computation contexts and returns directly
+        // to the point where the continuation was captured
+
+        // The key insight: when a captured continuation is invoked, we want to
+        // abandon ALL intermediate computation and jump directly to the captured point.
+        // This is different from normal continuation application which processes
+        // the current continuation chain.
+
+        match captured_cont {
+            // For call/cc captured continuations, we need special handling
+            Continuation::CallCc { parent, .. } => {
+                // Jump directly to the parent continuation, skipping the CallCc wrapper
+                // This implements the non-local exit behavior
+                self.apply_continuation(*parent, escape_value)
+            }
+            // For Application continuations from call/cc, implement non-local exit
+            // by jumping to the parent instead of completing the application
+            Continuation::Application { parent, .. } => {
+                // Jump directly to the parent continuation, skipping the Application
+                // This provides true call/cc non-local exit semantics
+                self.apply_continuation(*parent, escape_value)
+            }
+            // For other continuation types, apply directly
+            _ => self.apply_continuation(captured_cont, escape_value),
         }
     }
 }

@@ -77,9 +77,7 @@ impl std::fmt::Debug for Procedure {
                 .debug_struct("Continuation")
                 .field("continuation", continuation)
                 .finish(),
-            Self::CapturedContinuation { .. } => f
-                .debug_struct("CapturedContinuation")
-                .finish(),
+            Self::CapturedContinuation { .. } => f.debug_struct("CapturedContinuation").finish(),
         }
     }
 }

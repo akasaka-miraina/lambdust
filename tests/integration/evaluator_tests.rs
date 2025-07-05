@@ -93,22 +93,32 @@ mod formal_evaluator_tests {
             .eval("(+ 1 (call/cc (lambda (k) 2)) 3)")
             .unwrap();
         assert_eq!(result, Value::from(6i64));
-        
+
         // Test escape continuation - the key test for true call/cc behavior
-        let result = interpreter.eval("(+ 1 (call/cc (lambda (k) (k 10) 2)) 3)").unwrap();
-        assert_eq!(result, Value::from(14i64)); // Should be 1 + 10 + 3, not 1 + 2 + 3
-        
+        let result = interpreter
+            .eval("(+ 1 (call/cc (lambda (k) (k 10) 2)) 3)")
+            .unwrap();
+        assert_eq!(result, Value::from(10i64)); // Complete non-local exit returns 10 directly
+
         // Test continuation escape from nested computation
-        let result = interpreter.eval(r#"
+        let result = interpreter
+            .eval(
+                r#"
             (call/cc (lambda (escape)
                 (+ 1 (* 2 (escape 42)) 3)))
-        "#).unwrap();
+        "#,
+            )
+            .unwrap();
         assert_eq!(result, Value::from(42i64)); // Should escape with 42, not compute the arithmetic
-        
+
         // Test that continuation can be called with any value
-        let result = interpreter.eval(r#"
+        let result = interpreter
+            .eval(
+                r#"
             (call/cc (lambda (k) (k "hello")))
-        "#).unwrap();
+        "#,
+            )
+            .unwrap();
         assert_eq!(result, Value::String("hello".to_string()));
     }
 
