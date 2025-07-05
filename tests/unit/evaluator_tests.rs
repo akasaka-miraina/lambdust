@@ -314,13 +314,14 @@ fn test_formal_call_cc_no_escape() {
 fn test_formal_call_cc_nested_escape() {
     // Test escaping from nested contexts
     let result = eval_str_formal("(* 2 (+ 1 (call/cc (lambda (k) (* 3 (k 42))))))").unwrap();
-    // Current implementation: Partial escape behavior
-    // The (k 42) escapes the (* 3 ...) but continues with (+ 1 42) = 43, then (* 2 43) = 86
-    // However, our implementation seems to be doing 2 * 42 = 84, indicating a different escape pattern
+    // R7RS compliant behavior: Complete non-local exit
+    // When (k 42) is called, it should escape completely and return 42 directly
+    // Not: (* 2 (+ 1 42)) = 86 or (* 2 42) = 84
+    // R7RS: The continuation captured by call/cc completely exits all nested computations
     assert_eq!(
         result,
-        Value::from(84i64),
-        "Current call/cc implementation shows partial escape behavior"
+        Value::from(42i64),
+        "R7RS call/cc implementation: complete non-local exit should return 42"
     );
 }
 

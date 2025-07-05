@@ -406,9 +406,9 @@ mod continuation_tests {
     }
 
     #[test]
-    #[should_panic(expected = "test() called on non-Do continuation")]
+    #[should_panic(expected = "test_unchecked() called on non-Do continuation")]
     fn test_continuation_test_method_panic() {
         let identity_cont = Continuation::Identity;
-        let _ = identity_cont.test(); // Should panic
+        let _ = identity_cont.test_unchecked(); // Should panic
     }
 }

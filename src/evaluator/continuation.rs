@@ -30,24 +30,6 @@ pub enum LightContinuation {
         /// Environment for evaluation
         env: Rc<Environment>,
     },
-    /// Simple application with evaluated operator and arguments
-    SimpleApplication {
-        /// The operator to apply
-        operator: Value,
-        /// All arguments (already evaluated)
-        args: Vec<Value>,
-        /// Environment for evaluation
-        env: Rc<Environment>,
-    },
-    /// If test evaluation with pre-evaluated test result
-    IfTest {
-        /// Consequent expression
-        consequent: Expr,
-        /// Alternate expression (if any) 
-        alternate: Option<Expr>,
-        /// Environment for evaluation
-        env: Rc<Environment>,
-    },
     /// Define operation with variable name
     Define {
         /// Variable to define
@@ -87,23 +69,8 @@ impl LightContinuation {
                 })
             }
             
-            // More complex cases that can still be optimized
-            Continuation::Application { operator, evaluated_args, remaining_args, env, parent }
-                if remaining_args.is_empty() && matches!(**parent, Continuation::Identity) => {
-                Some(LightContinuation::SimpleApplication {
-                    operator: operator.clone(),
-                    args: evaluated_args.clone(),
-                    env: env.clone(),
-                })
-            }
-            Continuation::IfTest { consequent, alternate, env, parent } 
-                if matches!(**parent, Continuation::Identity) => {
-                Some(LightContinuation::IfTest {
-                    consequent: consequent.clone(),
-                    alternate: alternate.clone(),
-                    env: env.clone(),
-                })
-            }
+            // Skip complex cases that require evaluator context
+            // SimpleApplication and IfTest are disabled to avoid context issues
             
             _ => None,
         }
@@ -131,20 +98,6 @@ impl LightContinuation {
                         "Complex Begin operation requires full continuation".to_string()
                     ))
                 }
-            }
-            LightContinuation::SimpleApplication { operator: _, args: _, env: _ } => {
-                // For SimpleApplication, we would need access to evaluator to apply procedure
-                // This requires a different design pattern - return special marker for now
-                Err(crate::error::LambdustError::runtime_error(
-                    "SimpleApplication requires evaluator context".to_string()
-                ))
-            }
-            LightContinuation::IfTest { consequent: _, alternate: _, env: _ } => {
-                // IfTest requires evaluator to evaluate consequent/alternate
-                // This requires a different design pattern - return special marker for now
-                Err(crate::error::LambdustError::runtime_error(
-                    "IfTest requires evaluator context".to_string()
-                ))
             }
             LightContinuation::Define { variable, env } => {
                 // Define operation can be inlined
