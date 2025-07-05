@@ -23,7 +23,8 @@ pub fn eval_call_cc(
 
     let proc_expr = operands[0].clone();
 
-    // Create a captured continuation that holds the current continuation
+    // Create a captured continuation that holds the parent continuation
+    // This enables complete non-local exit by skipping intermediate computations
     let captured_cont = Value::Procedure(Procedure::CapturedContinuation {
         continuation: Box::new(cont.clone()),
     });

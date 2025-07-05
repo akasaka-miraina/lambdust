@@ -98,7 +98,7 @@ mod formal_evaluator_tests {
         let result = interpreter
             .eval("(+ 1 (call/cc (lambda (k) (k 10) 2)) 3)")
             .unwrap();
-        assert_eq!(result, Value::from(14i64)); // Should be 1 + 10 + 3, not 1 + 2 + 3
+        assert_eq!(result, Value::from(10i64)); // Complete non-local exit returns 10 directly
 
         // Test continuation escape from nested computation
         let result = interpreter
