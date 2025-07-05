@@ -60,6 +60,7 @@ impl fmt::Display for Value {
                 Procedure::HostFunction { name, .. } => write!(f, "#<host-function {name}>"),
                 Procedure::Continuation { .. } => write!(f, "#<continuation>"),
                 Procedure::CapturedContinuation { .. } => write!(f, "#<continuation>"),
+                Procedure::ReusableContinuation { reuse_id, .. } => write!(f, "#<reusable-continuation:{}>", reuse_id),
             },
             Value::Vector(values) => {
                 write!(f, "#(")?;

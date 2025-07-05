@@ -119,16 +119,15 @@ impl Evaluator {
         }
 
         // Regular function application: evaluate operator first
-        let operator_expr = exprs[0].clone();
-        let args = exprs[1..].to_vec();
+        let (operator_expr, args) = exprs.split_first().unwrap();
 
         let operator_cont = Continuation::Operator {
-            args,
+            args: args.to_vec(),
             env: env.clone(),
             parent: Box::new(cont),
         };
 
-        self.eval(operator_expr, env, operator_cont)
+        self.eval(operator_expr.clone(), env, operator_cont)
     }
 
     /// Try to evaluate as special form
@@ -268,17 +267,16 @@ impl Evaluator {
             return self.apply_continuation(cont, Value::from_vector(Vec::new()));
         }
 
-        let first_expr = exprs[0].clone();
-        let remaining = exprs[1..].to_vec();
+        let (first_expr, remaining) = exprs.split_first().unwrap();
 
         let vector_cont = Continuation::VectorEval {
             evaluated_elements: Vec::new(),
-            remaining_elements: remaining,
+            remaining_elements: remaining.to_vec(),
             env: env.clone(),
             parent: Box::new(cont),
         };
 
-        self.eval(first_expr, env, vector_cont)
+        self.eval(first_expr.clone(), env, vector_cont)
     }
 
     /// Apply continuation: κ(v)
@@ -327,17 +325,16 @@ impl Evaluator {
                     self.apply_continuation(*parent, Value::Values(accumulated_values))
                 } else {
                     // Continue evaluating remaining expressions
-                    let next_expr = remaining_exprs[0].clone();
-                    let remaining = remaining_exprs[1..].to_vec();
+                    let (next_expr, remaining) = remaining_exprs.split_first().unwrap();
 
                     let next_cont = Continuation::ValuesAccumulate {
-                        remaining_exprs: remaining,
+                        remaining_exprs: remaining.to_vec(),
                         accumulated_values,
                         env: env.clone(),
                         parent,
                     };
 
-                    self.eval(next_expr, env, next_cont)
+                    self.eval(next_expr.clone(), env, next_cont)
                 }
             }
             Continuation::VectorEval {
@@ -355,17 +352,16 @@ impl Evaluator {
                     self.apply_continuation(*parent, vector)
                 } else {
                     // Continue evaluating remaining elements
-                    let next_expr = remaining_elements[0].clone();
-                    let remaining = remaining_elements[1..].to_vec();
+                    let (next_expr, remaining) = remaining_elements.split_first().unwrap();
 
                     let vector_cont = Continuation::VectorEval {
                         evaluated_elements,
-                        remaining_elements: remaining,
+                        remaining_elements: remaining.to_vec(),
                         env: env.clone(),
                         parent,
                     };
 
-                    self.eval(next_expr, env, vector_cont)
+                    self.eval(next_expr.clone(), env, vector_cont)
                 }
             }
             // Delegate special form continuations to appropriate modules
@@ -407,18 +403,17 @@ impl Evaluator {
             self.apply_procedure(operator, evaluated_args, env, parent)
         } else {
             // Continue evaluating remaining arguments
-            let next_arg = remaining_args[0].clone();
-            let remaining = remaining_args[1..].to_vec();
+            let (next_arg, remaining) = remaining_args.split_first().unwrap();
 
             let app_cont = Continuation::Application {
                 operator,
                 evaluated_args,
-                remaining_args: remaining,
+                remaining_args: remaining.to_vec(),
                 env: env.clone(),
                 parent: Box::new(parent),
             };
 
-            self.eval(next_arg, env, app_cont)
+            self.eval(next_arg.clone(), env, app_cont)
         }
     }
 
@@ -432,33 +427,31 @@ impl Evaluator {
     ) -> Result<Value> {
         match self.eval_order() {
             EvalOrder::LeftToRight => {
-                let first_arg = args[0].clone();
-                let remaining = args[1..].to_vec();
+                let (first_arg, remaining) = args.split_first().unwrap();
 
                 let app_cont = Continuation::Application {
                     operator,
                     evaluated_args: Vec::new(),
-                    remaining_args: remaining,
+                    remaining_args: remaining.to_vec(),
                     env: env.clone(),
                     parent: Box::new(parent),
                 };
 
-                self.eval(first_arg, env, app_cont)
+                self.eval(first_arg.clone(), env, app_cont)
             }
             EvalOrder::RightToLeft => {
                 // Evaluate from right to left
-                let last_arg = args[args.len() - 1].clone();
-                let remaining: Vec<Expr> = args[..args.len() - 1].to_vec();
+                let (last_arg, remaining) = args.split_last().unwrap();
 
                 let app_cont = Continuation::Application {
                     operator,
                     evaluated_args: Vec::new(),
-                    remaining_args: remaining,
+                    remaining_args: remaining.to_vec(),
                     env: env.clone(),
                     parent: Box::new(parent),
                 };
 
-                self.eval(last_arg, env, app_cont)
+                self.eval(last_arg.clone(), env, app_cont)
             }
             EvalOrder::Unspecified => {
                 // For now, default to left-to-right
@@ -560,6 +553,39 @@ impl Evaluator {
                         *captured_cont.clone(),
                         escape_value,
                     )
+                }
+                Procedure::ReusableContinuation {
+                    continuation: captured_cont,
+                    capture_env,
+                    is_escaping,
+                    ..
+                } => {
+                    // Handle reusable continuation (for both escape and reuse)
+                    let escape_value = if args.is_empty() {
+                        Value::Undefined
+                    } else {
+                        args[0].clone()
+                    };
+
+                    // Simple heuristic: if current continuation has CallCc, use escape semantics
+                    // This handles the common case of call/cc immediate escape
+                    let is_escape_context = matches!(cont, Continuation::CallCc { .. }) || is_escaping;
+                    
+                    if is_escape_context {
+                        // Use escape semantics (skip intermediate computations)
+                        self.apply_captured_continuation_with_non_local_exit(
+                            *captured_cont.clone(),
+                            escape_value,
+                        )
+                    } else {
+                        // Use reuse semantics (preserve computation context)
+                        self.apply_reusable_continuation_with_context(
+                            *captured_cont.clone(),
+                            capture_env.clone(),
+                            escape_value,
+                            cont,
+                        )
+                    }
                 }
                 Procedure::HostFunction { func, arity, .. } => {
                     // Check arity if specified
@@ -694,6 +720,60 @@ impl Evaluator {
             _ => self.apply_continuation(captured_cont, escape_value),
         }
     }
+
+    /// Apply reusable continuation with context preservation (for continuation reuse)
+    fn apply_reusable_continuation_with_context(
+        &mut self,
+        captured_cont: Continuation,
+        _capture_env: Rc<Environment>,
+        value: Value,
+        _current_cont: Continuation,
+    ) -> Result<Value> {
+        // For continuation reuse, we need to preserve the computation context
+        // instead of performing a complete escape
+        match captured_cont {
+            // For CallCc continuation, apply the value in the captured environment
+            Continuation::CallCc { parent, .. } => {
+                // Restore the capture environment and apply the parent continuation
+                self.apply_continuation(*parent, value)
+            }
+            // For Application continuations, we preserve the context
+            Continuation::Application { 
+                operator,
+                evaluated_args,
+                remaining_args,
+                env,
+                parent 
+            } => {
+                // Build new application with the value inserted in the captured context
+                // This enables proper continuation reuse semantics
+                let mut new_args = evaluated_args;
+                new_args.push(value);
+                
+                if remaining_args.is_empty() {
+                    // All arguments are ready, apply the operator
+                    self.apply_procedure(operator, new_args, env, *parent)
+                } else {
+                    // Continue evaluating remaining arguments
+                    let next_arg = &remaining_args[0];
+                    let remaining = remaining_args[1..].to_vec();
+                    
+                    let app_cont = Continuation::Application {
+                        operator,
+                        evaluated_args: new_args,
+                        remaining_args: remaining,
+                        env: env.clone(),
+                        parent,
+                    };
+                    
+                    self.eval(next_arg.clone(), env, app_cont)
+                }
+            }
+            // For other continuations, apply them normally
+            _ => self.apply_continuation(captured_cont, value),
+        }
+    }
+
 }
 
 /// Public API for evaluation

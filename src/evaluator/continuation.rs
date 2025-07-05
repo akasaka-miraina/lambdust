@@ -86,8 +86,8 @@ impl LightContinuation {
                 Ok(Value::Values(values))
             }
             LightContinuation::Assignment { var_name, env } => {
-                env.set(&var_name, value.clone())?;
-                Ok(value)
+                env.set(&var_name, value)?;
+                Ok(Value::Undefined)
             }
             LightContinuation::Begin { remaining, env: _ } => {
                 if remaining.is_empty() {
@@ -101,8 +101,8 @@ impl LightContinuation {
             }
             LightContinuation::Define { variable, env } => {
                 // Define operation can be inlined
-                env.define(variable, value.clone());
-                Ok(value)
+                env.define(variable, value);
+                Ok(Value::Undefined)
             }
         }
     }

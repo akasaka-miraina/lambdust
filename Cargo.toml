@@ -41,6 +41,14 @@ criterion = "0.5"
 name = "performance_benchmark"
 harness = false
 
+[[bench]]
+name = "performance_optimization"
+harness = false
+
+[[bench]]
+name = "memory_optimization"
+harness = false
+
 [lib]
 name = "lambdust"
 crate-type = ["cdylib", "rlib"]

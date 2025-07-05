@@ -23,10 +23,14 @@ pub fn eval_call_cc(
 
     let proc_expr = operands[0].clone();
 
-    // Create a captured continuation that holds the parent continuation
-    // This enables complete non-local exit by skipping intermediate computations
-    let captured_cont = Value::Procedure(Procedure::CapturedContinuation {
+    // Create a reusable captured continuation that holds the parent continuation
+    // This enables both non-local exit and continuation reuse
+    let reuse_id = evaluator.next_reuse_id();
+    let captured_cont = Value::Procedure(Procedure::ReusableContinuation {
         continuation: Box::new(cont.clone()),
+        capture_env: env.clone(),
+        reuse_id,
+        is_escaping: false, // Will be set to true if used for escape
     });
 
     let call_cc_cont = Continuation::CallCc {

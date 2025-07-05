@@ -61,7 +61,7 @@ fn test_call_cc_with_begin() {
 }
 
 #[test]
-#[ignore = "Continuation reuse requires advanced implementation - future enhancement"]
+//#[ignore = "Continuation reuse requires advanced implementation - future enhancement"]
 fn test_call_cc_continuation_reuse() {
     let mut interpreter = LambdustInterpreter::new();
     
@@ -71,12 +71,11 @@ fn test_call_cc_continuation_reuse() {
     assert_eq!(result1.to_string(), "11");
     
     // Reuse the saved continuation  
-    // Note: Current implementation focuses on call/cc escape semantics.
-    // Continuation reuse is a more advanced feature that requires
-    // preserving computation context, which conflicts with escape semantics.
+    // Note: Continuation reuse now implemented with context preservation
+    // The saved continuation preserves the computation context (+ 1 ...)
+    // So (saved-cont 20) should return 21 (1 + 20)
     let result2 = interpreter.eval_string("(saved-cont 20)").unwrap();
-    assert_eq!(result2.to_string(), "20"); // Current behavior: escape semantics
-    // Expected future behavior: assert_eq!(result2.to_string(), "21");
+    assert_eq!(result2.to_string(), "21"); // Reuse semantics: preserves context
 }
 
 #[test]

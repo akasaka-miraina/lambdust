@@ -80,6 +80,12 @@ pub struct Store {
     current_generation: u32,
     /// Statistics for monitoring
     pub stats: StoreStatistics,
+    /// Memory pool for reusing freed cells (Phase 3 optimization)
+    cell_pool: Vec<MemoryCell>,
+    /// Location pool for reusing location IDs (Phase 3 optimization)
+    location_pool: Vec<usize>,
+    /// Maximum pool size to prevent unbounded growth
+    max_pool_size: usize,
 }
 
 /// Statistics for store monitoring
@@ -93,6 +99,12 @@ pub struct StoreStatistics {
     pub gc_cycles: usize,
     /// Peak memory usage
     pub peak_memory_usage: usize,
+    /// Memory pool hits (Phase 3 optimization)
+    pub pool_hits: usize,
+    /// Clone eliminations (Phase 3 optimization)
+    pub clone_eliminations: usize,
+    /// Memory pool efficiency (0.0 - 1.0)
+    pub memory_pool_efficiency: f64,
 }
 
 impl Default for Store {
@@ -112,6 +124,9 @@ impl Store {
             gc_threshold: 1024 * 1024, // 1MB default GC threshold
             current_generation: 0,
             stats: StoreStatistics::default(),
+            cell_pool: Vec::new(),
+            location_pool: Vec::new(),
+            max_pool_size: 256,        // Default max pool size
         }
     }
 
@@ -125,6 +140,9 @@ impl Store {
             gc_threshold: memory_limit / 4, // GC when 25% of limit is reached
             current_generation: 0,
             stats: StoreStatistics::default(),
+            cell_pool: Vec::new(),
+            location_pool: Vec::new(),
+            max_pool_size: 256,        // Default max pool size
         }
     }
 
@@ -144,6 +162,51 @@ impl Store {
 
         self.locations.insert(loc_id, cell);
         self.next_location += 1;
+        self.stats.total_allocations += 1;
+
+        // Update peak memory usage
+        if self.memory_usage > self.stats.peak_memory_usage {
+            self.stats.peak_memory_usage = self.memory_usage;
+        }
+
+        Location::new(loc_id)
+    }
+
+    /// Allocate a new location using memory pool optimization (Phase 3)
+    pub fn allocate_pooled(&mut self, value: Value) -> Location {
+        // Check memory limit before allocation
+        if self.should_collect_garbage() {
+            self.collect_garbage();
+        }
+
+        // Try to reuse location ID from pool
+        let loc_id = if let Some(reused_id) = self.location_pool.pop() {
+            reused_id
+        } else {
+            let id = self.next_location;
+            self.next_location += 1;
+            id
+        };
+
+        // Try to reuse memory cell from pool
+        let cell = if let Some(mut pooled_cell) = self.cell_pool.pop() {
+            // Reuse pooled cell, avoiding allocation
+            pooled_cell.value = value;
+            pooled_cell.ref_count = 1;
+            pooled_cell.marked = false;
+            pooled_cell.generation += 1;  // Increment generation for reuse
+            self.stats.pool_hits += 1;     // Track pool hit
+            pooled_cell
+        } else {
+            // Create new cell if pool is empty
+            MemoryCell::new(value)
+        };
+
+        // Approximate memory usage calculation
+        let value_size = self.estimate_value_size(&cell.value);
+        self.memory_usage += value_size;
+
+        self.locations.insert(loc_id, cell);
         self.stats.total_allocations += 1;
 
         // Update peak memory usage
@@ -235,7 +298,43 @@ impl Store {
             let value_size = self.estimate_value_size(&cell.value);
             self.memory_usage = self.memory_usage.saturating_sub(value_size);
             self.stats.total_deallocations += 1;
+            
+            // Add to memory pools if space available (Phase 3 optimization)
+            self.pool_deallocated_resources(location.id(), cell);
         }
+    }
+    
+    /// Pool deallocated resources for reuse (Phase 3 optimization)
+    fn pool_deallocated_resources(&mut self, location_id: usize, mut cell: MemoryCell) {
+        // Add location ID to pool if space available
+        if self.location_pool.len() < self.max_pool_size {
+            self.location_pool.push(location_id);
+        }
+        
+        // Clear cell value to prevent holding references and add to pool
+        if self.cell_pool.len() < self.max_pool_size {
+            // Clear the value to release memory and reset state
+            cell.value = Value::Undefined;
+            cell.ref_count = 0;
+            cell.marked = false;
+            // Keep generation for validation
+            self.cell_pool.push(cell);
+        }
+    }
+
+    /// Update memory pool efficiency statistics (Phase 3 optimization)
+    pub fn update_pool_efficiency(&mut self) {
+        if self.stats.total_allocations > 0 {
+            self.stats.memory_pool_efficiency = 
+                self.stats.pool_hits as f64 / self.stats.total_allocations as f64;
+        }
+    }
+
+    /// Get current pool utilization for monitoring
+    pub fn get_pool_utilization(&self) -> (f64, f64) {
+        let cell_pool_util = self.cell_pool.len() as f64 / self.max_pool_size as f64;
+        let location_pool_util = self.location_pool.len() as f64 / self.max_pool_size as f64;
+        (cell_pool_util, location_pool_util)
     }
 
     /// Force garbage collection
@@ -491,6 +590,8 @@ pub struct Evaluator {
     dynamic_points: Vec<DynamicPoint>,
     /// Next dynamic point ID
     next_dynamic_point_id: usize,
+    /// Next continuation reuse ID for tracking continuation reuse
+    next_reuse_id: usize,
     /// Evaluation order strategy
     eval_order: EvalOrder,
     /// Global environment
@@ -512,6 +613,7 @@ impl Evaluator {
             memory_strategy: MemoryStrategy::default(),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
+            next_reuse_id: 0,
             eval_order: EvalOrder::LeftToRight,
             global_env: Rc::new(Environment::with_builtins()),
             recursion_depth: 0,
@@ -527,6 +629,7 @@ impl Evaluator {
             memory_strategy: MemoryStrategy::default(),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
+            next_reuse_id: 0,
             eval_order,
             global_env: Rc::new(Environment::with_builtins()),
             recursion_depth: 0,
@@ -564,6 +667,18 @@ impl Evaluator {
     /// Get mutable reference to SRFI registry
     pub fn srfi_registry_mut(&mut self) -> &mut SrfiRegistry {
         &mut self.srfi_registry
+    }
+
+    /// Generate next continuation reuse ID
+    pub fn next_reuse_id(&mut self) -> usize {
+        let id = self.next_reuse_id;
+        self.next_reuse_id += 1;
+        id
+    }
+
+    /// Get current continuation reuse ID without incrementing
+    pub fn current_reuse_id(&self) -> usize {
+        self.next_reuse_id
     }
 
     /// Get reference to SRFI registry
@@ -718,6 +833,7 @@ impl Evaluator {
             memory_strategy: MemoryStrategy::TraditionalGC(Store::with_memory_limit(memory_limit)),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
+            next_reuse_id: 0,
             eval_order: EvalOrder::LeftToRight,
             global_env: Rc::new(Environment::with_builtins()),
             recursion_depth: 0,
@@ -736,6 +852,7 @@ impl Evaluator {
             ),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
+            next_reuse_id: 0,
             eval_order: EvalOrder::LeftToRight,
             global_env: Rc::new(Environment::with_builtins()),
             recursion_depth: 0,
@@ -754,6 +871,7 @@ impl Evaluator {
             ),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
+            next_reuse_id: 0,
             eval_order: EvalOrder::LeftToRight,
             global_env: Rc::new(Environment::with_builtins()),
             recursion_depth: 0,
