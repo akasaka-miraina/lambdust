@@ -22,22 +22,22 @@ pub fn eval_values(
     }
 
     if operands.len() == 1 {
-        return evaluator.eval(operands[0].clone(), env, cont);
+        let (first_expr, _) = operands.split_first().unwrap();
+        return evaluator.eval(first_expr.clone(), env, cont);
     }
 
     // Evaluate multiple values in left-to-right order
-    let first = operands[0].clone();
-    let remaining = operands[1..].to_vec();
+    let (first, remaining) = operands.split_first().unwrap();
 
     // Evaluate first expression, then accumulate remaining
     let first_cont = Continuation::ValuesAccumulate {
-        remaining_exprs: remaining,
+        remaining_exprs: remaining.to_vec(),
         accumulated_values: Vec::new(),
         env: env.clone(),
         parent: Box::new(cont),
     };
 
-    evaluator.eval(first, env, first_cont)
+    evaluator.eval(first.clone(), env, first_cont)
 }
 
 /// Evaluate call-with-values special form
@@ -51,16 +51,16 @@ pub fn eval_call_with_values(
         return Err(LambdustError::arity_error(2, operands.len()));
     }
 
-    let producer_expr = operands[0].clone();
-    let consumer_expr = operands[1].clone();
+    let producer_expr = &operands[0];
+    let consumer_expr = &operands[1];
 
     let cwv_cont = Continuation::CallWithValuesStep1 {
-        producer_expr,
+        producer_expr: producer_expr.clone(),
         env: env.clone(),
         parent: Box::new(cont),
     };
 
-    evaluator.eval(consumer_expr, env, cwv_cont)
+    evaluator.eval(consumer_expr.clone(), env, cwv_cont)
 }
 
 // Additional functions for Evaluator impl

@@ -47,6 +47,17 @@ pub enum Procedure {
         /// Captured evaluator continuation
         continuation: Box<crate::evaluator::Continuation>,
     },
+    /// Reusable captured continuation with context preservation
+    ReusableContinuation {
+        /// Captured evaluator continuation
+        continuation: Box<crate::evaluator::Continuation>,
+        /// Capture environment for context restoration
+        capture_env: Rc<Environment>,
+        /// Unique reuse identifier
+        reuse_id: usize,
+        /// Whether this continuation was from call/cc escape or explicit storage
+        is_escaping: bool,
+    },
 }
 
 impl std::fmt::Debug for Procedure {
@@ -78,6 +89,11 @@ impl std::fmt::Debug for Procedure {
                 .field("continuation", continuation)
                 .finish(),
             Self::CapturedContinuation { .. } => f.debug_struct("CapturedContinuation").finish(),
+            Self::ReusableContinuation { reuse_id, is_escaping, .. } => f
+                .debug_struct("ReusableContinuation")
+                .field("reuse_id", reuse_id)
+                .field("is_escaping", is_escaping)
+                .finish(),
         }
     }
 }
@@ -133,6 +149,9 @@ impl PartialEq for Procedure {
             }
             (Self::CapturedContinuation { .. }, Self::CapturedContinuation { .. }) => {
                 false // Captured continuations are never equal
+            }
+            (Self::ReusableContinuation { reuse_id: l_id, .. }, Self::ReusableContinuation { reuse_id: r_id, .. }) => {
+                l_id == r_id // Reusable continuations are equal if they have the same reuse ID
             }
             _ => false,
         }

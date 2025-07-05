@@ -383,6 +383,27 @@ impl Evaluator {
                     // Apply the captured continuation with the argument
                     self.apply_continuation(*captured_cont.clone(), args[0].clone())
                 }
+                Procedure::ReusableContinuation {
+                    continuation: captured_cont,
+                    is_escaping,
+                    ..
+                } => {
+                    // Apply reusable continuation from evaluator
+                    if args.len() != 1 {
+                        return Err(LambdustError::arity_error(1, args.len()));
+                    }
+                    
+                    if is_escaping {
+                        // Use escape semantics
+                        self.apply_captured_continuation_with_non_local_exit(
+                            *captured_cont.clone(),
+                            args[0].clone(),
+                        )
+                    } else {
+                        // Use normal continuation semantics
+                        self.apply_continuation(*captured_cont.clone(), args[0].clone())
+                    }
+                }
                 Procedure::HostFunction { func, arity, .. } => {
                     // Check arity if specified
                     if let Some(expected) = arity {

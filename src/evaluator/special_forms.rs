@@ -409,19 +409,19 @@ impl Evaluator {
         }
 
         if exprs.len() == 1 {
-            return self.eval(exprs[0].clone(), env, cont);
+            let (first_expr, _) = exprs.split_first().unwrap();
+            return self.eval(first_expr.clone(), env, cont);
         }
 
-        let first = exprs[0].clone();
-        let remaining = exprs[1..].to_vec();
+        let (first, remaining) = exprs.split_first().unwrap();
 
         let begin_cont = Continuation::Begin {
-            remaining,
+            remaining: remaining.to_vec(),
             env: env.clone(),
             parent: Box::new(cont),
         };
 
-        self.eval(first, env, begin_cont)
+        self.eval(first.clone(), env, begin_cont)
     }
 
     /// Apply special form continuations (delegated from main apply_continuation)

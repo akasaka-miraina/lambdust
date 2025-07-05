@@ -44,8 +44,8 @@ pub fn eval_raise(
         return Err(LambdustError::arity_error(1, operands.len()));
     }
 
-    let exception_expr = operands[0].clone();
-    let exception_value = evaluator.eval(exception_expr, env, Continuation::Identity)?;
+    let exception_expr = &operands[0];
+    let exception_value = evaluator.eval(exception_expr.clone(), env, Continuation::Identity)?;
 
     evaluator.raise_exception(exception_value, cont)
 }
@@ -61,11 +61,11 @@ pub fn eval_with_exception_handler(
         return Err(LambdustError::arity_error(2, operands.len()));
     }
 
-    let handler_expr = operands[0].clone();
-    let thunk_expr = operands[1].clone();
+    let handler_expr = &operands[0];
+    let thunk_expr = &operands[1];
 
     // Evaluate handler first
-    let handler_value = evaluator.eval(handler_expr, env.clone(), Continuation::Identity)?;
+    let handler_value = evaluator.eval(handler_expr.clone(), env.clone(), Continuation::Identity)?;
 
     // Install exception handler
     let handler_info = ExceptionHandlerInfo {
@@ -75,7 +75,7 @@ pub fn eval_with_exception_handler(
     evaluator.exception_handlers_mut().push(handler_info);
 
     // Evaluate thunk expression to get the procedure
-    let thunk_value = evaluator.eval(thunk_expr, env.clone(), Continuation::Identity)?;
+    let thunk_value = evaluator.eval(thunk_expr.clone(), env.clone(), Continuation::Identity)?;
 
     // Apply the thunk (call it with no arguments)
     let result = evaluator.apply_procedure(thunk_value, vec![], env, cont);
