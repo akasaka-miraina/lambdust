@@ -1,5 +1,6 @@
 //! Evaluator unit tests module
 
+pub mod compact_continuation_tests;
 pub mod control_flow_tests;
 pub mod dynamic_points_tests;
 pub mod dynamic_wind_tests;

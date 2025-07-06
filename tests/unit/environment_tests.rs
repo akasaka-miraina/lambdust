@@ -11,7 +11,7 @@ fn test_environment_define_get() {
     env.define("x".to_string(), Value::from(42i64));
 
     assert_eq!(env.get("x").unwrap(), Value::from(42i64));
-    assert!(env.get("y").is_err());
+    assert!(env.get("y").is_none());
 }
 
 #[test]
@@ -38,7 +38,7 @@ fn test_environment_scoping() {
     assert_eq!(child.get("y").unwrap(), Value::from(100i64));
 
     // Parent cannot access child's variables
-    assert!(parent.get("y").is_err());
+    assert!(parent.get("y").is_none());
 }
 
 #[test]

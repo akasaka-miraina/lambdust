@@ -6,6 +6,7 @@
 use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::value::Value;
+use smallvec::SmallVec;
 use std::rc::Rc;
 
 /// Lightweight continuation operations for common cases
@@ -113,6 +114,235 @@ impl LightContinuation {
                 // Define operation can be inlined
                 env.define(variable, value);
                 Ok(Value::Undefined)
+            }
+        }
+    }
+}
+
+/// Compact continuation system for memory optimization
+/// Separates small continuations from large ones to reduce heap allocation
+#[derive(Debug, Clone)]
+pub enum CompactContinuation {
+    /// Small continuations stored inline (no heap allocation)
+    Inline(InlineContinuation),
+    /// Large continuations stored on heap only when necessary
+    Boxed(Box<Continuation>),
+}
+
+/// Inline continuations optimized for common small cases
+/// These are stored directly without heap allocation
+#[derive(Debug, Clone)]
+pub enum InlineContinuation {
+    /// Identity continuation (direct return)
+    Identity,
+    /// Value accumulation with SmallVec optimization (up to 4 values on stack)
+    Values(SmallVec<[Value; 4]>),
+    /// Variable assignment with environment reference
+    Assignment {
+        /// Variable name to assign to
+        var_name: String,
+        /// Environment reference (shared, not cloned)
+        env_ref: EnvironmentRef,
+    },
+    /// Begin operation for single expression (most common case)
+    SingleBegin {
+        /// Single remaining expression
+        expr: Expr,
+        /// Environment reference
+        env_ref: EnvironmentRef,
+    },
+    /// Define operation with variable name
+    Define {
+        /// Variable to define
+        variable: String,
+        /// Environment reference
+        env_ref: EnvironmentRef,
+    },
+    /// Simple if test (most common conditional)
+    SimpleIf {
+        /// Consequent expression
+        consequent: Expr,
+        /// Optional alternate expression
+        alternate: Option<Expr>,
+        /// Environment reference
+        env_ref: EnvironmentRef,
+    },
+}
+
+/// Environment reference for memory-efficient environment sharing
+/// This avoids cloning large environments for simple operations
+#[derive(Debug, Clone)]
+pub struct EnvironmentRef {
+    /// Weak reference to environment to avoid reference cycles
+    env: std::rc::Weak<Environment>,
+    /// Fallback strong reference for critical operations
+    strong_ref: Option<Rc<Environment>>,
+}
+
+impl EnvironmentRef {
+    /// Create new environment reference
+    pub fn new(env: Rc<Environment>) -> Self {
+        EnvironmentRef {
+            env: Rc::downgrade(&env),
+            strong_ref: Some(env),
+        }
+    }
+
+    /// Get environment reference, upgrading weak reference if needed
+    pub fn get(&self) -> Option<Rc<Environment>> {
+        if let Some(strong) = &self.strong_ref {
+            Some(Rc::clone(strong))
+        } else {
+            self.env.upgrade()
+        }
+    }
+
+    /// Convert to strong reference for critical operations
+    pub fn to_strong(&mut self) -> Option<Rc<Environment>> {
+        if let Some(env) = self.env.upgrade() {
+            self.strong_ref = Some(Rc::clone(&env));
+            Some(env)
+        } else {
+            None
+        }
+    }
+}
+
+impl CompactContinuation {
+    /// Create compact continuation from regular continuation
+    pub fn from_continuation(cont: Continuation) -> Self {
+        match &cont {
+            // Convert simple cases to inline continuations
+            Continuation::Identity => CompactContinuation::Inline(InlineContinuation::Identity),
+            
+            Continuation::Values { values, parent } 
+                if matches!(**parent, Continuation::Identity) && values.len() <= 4 => {
+                let small_values: SmallVec<[Value; 4]> = values.iter().cloned().collect();
+                CompactContinuation::Inline(InlineContinuation::Values(small_values))
+            }
+            
+            Continuation::Assignment { variable, env, parent }
+                if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(InlineContinuation::Assignment {
+                    var_name: variable.clone(),
+                    env_ref: EnvironmentRef::new(Rc::clone(env)),
+                })
+            }
+            
+            Continuation::Begin { remaining, env, parent }
+                if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
+                CompactContinuation::Inline(InlineContinuation::SingleBegin {
+                    expr: remaining[0].clone(),
+                    env_ref: EnvironmentRef::new(Rc::clone(env)),
+                })
+            }
+            
+            Continuation::Define { variable, env, parent }
+                if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(InlineContinuation::Define {
+                    variable: variable.clone(),
+                    env_ref: EnvironmentRef::new(Rc::clone(env)),
+                })
+            }
+            
+            Continuation::IfTest { consequent, alternate, env, parent }
+                if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(InlineContinuation::SimpleIf {
+                    consequent: consequent.clone(),
+                    alternate: alternate.clone(),
+                    env_ref: EnvironmentRef::new(Rc::clone(env)),
+                })
+            }
+            
+            // Large or complex continuations go to heap
+            _ => CompactContinuation::Boxed(Box::new(cont)),
+        }
+    }
+
+    /// Apply compact continuation with optimized path selection
+    #[inline]
+    pub fn apply(self, value: Value) -> Result<Value, crate::error::LambdustError> {
+        match self {
+            CompactContinuation::Inline(inline_cont) => inline_cont.apply(value),
+            CompactContinuation::Boxed(_boxed_cont) => {
+                // For boxed continuations, we need evaluator context
+                // This will be handled by the evaluator's apply_continuation method
+                Err(crate::error::LambdustError::runtime_error(
+                    "Boxed continuation requires evaluator context".to_string()
+                ))
+            }
+        }
+    }
+
+    /// Check if this is a simple inline continuation
+    pub fn is_inline(&self) -> bool {
+        matches!(self, CompactContinuation::Inline(_))
+    }
+
+    /// Get memory usage estimate in bytes
+    pub fn memory_size(&self) -> usize {
+        match self {
+            CompactContinuation::Inline(inline) => inline.memory_size(),
+            CompactContinuation::Boxed(_) => std::mem::size_of::<Box<Continuation>>(),
+        }
+    }
+}
+
+impl InlineContinuation {
+    /// Apply inline continuation (highly optimized)
+    #[inline]
+    pub fn apply(self, value: Value) -> Result<Value, crate::error::LambdustError> {
+        match self {
+            InlineContinuation::Identity => Ok(value),
+            InlineContinuation::Values(mut values) => {
+                values.push(value);
+                Ok(Value::Values(values.into_vec()))
+            }
+            InlineContinuation::Assignment { var_name, mut env_ref } => {
+                if let Some(env) = env_ref.to_strong() {
+                    env.set(&var_name, value)?;
+                    Ok(Value::Undefined)
+                } else {
+                    Err(crate::error::LambdustError::runtime_error(
+                        "Environment reference expired".to_string()
+                    ))
+                }
+            }
+            InlineContinuation::Define { variable, mut env_ref } => {
+                if let Some(env) = env_ref.to_strong() {
+                    env.define(variable, value);
+                    Ok(Value::Undefined)
+                } else {
+                    Err(crate::error::LambdustError::runtime_error(
+                        "Environment reference expired".to_string()
+                    ))
+                }
+            }
+            // SingleBegin and SimpleIf require evaluator context
+            _ => Err(crate::error::LambdustError::runtime_error(
+                "Inline continuation requires evaluator context".to_string()
+            ))
+        }
+    }
+
+    /// Estimate memory usage in bytes
+    pub fn memory_size(&self) -> usize {
+        match self {
+            InlineContinuation::Identity => 0,
+            InlineContinuation::Values(values) => {
+                values.len() * std::mem::size_of::<Value>()
+            }
+            InlineContinuation::Assignment { var_name, .. } => {
+                var_name.len() + std::mem::size_of::<EnvironmentRef>()
+            }
+            InlineContinuation::SingleBegin { .. } => {
+                std::mem::size_of::<Expr>() + std::mem::size_of::<EnvironmentRef>()
+            }
+            InlineContinuation::Define { variable, .. } => {
+                variable.len() + std::mem::size_of::<EnvironmentRef>()
+            }
+            InlineContinuation::SimpleIf { .. } => {
+                2 * std::mem::size_of::<Expr>() + std::mem::size_of::<EnvironmentRef>()
             }
         }
     }

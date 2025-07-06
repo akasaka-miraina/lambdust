@@ -144,7 +144,7 @@ impl LambdustInterpreter {
 
         // Try to get from global environment
         match self.evaluator.global_env.get(name) {
-            Ok(value) => {
+            Some(value) => {
                 if let Value::Procedure(_) = value {
                     self.apply_procedure(value, args.to_vec())
                 } else {
@@ -153,7 +153,7 @@ impl LambdustInterpreter {
                     )))
                 }
             }
-            Err(_) => Err(LambdustError::undefined_variable(name.to_string())),
+            None => Err(LambdustError::undefined_variable(name.to_string())),
         }
     }
 

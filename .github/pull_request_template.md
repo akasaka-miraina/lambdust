@@ -1,26 +1,4 @@
-<!-- for GitHub Copilot review rule -->
-
-<details>
-<summary>for GitHub Copilot review rule</summary>
-
-- Please provide suggestions for improving code quality in terms of
-  - Logic accuracy
-  - Security issues
-  - Performance optimization
-  - Potential data conflicts
-  - Maintain consistency
-  - Error handling
-  - Improved maintainability
-  - Ensure modularity
-  - Reduce code complexity
-  - Optimization possibilities
-  - Apply best practices (DRY, SOLID, KISS)
-- Focus your review on critical issues (e.g., test failures, vulnerabilities, bottlenecks above O(n²))
-- Do not comment on
-  - Minor code style issues
-  - Lack of comments/documentation
-</details>
-<!-- for GitHub Copilot review rule -->
+<!-- GitHub Copilot auto-review disabled - Manual review process adopted -->
 
 ## Summary
 

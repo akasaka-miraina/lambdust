@@ -19,11 +19,14 @@ use crate::ast::{Expr, Literal};
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::macros::expand_macro;
-use crate::value::{Procedure, Value};
+use crate::value::{OptimizedValue, Procedure, Value, ValueOptimizer};
 use ast_converter::AstConverter;
 
 // Re-export main types
-pub use continuation::{Continuation, DynamicPoint, LightContinuation};
+pub use continuation::{
+    CompactContinuation, Continuation, DynamicPoint, EnvironmentRef, 
+    InlineContinuation, LightContinuation
+};
 pub use evaluation::{EvalOrder, ExceptionHandlerInfo};
 pub use types::*;
 
@@ -100,8 +103,8 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         match env.get(&name) {
-            Ok(value) => self.apply_continuation(cont, value),
-            Err(_) => Err(LambdustError::undefined_variable(name)),
+            Some(value) => self.apply_continuation(cont, value),
+            None => Err(LambdustError::undefined_variable(name)),
         }
     }
 
@@ -242,7 +245,15 @@ impl Evaluator {
 
     /// Apply continuation: κ(v)
     pub fn apply_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
-        // Performance optimization: Try lightweight continuation first
+        // Performance optimization: Try compact continuation first (Phase 4 optimization)
+        let compact_cont = CompactContinuation::from_continuation(cont.clone());
+        if compact_cont.is_inline() {
+            if let Ok(result) = self.apply_compact_continuation(compact_cont, value.clone()) {
+                return Ok(result);
+            }
+        }
+
+        // Fallback: Try lightweight continuation
         if let Some(light_cont) = LightContinuation::from_continuation(&cont) {
             return light_cont.apply(value);
         }
@@ -786,6 +797,85 @@ impl Evaluator {
             }
             // For other continuations, apply them normally
             _ => self.apply_continuation(captured_cont, value),
+        }
+    }
+
+    /// Apply compact continuation with optimized inline processing
+    /// This is the core of Phase 4 continuation optimization
+    pub fn apply_compact_continuation(
+        &mut self, 
+        compact_cont: CompactContinuation, 
+        value: Value
+    ) -> Result<Value> {
+        match compact_cont {
+            CompactContinuation::Inline(inline_cont) => {
+                self.apply_inline_continuation(inline_cont, value)
+            }
+            CompactContinuation::Boxed(boxed_cont) => {
+                // For boxed continuations, use regular path
+                self.apply_continuation(*boxed_cont, value)
+            }
+        }
+    }
+
+    /// Apply inline continuation with specialized handling for evaluator context
+    #[inline]
+    pub fn apply_inline_continuation(
+        &mut self,
+        inline_cont: InlineContinuation,
+        value: Value,
+    ) -> Result<Value> {
+        match inline_cont {
+            InlineContinuation::Identity => Ok(value),
+            InlineContinuation::Values(mut values) => {
+                values.push(value);
+                Ok(Value::Values(values.into_vec()))
+            }
+            InlineContinuation::Assignment { var_name, mut env_ref } => {
+                if let Some(env) = env_ref.to_strong() {
+                    env.set(&var_name, value)?;
+                    Ok(Value::Undefined)
+                } else {
+                    Err(LambdustError::runtime_error(
+                        "Environment reference expired in compact continuation".to_string()
+                    ))
+                }
+            }
+            InlineContinuation::Define { variable, mut env_ref } => {
+                if let Some(env) = env_ref.to_strong() {
+                    env.define(variable, value);
+                    Ok(Value::Undefined)
+                } else {
+                    Err(LambdustError::runtime_error(
+                        "Environment reference expired in compact continuation".to_string()
+                    ))
+                }
+            }
+            InlineContinuation::SingleBegin { expr, mut env_ref } => {
+                if let Some(env) = env_ref.to_strong() {
+                    // For SingleBegin, we discard the current value and evaluate the expression
+                    self.eval(expr, env, Continuation::Identity)
+                } else {
+                    Err(LambdustError::runtime_error(
+                        "Environment reference expired in compact continuation".to_string()
+                    ))
+                }
+            }
+            InlineContinuation::SimpleIf { consequent, alternate, mut env_ref } => {
+                if let Some(env) = env_ref.to_strong() {
+                    if value.is_truthy() {
+                        self.eval(consequent, env, Continuation::Identity)
+                    } else if let Some(alt) = alternate {
+                        self.eval(alt, env, Continuation::Identity)
+                    } else {
+                        Ok(Value::Undefined)
+                    }
+                } else {
+                    Err(LambdustError::runtime_error(
+                        "Environment reference expired in compact continuation".to_string()
+                    ))
+                }
+            }
         }
     }
 }

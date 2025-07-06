@@ -9,7 +9,7 @@ use crate::evaluator::continuation::DynamicPoint;
 use crate::evaluator::evaluation::{EvalOrder, ExceptionHandlerInfo};
 use crate::evaluator::memory::{Location, Store, StoreStatistics};
 use crate::srfi::SrfiRegistry;
-use crate::value::Value;
+use crate::value::{Value, ValueOptimizer};
 use std::fmt::Debug;
 use std::rc::Rc;
 
@@ -155,6 +155,8 @@ pub struct Evaluator {
     exception_handlers: Vec<ExceptionHandlerInfo>,
     /// SRFI registry for module imports
     srfi_registry: SrfiRegistry,
+    /// Value optimizer for Phase 4 memory optimization
+    value_optimizer: ValueOptimizer,
 }
 
 impl Evaluator {
@@ -171,6 +173,7 @@ impl Evaluator {
             max_recursion_depth: 1000, // Configurable recursion limit
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
+            value_optimizer: ValueOptimizer::new(),
         }
     }
 
@@ -187,6 +190,7 @@ impl Evaluator {
             max_recursion_depth: 1000,
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
+            value_optimizer: ValueOptimizer::new(),
         }
     }
 
@@ -234,6 +238,16 @@ impl Evaluator {
     /// Get reference to SRFI registry
     pub fn srfi_registry(&self) -> &SrfiRegistry {
         &self.srfi_registry
+    }
+
+    /// Get reference to value optimizer
+    pub fn value_optimizer(&self) -> &ValueOptimizer {
+        &self.value_optimizer
+    }
+
+    /// Get mutable reference to value optimizer
+    pub fn value_optimizer_mut(&mut self) -> &mut ValueOptimizer {
+        &mut self.value_optimizer
     }
 
     /// Increment recursion depth
@@ -390,6 +404,7 @@ impl Evaluator {
             max_recursion_depth: 1000,
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
+            value_optimizer: ValueOptimizer::new(),
         }
     }
 
@@ -409,6 +424,7 @@ impl Evaluator {
             max_recursion_depth: 1000,
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
+            value_optimizer: ValueOptimizer::new(),
         }
     }
 
@@ -428,6 +444,7 @@ impl Evaluator {
             max_recursion_depth: 1000,
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
+            value_optimizer: ValueOptimizer::new(),
         }
     }
 

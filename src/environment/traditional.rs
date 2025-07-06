@@ -1,4 +1,7 @@
-//! Environment and variable binding management
+//! Traditional environment implementation
+//!
+//! This module provides the original RefCell-based environment implementation
+//! for backward compatibility and performance comparison.
 
 use crate::error::{LambdustError, Result};
 use crate::value::Value;
@@ -62,24 +65,37 @@ impl Environment {
     }
 
     /// Get a variable from this environment or a parent
-    pub fn get(&self, name: &str) -> Result<Value> {
+    pub fn get(&self, name: &str) -> Option<Value> {
         // Try current environment first
         if let Some(value) = self.bindings.borrow().get(name) {
-            return Ok(value.clone());
+            return Some(value.clone());
         }
 
         // Try parent environments
         if let Some(ref parent) = self.parent {
             parent.get(name)
         } else {
-            Err(LambdustError::undefined_variable(name.to_string()))
+            None
         }
     }
 
     /// Check if a variable exists in this environment or a parent
+    pub fn exists(&self, name: &str) -> bool {
+        self.bindings.borrow().contains_key(name)
+            || self.parent.as_ref().map_or(false, |p| p.exists(name))
+    }
+
+    /// Check if a variable exists in this environment only (not parents)
     pub fn contains(&self, name: &str) -> bool {
         self.bindings.borrow().contains_key(name)
-            || self.parent.as_ref().is_some_and(|p| p.contains(name))
+    }
+
+    /// Get the depth of this environment (distance from root)
+    pub fn depth(&self) -> usize {
+        match &self.parent {
+            Some(parent) => parent.depth() + 1,
+            None => 0,
+        }
     }
 
     /// Create a new child environment
