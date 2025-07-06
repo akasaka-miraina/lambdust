@@ -104,8 +104,7 @@ impl super::SrfiModule for Srfi125 {
                     let mut result = Vec::new();
                     for (hash_key, value) in table.table.iter() {
                         // Create a simple pair representation
-                        result
-                            .push(Value::from_vector(vec![hash_key.to_value(), value.clone()]));
+                        result.push(Value::from_vector(vec![hash_key.to_value(), value.clone()]));
                     }
 
                     Ok(Value::from_vector(result))
@@ -258,4 +257,3 @@ impl super::SrfiModule for Srfi125 {
         Ok(self.exports())
     }
 }
-

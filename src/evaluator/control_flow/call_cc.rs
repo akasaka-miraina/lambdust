@@ -77,13 +77,14 @@ impl Evaluator {
         // and jump directly to the captured point
         match captured_cont {
             // For CallCc continuation, skip to its parent (the capture point)
-            Continuation::CallCc { parent, .. } => {
-                self.apply_continuation(*parent, escape_value)
-            }
+            Continuation::CallCc { parent, .. } => self.apply_continuation(*parent, escape_value),
             // For intermediate computation continuations, skip them entirely
             cont if cont.is_intermediate_computation() => {
                 if let Some(parent) = cont.parent() {
-                    self.apply_captured_continuation_with_complete_exit(parent.clone(), escape_value)
+                    self.apply_captured_continuation_with_complete_exit(
+                        parent.clone(),
+                        escape_value,
+                    )
                 } else {
                     // No parent, this is the final destination
                     Ok(escape_value)

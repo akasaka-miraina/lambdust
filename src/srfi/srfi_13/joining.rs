@@ -9,8 +9,14 @@ use std::collections::HashMap;
 /// Register joining, splitting, and tokenization functions
 pub fn register_functions(builtins: &mut HashMap<String, Value>) {
     // String joining and splitting
-    builtins.insert("string-concatenate".to_string(), string_concatenate_function());
-    builtins.insert("string-concatenate-reverse".to_string(), string_concatenate_reverse_function());
+    builtins.insert(
+        "string-concatenate".to_string(),
+        string_concatenate_function(),
+    );
+    builtins.insert(
+        "string-concatenate-reverse".to_string(),
+        string_concatenate_reverse_function(),
+    );
     builtins.insert("string-join".to_string(), string_join_function());
 
     // String tokenization
@@ -34,7 +40,9 @@ pub fn string_concatenate(args: &[Value]) -> Result<Value> {
 
     let list = &args[0];
     if !list.is_list() {
-        return Err(LambdustError::type_error("Argument must be a list".to_string()));
+        return Err(LambdustError::type_error(
+            "Argument must be a list".to_string(),
+        ));
     }
 
     let list_vec = list
@@ -45,7 +53,11 @@ pub fn string_concatenate(args: &[Value]) -> Result<Value> {
     for item in list_vec {
         match item {
             Value::String(s) => result.push_str(&s),
-            _ => return Err(LambdustError::type_error("All list elements must be strings".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "All list elements must be strings".to_string(),
+                ));
+            }
         }
     }
 
@@ -57,7 +69,11 @@ fn string_concatenate_reverse_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-concatenate-reverse".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-concatenate-reverse not yet implemented".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-concatenate-reverse not yet implemented".to_string(),
+            ))
+        },
     })
 }
 
@@ -66,7 +82,11 @@ fn string_join_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-join".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-join not yet implemented".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-join not yet implemented".to_string(),
+            ))
+        },
     })
 }
 
@@ -75,6 +95,10 @@ fn string_tokenize_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-tokenize".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-tokenize requires evaluator integration".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-tokenize requires evaluator integration".to_string(),
+            ))
+        },
     })
 }

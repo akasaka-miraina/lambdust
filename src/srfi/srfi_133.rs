@@ -80,8 +80,7 @@ impl super::SrfiModule for Srfi133 {
 
                     for value in vec {
                         // For now, implement addition for numeric values
-                        if let (Some(acc_num), Some(val_num)) =
-                            (acc.as_number(), value.as_number())
+                        if let (Some(acc_num), Some(val_num)) = (acc.as_number(), value.as_number())
                         {
                             use crate::lexer::SchemeNumber;
                             let sum = match (acc_num, val_num) {

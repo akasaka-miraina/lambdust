@@ -88,7 +88,10 @@ impl HashTable {
     }
 
     /// Create a new hash table with specified predicates
-    pub fn with_predicates(equality_predicate: Option<Value>, hash_function: Option<Value>) -> Self {
+    pub fn with_predicates(
+        equality_predicate: Option<Value>,
+        hash_function: Option<Value>,
+    ) -> Self {
         HashTable {
             table: HashMap::new(),
             equality_predicate,

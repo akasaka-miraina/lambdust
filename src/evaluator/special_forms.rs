@@ -80,7 +80,8 @@ impl Evaluator {
         if operands.len() != 1 {
             return Err(LambdustError::arity_error(1, operands.len()));
         }
-        let value = crate::evaluator::ast_converter::AstConverter::expr_to_value(operands[0].clone())?;
+        let value =
+            crate::evaluator::ast_converter::AstConverter::expr_to_value(operands[0].clone())?;
         self.apply_continuation(cont, value)
     }
 
@@ -510,11 +511,11 @@ impl Evaluator {
         if test_value.is_truthy() {
             return self.handle_truthy_cond_test(test_value, consequent, env, parent);
         }
-        
+
         if remaining_clauses.is_empty() {
             return self.apply_continuation(parent, Value::Undefined);
         }
-        
+
         self.process_next_cond_clause(remaining_clauses, env, parent)
     }
 

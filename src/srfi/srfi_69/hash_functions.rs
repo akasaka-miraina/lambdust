@@ -34,7 +34,11 @@ pub fn hash_value(args: &[Value]) -> Result<Value> {
         match &args[1] {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as u32,
             Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as u32,
-            _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Second argument must be an integer".to_string(),
+                ));
+            }
         }
     } else {
         u32::MAX
@@ -64,7 +68,9 @@ pub fn hash_value(args: &[Value]) -> Result<Value> {
         hash_value
     };
 
-    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(result as i64)))
+    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+        result as i64,
+    )))
 }
 
 /// Create string-hash function
@@ -84,14 +90,22 @@ pub fn string_hash_impl(args: &[Value]) -> Result<Value> {
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let bound = if args.len() == 2 {
         match &args[1] {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as u32,
             Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as u32,
-            _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Second argument must be an integer".to_string(),
+                ));
+            }
         }
     } else {
         u32::MAX
@@ -104,7 +118,9 @@ pub fn string_hash_impl(args: &[Value]) -> Result<Value> {
         hash_value
     };
 
-    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(result as i64)))
+    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+        result as i64,
+    )))
 }
 
 /// Create string-ci-hash function
@@ -124,14 +140,22 @@ pub fn string_ci_hash_impl(args: &[Value]) -> Result<Value> {
 
     let string = match &args[0] {
         Value::String(s) => s.to_lowercase(),
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let bound = if args.len() == 2 {
         match &args[1] {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as u32,
             Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as u32,
-            _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Second argument must be an integer".to_string(),
+                ));
+            }
         }
     } else {
         u32::MAX
@@ -144,7 +168,9 @@ pub fn string_ci_hash_impl(args: &[Value]) -> Result<Value> {
         hash_value
     };
 
-    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(result as i64)))
+    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+        result as i64,
+    )))
 }
 
 /// Helper function to calculate string hash using a simple algorithm

@@ -97,7 +97,7 @@ impl CpsInliner {
     /// Analyze a continuation and decide on inlining strategy
     pub fn analyze_continuation(&mut self, cont: &Continuation) -> InliningDecision {
         let pattern = self.continuation_pattern(cont);
-        
+
         // Check cache first
         if self.config.use_caching {
             if let Some(cached_decision) = self.decision_cache.get(&pattern) {
@@ -122,14 +122,17 @@ impl CpsInliner {
         match cont {
             // Simple continuations that can be eliminated
             Continuation::Identity => InliningDecision::Eliminate,
-            
+
             // Simple operations that can be inlined
-            Continuation::Assignment { parent, .. } if matches!(**parent, Continuation::Identity) => {
+            Continuation::Assignment { parent, .. }
+                if matches!(**parent, Continuation::Identity) =>
+            {
                 InliningDecision::Inline
             }
-            
-            Continuation::Values { values, parent } 
-                if values.len() <= 3 && matches!(**parent, Continuation::Identity) => {
+
+            Continuation::Values { values, parent }
+                if values.len() <= 3 && matches!(**parent, Continuation::Identity) =>
+            {
                 InliningDecision::Inline
             }
 
@@ -139,14 +142,22 @@ impl CpsInliner {
             }
 
             // Simple application patterns
-            Continuation::Application { evaluated_args, remaining_args, parent, .. }
-                if remaining_args.is_empty() && evaluated_args.len() <= 4 && self.is_simple_parent(parent) => {
+            Continuation::Application {
+                evaluated_args,
+                remaining_args,
+                parent,
+                ..
+            } if remaining_args.is_empty()
+                && evaluated_args.len() <= 4
+                && self.is_simple_parent(parent) =>
+            {
                 InliningDecision::Inline
             }
 
             // Begin sequences with few expressions
-            Continuation::Begin { remaining, parent, .. }
-                if remaining.len() <= 2 && self.is_simple_parent(parent) => {
+            Continuation::Begin {
+                remaining, parent, ..
+            } if remaining.len() <= 2 && self.is_simple_parent(parent) => {
                 InliningDecision::LightContinuation
             }
 
@@ -165,8 +176,10 @@ impl CpsInliner {
     fn is_simple_parent(&self, parent: &Continuation) -> bool {
         match parent {
             Continuation::Identity => true,
-            Continuation::Values { values, parent: grandparent } 
-                if values.len() <= 2 => self.is_simple_parent(grandparent),
+            Continuation::Values {
+                values,
+                parent: grandparent,
+            } if values.len() <= 2 => self.is_simple_parent(grandparent),
             _ => false,
         }
     }
@@ -177,8 +190,16 @@ impl CpsInliner {
             Continuation::Identity => "Identity".to_string(),
             Continuation::Assignment { .. } => "Assignment".to_string(),
             Continuation::Values { values, .. } => format!("Values({})", values.len()),
-            Continuation::Application { evaluated_args, remaining_args, .. } => {
-                format!("Application({},{})", evaluated_args.len(), remaining_args.len())
+            Continuation::Application {
+                evaluated_args,
+                remaining_args,
+                ..
+            } => {
+                format!(
+                    "Application({},{})",
+                    evaluated_args.len(),
+                    remaining_args.len()
+                )
             }
             Continuation::Begin { remaining, .. } => format!("Begin({})", remaining.len()),
             Continuation::IfTest { .. } => "IfTest".to_string(),
@@ -190,29 +211,25 @@ impl CpsInliner {
     }
 
     /// Attempt to inline a continuation operation directly
-    pub fn try_inline_operation(
-        &mut self,
-        cont: &Continuation,
-        value: Value,
-    ) -> Option<Value> {
+    pub fn try_inline_operation(&mut self, cont: &Continuation, value: Value) -> Option<Value> {
         let decision = self.analyze_continuation(cont);
-        
+
         match decision {
             InliningDecision::Eliminate => {
                 self.stats.eliminations += 1;
                 Some(value) // Direct passthrough
             }
-            
+
             InliningDecision::Inline => {
                 self.stats.inlined_operations += 1;
                 self.inline_continuation_directly(cont, value)
             }
-            
+
             InliningDecision::LightContinuation => {
                 self.stats.light_continuations += 1;
                 None // Caller should use LightContinuation
             }
-            
+
             InliningDecision::FullContinuation => {
                 self.stats.full_continuations += 1;
                 None // Caller should use full continuation
@@ -224,8 +241,12 @@ impl CpsInliner {
     fn inline_continuation_directly(&self, cont: &Continuation, value: Value) -> Option<Value> {
         match cont {
             Continuation::Identity => Some(value),
-            
-            Continuation::Assignment { variable, env, parent } => {
+
+            Continuation::Assignment {
+                variable,
+                env,
+                parent,
+            } => {
                 // Perform assignment and continue
                 if env.set(variable, value.clone()).is_ok() {
                     if matches!(**parent, Continuation::Identity) {
@@ -238,11 +259,11 @@ impl CpsInliner {
                     None
                 }
             }
-            
+
             Continuation::Values { values, parent } => {
                 let mut result_values = values.clone();
                 result_values.push(value);
-                
+
                 if matches!(**parent, Continuation::Identity) {
                     Some(Value::Values(result_values))
                 } else {
@@ -250,7 +271,7 @@ impl CpsInliner {
                     None
                 }
             }
-            
+
             _ => None, // Can't inline this continuation type directly
         }
     }
@@ -260,12 +281,12 @@ impl CpsInliner {
         let mut optimizations = Vec::new();
         let mut current = cont;
         let mut depth = 0;
-        
+
         // Analyze the continuation chain
         while depth < self.config.max_inline_chain {
             let decision = self.analyze_continuation(current);
             optimizations.push((depth, decision));
-            
+
             match current.parent() {
                 Some(parent) => {
                     current = parent;
@@ -286,23 +307,30 @@ impl CpsInliner {
     /// Check if an entire continuation chain can be eliminated
     fn can_eliminate_chain(&self, optimizations: &[(usize, InliningDecision)]) -> bool {
         optimizations.iter().all(|(_, decision)| {
-            matches!(decision, InliningDecision::Eliminate | InliningDecision::Inline)
+            matches!(
+                decision,
+                InliningDecision::Eliminate | InliningDecision::Inline
+            )
         })
     }
 
     /// Recommend overall strategy for a continuation chain
     fn recommend_strategy(&self, optimizations: &[(usize, InliningDecision)]) -> ChainStrategy {
-        let inline_count = optimizations.iter()
+        let inline_count = optimizations
+            .iter()
             .filter(|(_, d)| matches!(d, InliningDecision::Inline | InliningDecision::Eliminate))
             .count();
-        
+
         let total_count = optimizations.len();
-        
+
         if inline_count == total_count {
             ChainStrategy::FullInline
         } else if inline_count as f64 / total_count as f64 > 0.7 {
             ChainStrategy::MostlyInline
-        } else if optimizations.iter().any(|(_, d)| matches!(d, InliningDecision::LightContinuation)) {
+        } else if optimizations
+            .iter()
+            .any(|(_, d)| matches!(d, InliningDecision::LightContinuation))
+        {
             ChainStrategy::LightContinuation
         } else {
             ChainStrategy::FullContinuation
@@ -326,14 +354,14 @@ impl CpsInliner {
 
     /// Get inlining efficiency (percentage of operations that were optimized)
     pub fn inlining_efficiency(&self) -> f64 {
-        let total_operations = self.stats.inlined_operations 
-            + self.stats.light_continuations 
-            + self.stats.full_continuations 
+        let total_operations = self.stats.inlined_operations
+            + self.stats.light_continuations
+            + self.stats.full_continuations
             + self.stats.eliminations;
-            
+
         if total_operations > 0 {
-            let optimized = self.stats.inlined_operations 
-                + self.stats.light_continuations 
+            let optimized = self.stats.inlined_operations
+                + self.stats.light_continuations
                 + self.stats.eliminations;
             optimized as f64 / total_operations as f64
         } else {
@@ -384,14 +412,15 @@ mod tests {
     #[test]
     fn test_cps_inliner_basic_operations() {
         let mut inliner = CpsInliner::new();
-        
+
         // Test identity continuation
         let identity = Continuation::Identity;
         let decision = inliner.analyze_continuation(&identity);
         assert_eq!(decision, InliningDecision::Eliminate);
-        
+
         // Test inlining
-        let result = inliner.try_inline_operation(&identity, Value::Number(SchemeNumber::Integer(42)));
+        let result =
+            inliner.try_inline_operation(&identity, Value::Number(SchemeNumber::Integer(42)));
         assert!(matches!(result, Some(Value::Number(_))));
     }
 
@@ -399,13 +428,13 @@ mod tests {
     fn test_assignment_continuation_inlining() {
         let mut inliner = CpsInliner::new();
         let env = Rc::new(Environment::new());
-        
+
         let assignment = Continuation::Assignment {
             variable: "x".to_string(),
             env: env.clone(),
             parent: Box::new(Continuation::Identity),
         };
-        
+
         let decision = inliner.analyze_continuation(&assignment);
         assert_eq!(decision, InliningDecision::Inline);
     }
@@ -413,12 +442,15 @@ mod tests {
     #[test]
     fn test_values_continuation_inlining() {
         let mut inliner = CpsInliner::new();
-        
+
         let values = Continuation::Values {
-            values: vec![Value::Number(SchemeNumber::Integer(1)), Value::Number(SchemeNumber::Integer(2))],
+            values: vec![
+                Value::Number(SchemeNumber::Integer(1)),
+                Value::Number(SchemeNumber::Integer(2)),
+            ],
             parent: Box::new(Continuation::Identity),
         };
-        
+
         let decision = inliner.analyze_continuation(&values);
         assert_eq!(decision, InliningDecision::Inline);
     }
@@ -427,16 +459,16 @@ mod tests {
     fn test_cache_efficiency() {
         let mut inliner = CpsInliner::new();
         let identity = Continuation::Identity;
-        
+
         // First call should be a cache miss
         inliner.analyze_continuation(&identity);
         assert_eq!(inliner.stats.cache_misses, 1);
         assert_eq!(inliner.stats.cache_hits, 0);
-        
+
         // Second call should be a cache hit
         inliner.analyze_continuation(&identity);
         assert_eq!(inliner.stats.cache_hits, 1);
-        
+
         let efficiency = inliner.cache_efficiency();
         assert_eq!(efficiency, 0.5); // 1 hit out of 2 total requests
     }
@@ -445,14 +477,14 @@ mod tests {
     fn test_continuation_chain_optimization() {
         let mut inliner = CpsInliner::new();
         let env = Rc::new(Environment::new());
-        
+
         // Create a simple chain: Assignment -> Identity
         let chain = Continuation::Assignment {
             variable: "x".to_string(),
             env,
             parent: Box::new(Continuation::Identity),
         };
-        
+
         let optimized = inliner.optimize_continuation_chain(&chain);
         assert_eq!(optimized.original_depth, 1);
         assert!(optimized.can_eliminate_chain);
@@ -462,14 +494,14 @@ mod tests {
     #[test]
     fn test_inlining_efficiency() {
         let mut inliner = CpsInliner::new();
-        
+
         // Initially no efficiency data
         assert_eq!(inliner.inlining_efficiency(), 0.0);
-        
+
         // Add some operations
         let identity = Continuation::Identity;
         inliner.try_inline_operation(&identity, Value::Number(SchemeNumber::Integer(1)));
-        
+
         // Should show 100% efficiency (elimination counts as optimization)
         assert_eq!(inliner.inlining_efficiency(), 1.0);
     }
@@ -477,12 +509,15 @@ mod tests {
     #[test]
     fn test_pattern_generation() {
         let inliner = CpsInliner::new();
-        
+
         let identity = Continuation::Identity;
         assert_eq!(inliner.continuation_pattern(&identity), "Identity");
-        
+
         let values = Continuation::Values {
-            values: vec![Value::Number(SchemeNumber::Integer(1)), Value::Number(SchemeNumber::Integer(2))],
+            values: vec![
+                Value::Number(SchemeNumber::Integer(1)),
+                Value::Number(SchemeNumber::Integer(2)),
+            ],
             parent: Box::new(Continuation::Identity),
         };
         assert_eq!(inliner.continuation_pattern(&values), "Values(2)");

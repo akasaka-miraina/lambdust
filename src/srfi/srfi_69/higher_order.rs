@@ -32,7 +32,11 @@ pub fn hash_table_walk(args: &[Value]) -> Result<Value> {
 
     let _hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let _procedure = &args[1];
@@ -60,7 +64,11 @@ pub fn hash_table_fold(args: &[Value]) -> Result<Value> {
 
     let _hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let _procedure = &args[1];
@@ -90,14 +98,22 @@ pub fn hash_table_merge(args: &[Value]) -> Result<Value> {
     // Get mutable reference to destination hash table
     let mut hash_table1_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow_mut(),
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     // Get source hash tables
     for source_arg in &args[1..] {
         let hash_table2_ref = match source_arg {
             Value::HashTable(ht) => ht.borrow(),
-            _ => return Err(LambdustError::type_error("All arguments must be hash tables".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "All arguments must be hash tables".to_string(),
+                ));
+            }
         };
 
         // Simple merge: copy all entries from source to destination

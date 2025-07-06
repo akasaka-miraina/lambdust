@@ -205,7 +205,6 @@ impl Evaluator {
         self.apply_continuation(cont, AstConverter::expr_to_value(expr)?)
     }
 
-
     /// Evaluate quasiquote (simplified implementation)
     fn eval_quasiquote(
         &mut self,
@@ -467,7 +466,13 @@ impl Evaluator {
                 capture_env,
                 is_escaping,
                 ..
-            } => self.apply_reusable_continuation(*captured_cont, capture_env, is_escaping, args, cont),
+            } => self.apply_reusable_continuation(
+                *captured_cont,
+                capture_env,
+                is_escaping,
+                args,
+                cont,
+            ),
             Procedure::HostFunction { func, arity, .. } => {
                 self.apply_host_function(func, arity, args, cont)
             }
@@ -586,7 +591,7 @@ impl Evaluator {
         // This is the fundamental semantics of call/cc: any invocation of the captured
         // continuation should perform non-local exit
         let is_escape_context = true;
-        
+
         if is_escape_context {
             self.apply_captured_continuation_with_non_local_exit(captured_cont, escape_value)
         } else {
@@ -705,7 +710,7 @@ impl Evaluator {
             // For Application continuations, we need to distinguish between:
             // 1. call/cc escape (should skip all intermediate computation)
             // 2. captured continuation reuse (should preserve computation context)
-            // 
+            //
             // The fundamental issue is that both cases look the same at this point.
             // For now, implement proper escape behavior by skipping Application continuations.
             // This means continuation reuse might not work correctly for certain cases,
@@ -748,18 +753,18 @@ impl Evaluator {
                 self.apply_continuation(*parent, value)
             }
             // For Application continuations, we preserve the context
-            Continuation::Application { 
+            Continuation::Application {
                 operator,
                 evaluated_args,
                 remaining_args,
                 env,
-                parent 
+                parent,
             } => {
                 // Build new application with the value inserted in the captured context
                 // This enables proper continuation reuse semantics
                 let mut new_args = evaluated_args;
                 new_args.push(value);
-                
+
                 if remaining_args.is_empty() {
                     // All arguments are ready, apply the operator
                     self.apply_procedure(operator, new_args, env, *parent)
@@ -767,7 +772,7 @@ impl Evaluator {
                     // Continue evaluating remaining arguments
                     let next_arg = &remaining_args[0];
                     let remaining = remaining_args[1..].to_vec();
-                    
+
                     let app_cont = Continuation::Application {
                         operator,
                         evaluated_args: new_args,
@@ -775,7 +780,7 @@ impl Evaluator {
                         env: env.clone(),
                         parent,
                     };
-                    
+
                     self.eval(next_arg.clone(), env, app_cont)
                 }
             }
@@ -783,7 +788,6 @@ impl Evaluator {
             _ => self.apply_continuation(captured_cont, value),
         }
     }
-
 }
 
 /// Public API for evaluation

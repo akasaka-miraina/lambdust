@@ -2,7 +2,7 @@
 //!
 //! This module implements the SRFI 13 String Libraries, providing
 //! comprehensive string processing functions for R7RS Scheme.
-//! 
+//!
 //! The implementation is divided into functional modules:
 //! - constructors: Basic string operations and predicates
 //! - comparison: String comparison and hashing functions  
@@ -10,11 +10,11 @@
 //! - modification: String modification, padding, trimming
 //! - joining: String joining, splitting, and tokenization
 
-pub mod constructors;
 pub mod comparison;
-pub mod search;
-pub mod modification;
+pub mod constructors;
 pub mod joining;
+pub mod modification;
+pub mod search;
 
 use crate::error::{LambdustError, Result};
 use crate::value::Value;

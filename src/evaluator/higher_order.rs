@@ -390,7 +390,7 @@ impl Evaluator {
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
-                    
+
                     if is_escaping {
                         // Use escape semantics
                         self.apply_captured_continuation_with_non_local_exit(

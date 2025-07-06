@@ -5,9 +5,9 @@
 use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
 use crate::lexer::SchemeNumber;
-use crate::value::Value;
 #[cfg(test)]
 use crate::value::Procedure;
+use crate::value::Value;
 use std::collections::HashMap;
 
 /// Compare two SchemeNumbers for sorting

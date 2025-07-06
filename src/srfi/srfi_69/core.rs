@@ -14,16 +14,20 @@ pub fn register_functions(builtins: &mut HashMap<String, Value>) {
     builtins.insert("make-hash-table".to_string(), make_hash_table_function());
     builtins.insert("hash-table?".to_string(), hash_table_predicate_function());
     builtins.insert("hash-table-ref".to_string(), hash_table_ref_function());
-    builtins.insert("hash-table-ref/default".to_string(), hash_table_ref_default_function());
+    builtins.insert(
+        "hash-table-ref/default".to_string(),
+        hash_table_ref_default_function(),
+    );
     builtins.insert("hash-table-set!".to_string(), hash_table_set_function());
-    builtins.insert("hash-table-delete!".to_string(), hash_table_delete_function());
+    builtins.insert(
+        "hash-table-delete!".to_string(),
+        hash_table_delete_function(),
+    );
 }
 
 /// Create make-hash-table function
 fn make_hash_table_function() -> Value {
-    make_builtin_procedure("make-hash-table", None, |args| {
-        make_hash_table(args)
-    })
+    make_builtin_procedure("make-hash-table", None, make_hash_table)
 }
 
 /// Make-hash-table - create new hash table
@@ -41,7 +45,9 @@ pub fn make_hash_table(args: &[Value]) -> Result<Value> {
         HashTable::new()
     };
 
-    Ok(Value::HashTable(std::rc::Rc::new(std::cell::RefCell::new(hash_table))))
+    Ok(Value::HashTable(std::rc::Rc::new(std::cell::RefCell::new(
+        hash_table,
+    ))))
 }
 
 /// Create hash-table? predicate function
@@ -69,7 +75,11 @@ pub fn hash_table_ref(args: &[Value]) -> Result<Value> {
 
     let hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let key = HashKey::from_value(&args[1])?;
@@ -121,7 +131,11 @@ pub fn hash_table_set(args: &[Value]) -> Result<Value> {
 
     let mut hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow_mut(),
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let key = HashKey::from_value(&args[1])?;
@@ -148,7 +162,11 @@ pub fn hash_table_delete(args: &[Value]) -> Result<Value> {
 
     let mut hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow_mut(),
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let key = HashKey::from_value(&args[1])?;

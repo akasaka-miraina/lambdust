@@ -11,8 +11,14 @@ use std::collections::HashMap;
 /// Register conversion functions
 pub fn register_functions(builtins: &mut HashMap<String, Value>) {
     // Conversion operations
-    builtins.insert("hash-table->alist".to_string(), hash_table_to_alist_function());
-    builtins.insert("alist->hash-table".to_string(), alist_to_hash_table_function());
+    builtins.insert(
+        "hash-table->alist".to_string(),
+        hash_table_to_alist_function(),
+    );
+    builtins.insert(
+        "alist->hash-table".to_string(),
+        alist_to_hash_table_function(),
+    );
     builtins.insert("hash-table-copy".to_string(), hash_table_copy_function());
 }
 
@@ -33,7 +39,11 @@ pub fn hash_table_to_alist(args: &[Value]) -> Result<Value> {
 
     let hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let pairs: Vec<Value> = hash_table_ref
@@ -66,7 +76,9 @@ pub fn alist_to_hash_table(args: &[Value]) -> Result<Value> {
 
     let alist = &args[0];
     if !alist.is_list() {
-        return Err(LambdustError::type_error("First argument must be a list".to_string()));
+        return Err(LambdustError::type_error(
+            "First argument must be a list".to_string(),
+        ));
     }
 
     let list_vec = alist
@@ -77,17 +89,22 @@ pub fn alist_to_hash_table(args: &[Value]) -> Result<Value> {
 
     for item in list_vec {
         if !item.is_pair() {
-            return Err(LambdustError::type_error("All list elements must be pairs".to_string()));
+            return Err(LambdustError::type_error(
+                "All list elements must be pairs".to_string(),
+            ));
         }
 
-        let (key_val, value_val) = item.as_pair()
+        let (key_val, value_val) = item
+            .as_pair()
             .ok_or_else(|| LambdustError::type_error("Invalid pair in association list"))?;
 
         let key = HashKey::from_value(&key_val)?;
         hash_table.set(key, value_val);
     }
 
-    Ok(Value::HashTable(std::rc::Rc::new(std::cell::RefCell::new(hash_table))))
+    Ok(Value::HashTable(std::rc::Rc::new(std::cell::RefCell::new(
+        hash_table,
+    ))))
 }
 
 /// Create hash-table-copy function
@@ -107,9 +124,15 @@ pub fn hash_table_copy(args: &[Value]) -> Result<Value> {
 
     let hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let copied_table = hash_table_ref.copy();
-    Ok(Value::HashTable(std::rc::Rc::new(std::cell::RefCell::new(copied_table))))
+    Ok(Value::HashTable(std::rc::Rc::new(std::cell::RefCell::new(
+        copied_table,
+    ))))
 }

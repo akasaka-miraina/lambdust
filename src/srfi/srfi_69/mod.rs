@@ -2,7 +2,7 @@
 //!
 //! This module implements the SRFI 69 Basic Hash Tables, providing
 //! comprehensive hash table (dictionary) functionality for R7RS Scheme.
-//! 
+//!
 //! The implementation is divided into functional modules:
 //! - types: Core data structures (HashTable, HashKey)
 //! - core: Basic operations (creation, access, modification)
@@ -11,19 +11,19 @@
 //! - hash_functions: Hash functions for different data types
 //! - higher_order: Higher-order functions (walk, fold, merge)
 
-pub mod types;
-pub mod core;
-pub mod queries;
 pub mod conversion;
+pub mod core;
 pub mod hash_functions;
 pub mod higher_order;
+pub mod queries;
+pub mod types;
 
 use crate::error::{LambdustError, Result};
 use crate::value::Value;
 use std::collections::HashMap;
 
 // Re-export main types for convenience
-pub use types::{HashTable, HashKey};
+pub use types::{HashKey, HashTable};
 
 /// Register all SRFI 69 functions into the builtins map
 pub fn register_srfi_69_functions(builtins: &mut HashMap<String, Value>) {
@@ -47,7 +47,16 @@ impl crate::srfi::SrfiModule for Srfi69 {
     }
 
     fn parts(&self) -> Vec<&'static str> {
-        vec!["all", "core", "queries", "conversion", "hash", "higher-order", "constructors", "accessors"]
+        vec![
+            "all",
+            "core",
+            "queries",
+            "conversion",
+            "hash",
+            "higher-order",
+            "constructors",
+            "accessors",
+        ]
     }
 
     fn exports(&self) -> HashMap<String, Value> {
@@ -96,11 +105,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                 }
                 "conversion" => {
                     // Conversion operations
-                    for name in &[
-                        "hash-table->alist",
-                        "alist->hash-table",
-                        "hash-table-copy",
-                    ] {
+                    for name in &["hash-table->alist", "alist->hash-table", "hash-table-copy"] {
                         if let Some(value) = all_exports.get(*name) {
                             filtered.insert(name.to_string(), value.clone());
                         }
@@ -116,11 +121,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                 }
                 "higher-order" => {
                     // Higher-order functions
-                    for name in &[
-                        "hash-table-walk",
-                        "hash-table-fold",
-                        "hash-table-merge!",
-                    ] {
+                    for name in &["hash-table-walk", "hash-table-fold", "hash-table-merge!"] {
                         if let Some(value) = all_exports.get(*name) {
                             filtered.insert(name.to_string(), value.clone());
                         }
@@ -128,10 +129,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                 }
                 "constructors" => {
                     // Constructor operations (alias for core)
-                    for name in &[
-                        "make-hash-table",
-                        "hash-table?",
-                    ] {
+                    for name in &["make-hash-table", "hash-table?"] {
                         if let Some(value) = all_exports.get(*name) {
                             filtered.insert(name.to_string(), value.clone());
                         }
@@ -141,7 +139,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                     // Accessor operations (alias for core + queries)
                     for name in &[
                         "hash-table-ref",
-                        "hash-table-ref/default", 
+                        "hash-table-ref/default",
                         "hash-table-set!",
                         "hash-table-exists?",
                         "hash-table-size",

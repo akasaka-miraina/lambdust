@@ -65,7 +65,8 @@ pub fn eval_with_exception_handler(
     let thunk_expr = &operands[1];
 
     // Evaluate handler first
-    let handler_value = evaluator.eval(handler_expr.clone(), env.clone(), Continuation::Identity)?;
+    let handler_value =
+        evaluator.eval(handler_expr.clone(), env.clone(), Continuation::Identity)?;
 
     // Install exception handler
     let handler_info = ExceptionHandlerInfo {
@@ -290,7 +291,12 @@ impl Evaluator {
 
         // Evaluate each guard clause in order
         for (condition_expr, result_exprs) in &guard_handler.clauses {
-            if let Some(result) = self.try_evaluate_guard_clause(condition_expr, result_exprs, &guard_env, cont.clone())? {
+            if let Some(result) = self.try_evaluate_guard_clause(
+                condition_expr,
+                result_exprs,
+                &guard_env,
+                cont.clone(),
+            )? {
                 return Ok(result);
             }
         }

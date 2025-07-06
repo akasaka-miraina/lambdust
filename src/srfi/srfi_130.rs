@@ -16,7 +16,7 @@ pub struct StringCursor {
     string: String,
     /// Current position in the string (byte index)
     position: usize,
-    /// Start bound (byte index) 
+    /// Start bound (byte index)
     start: usize,
     /// End bound (byte index)
     end: usize,
@@ -225,7 +225,9 @@ impl super::SrfiModule for Srfi130 {
                     new_cursor.advance()?;
                     Ok(Value::StringCursor(Rc::new(new_cursor)))
                 } else {
-                    Err(LambdustError::type_error("Expected string cursor".to_string()))
+                    Err(LambdustError::type_error(
+                        "Expected string cursor".to_string(),
+                    ))
                 }
             }),
         );
@@ -240,7 +242,9 @@ impl super::SrfiModule for Srfi130 {
                     new_cursor.retreat()?;
                     Ok(Value::StringCursor(Rc::new(new_cursor)))
                 } else {
-                    Err(LambdustError::type_error("Expected string cursor".to_string()))
+                    Err(LambdustError::type_error(
+                        "Expected string cursor".to_string(),
+                    ))
                 }
             }),
         );
@@ -298,7 +302,9 @@ impl super::SrfiModule for Srfi130 {
                     let ch = cursor.current_char()?;
                     Ok(Value::Character(ch))
                 } else {
-                    Err(LambdustError::type_error("Expected string cursor".to_string()))
+                    Err(LambdustError::type_error(
+                        "Expected string cursor".to_string(),
+                    ))
                 }
             }),
         );
@@ -308,8 +314,7 @@ impl super::SrfiModule for Srfi130 {
             "substring/cursors".to_string(),
             make_builtin_procedure("substring/cursors", Some(2), |args| {
                 check_arity(args, 2)?;
-                if let (Value::StringCursor(start), Value::StringCursor(end)) =
-                    (&args[0], &args[1])
+                if let (Value::StringCursor(start), Value::StringCursor(end)) = (&args[0], &args[1])
                 {
                     if start.string() != end.string() {
                         return Err(LambdustError::runtime_error(
@@ -413,9 +418,7 @@ impl super::SrfiModule for Srfi130 {
                         Ok(Value::Boolean(false)) // Not found
                     }
                 } else {
-                    Err(LambdustError::type_error(
-                        "Expected strings".to_string(),
-                    ))
+                    Err(LambdustError::type_error("Expected strings".to_string()))
                 }
             }),
         );
@@ -425,8 +428,7 @@ impl super::SrfiModule for Srfi130 {
             "string-length/cursors".to_string(),
             make_builtin_procedure("string-length/cursors", Some(2), |args| {
                 check_arity(args, 2)?;
-                if let (Value::StringCursor(start), Value::StringCursor(end)) =
-                    (&args[0], &args[1])
+                if let (Value::StringCursor(start), Value::StringCursor(end)) = (&args[0], &args[1])
                 {
                     if start.string() != end.string() {
                         return Err(LambdustError::runtime_error(
@@ -521,14 +523,14 @@ mod tests {
     #[test]
     fn test_unicode_support() {
         let mut cursor = StringCursor::new("こんにちは".to_string());
-        
+
         // Each Japanese character is 3 bytes in UTF-8
         assert_eq!(cursor.string().len(), 15); // 5 chars * 3 bytes each
-        
+
         cursor.advance().unwrap();
         assert_eq!(cursor.position(), 3); // First character boundary
         assert_eq!(cursor.current_char().unwrap(), 'ん');
-        
+
         cursor.advance().unwrap();
         assert_eq!(cursor.position(), 6); // Second character boundary  
         assert_eq!(cursor.current_char().unwrap(), 'に');

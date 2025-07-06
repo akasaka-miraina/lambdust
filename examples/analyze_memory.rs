@@ -103,8 +103,8 @@ fn main() {
 
     // パフォーマンス影響の推定
     println!("\nPerformance impact estimation:");
-    println!("  Stack frame vs Box allocation: ~{}x slower", "10-100"); // Box allocation is typically much slower than stack allocation
-    println!("  Rc cloning cost: ~{} CPU cycles per clone", "2-5");
+    println!("  Stack frame vs Box allocation: ~10-100x slower"); // Box allocation is typically much slower than stack allocation
+    println!("  Rc cloning cost: ~2-5 CPU cycles per clone");
     println!("  Deep continuation chain: O(n) memory, O(n) allocation time");
 
     // 最適化案

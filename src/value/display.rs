@@ -5,7 +5,11 @@ use std::fmt;
 
 impl Value {
     /// Display a pair value
-    fn display_pair(&self, f: &mut fmt::Formatter<'_>, pair_ref: &std::rc::Rc<std::cell::RefCell<crate::value::pair::PairData>>) -> fmt::Result {
+    fn display_pair(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        pair_ref: &std::rc::Rc<std::cell::RefCell<crate::value::pair::PairData>>,
+    ) -> fmt::Result {
         write!(f, "(")?;
         let pair = pair_ref.borrow();
         write!(f, "{}", pair.car)?;
@@ -42,12 +46,19 @@ impl Value {
             Procedure::HostFunction { name, .. } => write!(f, "#<host-function {name}>"),
             Procedure::Continuation { .. } => write!(f, "#<continuation>"),
             Procedure::CapturedContinuation { .. } => write!(f, "#<continuation>"),
-            Procedure::ReusableContinuation { reuse_id, .. } => write!(f, "#<reusable-continuation:{}>", reuse_id),
+            Procedure::ReusableContinuation { reuse_id, .. } => {
+                write!(f, "#<reusable-continuation:{}>", reuse_id)
+            }
         }
     }
 
     /// Display lambda parameters
-    fn display_lambda_params(&self, f: &mut fmt::Formatter<'_>, params: &[String], variadic: bool) -> fmt::Result {
+    fn display_lambda_params(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        params: &[String],
+        variadic: bool,
+    ) -> fmt::Result {
         for (i, param) in params.iter().enumerate() {
             if i > 0 {
                 write!(f, " ")?;
@@ -138,7 +149,12 @@ impl fmt::Display for Value {
                 write!(f, "#<comparator:{}>", comp.name)
             }
             Value::StringCursor(cursor) => {
-                write!(f, "#<string-cursor:{}:{}>", cursor.position(), cursor.string().len())
+                write!(
+                    f,
+                    "#<string-cursor:{}:{}>",
+                    cursor.position(),
+                    cursor.string().len()
+                )
             }
         }
     }
@@ -172,7 +188,10 @@ impl std::fmt::Debug for Value {
             Self::Promise(arg0) => f.debug_tuple("Promise").field(arg0).finish(),
             Self::Box(arg0) => f.debug_tuple("Box").field(arg0).finish(),
             Self::Comparator(arg0) => f.debug_tuple("Comparator").field(&arg0.name).finish(),
-            Self::StringCursor(arg0) => f.debug_tuple("StringCursor").field(&arg0.position()).finish(),
+            Self::StringCursor(arg0) => f
+                .debug_tuple("StringCursor")
+                .field(&arg0.position())
+                .finish(),
         }
     }
 }

@@ -35,12 +35,20 @@ pub fn string_compare(args: &[Value]) -> Result<Value> {
 
     let s1 = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let s2 = match &args[1] {
         Value::String(s) => s,
-        _ => return Err(LambdustError::type_error("Second argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Second argument must be a string".to_string(),
+            ));
+        }
     };
 
     // Compare strings
@@ -74,12 +82,20 @@ pub fn string_compare_ci(args: &[Value]) -> Result<Value> {
 
     let s1 = match &args[0] {
         Value::String(s) => s.to_lowercase(),
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let s2 = match &args[1] {
         Value::String(s) => s.to_lowercase(),
-        _ => return Err(LambdustError::type_error("Second argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Second argument must be a string".to_string(),
+            ));
+        }
     };
 
     // Compare strings case-insensitively

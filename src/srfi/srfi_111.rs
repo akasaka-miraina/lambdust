@@ -5,9 +5,9 @@
 
 use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
-use crate::value::Value;
 #[cfg(test)]
 use crate::value::Procedure;
+use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

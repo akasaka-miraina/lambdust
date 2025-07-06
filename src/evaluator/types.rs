@@ -17,7 +17,6 @@ use std::rc::Rc;
 use crate::ast::Expr;
 use crate::evaluator::Continuation;
 
-
 /// Location handle trait for abstracting over different memory management strategies
 pub trait LocationHandle: Debug {
     /// Get the value at this location

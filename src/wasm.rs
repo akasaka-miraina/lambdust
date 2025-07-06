@@ -13,8 +13,8 @@ use js_sys::{Array, Object, Reflect};
 #[cfg(feature = "wasm")]
 use web_sys::console;
 
-use crate::interpreter::LambdustInterpreter;
 use crate::bridge::LambdustBridge;
+use crate::interpreter::LambdustInterpreter;
 use crate::value::Value;
 use std::collections::HashMap;
 // Removed unused Arc, Mutex imports
@@ -44,7 +44,7 @@ impl WasmLambdustInterpreter {
     pub fn new() -> WasmLambdustInterpreter {
         // Initialize console error panic hook for better debugging
         // Console error panic hook would be configured externally
-        
+
         WasmLambdustInterpreter {
             interpreter: LambdustInterpreter::new(),
             bridge: LambdustBridge::new(),
@@ -52,7 +52,7 @@ impl WasmLambdustInterpreter {
             js_functions: std::rc::Rc::new(std::cell::RefCell::new(HashMap::new())),
         }
     }
-    
+
     /// Evaluate Scheme code and return the result as a string
     #[wasm_bindgen]
     pub fn eval(&mut self, code: &str) -> Option<String> {
@@ -67,7 +67,7 @@ impl WasmLambdustInterpreter {
             }
         }
     }
-    
+
     /// Evaluate Scheme code and return the result as a JavaScript value
     #[wasm_bindgen]
     pub fn eval_js(&mut self, code: &str) -> Result<JsValue, JsValue> {
@@ -82,21 +82,25 @@ impl WasmLambdustInterpreter {
             }
         }
     }
-    
+
     /// Get the last error message
     #[wasm_bindgen]
     pub fn get_last_error(&self) -> Option<String> {
         self.last_error.clone()
     }
-    
+
     /// Register a JavaScript function as a Scheme procedure
     #[wasm_bindgen]
-    pub fn register_js_function(&mut self, name: String, func: js_sys::Function) -> Result<(), JsValue> {
+    pub fn register_js_function(
+        &mut self,
+        name: String,
+        func: js_sys::Function,
+    ) -> Result<(), JsValue> {
         // Store the JavaScript function
         if let Ok(mut js_functions) = self.js_functions.try_borrow_mut() {
             js_functions.insert(name.to_string(), func.clone());
         }
-        
+
         // Register with bridge (simplified implementation)
         let name_clone = name.clone();
         self.bridge.register_function(&name, None, move |_args| {
@@ -104,10 +108,10 @@ impl WasmLambdustInterpreter {
             // For now, return a placeholder
             Ok(Value::String(format!("js-function-{}", name_clone)))
         });
-        
+
         Ok(())
     }
-    
+
     /// Load and evaluate a Scheme program from a string
     #[wasm_bindgen]
     pub fn load_program(&mut self, program: &str) -> Result<String, JsValue> {
@@ -119,7 +123,7 @@ impl WasmLambdustInterpreter {
             }
         }
     }
-    
+
     /// Reset the interpreter to its initial state
     #[wasm_bindgen]
     pub fn reset(&mut self) {
@@ -130,20 +134,20 @@ impl WasmLambdustInterpreter {
             js_functions.clear();
         }
     }
-    
+
     /// Get interpreter version
     #[wasm_bindgen]
     pub fn version() -> String {
         env!("CARGO_PKG_VERSION").to_string()
     }
-    
+
     /// Check if the interpreter is in a valid state
     #[wasm_bindgen]
     pub fn is_healthy(&self) -> bool {
         // Simple health check - could be expanded
         self.js_functions.try_borrow().is_ok()
     }
-    
+
     /// Convert a Scheme Value to a JavaScript value
     fn scheme_value_to_js(value: &Value) -> Result<JsValue, JsValue> {
         match value {
@@ -153,12 +157,16 @@ impl WasmLambdustInterpreter {
             Value::String(s) => Ok(JsValue::from_str(s)),
             Value::Symbol(s) => {
                 let obj = Object::new();
-                Reflect::set(&obj, &JsValue::from_str("type"), &JsValue::from_str("symbol"))?;
+                Reflect::set(
+                    &obj,
+                    &JsValue::from_str("type"),
+                    &JsValue::from_str("symbol"),
+                )?;
                 Reflect::set(&obj, &JsValue::from_str("name"), &JsValue::from_str(s))?;
                 Ok(obj.into())
             }
             Value::Pair(_pair_data) => {
-                // Convert cons cell/list to array  
+                // Convert cons cell/list to array
                 let mut items = Vec::new();
                 let mut current = value.clone();
                 loop {
@@ -196,7 +204,11 @@ impl WasmLambdustInterpreter {
             }
             Value::Procedure(_) => {
                 let obj = Object::new();
-                Reflect::set(&obj, &JsValue::from_str("type"), &JsValue::from_str("procedure"))?;
+                Reflect::set(
+                    &obj,
+                    &JsValue::from_str("type"),
+                    &JsValue::from_str("procedure"),
+                )?;
                 Ok(obj.into())
             }
             _ => {
@@ -229,7 +241,7 @@ impl WasiLambdustInterpreter {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Evaluate Scheme code
     pub fn eval(&mut self, code: &str) -> Result<String, String> {
         match self.interpreter.eval_string(code) {
@@ -237,45 +249,45 @@ impl WasiLambdustInterpreter {
             Err(error) => Err(error.to_string()),
         }
     }
-    
+
     /// Load a Scheme file from the WASI filesystem
     pub fn load_file(&mut self, path: &str) -> Result<String, String> {
         let content = std::fs::read_to_string(path)
             .map_err(|e| format!("Failed to read file {}: {}", path, e))?;
         self.eval(&content)
     }
-    
+
     /// Run a Scheme REPL (Read-Eval-Print Loop)
     pub fn repl(&mut self) -> Result<(), String> {
         use std::io::{self, Write};
-        
+
         println!("Lambdust WASI REPL v{}", env!("CARGO_PKG_VERSION"));
         println!("Type 'exit' to quit.");
-        
+
         loop {
             print!("> ");
             io::stdout().flush().unwrap();
-            
+
             let mut input = String::new();
             if io::stdin().read_line(&mut input).is_err() {
                 break;
             }
-            
+
             let input = input.trim();
             if input == "exit" || input == "(exit)" {
                 break;
             }
-            
+
             if input.is_empty() {
                 continue;
             }
-            
+
             match self.eval(input) {
                 Ok(result) => println!("{}", result),
                 Err(error) => eprintln!("Error: {}", error),
             }
         }
-        
+
         Ok(())
     }
 }
@@ -284,25 +296,25 @@ impl WasiLambdustInterpreter {
 #[cfg(feature = "wasm")]
 pub mod utils {
     use super::*;
-    
+
     /// Log a message to the browser console
     #[wasm_bindgen]
     pub fn log(message: &str) {
         console::log_1(&JsValue::from_str(message));
     }
-    
+
     /// Log an error to the browser console
     #[wasm_bindgen]
     pub fn error(message: &str) {
         console::error_1(&JsValue::from_str(message));
     }
-    
+
     /// Get the current timestamp (useful for benchmarking)
     #[wasm_bindgen]
     pub fn now() -> f64 {
         js_sys::Date::now()
     }
-    
+
     /// Check if running in a browser environment
     #[wasm_bindgen]
     pub fn is_browser() -> bool {
@@ -310,7 +322,7 @@ pub mod utils {
             .map(|v| v.is_truthy())
             .unwrap_or(false)
     }
-    
+
     /// Check if running in Node.js environment
     #[wasm_bindgen]
     pub fn is_nodejs() -> bool {
@@ -323,7 +335,7 @@ pub mod utils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_wasi_interpreter_creation() {
         #[cfg(feature = "wasi")]
@@ -333,7 +345,7 @@ mod tests {
             // and constructor execution without panics
         }
     }
-    
+
     #[test]
     fn test_wasi_evaluation() {
         #[cfg(feature = "wasi")]
@@ -344,14 +356,14 @@ mod tests {
             assert_eq!(result.unwrap(), "6");
         }
     }
-    
+
     #[cfg(feature = "wasm")]
     #[test]
     fn test_wasm_interpreter_creation() {
         let interpreter = WasmLambdustInterpreter::new();
         assert!(interpreter.is_healthy());
     }
-    
+
     #[cfg(feature = "wasm")]
     #[test]
     fn test_wasm_evaluation() {

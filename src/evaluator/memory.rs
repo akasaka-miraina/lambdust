@@ -117,7 +117,7 @@ impl Store {
             stats: StoreStatistics::default(),
             cell_pool: Vec::new(),
             location_pool: Vec::new(),
-            max_pool_size: 256,        // Default max pool size
+            max_pool_size: 256, // Default max pool size
         }
     }
 
@@ -133,7 +133,7 @@ impl Store {
             stats: StoreStatistics::default(),
             cell_pool: Vec::new(),
             location_pool: Vec::new(),
-            max_pool_size: 256,        // Default max pool size
+            max_pool_size: 256, // Default max pool size
         }
     }
 
@@ -185,8 +185,8 @@ impl Store {
             pooled_cell.value = value;
             pooled_cell.ref_count = 1;
             pooled_cell.marked = false;
-            pooled_cell.generation += 1;  // Increment generation for reuse
-            self.stats.pool_hits += 1;     // Track pool hit
+            pooled_cell.generation += 1; // Increment generation for reuse
+            self.stats.pool_hits += 1; // Track pool hit
             pooled_cell
         } else {
             // Create new cell if pool is empty
@@ -289,19 +289,19 @@ impl Store {
             let value_size = self.estimate_value_size(&cell.value);
             self.memory_usage = self.memory_usage.saturating_sub(value_size);
             self.stats.total_deallocations += 1;
-            
+
             // Add to memory pools if space available (Phase 3 optimization)
             self.pool_deallocated_resources(location.id(), cell);
         }
     }
-    
+
     /// Pool deallocated resources for reuse (Phase 3 optimization)
     fn pool_deallocated_resources(&mut self, location_id: usize, mut cell: MemoryCell) {
         // Add location ID to pool if space available
         if self.location_pool.len() < self.max_pool_size {
             self.location_pool.push(location_id);
         }
-        
+
         // Clear cell value to prevent holding references and add to pool
         if self.cell_pool.len() < self.max_pool_size {
             // Clear the value to release memory and reset state
@@ -316,7 +316,7 @@ impl Store {
     /// Update memory pool efficiency statistics (Phase 3 optimization)
     pub fn update_pool_efficiency(&mut self) {
         if self.stats.total_allocations > 0 {
-            self.stats.memory_pool_efficiency = 
+            self.stats.memory_pool_efficiency =
                 self.stats.pool_hits as f64 / self.stats.total_allocations as f64;
         }
     }
@@ -411,8 +411,8 @@ impl Store {
             Value::Continuation(_) => 96, // Continuation overhead
             Value::Nil => 8,
             Value::Undefined => 8,
-            Value::Box(_) => 32, // Box overhead
-            Value::Comparator(_) => 64, // Comparator overhead
+            Value::Box(_) => 32,          // Box overhead
+            Value::Comparator(_) => 64,   // Comparator overhead
             Value::StringCursor(_) => 48, // StringCursor overhead
         }
     }

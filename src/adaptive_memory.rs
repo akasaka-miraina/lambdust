@@ -3,8 +3,8 @@
 //! This module implements adaptive memory management that adjusts allocation
 //! strategies based on runtime evaluation patterns and memory pressure.
 
-use crate::memory_pool::{PoolStats, ContinuationPoolStats};
-use crate::stack_monitor::{StackStatistics, OptimizationRecommendation};
+use crate::memory_pool::{ContinuationPoolStats, PoolStats};
+use crate::stack_monitor::{OptimizationRecommendation, StackStatistics};
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -81,9 +81,9 @@ pub struct MemoryConfig {
 impl Default for MemoryConfig {
     fn default() -> Self {
         Self {
-            moderate_threshold: 50_000_000,   // 50MB
-            high_threshold: 100_000_000,      // 100MB
-            critical_threshold: 200_000_000,  // 200MB
+            moderate_threshold: 50_000_000,  // 50MB
+            high_threshold: 100_000_000,     // 100MB
+            critical_threshold: 200_000_000, // 200MB
             history_length: 100,
             strategy_change_cooldown: Duration::from_secs(1),
         }
@@ -134,7 +134,11 @@ impl AdaptiveMemoryManager {
     ) {
         let snapshot = MemorySnapshot {
             timestamp: Instant::now(),
-            total_memory: self.estimate_total_memory(&pool_stats, &continuation_stats, &stack_stats),
+            total_memory: self.estimate_total_memory(
+                &pool_stats,
+                &continuation_stats,
+                &stack_stats,
+            ),
             pool_stats,
             continuation_stats,
             stack_stats,
@@ -176,7 +180,7 @@ impl AdaptiveMemoryManager {
     /// Update memory pressure level based on current usage
     fn update_pressure_level(&mut self, snapshot: &MemorySnapshot) {
         let old_pressure = self.pressure_level;
-        
+
         self.pressure_level = if snapshot.total_memory >= self.config.critical_threshold {
             MemoryPressure::Critical
         } else if snapshot.total_memory >= self.config.high_threshold {
@@ -231,7 +235,9 @@ impl AdaptiveMemoryManager {
             // Record strategy duration
             if let Some(last_change) = self.decisions.last_strategy_change {
                 let duration = now.duration_since(last_change);
-                self.decisions.strategy_durations.push((old_strategy, duration));
+                self.decisions
+                    .strategy_durations
+                    .push((old_strategy, duration));
             }
 
             self.strategy = new_strategy;
@@ -247,10 +253,7 @@ impl AdaptiveMemoryManager {
         }
 
         let start_index = self.usage_history.len() - 3;
-        let recent: Vec<&MemorySnapshot> = self.usage_history
-            .iter()
-            .skip(start_index)
-            .collect();
+        let recent: Vec<&MemorySnapshot> = self.usage_history.iter().skip(start_index).collect();
         let mut increases = 0;
 
         for window in recent.windows(2) {
@@ -324,7 +327,11 @@ impl AdaptiveMemoryManager {
             pressure_level: self.pressure_level,
             strategy: self.strategy,
             history_length: self.usage_history.len(),
-            total_memory: self.usage_history.back().map(|s| s.total_memory).unwrap_or(0),
+            total_memory: self
+                .usage_history
+                .back()
+                .map(|s| s.total_memory)
+                .unwrap_or(0),
             decisions: self.decisions.clone(),
         }
     }
@@ -415,7 +422,7 @@ mod tests {
     #[test]
     fn test_memory_pressure_escalation() {
         let mut manager = AdaptiveMemoryManager::with_config(MemoryConfig {
-            moderate_threshold: 1000,  // Very low thresholds for testing
+            moderate_threshold: 1000, // Very low thresholds for testing
             high_threshold: 2000,
             critical_threshold: 3000,
             ..Default::default()
@@ -435,7 +442,7 @@ mod tests {
     #[test]
     fn test_optimization_recommendations() {
         let mut manager = AdaptiveMemoryManager::with_config(MemoryConfig {
-            critical_threshold: 1000,  // Low threshold for testing
+            critical_threshold: 1000, // Low threshold for testing
             ..Default::default()
         });
 
@@ -452,7 +459,7 @@ mod tests {
     #[test]
     fn test_allocation_parameters() {
         let manager = AdaptiveMemoryManager::new();
-        
+
         let params = manager.allocation_parameters();
         assert_eq!(params.pool_size_multiplier, 1.0); // Standard strategy
         assert!(!params.aggressive_recycling);
@@ -466,7 +473,11 @@ mod tests {
         // Add samples with increasing memory usage
         for i in 1..=5 {
             stack_stats.total_memory_estimate = i * 1000;
-            manager.update(pool_stats.clone(), continuation_stats.clone(), stack_stats.clone());
+            manager.update(
+                pool_stats.clone(),
+                continuation_stats.clone(),
+                stack_stats.clone(),
+            );
         }
 
         // Should detect upward trend

@@ -12,8 +12,14 @@ pub fn register_functions(builtins: &mut HashMap<String, Value>) {
     // String modification
     builtins.insert("string-take".to_string(), string_take_function());
     builtins.insert("string-drop".to_string(), string_drop_function());
-    builtins.insert("string-take-right".to_string(), string_take_right_function());
-    builtins.insert("string-drop-right".to_string(), string_drop_right_function());
+    builtins.insert(
+        "string-take-right".to_string(),
+        string_take_right_function(),
+    );
+    builtins.insert(
+        "string-drop-right".to_string(),
+        string_drop_right_function(),
+    );
 
     // String padding
     builtins.insert("string-pad".to_string(), string_pad_function());
@@ -21,7 +27,10 @@ pub fn register_functions(builtins: &mut HashMap<String, Value>) {
 
     // String trimming
     builtins.insert("string-trim".to_string(), string_trim_function());
-    builtins.insert("string-trim-right".to_string(), string_trim_right_function());
+    builtins.insert(
+        "string-trim-right".to_string(),
+        string_trim_right_function(),
+    );
     builtins.insert("string-trim-both".to_string(), string_trim_both_function());
 
     // String replacement
@@ -49,17 +58,27 @@ pub fn string_take(args: &[Value]) -> Result<Value> {
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let n = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
         Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as i64,
-        _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Second argument must be an integer".to_string(),
+            ));
+        }
     };
 
     if n < 0 {
-        return Err(LambdustError::runtime_error("Cannot take negative number of characters".to_string()));
+        return Err(LambdustError::runtime_error(
+            "Cannot take negative number of characters".to_string(),
+        ));
     }
 
     let chars: Vec<char> = string.chars().collect();
@@ -86,17 +105,27 @@ pub fn string_drop(args: &[Value]) -> Result<Value> {
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let n = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
         Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as i64,
-        _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Second argument must be an integer".to_string(),
+            ));
+        }
     };
 
     if n < 0 {
-        return Err(LambdustError::runtime_error("Cannot drop negative number of characters".to_string()));
+        return Err(LambdustError::runtime_error(
+            "Cannot drop negative number of characters".to_string(),
+        ));
     }
 
     let chars: Vec<char> = string.chars().collect();
@@ -123,17 +152,27 @@ pub fn string_take_right(args: &[Value]) -> Result<Value> {
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let n = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
         Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as i64,
-        _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Second argument must be an integer".to_string(),
+            ));
+        }
     };
 
     if n < 0 {
-        return Err(LambdustError::runtime_error("Cannot take negative number of characters".to_string()));
+        return Err(LambdustError::runtime_error(
+            "Cannot take negative number of characters".to_string(),
+        ));
     }
 
     let chars: Vec<char> = string.chars().collect();
@@ -162,17 +201,27 @@ pub fn string_drop_right(args: &[Value]) -> Result<Value> {
 
     let string = match &args[0] {
         Value::String(s) => s,
-        _ => return Err(LambdustError::type_error("First argument must be a string".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a string".to_string(),
+            ));
+        }
     };
 
     let n = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
         Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as i64,
-        _ => return Err(LambdustError::type_error("Second argument must be an integer".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Second argument must be an integer".to_string(),
+            ));
+        }
     };
 
     if n < 0 {
-        return Err(LambdustError::runtime_error("Cannot drop negative number of characters".to_string()));
+        return Err(LambdustError::runtime_error(
+            "Cannot drop negative number of characters".to_string(),
+        ));
     }
 
     let chars: Vec<char> = string.chars().collect();
@@ -191,7 +240,11 @@ fn string_pad_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-pad".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-pad not yet implemented".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-pad not yet implemented".to_string(),
+            ))
+        },
     })
 }
 
@@ -200,7 +253,11 @@ fn string_pad_right_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-pad-right".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-pad-right not yet implemented".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-pad-right not yet implemented".to_string(),
+            ))
+        },
     })
 }
 
@@ -209,7 +266,11 @@ fn string_trim_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-trim".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-trim requires evaluator integration".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-trim requires evaluator integration".to_string(),
+            ))
+        },
     })
 }
 
@@ -218,7 +279,11 @@ fn string_trim_right_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-trim-right".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-trim-right requires evaluator integration".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-trim-right requires evaluator integration".to_string(),
+            ))
+        },
     })
 }
 
@@ -227,7 +292,11 @@ fn string_trim_both_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-trim-both".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-trim-both requires evaluator integration".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-trim-both requires evaluator integration".to_string(),
+            ))
+        },
     })
 }
 
@@ -236,7 +305,11 @@ fn string_replace_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-replace".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-replace not yet implemented".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-replace not yet implemented".to_string(),
+            ))
+        },
     })
 }
 
@@ -245,7 +318,11 @@ fn string_filter_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-filter".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-filter requires evaluator integration".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-filter requires evaluator integration".to_string(),
+            ))
+        },
     })
 }
 
@@ -254,6 +331,10 @@ fn string_delete_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "string-delete".to_string(),
         arity: None,
-        func: |_args| Err(LambdustError::runtime_error("string-delete requires evaluator integration".to_string())),
+        func: |_args| {
+            Err(LambdustError::runtime_error(
+                "string-delete requires evaluator integration".to_string(),
+            ))
+        },
     })
 }

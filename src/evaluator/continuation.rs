@@ -44,34 +44,44 @@ impl LightContinuation {
     pub fn from_continuation(cont: &Continuation) -> Option<Self> {
         match cont {
             Continuation::Identity => Some(LightContinuation::Identity),
-            
+
             // Simple cases with Identity parent
-            Continuation::Values { values, parent } if matches!(**parent, Continuation::Identity) => {
+            Continuation::Values { values, parent }
+                if matches!(**parent, Continuation::Identity) =>
+            {
                 Some(LightContinuation::Values(values.clone()))
             }
-            Continuation::Assignment { variable, env, parent } if matches!(**parent, Continuation::Identity) => {
+            Continuation::Assignment {
+                variable,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) => {
                 Some(LightContinuation::Assignment {
                     var_name: variable.clone(),
                     env: env.clone(),
                 })
             }
-            Continuation::Begin { remaining, env, parent } 
-                if matches!(**parent, Continuation::Identity) && remaining.is_empty() => {
+            Continuation::Begin {
+                remaining,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) && remaining.is_empty() => {
                 Some(LightContinuation::Begin {
                     remaining: remaining.clone(),
                     env: env.clone(),
                 })
             }
-            Continuation::Define { variable, env, parent } if matches!(**parent, Continuation::Identity) => {
-                Some(LightContinuation::Define {
-                    variable: variable.clone(),
-                    env: env.clone(),
-                })
-            }
-            
+            Continuation::Define {
+                variable,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) => Some(LightContinuation::Define {
+                variable: variable.clone(),
+                env: env.clone(),
+            }),
+
             // Skip complex cases that require evaluator context
             // SimpleApplication and IfTest are disabled to avoid context issues
-            
             _ => None,
         }
     }
@@ -95,7 +105,7 @@ impl LightContinuation {
                 } else {
                     // For complex Begin operations, fall back to full continuation
                     Err(crate::error::LambdustError::runtime_error(
-                        "Complex Begin operation requires full continuation".to_string()
+                        "Complex Begin operation requires full continuation".to_string(),
                     ))
                 }
             }

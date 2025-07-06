@@ -11,10 +11,16 @@ use std::collections::HashMap;
 /// Register query functions
 pub fn register_functions(builtins: &mut HashMap<String, Value>) {
     // Query operations
-    builtins.insert("hash-table-exists?".to_string(), hash_table_exists_function());
+    builtins.insert(
+        "hash-table-exists?".to_string(),
+        hash_table_exists_function(),
+    );
     builtins.insert("hash-table-size".to_string(), hash_table_size_function());
     builtins.insert("hash-table-keys".to_string(), hash_table_keys_function());
-    builtins.insert("hash-table-values".to_string(), hash_table_values_function());
+    builtins.insert(
+        "hash-table-values".to_string(),
+        hash_table_values_function(),
+    );
 }
 
 /// Create hash-table-exists? function
@@ -34,7 +40,11 @@ pub fn hash_table_exists(args: &[Value]) -> Result<Value> {
 
     let hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("First argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "First argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let key = HashKey::from_value(&args[1])?;
@@ -58,7 +68,11 @@ pub fn hash_table_size(args: &[Value]) -> Result<Value> {
 
     let hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
@@ -83,7 +97,11 @@ pub fn hash_table_keys(args: &[Value]) -> Result<Value> {
 
     let hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let keys: Vec<Value> = hash_table_ref.keys().iter().map(|k| k.to_value()).collect();
@@ -111,7 +129,11 @@ pub fn hash_table_values(args: &[Value]) -> Result<Value> {
 
     let hash_table_ref = match &args[0] {
         Value::HashTable(ht) => ht.borrow(),
-        _ => return Err(LambdustError::type_error("Argument must be a hash table".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Argument must be a hash table".to_string(),
+            ));
+        }
     };
 
     let values = hash_table_ref.values();
