@@ -7,6 +7,7 @@ use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::continuation::DynamicPoint;
 use crate::evaluator::evaluation::{EvalOrder, ExceptionHandlerInfo};
+use crate::evaluator::expression_analyzer::ExpressionAnalyzer;
 use crate::evaluator::memory::{Location, Store, StoreStatistics};
 use crate::srfi::SrfiRegistry;
 use crate::value::{Value, ValueOptimizer};
@@ -157,6 +158,8 @@ pub struct Evaluator {
     srfi_registry: SrfiRegistry,
     /// Value optimizer for Phase 4 memory optimization
     value_optimizer: ValueOptimizer,
+    /// Expression analyzer for Phase 5 compile-time optimization
+    expression_analyzer: ExpressionAnalyzer,
 }
 
 impl Evaluator {
@@ -174,6 +177,7 @@ impl Evaluator {
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             value_optimizer: ValueOptimizer::new(),
+            expression_analyzer: ExpressionAnalyzer::new(),
         }
     }
 
@@ -191,6 +195,7 @@ impl Evaluator {
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             value_optimizer: ValueOptimizer::new(),
+            expression_analyzer: ExpressionAnalyzer::new(),
         }
     }
 
@@ -248,6 +253,16 @@ impl Evaluator {
     /// Get mutable reference to value optimizer
     pub fn value_optimizer_mut(&mut self) -> &mut ValueOptimizer {
         &mut self.value_optimizer
+    }
+
+    /// Get reference to expression analyzer
+    pub fn expression_analyzer(&self) -> &ExpressionAnalyzer {
+        &self.expression_analyzer
+    }
+
+    /// Get mutable reference to expression analyzer
+    pub fn expression_analyzer_mut(&mut self) -> &mut ExpressionAnalyzer {
+        &mut self.expression_analyzer
     }
 
     /// Increment recursion depth
@@ -405,6 +420,7 @@ impl Evaluator {
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             value_optimizer: ValueOptimizer::new(),
+            expression_analyzer: ExpressionAnalyzer::new(),
         }
     }
 
@@ -425,6 +441,7 @@ impl Evaluator {
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             value_optimizer: ValueOptimizer::new(),
+            expression_analyzer: ExpressionAnalyzer::new(),
         }
     }
 
@@ -445,6 +462,7 @@ impl Evaluator {
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             value_optimizer: ValueOptimizer::new(),
+            expression_analyzer: ExpressionAnalyzer::new(),
         }
     }
 

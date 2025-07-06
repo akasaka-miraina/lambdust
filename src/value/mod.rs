@@ -16,7 +16,7 @@ pub mod record;
 
 // Re-export key types
 pub use continuation::{Continuation, StackFrame};
-pub use optimized::{OptimizedValue, OptimizationStats, ShortStringData, ValueOptimizer};
+pub use optimized::{OptimizationStats, OptimizedValue, ShortStringData, ValueOptimizer};
 pub use pair::PairData;
 pub use port::Port;
 pub use procedure::Procedure;

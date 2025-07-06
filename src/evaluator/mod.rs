@@ -7,6 +7,7 @@ pub mod ast_converter;
 pub mod continuation;
 pub mod control_flow;
 pub mod evaluation;
+pub mod expression_analyzer;
 pub mod higher_order;
 pub mod imports;
 pub mod memory;
@@ -19,15 +20,19 @@ use crate::ast::{Expr, Literal};
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::macros::expand_macro;
-use crate::value::{OptimizedValue, Procedure, Value, ValueOptimizer};
+use crate::value::{Procedure, Value};
 use ast_converter::AstConverter;
 
 // Re-export main types
 pub use continuation::{
-    CompactContinuation, Continuation, DynamicPoint, EnvironmentRef, 
-    InlineContinuation, LightContinuation
+    CompactContinuation, Continuation, DynamicPoint, EnvironmentRef, InlineContinuation,
+    LightContinuation,
 };
 pub use evaluation::{EvalOrder, ExceptionHandlerInfo};
+pub use expression_analyzer::{
+    AnalysisResult, EvaluationComplexity, ExpressionAnalyzer, OptimizationHint, OptimizationStats,
+    TypeHint,
+};
 pub use types::*;
 
 use std::rc::Rc;
@@ -40,6 +45,16 @@ impl Evaluator {
     /// - κ: continuation
     /// - σ: store
     pub fn eval(&mut self, expr: Expr, env: Rc<Environment>, cont: Continuation) -> Result<Value> {
+        // Phase 5-Step1: Pre-analysis optimization
+        let analysis_result = self.analyze_expression_for_optimization(&expr, &env);
+        
+        // Apply constant folding optimization if available
+        if let Ok(analysis) = &analysis_result {
+            if let Some(optimized_value) = self.try_apply_optimizations(analysis, &cont)? {
+                return Ok(optimized_value);
+            }
+        }
+
         // Stack overflow prevention
         if self.recursion_depth() >= self.max_recursion_depth() {
             return Err(LambdustError::stack_overflow());
@@ -803,13 +818,13 @@ impl Evaluator {
     /// Apply compact continuation with optimized inline processing
     /// This is the core of Phase 4 continuation optimization
     pub fn apply_compact_continuation(
-        &mut self, 
-        compact_cont: CompactContinuation, 
-        value: Value
+        &mut self,
+        compact_cont: CompactContinuation,
+        value: Value,
     ) -> Result<Value> {
         match compact_cont {
             CompactContinuation::Inline(inline_cont) => {
-                self.apply_inline_continuation(inline_cont, value)
+                self.apply_inline_continuation(*inline_cont, value)
             }
             CompactContinuation::Boxed(boxed_cont) => {
                 // For boxed continuations, use regular path
@@ -831,23 +846,29 @@ impl Evaluator {
                 values.push(value);
                 Ok(Value::Values(values.into_vec()))
             }
-            InlineContinuation::Assignment { var_name, mut env_ref } => {
+            InlineContinuation::Assignment {
+                var_name,
+                mut env_ref,
+            } => {
                 if let Some(env) = env_ref.to_strong() {
                     env.set(&var_name, value)?;
                     Ok(Value::Undefined)
                 } else {
                     Err(LambdustError::runtime_error(
-                        "Environment reference expired in compact continuation".to_string()
+                        "Environment reference expired in compact continuation".to_string(),
                     ))
                 }
             }
-            InlineContinuation::Define { variable, mut env_ref } => {
+            InlineContinuation::Define {
+                variable,
+                mut env_ref,
+            } => {
                 if let Some(env) = env_ref.to_strong() {
                     env.define(variable, value);
                     Ok(Value::Undefined)
                 } else {
                     Err(LambdustError::runtime_error(
-                        "Environment reference expired in compact continuation".to_string()
+                        "Environment reference expired in compact continuation".to_string(),
                     ))
                 }
             }
@@ -857,11 +878,15 @@ impl Evaluator {
                     self.eval(expr, env, Continuation::Identity)
                 } else {
                     Err(LambdustError::runtime_error(
-                        "Environment reference expired in compact continuation".to_string()
+                        "Environment reference expired in compact continuation".to_string(),
                     ))
                 }
             }
-            InlineContinuation::SimpleIf { consequent, alternate, mut env_ref } => {
+            InlineContinuation::SimpleIf {
+                consequent,
+                alternate,
+                mut env_ref,
+            } => {
                 if let Some(env) = env_ref.to_strong() {
                     if value.is_truthy() {
                         self.eval(consequent, env, Continuation::Identity)
@@ -872,11 +897,90 @@ impl Evaluator {
                     }
                 } else {
                     Err(LambdustError::runtime_error(
-                        "Environment reference expired in compact continuation".to_string()
+                        "Environment reference expired in compact continuation".to_string(),
                     ))
                 }
             }
         }
+    }
+
+    /// Analyze expression for optimization opportunities (Phase 5-Step1)
+    fn analyze_expression_for_optimization(&mut self, expr: &Expr, env: &Environment) -> Result<AnalysisResult> {
+        self.expression_analyzer_mut().analyze(expr, Some(env))
+    }
+
+    /// Try to apply optimizations based on analysis result
+    fn try_apply_optimizations(&mut self, analysis: &AnalysisResult, cont: &Continuation) -> Result<Option<Value>> {
+        for optimization in &analysis.optimizations {
+            match optimization {
+                OptimizationHint::ConstantFold(value) => {
+                    // Apply constant folding: skip evaluation and return constant value
+                    let result = self.apply_continuation(cont.clone(), value.clone())?;
+                    return Ok(Some(result));
+                }
+                OptimizationHint::InlineVariable(var_name, value) => {
+                    // Variable inlining optimization
+                    self.expression_analyzer_mut().add_constant(var_name.clone(), value.clone());
+                    let result = self.apply_continuation(cont.clone(), value.clone())?;
+                    return Ok(Some(result));
+                }
+                OptimizationHint::DeadCode => {
+                    // Dead code elimination: return undefined for unreachable code
+                    let result = self.apply_continuation(cont.clone(), Value::Undefined)?;
+                    return Ok(Some(result));
+                }
+                _ => {
+                    // Other optimizations are applied during evaluation, not here
+                    continue;
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Update expression analyzer with specific variable information
+    pub fn update_analyzer_with_variable(&mut self, name: &str, value: &Value) {
+        if self.is_analyzable_constant(value) {
+            self.expression_analyzer_mut().add_constant(name.to_string(), value.clone());
+            
+            // Add type hint based on value
+            let type_hint = self.value_to_type_hint(value);
+            self.expression_analyzer_mut().add_type_hint(name.to_string(), type_hint);
+        }
+    }
+
+    /// Check if a value can be used as a constant in analysis
+    fn is_analyzable_constant(&self, value: &Value) -> bool {
+        matches!(
+            value,
+            Value::Boolean(_) | Value::Number(_) | Value::String(_) 
+            | Value::Character(_) | Value::Symbol(_) | Value::Nil
+        )
+    }
+
+    /// Convert value to type hint for analyzer
+    fn value_to_type_hint(&self, value: &Value) -> TypeHint {
+        match value {
+            Value::Boolean(_) => TypeHint::Boolean,
+            Value::Number(_) => TypeHint::Number,
+            Value::String(_) => TypeHint::String,
+            Value::Character(_) => TypeHint::Character,
+            Value::Symbol(_) => TypeHint::Symbol,
+            Value::Pair(_) | Value::Nil => TypeHint::List,
+            Value::Vector(_) => TypeHint::Vector,
+            Value::Procedure(_) => TypeHint::Procedure,
+            _ => TypeHint::Unknown,
+        }
+    }
+
+    /// Get optimization statistics from expression analyzer
+    pub fn get_optimization_statistics(&self) -> OptimizationStats {
+        self.expression_analyzer().optimization_stats()
+    }
+
+    /// Clear expression analyzer cache (useful for memory management)
+    pub fn clear_expression_cache(&mut self) {
+        self.expression_analyzer_mut().clear_cache();
     }
 }
 

@@ -15,19 +15,19 @@ pub struct SharedEnvironment {
     /// Local bindings for this environment frame
     /// Only contains bindings added to this specific frame
     local_bindings: HashMap<String, Value>,
-    
+
     /// Shared parent environment chain
     /// Uses Rc for efficient sharing without cloning
     parent: Option<Rc<SharedEnvironment>>,
-    
+
     /// Cached immutable bindings for fast lookup
     /// Contains flattened view of all bindings up the chain
     immutable_cache: Option<Rc<HashMap<String, Value>>>,
-    
+
     /// Generation counter for cache invalidation
     /// Incremented when local bindings change
     generation: u32,
-    
+
     /// Whether this environment is "frozen" (immutable)
     /// Frozen environments can be safely shared and cached
     is_frozen: bool,
@@ -80,13 +80,13 @@ impl SharedEnvironment {
             for (name, value) in bindings {
                 new_bindings.insert(name, value);
             }
-            
+
             SharedEnvironment {
                 local_bindings: new_bindings,
-                parent: if self.is_empty() { 
-                    self.parent.clone() 
-                } else { 
-                    Some(Rc::new(self.clone())) 
+                parent: if self.is_empty() {
+                    self.parent.clone()
+                } else {
+                    Some(Rc::new(self.clone()))
                 },
                 immutable_cache: None,
                 generation: 0,
@@ -102,7 +102,7 @@ impl SharedEnvironment {
             // Cannot modify frozen environment, this indicates a programming error
             panic!("Attempt to modify frozen environment");
         }
-        
+
         self.local_bindings.insert(name, value);
         self.invalidate_cache();
     }
@@ -112,7 +112,7 @@ impl SharedEnvironment {
     pub fn set(&mut self, name: &str, value: Value) -> Result<()> {
         if self.is_frozen {
             return Err(LambdustError::runtime_error(
-                "Cannot modify frozen environment".to_string()
+                "Cannot modify frozen environment".to_string(),
             ));
         }
 
@@ -132,7 +132,8 @@ impl SharedEnvironment {
         }
 
         Err(LambdustError::runtime_error(format!(
-            "Undefined variable: {}", name
+            "Undefined variable: {}",
+            name
         )))
     }
 
@@ -191,7 +192,7 @@ impl SharedEnvironment {
         }
 
         let mut cache = HashMap::new();
-        
+
         // Collect bindings from parent chain (outer to inner)
         let mut parent_bindings = Vec::new();
         let mut current = self.parent.as_ref();
@@ -206,7 +207,11 @@ impl SharedEnvironment {
         }
 
         // Local bindings override parent bindings
-        cache.extend(self.local_bindings.iter().map(|(k, v)| (k.clone(), v.clone())));
+        cache.extend(
+            self.local_bindings
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone())),
+        );
 
         self.immutable_cache = Some(Rc::new(cache));
     }
@@ -253,14 +258,20 @@ impl SharedEnvironment {
 
     /// Get memory usage estimate in bytes
     pub fn memory_usage(&self) -> usize {
-        let local_size = self.local_bindings.len() * 
-            (std::mem::size_of::<String>() + std::mem::size_of::<Value>());
-        
-        let cache_size = self.immutable_cache.as_ref()
-            .map(|cache| cache.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Value>()))
+        let local_size = self.local_bindings.len()
+            * (std::mem::size_of::<String>() + std::mem::size_of::<Value>());
+
+        let cache_size = self
+            .immutable_cache
+            .as_ref()
+            .map(|cache| {
+                cache.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Value>())
+            })
             .unwrap_or(0);
-        
-        let parent_size = self.parent.as_ref()
+
+        let parent_size = self
+            .parent
+            .as_ref()
             .map(|_| std::mem::size_of::<Rc<SharedEnvironment>>())
             .unwrap_or(0);
 
@@ -270,15 +281,19 @@ impl SharedEnvironment {
     /// Convert to iterator over all bindings (for debugging)
     pub fn iter_all_bindings(&self) -> HashMap<String, Value> {
         let mut all_bindings = HashMap::new();
-        
+
         // Collect from parent chain first
         if let Some(parent) = &self.parent {
             all_bindings.extend(parent.iter_all_bindings());
         }
-        
+
         // Add local bindings (these override parent bindings)
-        all_bindings.extend(self.local_bindings.iter().map(|(k, v)| (k.clone(), v.clone())));
-        
+        all_bindings.extend(
+            self.local_bindings
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone())),
+        );
+
         all_bindings
     }
 }

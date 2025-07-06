@@ -57,16 +57,16 @@ impl EnvironmentFactory {
 pub trait EnvironmentOps {
     /// Define a variable in the environment
     fn define(&mut self, name: String, value: Value);
-    
+
     /// Set a variable (must already exist)
     fn set(&mut self, name: &str, value: Value) -> Result<()>;
-    
+
     /// Get a variable value
     fn get(&self, name: &str) -> Option<Value>;
-    
+
     /// Check if variable exists
     fn exists(&self, name: &str) -> bool;
-    
+
     /// Get environment depth
     fn depth(&self) -> usize;
 }
@@ -75,19 +75,19 @@ impl EnvironmentOps for Environment {
     fn define(&mut self, name: String, value: Value) {
         Environment::define(self, name, value);
     }
-    
+
     fn set(&mut self, name: &str, value: Value) -> Result<()> {
         Environment::set(self, name, value)
     }
-    
+
     fn get(&self, name: &str) -> Option<Value> {
         Environment::get(self, name)
     }
-    
+
     fn exists(&self, name: &str) -> bool {
         Environment::exists(self, name)
     }
-    
+
     fn depth(&self) -> usize {
         Environment::depth(self)
     }
@@ -97,19 +97,19 @@ impl EnvironmentOps for SharedEnvironment {
     fn define(&mut self, name: String, value: Value) {
         SharedEnvironment::define(self, name, value);
     }
-    
+
     fn set(&mut self, name: &str, value: Value) -> Result<()> {
         SharedEnvironment::set(self, name, value)
     }
-    
+
     fn get(&self, name: &str) -> Option<Value> {
         SharedEnvironment::get(self, name)
     }
-    
+
     fn exists(&self, name: &str) -> bool {
         SharedEnvironment::exists(self, name)
     }
-    
+
     fn depth(&self) -> usize {
         SharedEnvironment::depth(self)
     }
@@ -152,7 +152,7 @@ pub mod benchmarks {
         // Traditional environment benchmark
         let start = Instant::now();
         for _ in 0..iterations {
-            let mut env = EnvironmentFactory::new_traditional();
+            let env = EnvironmentFactory::new_traditional();
             for (name, value) in &bindings {
                 env.define(name.clone(), value.clone());
             }
@@ -175,9 +175,9 @@ pub mod benchmarks {
     /// Benchmark variable lookup
     pub fn benchmark_variable_lookup(iterations: usize) -> (u64, u64) {
         // Setup environments with some bindings
-        let mut traditional_env = EnvironmentFactory::new_traditional();
+        let traditional_env = EnvironmentFactory::new_traditional();
         let mut cow_env = EnvironmentFactory::new_shared();
-        
+
         use crate::lexer::SchemeNumber;
         for i in 0..10 {
             let name = format!("var{}", i);
@@ -196,7 +196,7 @@ pub mod benchmarks {
         }
         let traditional_time = start.elapsed().as_nanos() as u64;
 
-        // COW environment benchmark  
+        // COW environment benchmark
         let start = Instant::now();
         for _ in 0..iterations {
             for i in 0..10 {

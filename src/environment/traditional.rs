@@ -82,7 +82,7 @@ impl Environment {
     /// Check if a variable exists in this environment or a parent
     pub fn exists(&self, name: &str) -> bool {
         self.bindings.borrow().contains_key(name)
-            || self.parent.as_ref().map_or(false, |p| p.exists(name))
+            || self.parent.as_ref().is_some_and(|p| p.exists(name))
     }
 
     /// Check if a variable exists in this environment only (not parents)

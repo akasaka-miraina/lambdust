@@ -172,9 +172,9 @@ impl Evaluator {
                     step_values.push((var.clone(), step_value));
                 } else {
                     // If no step expression, keep current value
-                    let current_value = env.get(var).ok_or_else(|| {
-                        LambdustError::undefined_variable(var.clone())
-                    })?;
+                    let current_value = env
+                        .get(var)
+                        .ok_or_else(|| LambdustError::undefined_variable(var.clone()))?;
                     step_values.push((var.clone(), current_value));
                 }
             }

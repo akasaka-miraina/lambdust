@@ -10,6 +10,7 @@ pub mod call_cc_deep_exit_tests;
 pub mod error_handling_tests;
 pub mod evaluator_tests;
 pub mod exception_handling_tests;
+pub mod expression_analyzer_integration_tests;
 pub mod integration_tests;
 pub mod r7rs_compliance_tests;
 pub mod syntax_rules_tests;

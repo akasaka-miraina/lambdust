@@ -124,7 +124,7 @@ impl LightContinuation {
 #[derive(Debug, Clone)]
 pub enum CompactContinuation {
     /// Small continuations stored inline (no heap allocation)
-    Inline(InlineContinuation),
+    Inline(Box<InlineContinuation>),
     /// Large continuations stored on heap only when necessary
     Boxed(Box<Continuation>),
 }
@@ -136,7 +136,7 @@ pub enum InlineContinuation {
     /// Identity continuation (direct return)
     Identity,
     /// Value accumulation with SmallVec optimization (up to 4 values on stack)
-    Values(SmallVec<[Value; 4]>),
+    Values(Box<SmallVec<[Value; 4]>>),
     /// Variable assignment with environment reference
     Assignment {
         /// Variable name to assign to
@@ -213,47 +213,65 @@ impl CompactContinuation {
     pub fn from_continuation(cont: Continuation) -> Self {
         match &cont {
             // Convert simple cases to inline continuations
-            Continuation::Identity => CompactContinuation::Inline(InlineContinuation::Identity),
-            
-            Continuation::Values { values, parent } 
-                if matches!(**parent, Continuation::Identity) && values.len() <= 4 => {
-                let small_values: SmallVec<[Value; 4]> = values.iter().cloned().collect();
-                CompactContinuation::Inline(InlineContinuation::Values(small_values))
+            Continuation::Identity => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::Identity))
             }
-            
-            Continuation::Assignment { variable, env, parent }
-                if matches!(**parent, Continuation::Identity) => {
-                CompactContinuation::Inline(InlineContinuation::Assignment {
+
+            Continuation::Values { values, parent }
+                if matches!(**parent, Continuation::Identity) && values.len() <= 4 =>
+            {
+                let small_values: SmallVec<[Value; 4]> = values.iter().cloned().collect();
+                CompactContinuation::Inline(Box::new(InlineContinuation::Values(Box::new(
+                    small_values,
+                ))))
+            }
+
+            Continuation::Assignment {
+                variable,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::Assignment {
                     var_name: variable.clone(),
                     env_ref: EnvironmentRef::new(Rc::clone(env)),
-                })
+                }))
             }
-            
-            Continuation::Begin { remaining, env, parent }
-                if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
-                CompactContinuation::Inline(InlineContinuation::SingleBegin {
+
+            Continuation::Begin {
+                remaining,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::SingleBegin {
                     expr: remaining[0].clone(),
                     env_ref: EnvironmentRef::new(Rc::clone(env)),
-                })
+                }))
             }
-            
-            Continuation::Define { variable, env, parent }
-                if matches!(**parent, Continuation::Identity) => {
-                CompactContinuation::Inline(InlineContinuation::Define {
+
+            Continuation::Define {
+                variable,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::Define {
                     variable: variable.clone(),
                     env_ref: EnvironmentRef::new(Rc::clone(env)),
-                })
+                }))
             }
-            
-            Continuation::IfTest { consequent, alternate, env, parent }
-                if matches!(**parent, Continuation::Identity) => {
-                CompactContinuation::Inline(InlineContinuation::SimpleIf {
+
+            Continuation::IfTest {
+                consequent,
+                alternate,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::SimpleIf {
                     consequent: consequent.clone(),
                     alternate: alternate.clone(),
                     env_ref: EnvironmentRef::new(Rc::clone(env)),
-                })
+                }))
             }
-            
+
             // Large or complex continuations go to heap
             _ => CompactContinuation::Boxed(Box::new(cont)),
         }
@@ -268,7 +286,7 @@ impl CompactContinuation {
                 // For boxed continuations, we need evaluator context
                 // This will be handled by the evaluator's apply_continuation method
                 Err(crate::error::LambdustError::runtime_error(
-                    "Boxed continuation requires evaluator context".to_string()
+                    "Boxed continuation requires evaluator context".to_string(),
                 ))
             }
         }
@@ -298,30 +316,36 @@ impl InlineContinuation {
                 values.push(value);
                 Ok(Value::Values(values.into_vec()))
             }
-            InlineContinuation::Assignment { var_name, mut env_ref } => {
+            InlineContinuation::Assignment {
+                var_name,
+                mut env_ref,
+            } => {
                 if let Some(env) = env_ref.to_strong() {
                     env.set(&var_name, value)?;
                     Ok(Value::Undefined)
                 } else {
                     Err(crate::error::LambdustError::runtime_error(
-                        "Environment reference expired".to_string()
+                        "Environment reference expired".to_string(),
                     ))
                 }
             }
-            InlineContinuation::Define { variable, mut env_ref } => {
+            InlineContinuation::Define {
+                variable,
+                mut env_ref,
+            } => {
                 if let Some(env) = env_ref.to_strong() {
                     env.define(variable, value);
                     Ok(Value::Undefined)
                 } else {
                     Err(crate::error::LambdustError::runtime_error(
-                        "Environment reference expired".to_string()
+                        "Environment reference expired".to_string(),
                     ))
                 }
             }
             // SingleBegin and SimpleIf require evaluator context
             _ => Err(crate::error::LambdustError::runtime_error(
-                "Inline continuation requires evaluator context".to_string()
-            ))
+                "Inline continuation requires evaluator context".to_string(),
+            )),
         }
     }
 
@@ -329,9 +353,7 @@ impl InlineContinuation {
     pub fn memory_size(&self) -> usize {
         match self {
             InlineContinuation::Identity => 0,
-            InlineContinuation::Values(values) => {
-                values.len() * std::mem::size_of::<Value>()
-            }
+            InlineContinuation::Values(values) => values.len() * std::mem::size_of::<Value>(),
             InlineContinuation::Assignment { var_name, .. } => {
                 var_name.len() + std::mem::size_of::<EnvironmentRef>()
             }

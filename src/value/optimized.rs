@@ -51,36 +51,31 @@ impl ShortStringData {
         if bytes.len() > 15 {
             return None;
         }
-        
+
         let mut data = ShortStringData {
             bytes: [0; 15],
             len: bytes.len() as u8,
         };
-        
+
         data.bytes[..bytes.len()].copy_from_slice(bytes);
         Some(data)
     }
-    
+
     /// Get string slice from short string data
     pub fn as_str(&self) -> &str {
         let bytes = &self.bytes[..self.len as usize];
         // SAFETY: We only store valid UTF-8 strings
         unsafe { std::str::from_utf8_unchecked(bytes) }
     }
-    
+
     /// Get length of the string
     pub fn len(&self) -> usize {
         self.len as usize
     }
-    
+
     /// Check if string is empty
     pub fn is_empty(&self) -> bool {
         self.len == 0
-    }
-    
-    /// Convert to owned String
-    pub fn to_string(&self) -> String {
-        self.as_str().to_string()
     }
 }
 
@@ -105,7 +100,7 @@ impl OptimizedValue {
             OptimizedValue::Number(SchemeNumber::Integer(n))
         }
     }
-    
+
     /// Create a string value using optimal representation
     pub fn new_string(s: String) -> Self {
         if let Some(short) = ShortStringData::new(&s) {
@@ -114,7 +109,7 @@ impl OptimizedValue {
             OptimizedValue::String(s)
         }
     }
-    
+
     /// Create a string value from &str using optimal representation
     pub fn new_string_ref(s: &str) -> Self {
         if let Some(short) = ShortStringData::new(s) {
@@ -123,7 +118,7 @@ impl OptimizedValue {
             OptimizedValue::String(s.to_string())
         }
     }
-    
+
     /// Create a symbol value using optimal representation
     pub fn new_symbol(s: String) -> Self {
         if let Some(short) = ShortStringData::new(&s) {
@@ -132,7 +127,7 @@ impl OptimizedValue {
             OptimizedValue::Symbol(s)
         }
     }
-    
+
     /// Create a symbol value from &str using optimal representation
     pub fn new_symbol_ref(s: &str) -> Self {
         if let Some(short) = ShortStringData::new(s) {
@@ -141,7 +136,7 @@ impl OptimizedValue {
             OptimizedValue::Symbol(s.to_string())
         }
     }
-    
+
     /// Convert to standard Value (for compatibility)
     pub fn to_standard_value(self) -> super::Value {
         match self {
@@ -149,15 +144,15 @@ impl OptimizedValue {
             OptimizedValue::Boolean(b) => super::Value::Boolean(b),
             OptimizedValue::SmallInt(n) => super::Value::Number(SchemeNumber::Integer(n as i64)),
             OptimizedValue::Number(n) => super::Value::Number(n),
-            OptimizedValue::ShortString(s) => super::Value::String(s.to_string()),
+            OptimizedValue::ShortString(s) => super::Value::String(s.as_str().to_string()),
             OptimizedValue::String(s) => super::Value::String(s),
             OptimizedValue::Character(c) => super::Value::Character(c),
-            OptimizedValue::ShortSymbol(s) => super::Value::Symbol(s.to_string()),
+            OptimizedValue::ShortSymbol(s) => super::Value::Symbol(s.as_str().to_string()),
             OptimizedValue::Symbol(s) => super::Value::Symbol(s),
             OptimizedValue::Complex(v) => v,
         }
     }
-    
+
     /// Create from standard Value (for compatibility)
     pub fn from_standard_value(value: super::Value) -> Self {
         match value {
@@ -171,7 +166,7 @@ impl OptimizedValue {
             other => OptimizedValue::Complex(other),
         }
     }
-    
+
     /// Get memory usage estimate in bytes
     pub fn memory_size(&self) -> usize {
         match self {
@@ -187,22 +182,31 @@ impl OptimizedValue {
             OptimizedValue::Complex(v) => std::mem::size_of_val(v), // Approximation
         }
     }
-    
+
     /// Check if this is a numeric value
     pub fn is_number(&self) -> bool {
-        matches!(self, OptimizedValue::SmallInt(_) | OptimizedValue::Number(_))
+        matches!(
+            self,
+            OptimizedValue::SmallInt(_) | OptimizedValue::Number(_)
+        )
     }
-    
+
     /// Check if this is a string value
     pub fn is_string(&self) -> bool {
-        matches!(self, OptimizedValue::ShortString(_) | OptimizedValue::String(_))
+        matches!(
+            self,
+            OptimizedValue::ShortString(_) | OptimizedValue::String(_)
+        )
     }
-    
+
     /// Check if this is a symbol value
     pub fn is_symbol(&self) -> bool {
-        matches!(self, OptimizedValue::ShortSymbol(_) | OptimizedValue::Symbol(_))
+        matches!(
+            self,
+            OptimizedValue::ShortSymbol(_) | OptimizedValue::Symbol(_)
+        )
     }
-    
+
     /// Get as integer if possible
     pub fn as_int(&self) -> Option<i64> {
         match self {
@@ -211,16 +215,16 @@ impl OptimizedValue {
             _ => None,
         }
     }
-    
+
     /// Get as string if possible
     pub fn as_string(&self) -> Option<String> {
         match self {
-            OptimizedValue::ShortString(s) => Some(s.to_string()),
+            OptimizedValue::ShortString(s) => Some(s.as_str().to_string()),
             OptimizedValue::String(s) => Some(s.clone()),
             _ => None,
         }
     }
-    
+
     /// Get as string reference if possible
     pub fn as_string_ref(&self) -> Option<&str> {
         match self {
@@ -229,16 +233,16 @@ impl OptimizedValue {
             _ => None,
         }
     }
-    
+
     /// Get as symbol if possible
     pub fn as_symbol(&self) -> Option<String> {
         match self {
-            OptimizedValue::ShortSymbol(s) => Some(s.to_string()),
+            OptimizedValue::ShortSymbol(s) => Some(s.as_str().to_string()),
             OptimizedValue::Symbol(s) => Some(s.clone()),
             _ => None,
         }
     }
-    
+
     /// Get as symbol reference if possible
     pub fn as_symbol_ref(&self) -> Option<&str> {
         match self {
@@ -247,15 +251,12 @@ impl OptimizedValue {
             _ => None,
         }
     }
-    
+
     /// Check if value is truthy (for conditional evaluation)
     pub fn is_truthy(&self) -> bool {
-        match self {
-            OptimizedValue::Boolean(false) => false,
-            _ => true,
-        }
+        !matches!(self, OptimizedValue::Boolean(false))
     }
-    
+
     /// Check if this is an inline value (stored on stack)
     pub fn is_inline(&self) -> bool {
         matches!(
@@ -268,7 +269,7 @@ impl OptimizedValue {
                 | OptimizedValue::ShortSymbol(_)
         )
     }
-    
+
     /// Get the value type as a string
     pub fn type_name(&self) -> &'static str {
         match self {
@@ -373,18 +374,18 @@ impl OptimizationStats {
             total_values: 0,
         }
     }
-    
+
     /// Record optimization of a value
     pub fn record(&mut self, original: &super::Value, optimized: &OptimizedValue) {
         self.total_values += 1;
-        
+
         let original_size = std::mem::size_of_val(original);
         let optimized_size = optimized.memory_size();
-        
+
         if optimized_size < original_size {
             self.memory_saved += original_size - optimized_size;
         }
-        
+
         match optimized {
             OptimizedValue::SmallInt(_) => self.small_ints += 1,
             OptimizedValue::ShortString(_) => self.short_strings += 1,
@@ -392,22 +393,24 @@ impl OptimizationStats {
             _ => {}
         }
     }
-    
+
     /// Get optimization ratio (0.0 to 1.0)
     pub fn optimization_ratio(&self) -> f64 {
         if self.total_values == 0 {
             0.0
         } else {
-            (self.small_ints + self.short_strings + self.short_symbols) as f64 / self.total_values as f64
+            (self.small_ints + self.short_strings + self.short_symbols) as f64
+                / self.total_values as f64
         }
     }
-    
+
     /// Get memory savings ratio (0.0 to 1.0)
     pub fn memory_savings_ratio(&self) -> f64 {
         if self.total_values == 0 {
             0.0
         } else {
-            self.memory_saved as f64 / (self.total_values * std::mem::size_of::<super::Value>()) as f64
+            self.memory_saved as f64
+                / (self.total_values * std::mem::size_of::<super::Value>()) as f64
         }
     }
 }
@@ -431,24 +434,24 @@ impl ValueOptimizer {
             stats: OptimizationStats::new(),
         }
     }
-    
+
     /// Optimize a single value
     pub fn optimize(&mut self, value: super::Value) -> OptimizedValue {
         let optimized = OptimizedValue::from_standard_value(value.clone());
         self.stats.record(&value, &optimized);
         optimized
     }
-    
+
     /// Optimize a batch of values
     pub fn optimize_batch(&mut self, values: Vec<super::Value>) -> Vec<OptimizedValue> {
         values.into_iter().map(|v| self.optimize(v)).collect()
     }
-    
+
     /// Get optimization statistics
     pub fn stats(&self) -> &OptimizationStats {
         &self.stats
     }
-    
+
     /// Reset statistics
     pub fn reset_stats(&mut self) {
         self.stats = OptimizationStats::new();
