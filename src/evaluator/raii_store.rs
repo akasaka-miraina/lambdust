@@ -473,6 +473,8 @@ impl RaiiStoreManager {
             Value::Nil => 8,
             Value::Undefined => 8,
             Value::Box(_) => 24, // Rc<RefCell<Value>> overhead
+            Value::Comparator(_) => 64, // Comparator overhead
+            Value::StringCursor(_) => 48, // StringCursor overhead
         }
     }
 }

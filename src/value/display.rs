@@ -114,6 +114,12 @@ impl fmt::Display for Value {
             Value::Box(box_val) => {
                 write!(f, "#<box:{}>", box_val.unbox())
             }
+            Value::Comparator(comp) => {
+                write!(f, "#<comparator:{}>", comp.name)
+            }
+            Value::StringCursor(cursor) => {
+                write!(f, "#<string-cursor:{}:{}>", cursor.position(), cursor.string().len())
+            }
         }
     }
 }
@@ -145,6 +151,8 @@ impl std::fmt::Debug for Value {
             Self::Continuation(arg0) => f.debug_tuple("Continuation").field(arg0).finish(),
             Self::Promise(arg0) => f.debug_tuple("Promise").field(arg0).finish(),
             Self::Box(arg0) => f.debug_tuple("Box").field(arg0).finish(),
+            Self::Comparator(arg0) => f.debug_tuple("Comparator").field(&arg0.name).finish(),
+            Self::StringCursor(arg0) => f.debug_tuple("StringCursor").field(&arg0.position()).finish(),
         }
     }
 }

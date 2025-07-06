@@ -101,4 +101,14 @@ impl Value {
     pub fn is_box(&self) -> bool {
         matches!(self, Value::Box(_))
     }
+
+    /// Check if this value is a comparator
+    pub fn is_comparator(&self) -> bool {
+        matches!(self, Value::Comparator(_))
+    }
+
+    /// Check if this value is a string cursor
+    pub fn is_string_cursor(&self) -> bool {
+        matches!(self, Value::StringCursor(_))
+    }
 }

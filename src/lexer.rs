@@ -81,6 +81,28 @@ impl fmt::Display for SchemeNumber {
     }
 }
 
+impl SchemeNumber {
+    /// Convert number to f64 for comparison purposes
+    pub fn to_f64(&self) -> f64 {
+        match self {
+            SchemeNumber::Integer(i) => *i as f64,
+            SchemeNumber::Rational(n, d) => *n as f64 / *d as f64,
+            SchemeNumber::Real(r) => *r,
+            SchemeNumber::Complex(r, _) => *r, // Use real part for comparison
+        }
+    }
+
+    /// Convert number to i64 for indexing and counting
+    pub fn to_i64(&self) -> i64 {
+        match self {
+            SchemeNumber::Integer(i) => *i,
+            SchemeNumber::Rational(n, d) => n / d,
+            SchemeNumber::Real(r) => *r as i64,
+            SchemeNumber::Complex(r, _) => *r as i64,
+        }
+    }
+}
+
 /// Lexer for tokenizing Scheme source code
 pub struct Lexer<'a> {
     input: &'a str,

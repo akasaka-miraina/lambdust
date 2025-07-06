@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lambdust WebAssembly Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            border: 1px solid #e1e1e1;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+        
+        .section h2 {
+            color: #34495e;
+            margin-top: 0;
+        }
+        
+        .input-group {
+            margin: 15px 0;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        textarea, input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+        
+        textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin: 5px 5px 5px 0;
+        }
+        
+        button:hover {
+            background: #2980b9;
+        }
+        
+        button:disabled {
+            background: #bdc3c7;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 10px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        
+        .success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        
+        .examples {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .example {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+        }
+        
+        .example h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+        
+        .example code {
+            display: block;
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin: 5px 0;
+            white-space: pre-wrap;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .stat-box {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #7f8c8d;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Lambdust WebAssembly Demo</h1>
+        
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading Lambdust WebAssembly module...</p>
+        </div>
+        
+        <div id="main-content" style="display: none;">
+            <!-- Basic Evaluation Section -->
+            <div class="section">
+                <h2>Basic Scheme Evaluation</h2>
+                <div class="input-group">
+                    <label for="scheme-input">Enter Scheme code:</label>
+                    <textarea id="scheme-input" placeholder="(+ 1 2 3)"></textarea>
+                </div>
+                <button onclick="evaluateScheme()">Evaluate</button>
+                <button onclick="evaluateAsJS()">Evaluate as JS</button>
+                <button onclick="clearResult()">Clear</button>
+                <div id="result" class="result" style="display: none;"></div>
+            </div>
+            
+            <!-- Example Programs Section -->
+            <div class="section">
+                <h2>Example Programs</h2>
+                <div class="examples">
+                    <div class="example">
+                        <h4>Arithmetic</h4>
+                        <code>(+ 1 2 3 4 5)</code>
+                        <button onclick="runExample('(+ 1 2 3 4 5)')">Run</button>
+                    </div>
+                    <div class="example">
+                        <h4>List Operations</h4>
+                        <code>(map (lambda (x) (* x x)) '(1 2 3 4 5))</code>
+                        <button onclick="runExample('(map (lambda (x) (* x x)) \'(1 2 3 4 5))')">Run</button>
+                    </div>
+                    <div class="example">
+                        <h4>Recursion</h4>
+                        <code>(define (factorial n)
+  (if (<= n 1)
+      1
+      (* n (factorial (- n 1)))))
+(factorial 5)</code>
+                        <button onclick="runExample('(define (factorial n) (if (<= n 1) 1 (* n (factorial (- n 1))))) (factorial 5)')">Run</button>
+                    </div>
+                    <div class="example">
+                        <h4>Higher-order Functions</h4>
+                        <code>(fold + 0 '(1 2 3 4 5))</code>
+                        <button onclick="runExample('(fold + 0 \'(1 2 3 4 5))')">Run</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- JavaScript Integration Section -->
+            <div class="section">
+                <h2>JavaScript Integration</h2>
+                <div class="input-group">
+                    <label for="js-function-name">Function Name:</label>
+                    <input type="text" id="js-function-name" placeholder="js-alert" value="js-alert">
+                </div>
+                <button onclick="registerJSFunction()">Register Alert Function</button>
+                <button onclick="testJSFunction()">Test JS Function</button>
+                <div id="js-result" class="result" style="display: none;"></div>
+            </div>
+            
+            <!-- Performance Testing Section -->
+            <div class="section">
+                <h2>Performance Testing</h2>
+                <div class="input-group">
+                    <label for="perf-code">Code to benchmark:</label>
+                    <textarea id="perf-code" placeholder="(fold + 0 (map (lambda (x) (* x x)) '(1 2 3 4 5 6 7 8 9 10)))"></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="iterations">Iterations:</label>
+                    <input type="text" id="iterations" value="1000" placeholder="1000">
+                </div>
+                <button onclick="runBenchmark()">Run Benchmark</button>
+                <div id="benchmark-result" class="result" style="display: none;"></div>
+                
+                <div class="stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="avg-time">-</div>
+                        <div class="stat-label">Average Time (ms)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="min-time">-</div>
+                        <div class="stat-label">Min Time (ms)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="max-time">-</div>
+                        <div class="stat-label">Max Time (ms)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="total-iterations">-</div>
+                        <div class="stat-label">Iterations</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Status Section -->
+            <div class="section">
+                <h2>Interpreter Status</h2>
+                <button onclick="checkHealth()">Check Health</button>
+                <button onclick="resetInterpreter()">Reset Interpreter</button>
+                <button onclick="showVersion()">Show Version</button>
+                <div id="status-result" class="result" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { WasmLambdustInterpreter, utils } from './lambdust.js';
+        
+        let interpreter = null;
+        let performanceMonitor = null;
+        
+        // Initialize WebAssembly module
+        async function initLambdust() {
+            try {
+                await init();
+                interpreter = new WasmLambdustInterpreter();
+                
+                // Hide loading, show content
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('main-content').style.display = 'block';
+                
+                utils.log('Lambdust WebAssembly module loaded successfully');
+                
+                // Set up default examples
+                document.getElementById('scheme-input').value = '(+ 1 2 3)';
+                document.getElementById('perf-code').value = '(fold + 0 (map (lambda (x) (* x x)) \'(1 2 3 4 5 6 7 8 9 10)))';
+                
+            } catch (error) {
+                document.getElementById('loading').innerHTML = 
+                    `<p style="color: red;">Failed to load Lambdust: ${error.message}</p>`;
+            }
+        }
+        
+        // Global functions for button handlers
+        window.evaluateScheme = function() {
+            const code = document.getElementById('scheme-input').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const result = interpreter.eval(code);
+                if (result === null) {
+                    const error = interpreter.get_last_error();
+                    showResult(resultDiv, `Error: ${error}`, 'error');
+                } else {
+                    showResult(resultDiv, result, 'success');
+                }
+            } catch (error) {
+                showResult(resultDiv, `Error: ${error.message}`, 'error');
+            }
+        };
+        
+        window.evaluateAsJS = function() {
+            const code = document.getElementById('scheme-input').value;
+            const resultDiv = document.getElementById('result');
+            
+            try {
+                const result = interpreter.eval_js(code);
+                showResult(resultDiv, `JS Result: ${JSON.stringify(result, null, 2)}`, 'success');
+            } catch (error) {
+                showResult(resultDiv, `Error: ${error.message}`, 'error');
+            }
+        };
+        
+        window.clearResult = function() {
+            document.getElementById('result').style.display = 'none';
+        };
+        
+        window.runExample = function(code) {
+            document.getElementById('scheme-input').value = code;
+            evaluateScheme();
+        };
+        
+        window.registerJSFunction = function() {
+            const name = document.getElementById('js-function-name').value;
+            const resultDiv = document.getElementById('js-result');
+            
+            try {
+                const jsFunction = (message) => {
+                    alert(`Scheme says: ${message}`);
+                    return `"Alert shown: ${message}"`;
+                };
+                
+                interpreter.register_js_function(name, jsFunction);
+                showResult(resultDiv, `JavaScript function '${name}' registered successfully`, 'success');
+            } catch (error) {
+                showResult(resultDiv, `Error: ${error.message}`, 'error');
+            }
+        };
+        
+        window.testJSFunction = function() {
+            const name = document.getElementById('js-function-name').value;
+            const resultDiv = document.getElementById('js-result');
+            
+            try {
+                const result = interpreter.eval(`(${name} "Hello from Scheme!")`);
+                if (result === null) {
+                    const error = interpreter.get_last_error();
+                    showResult(resultDiv, `Error: ${error}`, 'error');
+                } else {
+                    showResult(resultDiv, `Function result: ${result}`, 'success');
+                }
+            } catch (error) {
+                showResult(resultDiv, `Error: ${error.message}`, 'error');
+            }
+        };
+        
+        window.runBenchmark = function() {
+            const code = document.getElementById('perf-code').value;
+            const iterations = parseInt(document.getElementById('iterations').value) || 1000;
+            const resultDiv = document.getElementById('benchmark-result');
+            
+            showResult(resultDiv, 'Running benchmark...', '');
+            
+            // Run benchmark
+            const times = [];
+            const startTotal = utils.now();
+            
+            for (let i = 0; i < iterations; i++) {
+                const start = utils.now();
+                try {
+                    interpreter.eval(code);
+                    const end = utils.now();
+                    times.push(end - start);
+                } catch (error) {
+                    showResult(resultDiv, `Benchmark error: ${error.message}`, 'error');
+                    return;
+                }
+            }
+            
+            const endTotal = utils.now();
+            const totalTime = endTotal - startTotal;
+            const avgTime = times.reduce((a, b) => a + b, 0) / times.length;
+            const minTime = Math.min(...times);
+            const maxTime = Math.max(...times);
+            
+            // Update stats
+            document.getElementById('avg-time').textContent = avgTime.toFixed(3);
+            document.getElementById('min-time').textContent = minTime.toFixed(3);
+            document.getElementById('max-time').textContent = maxTime.toFixed(3);
+            document.getElementById('total-iterations').textContent = iterations;
+            
+            const report = `Benchmark completed:
+Total time: ${totalTime.toFixed(2)}ms
+Average time: ${avgTime.toFixed(3)}ms per iteration
+Min time: ${minTime.toFixed(3)}ms
+Max time: ${maxTime.toFixed(3)}ms
+Iterations: ${iterations}
+Ops/sec: ${(1000 / avgTime).toFixed(0)}`;
+            
+            showResult(resultDiv, report, 'success');
+        };
+        
+        window.checkHealth = function() {
+            const resultDiv = document.getElementById('status-result');
+            const healthy = interpreter.is_healthy();
+            const message = `Interpreter health: ${healthy ? 'OK' : 'ERROR'}
+Version: ${WasmLambdustInterpreter.version()}
+Environment: ${utils.is_browser() ? 'Browser' : utils.is_nodejs() ? 'Node.js' : 'Unknown'}
+Current time: ${new Date().toISOString()}`;
+            
+            showResult(resultDiv, message, healthy ? 'success' : 'error');
+        };
+        
+        window.resetInterpreter = function() {
+            const resultDiv = document.getElementById('status-result');
+            interpreter.reset();
+            showResult(resultDiv, 'Interpreter reset successfully', 'success');
+        };
+        
+        window.showVersion = function() {
+            const resultDiv = document.getElementById('status-result');
+            const version = WasmLambdustInterpreter.version();
+            showResult(resultDiv, `Lambdust version: ${version}`, 'success');
+        };
+        
+        function showResult(div, text, type) {
+            div.textContent = text;
+            div.className = `result ${type}`;
+            div.style.display = 'block';
+        }
+        
+        // Initialize when page loads
+        initLambdust();
+    </script>
+</body>
+</html>

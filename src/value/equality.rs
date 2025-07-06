@@ -33,6 +33,8 @@ impl Value {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.equal(y))
             }
             (Value::Box(a), Value::Box(b)) => a.unbox().equal(&b.unbox()),
+            (Value::Comparator(a), Value::Comparator(b)) => a == b,
+            (Value::StringCursor(a), Value::StringCursor(b)) => a == b,
             _ => false,
         }
     }
@@ -50,6 +52,12 @@ impl Value {
             }
             (Value::Box(a), Value::Box(b)) => {
                 a == b // Use Box's PartialEq which checks Rc pointer equality
+            }
+            (Value::Comparator(a), Value::Comparator(b)) => {
+                std::rc::Rc::ptr_eq(a, b) // Comparators are eqv? if same object
+            }
+            (Value::StringCursor(a), Value::StringCursor(b)) => {
+                std::rc::Rc::ptr_eq(a, b) // String cursors are eqv? if same object
             }
             _ => std::ptr::eq(self, other),
         }
@@ -92,6 +100,9 @@ impl PartialEq for Value {
             (Self::Values(l0), Self::Values(r0)) => l0 == r0,
             (Self::Continuation(_), Self::Continuation(_)) => false, // Continuations are never equal
             (Self::Promise(_), Self::Promise(_)) => false, // Promises are never equal per SRFI 45
+            (Self::Box(l0), Self::Box(r0)) => l0 == r0,
+            (Self::Comparator(l0), Self::Comparator(r0)) => l0 == r0,
+            (Self::StringCursor(l0), Self::StringCursor(r0)) => l0 == r0,
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
