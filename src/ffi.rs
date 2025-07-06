@@ -4,6 +4,8 @@
 //! in C and C++ applications. Features enhanced safety, thread safety,
 //! advanced error handling, and resource tracking.
 
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use crate::bridge::LambdustBridge;
 use crate::error::LambdustError;
 use crate::interpreter::LambdustInterpreter;
@@ -16,7 +18,6 @@ use std::ptr;
 use std::sync::{Arc, Mutex, RwLock};
 use std::collections::HashMap;
 use std::time::SystemTime;
-use std::thread;
 
 /// Enhanced error codes for C FFI interface
 #[repr(C)]
@@ -107,6 +108,7 @@ pub type LambdustErrorCallback = unsafe extern "C" fn(
 pub const CONTEXT_MAGIC: u64 = 0xDEADBEEF_CAFEBABE;
 
 /// Context validation helper
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe fn validate_context(context: *const LambdustContext) -> bool {
     if context.is_null() {
         return false;
@@ -117,6 +119,7 @@ pub unsafe fn validate_context(context: *const LambdustContext) -> bool {
 }
 
 /// Thread safety check
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe fn check_thread_safety(context: *const LambdustContext) -> bool {
     if !validate_context(context) {
         return false;

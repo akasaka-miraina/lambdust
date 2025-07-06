@@ -8,7 +8,7 @@
 use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "wasm")]
-use js_sys::{Array, Function, Object, Reflect};
+use js_sys::{Array, Object, Reflect};
 
 #[cfg(feature = "wasm")]
 use web_sys::console;
@@ -16,7 +16,6 @@ use web_sys::console;
 use crate::interpreter::LambdustInterpreter;
 use crate::bridge::LambdustBridge;
 use crate::value::Value;
-use crate::error::LambdustError;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -37,8 +36,7 @@ impl WasmLambdustInterpreter {
     #[wasm_bindgen(constructor)]
     pub fn new() -> WasmLambdustInterpreter {
         // Initialize console error panic hook for better debugging
-        #[cfg(feature = "console_error_panic_hook")]
-        console_error_panic_hook::set_once();
+        // Console error panic hook would be configured externally
         
         WasmLambdustInterpreter {
             interpreter: LambdustInterpreter::new(),
@@ -86,17 +84,18 @@ impl WasmLambdustInterpreter {
     
     /// Register a JavaScript function as a Scheme procedure
     #[wasm_bindgen]
-    pub fn register_js_function(&mut self, name: &str, func: &js_sys::Function) -> Result<(), JsValue> {
+    pub fn register_js_function(&mut self, name: String, func: js_sys::Function) -> Result<(), JsValue> {
         // Store the JavaScript function
         if let Ok(mut js_functions) = self.js_functions.lock() {
             js_functions.insert(name.to_string(), func.clone());
         }
         
         // Register with bridge (simplified implementation)
-        self.bridge.register_function(name, None, move |args| {
+        let name_clone = name.clone();
+        self.bridge.register_function(&name, None, move |_args| {
             // This would need a proper implementation to call JS functions
             // For now, return a placeholder
-            Ok(Value::String(format!("js-function-{}", name)))
+            Ok(Value::String(format!("js-function-{}", name_clone)))
         });
         
         Ok(())
@@ -141,9 +140,9 @@ impl WasmLambdustInterpreter {
     /// Convert a Scheme Value to a JavaScript value
     fn scheme_value_to_js(&self, value: &Value) -> Result<JsValue, JsValue> {
         match value {
-            Value::Void => Ok(JsValue::undefined()),
+            Value::Undefined => Ok(JsValue::undefined()),
             Value::Boolean(b) => Ok(JsValue::from_bool(*b)),
-            Value::Number(n) => Ok(JsValue::from_f64(n.as_f64())),
+            Value::Number(n) => Ok(JsValue::from_f64(n.to_f64())),
             Value::String(s) => Ok(JsValue::from_str(s)),
             Value::Symbol(s) => {
                 let obj = Object::new();
@@ -151,11 +150,34 @@ impl WasmLambdustInterpreter {
                 Reflect::set(&obj, &JsValue::from_str("name"), &JsValue::from_str(s))?;
                 Ok(obj.into())
             }
-            Value::List(items) => {
+            Value::Pair(_pair_data) => {
+                // Convert cons cell/list to array  
+                let mut items = Vec::new();
+                let mut current = value.clone();
+                loop {
+                    let next = match &current {
+                        Value::Pair(pair_ref) => {
+                            let pair = pair_ref.borrow();
+                            items.push(self.scheme_value_to_js(&pair.car)?);
+                            pair.cdr.clone()
+                        }
+                        Value::Nil => break,
+                        _ => {
+                            // Improper list - add final element
+                            items.push(self.scheme_value_to_js(&current)?);
+                            break;
+                        }
+                    };
+                    current = next;
+                }
                 let array = Array::new();
                 for item in items {
-                    array.push(&self.scheme_value_to_js(item)?);
+                    array.push(&item);
                 }
+                Ok(array.into())
+            }
+            Value::Nil => {
+                let array = Array::new();
                 Ok(array.into())
             }
             Value::Vector(items) => {
@@ -293,7 +315,7 @@ mod tests {
     fn test_wasi_interpreter_creation() {
         #[cfg(feature = "wasi")]
         {
-            let interpreter = WasiLambdustInterpreter::new();
+            let _interpreter = WasiLambdustInterpreter::new();
             // Basic test to ensure creation works
             assert!(true);
         }
@@ -311,14 +333,14 @@ mod tests {
     }
     
     #[cfg(feature = "wasm")]
-    #[wasm_bindgen_test]
+    #[test]
     fn test_wasm_interpreter_creation() {
         let interpreter = WasmLambdustInterpreter::new();
         assert!(interpreter.is_healthy());
     }
     
     #[cfg(feature = "wasm")]
-    #[wasm_bindgen_test]
+    #[test]
     fn test_wasm_evaluation() {
         let mut interpreter = WasmLambdustInterpreter::new();
         let result = interpreter.eval("(+ 1 2 3)");

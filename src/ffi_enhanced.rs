@@ -3,6 +3,8 @@
 //! This module extends the basic FFI with advanced safety, memory tracking,
 //! thread safety, and callback mechanisms.
 
+#![allow(unsafe_op_in_unsafe_fn)]
+
 use crate::ffi::*;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
@@ -10,15 +12,16 @@ use std::time::{SystemTime, Duration};
 
 /// Enhanced memory allocation with tracking
 #[unsafe(no_mangle)]
+#[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn lambdust_alloc_tracked(
     context: *mut LambdustContext,
     size: usize,
 ) -> *mut c_char {
-    if context.is_null() || !validate_context(context) {
+    if context.is_null() || !unsafe { validate_context(context) } {
         return std::ptr::null_mut();
     }
     
-    let ctx = &mut *context;
+    let ctx = unsafe { &mut *context };
     
     // Check memory limits
     if let Ok(tracker) = ctx.memory_tracker.read() {
@@ -53,7 +56,7 @@ pub unsafe extern "C" fn lambdust_free_tracked(
         return LambdustErrorCode::InvalidArgument as c_int;
     }
     
-    let ctx = &mut *context;
+    let ctx = unsafe { &mut *context };
     
     if let Ok(mut tracker) = ctx.memory_tracker.write() {
         if let Some(size) = tracker.allocated_strings.remove(&ptr) {
@@ -76,11 +79,11 @@ pub unsafe extern "C" fn lambdust_get_memory_stats(
     peak_usage: *mut usize,
     allocation_count: *mut u64,
 ) -> c_int {
-    if context.is_null() || !validate_context(context) {
+    if context.is_null() || !unsafe { validate_context(context) } {
         return LambdustErrorCode::InvalidArgument as c_int;
     }
     
-    let ctx = &*context;
+    let ctx = unsafe { &*context };
     
     if let Ok(tracker) = ctx.memory_tracker.read() {
         if !total_allocated.is_null() {
@@ -111,7 +114,7 @@ pub unsafe extern "C" fn lambdust_register_function_enhanced(
         return LambdustErrorCode::InvalidArgument as c_int;
     }
     
-    let ctx = &mut *context;
+    let ctx = unsafe { &mut *context };
     
     // Convert function name
     let name_str = match CStr::from_ptr(name).to_str() {
@@ -144,10 +147,10 @@ pub unsafe extern "C" fn lambdust_register_function_enhanced(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_set_error_callback(
     context: *mut LambdustContext,
-    callback: LambdustErrorCallback,
-    user_data: *mut c_void,
+    _callback: LambdustErrorCallback,
+    _user_data: *mut c_void,
 ) -> c_int {
-    if context.is_null() || !validate_context(context) {
+    if context.is_null() || !unsafe { validate_context(context) } {
         return LambdustErrorCode::InvalidArgument as c_int;
     }
     
@@ -168,7 +171,7 @@ pub unsafe extern "C" fn lambdust_check_context_health(
         return LambdustErrorCode::CorruptedContext as c_int;
     }
     
-    let ctx = &*context;
+    let ctx = unsafe { &*context };
     
     // Check if created too long ago (prevent stale contexts)
     if let Ok(elapsed) = ctx.creation_time.elapsed() {
@@ -196,11 +199,11 @@ pub unsafe extern "C" fn lambdust_check_context_health(
 pub unsafe extern "C" fn lambdust_context_ref(
     context: *mut LambdustContext,
 ) -> c_int {
-    if context.is_null() || !validate_context(context) {
+    if context.is_null() || !unsafe { validate_context(context) } {
         return LambdustErrorCode::InvalidArgument as c_int;
     }
     
-    let ctx = &*context;
+    let ctx = unsafe { &*context };
     
     if let Ok(mut ref_count) = ctx.ref_count.lock() {
         *ref_count += 1;
@@ -216,7 +219,7 @@ pub unsafe extern "C" fn lambdust_eval_with_timeout(
     context: *mut LambdustContext,
     code: *const c_char,
     result: *mut *mut c_char,
-    timeout_ms: u32,
+    _timeout_ms: u32,
 ) -> c_int {
     if context.is_null() || code.is_null() || result.is_null() {
         return LambdustErrorCode::NullPointer as c_int;
@@ -255,22 +258,24 @@ pub unsafe extern "C" fn lambdust_get_detailed_error(
     error_message: *mut *const c_char,
     error_location: *mut *const c_char,
 ) -> c_int {
-    if context.is_null() || !validate_context(context) {
+    if context.is_null() || !unsafe { validate_context(context) } {
         return LambdustErrorCode::InvalidArgument as c_int;
     }
     
-    let ctx = &*context;
+    let ctx = unsafe { &*context };
     
     if let Some(ref error_msg) = ctx.last_error {
-        if !error_message.is_null() {
-            let c_msg = CString::new(error_msg.clone()).unwrap_or_else(|_| CString::new("").unwrap());
-            *error_message = c_msg.into_raw();
-        }
-        if !error_code.is_null() {
-            *error_code = LambdustErrorCode::Error as c_int;
-        }
-        if !error_location.is_null() {
-            *error_location = std::ptr::null();
+        unsafe {
+            if !error_message.is_null() {
+                let c_msg = CString::new(error_msg.clone()).unwrap_or_else(|_| CString::new("").unwrap());
+                *error_message = c_msg.into_raw();
+            }
+            if !error_code.is_null() {
+                *error_code = LambdustErrorCode::Error as c_int;
+            }
+            if !error_location.is_null() {
+                *error_location = std::ptr::null();
+            }
         }
         LambdustErrorCode::Success as c_int
     } else {
@@ -283,11 +288,11 @@ pub unsafe extern "C" fn lambdust_get_detailed_error(
 pub unsafe extern "C" fn lambdust_clear_sensitive_data(
     context: *mut LambdustContext,
 ) -> c_int {
-    if context.is_null() || !validate_context(context) {
+    if context.is_null() || !unsafe { validate_context(context) } {
         return LambdustErrorCode::InvalidArgument as c_int;
     }
     
-    let ctx = &mut *context;
+    let ctx = unsafe { &mut *context };
     
     // Clear error messages
     ctx.last_error = None;
