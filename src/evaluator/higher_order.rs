@@ -30,7 +30,8 @@ impl Evaluator {
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
+            let list_value =
+                self.eval(list_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "map: all arguments except the first must be lists".to_string(),
@@ -98,7 +99,11 @@ impl Evaluator {
 
         if arg_exprs.len() == 1 {
             // Simple form: (apply proc args)
-            let arg_list = self.eval(arg_exprs[0].clone(), Rc::clone(&env), Continuation::Identity)?;
+            let arg_list = self.eval(
+                arg_exprs[0].clone(),
+                Rc::clone(&env),
+                Continuation::Identity,
+            )?;
             if !arg_list.is_list() {
                 return Err(LambdustError::type_error(
                     "apply: second argument must be a list".to_string(),
@@ -112,7 +117,8 @@ impl Evaluator {
         } else {
             // Extended form: (apply proc arg1 arg2 ... args)
             for arg_expr in &arg_exprs[..arg_exprs.len() - 1] {
-                let arg_value = self.eval(arg_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
+                let arg_value =
+                    self.eval(arg_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
                 call_args.push(arg_value);
             }
 
@@ -160,7 +166,8 @@ impl Evaluator {
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
+            let list_value =
+                self.eval(list_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "fold: all list arguments must be lists".to_string(),
