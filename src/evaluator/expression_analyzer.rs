@@ -997,6 +997,7 @@ impl ExpressionAnalyzer {
     }
 
     /// Convert expression to value (for quoted expressions)
+    #[allow(clippy::only_used_in_recursion)]
     fn expr_to_value(&self, expr: &Expr) -> Result<Value> {
         match expr {
             Expr::Literal(lit) => {

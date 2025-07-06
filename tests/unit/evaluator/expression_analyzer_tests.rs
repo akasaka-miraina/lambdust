@@ -62,12 +62,12 @@ fn test_variable_analysis() {
     assert_eq!(result.dependencies, vec!["x".to_string()]);
 
     // Test known constant variable
-    analyzer.add_constant("pi".to_string(), Value::Number(SchemeNumber::Real(3.14159)));
+    analyzer.add_constant("pi".to_string(), Value::Number(SchemeNumber::Real(std::f64::consts::PI)));
     let pi_expr = Expr::Variable("pi".to_string());
     let result = analyzer.analyze(&pi_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Real(3.14159))));
+    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Real(std::f64::consts::PI))));
     assert_eq!(result.type_hint, TypeHint::Number); // Updated after adding type hint
     assert_eq!(result.complexity, EvaluationComplexity::Constant);
     assert_eq!(result.optimizations.len(), 1);

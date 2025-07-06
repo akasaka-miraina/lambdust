@@ -81,7 +81,8 @@ fn test_variable_constant_optimization() {
     let mut evaluator = Evaluator::new();
 
     // Define a constant and use it in expressions
-    evaluator.eval_string("(define pi 3.14159)").unwrap();
+    let pi_str = format!("(define pi {})", std::f64::consts::PI);
+    evaluator.eval_string(&pi_str).unwrap();
     
     // Update analyzer with the new constant
     if let Some(pi_value) = evaluator.global_env.get("pi") {
@@ -93,7 +94,7 @@ fn test_variable_constant_optimization() {
     let result = evaluator.eval_string("pi").unwrap();
     let stats_after = evaluator.get_optimization_statistics();
 
-    assert_eq!(result, Value::Number(SchemeNumber::Real(3.14159)));
+    assert_eq!(result, Value::Number(SchemeNumber::Real(std::f64::consts::PI)));
     // Statistics should show optimization opportunities
     assert!(stats_after.total_analyses >= stats_before.total_analyses);
 }

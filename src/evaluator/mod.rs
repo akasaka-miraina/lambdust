@@ -11,7 +11,7 @@ pub mod expression_analyzer;
 pub mod higher_order;
 pub mod imports;
 pub mod memory;
-#[cfg(feature = "raii-store")]
+// Phase 5-Step2: RAII store is now always available
 pub mod raii_store;
 pub mod special_forms;
 pub mod types;
