@@ -76,7 +76,7 @@ fn test_trampoline_variable_lookup() {
     let mut evaluator = Evaluator::new();
     
     // Create environment with variable
-    let mut test_env = Environment::new();
+    let test_env = Environment::new();
     test_env.define("x".to_string(), Value::from(100i64));
     let env = Rc::new(test_env.extend());
     
@@ -280,4 +280,147 @@ fn test_trampoline_memory_efficiency() {
         "Memory growth should be bounded, but grew by {} bytes",
         memory_growth
     );
+}
+
+// Phase 6-A-Step2: Continuation unwinding tests
+
+#[test]
+fn test_continuation_unwinding_simple_expressions() {
+    let mut evaluator = Evaluator::new();
+    let env = evaluator.global_env.clone();
+    
+    // Test simple begin expressions that would create continuation chains
+    let begin_expr = Expr::List(vec![
+        Expr::Variable("begin".to_string()),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
+    ]);
+    
+    let result = evaluator.eval_trampoline(begin_expr, env, Continuation::Identity).unwrap();
+    assert_eq!(result, Value::from(3i64));
+}
+
+#[test]
+fn test_continuation_unwinding_nested_structures() {
+    let mut evaluator = Evaluator::new();
+    let env = evaluator.global_env.clone();
+    
+    // Test nested begin expressions
+    let nested_expr = Expr::List(vec![
+        Expr::Variable("begin".to_string()),
+        Expr::List(vec![
+            Expr::Variable("begin".to_string()),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
+        ]),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
+    ]);
+    
+    let result = evaluator.eval_trampoline(nested_expr, env, Continuation::Identity).unwrap();
+    assert_eq!(result, Value::from(3i64));
+}
+
+#[test]
+fn test_continuation_unwinding_if_expressions() {
+    let mut evaluator = Evaluator::new();
+    let env = evaluator.global_env.clone();
+    
+    // Test if expressions with true condition
+    let if_true = Expr::List(vec![
+        Expr::Variable("if".to_string()),
+        Expr::Literal(Literal::Boolean(true)),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
+    ]);
+    
+    let result = evaluator.eval_trampoline(if_true, env.clone(), Continuation::Identity).unwrap();
+    assert_eq!(result, Value::from(42i64));
+    
+    // Test if expressions with false condition
+    let if_false = Expr::List(vec![
+        Expr::Variable("if".to_string()),
+        Expr::Literal(Literal::Boolean(false)),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
+    ]);
+    
+    let result = evaluator.eval_trampoline(if_false, env, Continuation::Identity).unwrap();
+    assert_eq!(result, Value::from(0i64));
+}
+
+#[test]
+fn test_continuation_unwinding_bounded_depth() {
+    let mut evaluator = Evaluator::new();
+    let env = evaluator.global_env.clone();
+    
+    // Create a deeply nested structure that would exceed unwinding depth
+    let mut nested_expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
+    
+    // Create 200 levels of nesting (exceeds MAX_UNWINDING_DEPTH of 100)
+    for _ in 0..200 {
+        nested_expr = Expr::List(vec![
+            Expr::Variable("begin".to_string()),
+            nested_expr,
+        ]);
+    }
+    
+    // Should succeed due to bounded unwinding returning to trampoline
+    let result = evaluator.eval_trampoline(nested_expr, env, Continuation::Identity);
+    assert!(result.is_ok(), "Deeply nested structure should be handled by bounded unwinding");
+    
+    if let Ok(value) = result {
+        assert_eq!(value, Value::from(42i64));
+    }
+}
+
+#[test]
+fn test_continuation_unwinding_quote_expressions() {
+    let mut evaluator = Evaluator::new();
+    let env = evaluator.global_env.clone();
+    
+    // Test quote expressions
+    let quote_expr = Expr::List(vec![
+        Expr::Variable("quote".to_string()),
+        Expr::List(vec![
+            Expr::Variable("a".to_string()),
+            Expr::Variable("b".to_string()),
+            Expr::Variable("c".to_string()),
+        ]),
+    ]);
+    
+    let result = evaluator.eval_trampoline(quote_expr, env, Continuation::Identity).unwrap();
+    
+    // Should return a list structure
+    match result {
+        Value::Pair(_) => {
+            // Quote should preserve list structure
+        }
+        _ => panic!("Quote should return list structure, got: {:?}", result),
+    }
+}
+
+#[test]
+fn test_continuation_unwinding_mixed_constructs() {
+    let mut evaluator = Evaluator::new();
+    let env = evaluator.global_env.clone();
+    
+    // Test mixed special forms that exercise different unwinding paths
+    let mixed_expr = Expr::List(vec![
+        Expr::Variable("begin".to_string()),
+        Expr::List(vec![
+            Expr::Variable("if".to_string()),
+            Expr::Literal(Literal::Boolean(true)),
+            Expr::List(vec![
+                Expr::Variable("begin".to_string()),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
+            ]),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
+        ]),
+        Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
+    ]);
+    
+    let result = evaluator.eval_trampoline(mixed_expr, env, Continuation::Identity).unwrap();
+    assert_eq!(result, Value::from(3i64));
 }
