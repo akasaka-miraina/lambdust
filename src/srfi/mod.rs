@@ -8,7 +8,9 @@ pub mod srfi_1; // List Library
 pub mod srfi_111; // Boxes
 pub mod srfi_113; // Sets and Bags
 pub mod srfi_125; // Intermediate Hash Tables
+pub mod srfi_128; // Comparators
 pub mod srfi_13; // String Libraries
+pub mod srfi_130; // Cursor-based String Library
 pub mod srfi_132; // Sort Libraries
 pub mod srfi_133; // Vector Libraries
 pub mod srfi_45; // Lazy evaluation

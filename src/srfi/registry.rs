@@ -42,6 +42,8 @@ impl SrfiRegistry {
         registry.register(Box::new(super::srfi_111::Srfi111)); // Boxes
         registry.register(Box::new(super::srfi_113::Srfi113)); // Sets and Bags
         registry.register(Box::new(super::srfi_125::Srfi125)); // Intermediate Hash Tables
+        registry.register(Box::new(super::srfi_128::Srfi128)); // Comparators
+        registry.register(Box::new(super::srfi_130::Srfi130)); // Cursor-based String Library
         registry.register(Box::new(super::srfi_132::Srfi132)); // Sort Libraries
         registry.register(Box::new(super::srfi_133::Srfi133)); // Vector Libraries
 

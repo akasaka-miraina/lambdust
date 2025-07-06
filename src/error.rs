@@ -386,6 +386,26 @@ impl LambdustError {
         }
     }
 
+    /// Create an arity error for a range of acceptable argument counts
+    pub fn arity_error_range(min: usize, max: usize, actual: usize) -> Self {
+        Self::ArityError {
+            expected: min, // Use min as the primary expected value
+            actual,
+            function: format!("expected {}-{} arguments", min, max),
+            context: Box::new(ErrorContext::unknown()),
+        }
+    }
+
+    /// Create an arity error for a minimum number of arguments
+    pub fn arity_error_min(min: usize, actual: usize) -> Self {
+        Self::ArityError {
+            expected: min,
+            actual,
+            function: format!("expected at least {} arguments", min),
+            context: Box::new(ErrorContext::unknown()),
+        }
+    }
+
     /// Create a simple undefined variable error without location info (for backward compatibility)
     pub fn undefined_variable(variable: impl Into<String>) -> Self {
         Self::UndefinedVariable {

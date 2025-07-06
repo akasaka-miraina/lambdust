@@ -80,6 +80,10 @@ pub mod cps_inlining;
 pub mod environment;
 pub mod error;
 pub mod evaluator;
+pub mod ffi;
+pub mod ffi_enhanced;
+#[cfg(any(feature = "wasm", feature = "wasi"))]
+pub mod wasm;
 pub mod host;
 pub mod interpreter;
 pub mod lexer;
@@ -102,6 +106,7 @@ pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
 pub use cps_inlining::{CpsInliner, InliningDecision, ChainStrategy};
 pub use error::{LambdustError, Result};
 pub use evaluator::{Evaluator, eval_with_formal_semantics};
+pub use interpreter::LambdustInterpreter;
 pub use memory_pool::{ValuePool, PoolStats, ContinuationPool, ContinuationPoolStats};
 pub use module_system::ModuleSystem;
 pub use optimized_collections::{SliceRef, CowVec, ArgVec, ExprVec};

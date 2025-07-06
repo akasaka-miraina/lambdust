@@ -421,6 +421,8 @@ impl Store {
             Value::Nil => 8,
             Value::Undefined => 8,
             Value::Box(_) => 32, // Box overhead
+            Value::Comparator(_) => 64, // Comparator overhead
+            Value::StringCursor(_) => 48, // StringCursor overhead
         }
     }
 

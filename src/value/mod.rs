@@ -62,4 +62,8 @@ pub enum Value {
     HashTable(std::rc::Rc<std::cell::RefCell<crate::srfi::srfi_69::HashTable>>),
     /// Box values (SRFI 111)
     Box(crate::srfi::srfi_111::Box),
+    /// Comparator values (SRFI 128)
+    Comparator(std::rc::Rc<crate::srfi::srfi_128::Comparator>),
+    /// String cursor values (SRFI 130)
+    StringCursor(std::rc::Rc<crate::srfi::srfi_130::StringCursor>),
 }
