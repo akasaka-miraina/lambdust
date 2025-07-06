@@ -14,6 +14,8 @@ pub mod memory;
 // Phase 5-Step2: RAII store is now always available
 pub mod raii_store;
 pub mod special_forms;
+// Phase 6-A: Trampoline evaluator for stack overflow prevention
+pub mod trampoline;
 pub mod types;
 
 use crate::ast::{Expr, Literal};
@@ -33,6 +35,8 @@ pub use expression_analyzer::{
     AnalysisResult, EvaluationComplexity, ExpressionAnalyzer, OptimizationHint, OptimizationStats,
     TypeHint,
 };
+// Phase 6-A: Trampoline evaluator exports
+pub use trampoline::{Bounce, ContinuationThunk, TrampolineEvaluation, TrampolineEvaluator};
 pub use types::*;
 
 use std::rc::Rc;
@@ -100,6 +104,12 @@ impl Evaluator {
 
     /// Evaluate literal: K[K]
     fn eval_literal(&mut self, lit: Literal, cont: Continuation) -> Result<Value> {
+        let value = self.literal_to_value(lit)?;
+        self.apply_continuation(cont, value)
+    }
+    
+    /// Convert literal to value (helper for trampoline evaluator)
+    pub fn literal_to_value(&self, lit: Literal) -> Result<Value> {
         let value = match lit {
             Literal::Boolean(b) => Value::Boolean(b),
             Literal::Number(n) => Value::Number(n),
@@ -107,7 +117,7 @@ impl Evaluator {
             Literal::Character(c) => Value::Character(c),
             Literal::Nil => Value::Nil,
         };
-        self.apply_continuation(cont, value)
+        Ok(value)
     }
 
     /// Evaluate variable: σ(ρ(I))
