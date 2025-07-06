@@ -157,7 +157,7 @@ impl Evaluator {
         let if_cont = Continuation::IfTest {
             consequent,
             alternate,
-            env: env.clone(),
+            env: Rc::clone(&env),
             parent: Box::new(cont),
         };
 
@@ -200,7 +200,7 @@ impl Evaluator {
         let cond_cont = Continuation::CondTest {
             consequent,
             remaining_clauses,
-            env: env.clone(),
+            env: Rc::clone(&env),
             parent: Box::new(cont),
         };
 
@@ -264,7 +264,7 @@ impl Evaluator {
 
         let assign_cont = Continuation::Assignment {
             variable,
-            env: env.clone(),
+            env: Rc::clone(&env),
             parent: Box::new(cont),
         };
 
@@ -307,7 +307,7 @@ impl Evaluator {
 
                 let define_cont = Continuation::Define {
                     variable,
-                    env: env.clone(),
+                    env: Rc::clone(&env),
                     parent: Box::new(cont),
                 };
 
@@ -340,7 +340,7 @@ impl Evaluator {
 
                 let define_cont = Continuation::Define {
                     variable: function_name,
-                    env: env.clone(),
+                    env: Rc::clone(&env),
                     parent: Box::new(cont),
                 };
 
@@ -368,7 +368,7 @@ impl Evaluator {
 
         let and_cont = Continuation::And {
             remaining,
-            env: env.clone(),
+            env: Rc::clone(&env),
             parent: Box::new(cont),
         };
 
@@ -391,7 +391,7 @@ impl Evaluator {
 
         let or_cont = Continuation::Or {
             remaining,
-            env: env.clone(),
+            env: Rc::clone(&env),
             parent: Box::new(cont),
         };
 
@@ -418,7 +418,7 @@ impl Evaluator {
 
         let begin_cont = Continuation::Begin {
             remaining: remaining.to_vec(),
-            env: env.clone(),
+            env: Rc::clone(&env),
             parent: Box::new(cont),
         };
 
@@ -559,7 +559,7 @@ impl Evaluator {
         let cond_cont = Continuation::CondTest {
             consequent: next_consequent,
             remaining_clauses: remaining,
-            env: env.clone(),
+            env: Rc::clone(&env),
             parent: Box::new(parent),
         };
 
@@ -623,7 +623,7 @@ impl Evaluator {
 
             let and_cont = Continuation::And {
                 remaining: rest,
-                env: env.clone(),
+                env: Rc::clone(&env),
                 parent: Box::new(parent),
             };
 
@@ -649,7 +649,7 @@ impl Evaluator {
 
             let or_cont = Continuation::Or {
                 remaining: rest,
-                env: env.clone(),
+                env: Rc::clone(&env),
                 parent: Box::new(parent),
             };
 

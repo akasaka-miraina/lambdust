@@ -370,11 +370,11 @@ impl Evaluator {
                 operator,
                 evaluated_args,
                 remaining_args: remaining.to_vec(),
-                env: env.clone(),
+                env: Rc::clone(&env),
                 parent: Box::new(parent),
             };
 
-            self.eval(next_arg.clone(), env, app_cont)
+            self.eval(next_arg.clone(), Rc::clone(&env), app_cont)
         }
     }
 
@@ -394,11 +394,11 @@ impl Evaluator {
                     operator,
                     evaluated_args: Vec::new(),
                     remaining_args: remaining.to_vec(),
-                    env: env.clone(),
+                    env: Rc::clone(&env),
                     parent: Box::new(parent),
                 };
 
-                self.eval(first_arg.clone(), env, app_cont)
+                self.eval(first_arg.clone(), Rc::clone(&env), app_cont)
             }
             EvalOrder::RightToLeft => {
                 // Evaluate from right to left
@@ -408,11 +408,11 @@ impl Evaluator {
                     operator,
                     evaluated_args: Vec::new(),
                     remaining_args: remaining.to_vec(),
-                    env: env.clone(),
+                    env: Rc::clone(&env),
                     parent: Box::new(parent),
                 };
 
-                self.eval(last_arg.clone(), env, app_cont)
+                self.eval(last_arg.clone(), Rc::clone(&env), app_cont)
             }
             EvalOrder::Unspecified => {
                 // For now, default to left-to-right
@@ -654,7 +654,7 @@ impl Evaluator {
         // Evaluate all expressions, return the last result
         let mut result = Value::Undefined;
         for expr in exprs {
-            result = self.eval(expr, self.global_env.clone(), Continuation::Identity)?;
+            result = self.eval(expr, Rc::clone(&self.global_env), Continuation::Identity)?;
         }
 
         Ok(result)
@@ -665,7 +665,7 @@ impl Evaluator {
         self.apply_procedure(
             procedure,
             args,
-            self.global_env.clone(),
+            Rc::clone(&self.global_env),
             Continuation::Identity,
         )
     }

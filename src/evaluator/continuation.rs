@@ -58,7 +58,7 @@ impl LightContinuation {
             } if matches!(**parent, Continuation::Identity) => {
                 Some(LightContinuation::Assignment {
                     var_name: variable.clone(),
-                    env: env.clone(),
+                    env: Rc::clone(env),
                 })
             }
             Continuation::Begin {
@@ -68,7 +68,7 @@ impl LightContinuation {
             } if matches!(**parent, Continuation::Identity) && remaining.is_empty() => {
                 Some(LightContinuation::Begin {
                     remaining: remaining.clone(),
-                    env: env.clone(),
+                    env: Rc::clone(env),
                 })
             }
             Continuation::Define {
@@ -77,7 +77,7 @@ impl LightContinuation {
                 parent,
             } if matches!(**parent, Continuation::Identity) => Some(LightContinuation::Define {
                 variable: variable.clone(),
-                env: env.clone(),
+                env: Rc::clone(env),
             }),
 
             // Skip complex cases that require evaluator context

@@ -28,14 +28,14 @@ pub fn eval_call_cc(
     let reuse_id = evaluator.next_reuse_id();
     let captured_cont = Value::Procedure(Procedure::ReusableContinuation {
         continuation: Box::new(cont.clone()),
-        capture_env: env.clone(),
+        capture_env: Rc::clone(&env),
         reuse_id,
         is_escaping: false, // Will be set to true if used for escape
     });
 
     let call_cc_cont = Continuation::CallCc {
         captured_cont,
-        env: env.clone(),
+        env: Rc::clone(&env),
         parent: Box::new(cont),
     };
 

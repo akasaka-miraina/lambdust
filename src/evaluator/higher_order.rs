@@ -25,12 +25,12 @@ impl Evaluator {
         let (proc_expr, list_exprs) = operands.split_first().unwrap();
 
         // Evaluate procedure first
-        let proc_value = self.eval(proc_expr.clone(), env.clone(), Continuation::Identity)?;
+        let proc_value = self.eval(proc_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
 
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr.clone(), env.clone(), Continuation::Identity)?;
+            let list_value = self.eval(list_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "map: all arguments except the first must be lists".to_string(),
@@ -67,7 +67,7 @@ impl Evaluator {
             let result = self.apply_procedure_with_evaluator(
                 procedure.clone(),
                 args,
-                env.clone(),
+                Rc::clone(&env),
                 Continuation::Identity,
             )?;
             results.push(result);
@@ -91,14 +91,14 @@ impl Evaluator {
         let arg_exprs = operands[1..].to_vec();
 
         // Evaluate procedure
-        let proc_value = self.eval(proc_expr, env.clone(), Continuation::Identity)?;
+        let proc_value = self.eval(proc_expr, Rc::clone(&env), Continuation::Identity)?;
 
         // Evaluate arguments
         let mut call_args = Vec::new();
 
         if arg_exprs.len() == 1 {
             // Simple form: (apply proc args)
-            let arg_list = self.eval(arg_exprs[0].clone(), env.clone(), Continuation::Identity)?;
+            let arg_list = self.eval(arg_exprs[0].clone(), Rc::clone(&env), Continuation::Identity)?;
             if !arg_list.is_list() {
                 return Err(LambdustError::type_error(
                     "apply: second argument must be a list".to_string(),
@@ -112,13 +112,13 @@ impl Evaluator {
         } else {
             // Extended form: (apply proc arg1 arg2 ... args)
             for arg_expr in &arg_exprs[..arg_exprs.len() - 1] {
-                let arg_value = self.eval(arg_expr.clone(), env.clone(), Continuation::Identity)?;
+                let arg_value = self.eval(arg_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
                 call_args.push(arg_value);
             }
 
             let last_arg = self.eval(
                 arg_exprs[arg_exprs.len() - 1].clone(),
-                env.clone(),
+                Rc::clone(&env),
                 Continuation::Identity,
             )?;
             if !last_arg.is_list() {
@@ -152,15 +152,15 @@ impl Evaluator {
         let list_exprs = operands[2..].to_vec();
 
         // Evaluate kons procedure
-        let kons = self.eval(kons_expr, env.clone(), Continuation::Identity)?;
+        let kons = self.eval(kons_expr, Rc::clone(&env), Continuation::Identity)?;
 
         // Evaluate initial value
-        let mut accumulator = self.eval(knil_expr, env.clone(), Continuation::Identity)?;
+        let mut accumulator = self.eval(knil_expr, Rc::clone(&env), Continuation::Identity)?;
 
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr.clone(), env.clone(), Continuation::Identity)?;
+            let list_value = self.eval(list_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "fold: all list arguments must be lists".to_string(),
@@ -186,7 +186,7 @@ impl Evaluator {
             accumulator = self.apply_procedure_with_evaluator(
                 kons.clone(),
                 call_args,
-                env.clone(),
+                Rc::clone(&env),
                 Continuation::Identity,
             )?;
         }
