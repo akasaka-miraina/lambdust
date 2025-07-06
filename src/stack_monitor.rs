@@ -23,33 +23,33 @@ pub struct StackFrame {
 #[derive(Debug, Clone)]
 pub enum StackFrameType {
     /// Function application
-    Application { 
+    Application {
         /// Name of the operator being applied
-        operator: String, 
+        operator: String,
         /// Number of arguments
-        arg_count: usize 
+        arg_count: usize,
     },
     /// Special form evaluation
-    SpecialForm { 
+    SpecialForm {
         /// Name of the special form
-        form_name: String 
+        form_name: String,
     },
     /// Continuation application
-    ContinuationApplication { 
+    ContinuationApplication {
         /// Type of continuation
-        cont_type: String 
+        cont_type: String,
     },
     /// Macro expansion
-    MacroExpansion { 
+    MacroExpansion {
         /// Name of the macro
-        macro_name: String 
+        macro_name: String,
     },
     /// Recursive call
-    RecursiveCall { 
+    RecursiveCall {
         /// Name of the function being called recursively
-        function_name: String, 
+        function_name: String,
         /// Current recursion depth
-        depth: usize 
+        depth: usize,
     },
 }
 
@@ -131,13 +131,13 @@ impl StackMonitor {
     fn apply_stack_optimizations(&mut self) {
         // Convert tail calls to iterations where possible
         self.optimize_tail_calls();
-        
+
         // Compress continuation chains
         self.compress_continuations();
-        
+
         // Force garbage collection of unused frames
         self.collect_unused_frames();
-        
+
         self.optimizations_applied += 1;
     }
 
@@ -145,7 +145,7 @@ impl StackMonitor {
     fn optimize_tail_calls(&mut self) {
         // Look for recursive patterns that can be optimized
         let mut tail_call_sequences = 0;
-        
+
         for window in self.frames.as_slices().0.windows(3) {
             if let [frame1, frame2, frame3] = window {
                 if self.is_tail_call_sequence(frame1, frame2, frame3) {
@@ -162,7 +162,12 @@ impl StackMonitor {
     }
 
     /// Check if three frames represent a tail call sequence
-    fn is_tail_call_sequence(&self, frame1: &StackFrame, frame2: &StackFrame, frame3: &StackFrame) -> bool {
+    fn is_tail_call_sequence(
+        &self,
+        frame1: &StackFrame,
+        frame2: &StackFrame,
+        frame3: &StackFrame,
+    ) -> bool {
         match (&frame1.operation, &frame2.operation, &frame3.operation) {
             (
                 StackFrameType::Application { operator: op1, .. },
@@ -176,7 +181,9 @@ impl StackMonitor {
     /// Compress continuation chains to reduce memory usage
     fn compress_continuations(&mut self) {
         // Count continuation frames
-        let continuation_frames = self.frames.iter()
+        let continuation_frames = self
+            .frames
+            .iter()
             .filter(|f| matches!(f.operation, StackFrameType::ContinuationApplication { .. }))
             .count();
 
@@ -254,7 +261,7 @@ impl StackMonitor {
     /// Check if stack should trigger optimization
     pub fn should_optimize(&self) -> bool {
         let stats = self.statistics();
-        
+
         // Trigger optimization if:
         // 1. Stack is deep
         // 2. Memory usage is high
@@ -330,25 +337,25 @@ mod tests {
     #[test]
     fn test_stack_monitor_basic_operations() {
         let mut monitor = StackMonitor::new();
-        
+
         // Push some frames
         monitor.push_frame(StackFrameType::Application {
             operator: "test-function".to_string(),
             arg_count: 2,
         });
-        
+
         monitor.push_frame(StackFrameType::SpecialForm {
             form_name: "if".to_string(),
         });
-        
+
         let stats = monitor.statistics();
         assert_eq!(stats.current_depth, 2);
         assert_eq!(stats.total_frames, 2);
-        
+
         // Pop a frame
         let frame = monitor.pop_frame();
         assert!(frame.is_some());
-        
+
         let stats = monitor.statistics();
         assert_eq!(stats.current_depth, 1);
     }
@@ -356,13 +363,13 @@ mod tests {
     #[test]
     fn test_memory_estimation() {
         let monitor = StackMonitor::new();
-        
+
         let app_memory = monitor.estimate_frame_memory(&StackFrameType::Application {
             operator: "test".to_string(),
             arg_count: 3,
         });
         assert_eq!(app_memory, 64 + (3 * 32)); // 64 base + 32 per arg
-        
+
         let special_memory = monitor.estimate_frame_memory(&StackFrameType::SpecialForm {
             form_name: "lambda".to_string(),
         });
@@ -372,7 +379,7 @@ mod tests {
     #[test]
     fn test_optimization_recommendations() {
         let mut monitor = StackMonitor::new();
-        
+
         // Add many frames to trigger recommendations
         for _i in 0..600 {
             monitor.push_frame(StackFrameType::Application {
@@ -380,7 +387,7 @@ mod tests {
                 arg_count: 2,
             });
         }
-        
+
         let recommendations = monitor.optimization_recommendations();
         assert!(recommendations.contains(&OptimizationRecommendation::TailCallOptimization));
     }
@@ -388,10 +395,10 @@ mod tests {
     #[test]
     fn test_should_optimize_threshold() {
         let mut monitor = StackMonitor::new();
-        
+
         // Initially should not optimize
         assert!(!monitor.should_optimize());
-        
+
         // Add enough frames to trigger optimization
         for _ in 0..600 {
             monitor.push_frame(StackFrameType::Application {
@@ -399,7 +406,7 @@ mod tests {
                 arg_count: 1,
             });
         }
-        
+
         assert!(monitor.should_optimize());
     }
 }

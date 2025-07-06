@@ -2,7 +2,7 @@
 //!
 //! This module provides memory-efficient alternatives to common collection
 //! operations that frequently create unnecessary clones and allocations.
-//! 
+//!
 //! Key optimizations:
 //! - Slice indices instead of Vec copying
 //! - Reference-based iteration
@@ -48,7 +48,7 @@ impl<T> SliceRef<T> {
     pub fn slice(&self, start: usize, end: usize) -> Self {
         let actual_start = self.start + start.min(self.len());
         let actual_end = self.start + end.min(self.len());
-        
+
         Self {
             source: self.source.clone(),
             start: actual_start,
@@ -193,11 +193,9 @@ impl<T> CowVec<T> {
             self.data = Rc::new((*self.data).clone());
             self.unique = true;
         }
-        
+
         // This is safe because we just ensured unique ownership
-        unsafe {
-            &mut *(self.data.as_ptr() as *mut Vec<T>)
-        }
+        unsafe { &mut *(self.data.as_ptr() as *mut Vec<T>) }
     }
 
     /// Push an element, cloning vector if necessary
@@ -285,7 +283,7 @@ mod tests {
     fn test_slice_ref_basic_operations() {
         let vec = vec![1, 2, 3, 4, 5];
         let slice_ref = SliceRef::new(vec);
-        
+
         assert_eq!(slice_ref.len(), 5);
         assert_eq!(slice_ref.get(0), Some(&1));
         assert_eq!(slice_ref.get(4), Some(&5));
@@ -296,11 +294,11 @@ mod tests {
     fn test_slice_ref_slicing() {
         let vec = vec![1, 2, 3, 4, 5];
         let slice_ref = SliceRef::new(vec);
-        
+
         let tail = slice_ref.tail();
         assert_eq!(tail.len(), 4);
         assert_eq!(tail.get(0), Some(&2));
-        
+
         let middle = slice_ref.slice(1, 4);
         assert_eq!(middle.len(), 3);
         assert_eq!(middle.get(0), Some(&2));
@@ -311,11 +309,11 @@ mod tests {
     fn test_cow_vec_sharing() {
         let cow1 = CowVec::new(vec![1, 2, 3]);
         let cow2 = cow1.clone();
-        
+
         // Both should point to same data
         assert_eq!(cow1.len(), 3);
         assert_eq!(cow2.len(), 3);
-        
+
         // Modifying one should trigger copy-on-write
         // (This test is conceptual since we need Clone trait)
     }
@@ -323,13 +321,13 @@ mod tests {
     #[test]
     fn test_small_vec_optimization() {
         let mut small: SmallVec<i32, 4> = SmallVec::new();
-        
+
         // Should not allocate on heap for small sizes
         small.push(1);
         small.push(2);
         small.push(3);
         small.push(4);
-        
+
         assert_eq!(small.len(), 4);
         assert_eq!(small[0], 1);
     }

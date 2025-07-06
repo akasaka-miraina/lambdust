@@ -331,7 +331,7 @@ impl RaiiStoreManager {
     /// Perform automatic cleanup based on age and idle time
     fn auto_cleanup(&mut self) {
         let candidates = self.collect_cleanup_candidates();
-        
+
         if candidates.len() >= self.min_batch_cleanup_threshold {
             self.batch_cleanup(candidates);
         } else {
@@ -344,19 +344,19 @@ impl RaiiStoreManager {
     fn collect_cleanup_candidates(&self) -> Vec<usize> {
         let mut candidates = Vec::new();
         let now = std::time::Instant::now();
-        
+
         // Pre-allocate with estimated capacity to reduce allocations
         candidates.reserve(self.cells.len() / 10);
-        
+
         for (id, cell) in &self.cells {
             // Batch timestamp checking - check both conditions at once
-            if cell.created_at.elapsed() > self.cleanup_age_threshold 
+            if cell.created_at.elapsed() > self.cleanup_age_threshold
                 || (now - cell.last_accessed) > self.cleanup_idle_threshold
             {
                 candidates.push(*id);
             }
         }
-        
+
         candidates
     }
 
@@ -364,12 +364,12 @@ impl RaiiStoreManager {
     fn batch_cleanup(&mut self, candidates: Vec<usize>) {
         let mut total_memory_freed = 0;
         let mut successful_removals = 0;
-        
+
         // Process candidates in batches to reduce lock contention
         for batch in candidates.chunks(self.batch_cleanup_size) {
             let mut batch_memory_freed = 0;
             let mut batch_removals = 0;
-            
+
             // Collect all values to be removed first
             let mut cells_to_remove = Vec::with_capacity(batch.len());
             for &id in batch {
@@ -377,7 +377,7 @@ impl RaiiStoreManager {
                     cells_to_remove.push((id, self.estimate_value_size(&cell.value)));
                 }
             }
-            
+
             // Batch remove all collected cells
             for (id, memory_size) in cells_to_remove {
                 if self.cells.remove(&id).is_some() {
@@ -385,15 +385,21 @@ impl RaiiStoreManager {
                     batch_removals += 1;
                 }
             }
-            
+
             total_memory_freed += batch_memory_freed;
             successful_removals += batch_removals;
         }
-        
+
         // Update statistics once after all batches
         self.stats.total_deallocations += successful_removals;
-        self.stats.active_locations = self.stats.active_locations.saturating_sub(successful_removals);
-        self.stats.estimated_memory_usage = self.stats.estimated_memory_usage.saturating_sub(total_memory_freed);
+        self.stats.active_locations = self
+            .stats
+            .active_locations
+            .saturating_sub(successful_removals);
+        self.stats.estimated_memory_usage = self
+            .stats
+            .estimated_memory_usage
+            .saturating_sub(total_memory_freed);
         self.stats.batch_cleanup_events += 1;
         self.stats.batch_processed_locations += successful_removals;
     }
@@ -472,8 +478,8 @@ impl RaiiStoreManager {
             Value::Continuation(_) => 96,
             Value::Nil => 8,
             Value::Undefined => 8,
-            Value::Box(_) => 24, // Rc<RefCell<Value>> overhead
-            Value::Comparator(_) => 64, // Comparator overhead
+            Value::Box(_) => 24,          // Rc<RefCell<Value>> overhead
+            Value::Comparator(_) => 64,   // Comparator overhead
             Value::StringCursor(_) => 48, // StringCursor overhead
         }
     }
@@ -567,7 +573,9 @@ impl RaiiStore {
 
     /// Set minimum batch cleanup threshold
     pub fn set_min_batch_cleanup_threshold(&self, threshold: usize) {
-        self.manager.borrow_mut().set_min_batch_cleanup_threshold(threshold);
+        self.manager
+            .borrow_mut()
+            .set_min_batch_cleanup_threshold(threshold);
     }
 
     /// Get batch cleanup configuration
@@ -674,8 +682,14 @@ mod tests {
         store.manual_cleanup();
 
         let stats = store.statistics();
-        assert_eq!(stats.batch_cleanup_events, initial_stats.batch_cleanup_events);
-        assert_eq!(stats.batch_processed_locations, initial_stats.batch_processed_locations);
+        assert_eq!(
+            stats.batch_cleanup_events,
+            initial_stats.batch_cleanup_events
+        );
+        assert_eq!(
+            stats.batch_processed_locations,
+            initial_stats.batch_processed_locations
+        );
 
         // Keep locations alive to prevent automatic cleanup
         drop(locations);
@@ -697,18 +711,21 @@ mod tests {
 
         let stats = store.statistics();
         // Should use individual cleanup for small numbers
-        assert_eq!(stats.batch_cleanup_events, initial_stats.batch_cleanup_events);
+        assert_eq!(
+            stats.batch_cleanup_events,
+            initial_stats.batch_cleanup_events
+        );
     }
 
     #[test]
     fn test_batch_size_validation() {
         let store = RaiiStore::new();
-        
+
         // Test that batch size is at least 1
         store.set_batch_cleanup_size(0);
         let (batch_size, _) = store.batch_cleanup_config();
         assert_eq!(batch_size, 1);
-        
+
         store.set_batch_cleanup_size(50);
         let (batch_size, _) = store.batch_cleanup_config();
         assert_eq!(batch_size, 50);
@@ -718,7 +735,7 @@ mod tests {
     fn test_batch_cleanup_performance_characteristics() {
         // Test that batch cleanup provides better performance characteristics
         let store = RaiiStore::with_batch_settings(0, 50, 10);
-        
+
         // Create a large number of locations to test batch processing
         let locations: Vec<_> = (0..200)
             .map(|i| {
@@ -730,22 +747,22 @@ mod tests {
                 store.allocate(val)
             })
             .collect();
-        
+
         let initial_stats = store.statistics();
         assert_eq!(initial_stats.active_locations, 200);
-        
+
         // Drop all locations to make them eligible for cleanup
         drop(locations);
-        
+
         // Manually trigger cleanup
         store.manual_cleanup();
-        
+
         let final_stats = store.statistics();
-        
+
         // Verify that cleanup occurred
         assert_eq!(final_stats.active_locations, 0);
         assert_eq!(final_stats.total_deallocations, 200);
-        
+
         // Verify that the cleanup was efficient
         assert!(final_stats.estimated_memory_usage < initial_stats.estimated_memory_usage);
     }
@@ -754,10 +771,10 @@ mod tests {
     fn test_batch_cleanup_memory_efficiency() {
         // Test that batch cleanup efficiently manages memory
         let store = RaiiStore::with_batch_settings(1024, 25, 5);
-        
+
         // Create mixed types of values to test memory estimation
         let mut locations = Vec::new();
-        
+
         // Add various types of values
         for i in 0..100 {
             let val = match i % 5 {
@@ -769,26 +786,26 @@ mod tests {
             };
             locations.push(store.allocate(val));
         }
-        
+
         let peak_memory = store.memory_usage();
         let initial_active = store.active_location_count();
-        
+
         // Drop half the locations
         locations.truncate(50);
-        
+
         // Force cleanup
         store.manual_cleanup();
-        
+
         let after_cleanup_memory = store.memory_usage();
         let after_cleanup_active = store.active_location_count();
-        
+
         // Verify memory was freed
         assert!(after_cleanup_memory < peak_memory);
         assert!(after_cleanup_active < initial_active);
-        
+
         // Verify remaining locations are still valid
         assert_eq!(after_cleanup_active, 50);
-        
+
         // Test that remaining locations are still accessible
         for location in &locations {
             assert!(location.is_valid());

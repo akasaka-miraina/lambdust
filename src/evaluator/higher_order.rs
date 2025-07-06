@@ -25,12 +25,13 @@ impl Evaluator {
         let (proc_expr, list_exprs) = operands.split_first().unwrap();
 
         // Evaluate procedure first
-        let proc_value = self.eval(proc_expr.clone(), env.clone(), Continuation::Identity)?;
+        let proc_value = self.eval(proc_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
 
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr.clone(), env.clone(), Continuation::Identity)?;
+            let list_value =
+                self.eval(list_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "map: all arguments except the first must be lists".to_string(),
@@ -67,14 +68,13 @@ impl Evaluator {
             let result = self.apply_procedure_with_evaluator(
                 procedure.clone(),
                 args,
-                env.clone(),
+                Rc::clone(&env),
                 Continuation::Identity,
             )?;
             results.push(result);
         }
 
-        let result_list = Value::from_vector(results);
-        self.apply_continuation(cont, result_list)
+        self.apply_continuation(cont, Value::from_vector(results))
     }
 
     /// Evaluate apply as special form
@@ -92,14 +92,18 @@ impl Evaluator {
         let arg_exprs = operands[1..].to_vec();
 
         // Evaluate procedure
-        let proc_value = self.eval(proc_expr, env.clone(), Continuation::Identity)?;
+        let proc_value = self.eval(proc_expr, Rc::clone(&env), Continuation::Identity)?;
 
         // Evaluate arguments
         let mut call_args = Vec::new();
 
         if arg_exprs.len() == 1 {
             // Simple form: (apply proc args)
-            let arg_list = self.eval(arg_exprs[0].clone(), env.clone(), Continuation::Identity)?;
+            let arg_list = self.eval(
+                arg_exprs[0].clone(),
+                Rc::clone(&env),
+                Continuation::Identity,
+            )?;
             if !arg_list.is_list() {
                 return Err(LambdustError::type_error(
                     "apply: second argument must be a list".to_string(),
@@ -113,13 +117,14 @@ impl Evaluator {
         } else {
             // Extended form: (apply proc arg1 arg2 ... args)
             for arg_expr in &arg_exprs[..arg_exprs.len() - 1] {
-                let arg_value = self.eval(arg_expr.clone(), env.clone(), Continuation::Identity)?;
+                let arg_value =
+                    self.eval(arg_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
                 call_args.push(arg_value);
             }
 
             let last_arg = self.eval(
                 arg_exprs[arg_exprs.len() - 1].clone(),
-                env.clone(),
+                Rc::clone(&env),
                 Continuation::Identity,
             )?;
             if !last_arg.is_list() {
@@ -153,15 +158,16 @@ impl Evaluator {
         let list_exprs = operands[2..].to_vec();
 
         // Evaluate kons procedure
-        let kons = self.eval(kons_expr, env.clone(), Continuation::Identity)?;
+        let kons = self.eval(kons_expr, Rc::clone(&env), Continuation::Identity)?;
 
         // Evaluate initial value
-        let mut accumulator = self.eval(knil_expr, env.clone(), Continuation::Identity)?;
+        let mut accumulator = self.eval(knil_expr, Rc::clone(&env), Continuation::Identity)?;
 
         // Evaluate list arguments
         let mut lists = Vec::new();
         for list_expr in list_exprs {
-            let list_value = self.eval(list_expr.clone(), env.clone(), Continuation::Identity)?;
+            let list_value =
+                self.eval(list_expr.clone(), Rc::clone(&env), Continuation::Identity)?;
             if !list_value.is_list() {
                 return Err(LambdustError::type_error(
                     "fold: all list arguments must be lists".to_string(),
@@ -187,7 +193,7 @@ impl Evaluator {
             accumulator = self.apply_procedure_with_evaluator(
                 kons.clone(),
                 call_args,
-                env.clone(),
+                Rc::clone(&env),
                 Continuation::Identity,
             )?;
         }
@@ -299,8 +305,7 @@ impl Evaluator {
             }
         }
 
-        let result_list = Value::from_vector(results);
-        self.apply_continuation(cont, result_list)
+        self.apply_continuation(cont, Value::from_vector(results))
     }
 
     /// Apply procedure with full evaluator integration
@@ -392,7 +397,7 @@ impl Evaluator {
                     if args.len() != 1 {
                         return Err(LambdustError::arity_error(1, args.len()));
                     }
-                    
+
                     if is_escaping {
                         // Use escape semantics
                         self.apply_captured_continuation_with_non_local_exit(
@@ -453,7 +458,7 @@ impl Evaluator {
 
         // Apply procedure to each key-value pair
         let ht = hash_table.borrow();
-        for (key, value) in ht.iter() {
+        for (key, value) in ht.table.iter() {
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone()];
 
@@ -503,7 +508,7 @@ impl Evaluator {
 
         // Fold over each key-value pair
         let ht = hash_table.borrow();
-        for (key, value) in ht.iter() {
+        for (key, value) in ht.table.iter() {
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone(), accumulator];
 
@@ -717,7 +722,7 @@ impl Evaluator {
             }
         };
 
-        let location = crate::evaluator::types::Location::new(location_id);
+        let location = crate::evaluator::memory::Location::new(location_id);
 
         if let Some(value) = self.store_get(location) {
             self.apply_continuation(cont, value.clone())
@@ -755,7 +760,7 @@ impl Evaluator {
             }
         };
 
-        let location = crate::evaluator::types::Location::new(location_id);
+        let location = crate::evaluator::memory::Location::new(location_id);
         self.store_set(location, new_value)?;
 
         self.apply_continuation(cont, Value::Undefined)

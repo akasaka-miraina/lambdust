@@ -9,14 +9,14 @@
 use crate::bridge::LambdustBridge;
 use crate::error::LambdustError;
 use crate::interpreter::LambdustInterpreter;
-use crate::marshal::{c_string_to_scheme, scheme_string_to_c, free_c_string};
+use crate::marshal::{c_string_to_scheme, free_c_string, scheme_string_to_c};
 use crate::value::Value;
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int, c_void};
 use std::panic;
 use std::ptr;
 use std::sync::{Arc, Mutex, RwLock};
-use std::collections::HashMap;
 use std::time::SystemTime;
 
 /// Enhanced error codes for C FFI interface
@@ -58,35 +58,62 @@ pub enum LambdustErrorCode {
 /// Enhanced context handle with safety features
 #[repr(C)]
 pub struct LambdustContext {
+    /// Core Scheme interpreter instance
     pub interpreter: LambdustInterpreter,
+    /// Bridge for host function integration
     pub bridge: LambdustBridge,
+    /// Last error message for C error handling
     pub last_error: Option<String>,
-    // Safety and tracking fields
+    /// Thread identification for safety verification
     pub thread_id: std::thread::ThreadId,
+    /// Creation timestamp for context validation
     pub creation_time: SystemTime,
+    /// Magic number for context integrity verification
     pub magic_number: u64,
+    /// Reference count for shared context management
     pub ref_count: Arc<Mutex<u32>>,
+    /// Memory allocation tracking for debugging
     pub memory_tracker: Arc<RwLock<MemoryTracker>>,
+    /// Registered callback functions and metadata
     pub callbacks: Arc<RwLock<HashMap<String, CallbackInfo>>>,
 }
 
 /// Memory tracking for FFI allocations
 #[derive(Debug, Default)]
 pub struct MemoryTracker {
+    /// Map of allocated string pointers to their sizes
     pub allocated_strings: HashMap<*mut c_char, usize>,
+    /// Total currently allocated memory in bytes
     pub total_allocated: usize,
+    /// Peak memory usage ever reached
     pub peak_usage: usize,
+    /// Total number of allocations performed
     pub allocation_count: u64,
 }
+
+// SAFETY: MemoryTracker only contains thread-safe types
+// The HashMap uses raw pointers as keys but doesn't dereference them in Send/Sync contexts
+unsafe impl Send for MemoryTracker {}
+unsafe impl Sync for MemoryTracker {}
 
 /// Callback function information
 #[derive(Debug, Clone)]
 pub struct CallbackInfo {
+    /// The host function pointer to call
     pub function: LambdustHostFunction,
+    /// User-provided data passed to the function
     pub user_data: *mut c_void,
+    /// Whether this function can be called from multiple threads
     pub thread_safe: bool,
+    /// When this callback was registered
     pub registered_time: SystemTime,
 }
+
+// SAFETY: CallbackInfo contains function pointers and raw pointers, but these are
+// designed to be shared across threads in FFI contexts where thread safety is
+// the caller's responsibility
+unsafe impl Send for CallbackInfo {}
+unsafe impl Sync for CallbackInfo {}
 
 /// Enhanced C-compatible host function signature
 pub type LambdustEnhancedHostFunction = unsafe extern "C" fn(
@@ -108,23 +135,35 @@ pub type LambdustErrorCallback = unsafe extern "C" fn(
 pub const CONTEXT_MAGIC: u64 = 0xDEADBEEF_CAFEBABE;
 
 /// Context validation helper
+///
+/// # Safety
+///
+/// This function dereferences a raw pointer and must be called with a valid,
+/// non-null pointer to a properly initialized LambdustContext. The caller
+/// must ensure the context remains valid for the duration of this call.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe fn validate_context(context: *const LambdustContext) -> bool {
     if context.is_null() {
         return false;
     }
-    
+
     let ctx = &*context;
     ctx.magic_number == CONTEXT_MAGIC
 }
 
 /// Thread safety check
+///
+/// # Safety
+///
+/// This function dereferences a raw pointer and calls validate_context.
+/// The caller must ensure the context pointer is valid and points to a
+/// properly initialized LambdustContext that remains valid during the call.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe fn check_thread_safety(context: *const LambdustContext) -> bool {
     if !validate_context(context) {
         return false;
     }
-    
+
     let ctx = &*context;
     ctx.thread_id == std::thread::current().id()
 }
@@ -156,7 +195,7 @@ pub unsafe extern "C" fn lambdust_create_context() -> *mut LambdustContext {
     let result = panic::catch_unwind(|| {
         let interpreter = LambdustInterpreter::new();
         let bridge = LambdustBridge::new();
-        
+
         Box::into_raw(Box::new(LambdustContext {
             interpreter,
             bridge,
@@ -169,7 +208,7 @@ pub unsafe extern "C" fn lambdust_create_context() -> *mut LambdustContext {
             callbacks: Arc::new(RwLock::new(HashMap::new())),
         }))
     });
-    
+
     match result {
         Ok(ctx) => ctx,
         Err(_) => ptr::null_mut(),
@@ -214,9 +253,9 @@ pub unsafe extern "C" fn lambdust_eval(
     if context.is_null() || code.is_null() || result.is_null() {
         return LambdustErrorCode::NullPointer as c_int;
     }
-    
+
     let ctx = unsafe { &mut *context };
-    
+
     // Convert C string to Rust string
     let code_str = match unsafe { CStr::from_ptr(code).to_str() } {
         Ok(s) => s,
@@ -225,7 +264,7 @@ pub unsafe extern "C" fn lambdust_eval(
             return LambdustErrorCode::InvalidArgument as c_int;
         }
     };
-    
+
     // Evaluate the code
     match ctx.interpreter.eval_string(code_str) {
         Ok(value) => {
@@ -234,7 +273,9 @@ pub unsafe extern "C" fn lambdust_eval(
             let result_value = Value::String(result_str);
             match scheme_string_to_c(&result_value) {
                 Ok(c_str) => {
-                    unsafe { *result = c_str; }
+                    unsafe {
+                        *result = c_str;
+                    }
                     LambdustErrorCode::Success as c_int
                 }
                 Err(_) => {
@@ -278,9 +319,9 @@ pub unsafe extern "C" fn lambdust_register_function(
     if context.is_null() || name.is_null() {
         return LambdustErrorCode::NullPointer as c_int;
     }
-    
+
     let ctx = unsafe { &mut *context };
-    
+
     // Convert function name to Rust string
     let name_str = match unsafe { CStr::from_ptr(name).to_str() } {
         Ok(s) => s,
@@ -289,7 +330,7 @@ pub unsafe extern "C" fn lambdust_register_function(
             return LambdustErrorCode::InvalidArgument as c_int;
         }
     };
-    
+
     // Create a wrapper that calls the C function
     let func_wrapper = move |args: &[Value]| -> crate::Result<Value> {
         // Convert Scheme arguments to C strings
@@ -297,41 +338,36 @@ pub unsafe extern "C" fn lambdust_register_function(
             .iter()
             .map(|arg| CString::new(arg.to_string()))
             .collect();
-        
+
         let c_strings = c_strings.map_err(|_| {
             LambdustError::runtime_error("Failed to convert arguments to C strings".to_string())
         })?;
-        
+
         // Create array of C string pointers
         let c_ptrs: Vec<*const c_char> = c_strings.iter().map(|s| s.as_ptr()).collect();
-        
+
         // Call the C function
         let mut result_ptr: *mut c_char = ptr::null_mut();
-        let error_code = unsafe {
-            func(
-                c_strings.len() as c_int,
-                c_ptrs.as_ptr(),
-                &mut result_ptr,
-            )
-        };
-        
+        let error_code =
+            unsafe { func(c_strings.len() as c_int, c_ptrs.as_ptr(), &mut result_ptr) };
+
         if error_code != LambdustErrorCode::Success as c_int {
             return Err(LambdustError::runtime_error(format!(
                 "Host function returned error code: {}",
                 error_code
             )));
         }
-        
+
         if result_ptr.is_null() {
             return Ok(Value::Undefined);
         }
-        
+
         // Convert result back to Scheme value
         let result_cstr = unsafe { CStr::from_ptr(result_ptr) };
         let result_str = result_cstr.to_str().map_err(|_| {
             LambdustError::runtime_error("Invalid UTF-8 in function result".to_string())
         })?;
-        
+
         // Try to parse as number first, fall back to string
         let scheme_value = if let Ok(num) = result_str.parse::<i64>() {
             Value::Number(crate::lexer::SchemeNumber::Integer(num))
@@ -341,15 +377,18 @@ pub unsafe extern "C" fn lambdust_register_function(
             // Return as string value
             Value::String(result_str.to_string())
         };
-        
+
         // Free the result string
-        unsafe { free_c_string(result_ptr); }
-        
+        unsafe {
+            free_c_string(result_ptr);
+        }
+
         Ok(scheme_value)
     };
-    
+
     // Register the function with the interpreter
-    ctx.interpreter.register_simple_host_function(name_str.to_string(), func_wrapper);
+    ctx.interpreter
+        .register_simple_host_function(name_str.to_string(), func_wrapper);
     LambdustErrorCode::Success as c_int
 }
 
@@ -365,13 +404,11 @@ pub unsafe extern "C" fn lambdust_register_function(
 /// - `context` must be a valid context pointer
 /// - The returned string is owned by the context and should not be freed
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn lambdust_get_last_error(
-    context: *mut LambdustContext,
-) -> *const c_char {
+pub unsafe extern "C" fn lambdust_get_last_error(context: *mut LambdustContext) -> *const c_char {
     if context.is_null() {
         return ptr::null();
     }
-    
+
     let ctx = unsafe { &*context };
     match &ctx.last_error {
         Some(error) => {
@@ -399,7 +436,9 @@ pub unsafe extern "C" fn lambdust_get_last_error(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_free_string(str_ptr: *mut c_char) {
     if !str_ptr.is_null() {
-        unsafe { free_c_string(str_ptr); }
+        unsafe {
+            free_c_string(str_ptr);
+        }
     }
 }
 
@@ -457,13 +496,13 @@ pub unsafe extern "C" fn lambdust_call_function(
     if context.is_null() || function_name.is_null() || result.is_null() {
         return LambdustErrorCode::NullPointer as c_int;
     }
-    
+
     if argc < 0 || (argc > 0 && argv.is_null()) {
         return LambdustErrorCode::InvalidArgument as c_int;
     }
-    
+
     let ctx = unsafe { &mut *context };
-    
+
     // Convert function name
     let func_name = match unsafe { CStr::from_ptr(function_name).to_str() } {
         Ok(s) => s,
@@ -472,7 +511,7 @@ pub unsafe extern "C" fn lambdust_call_function(
             return LambdustErrorCode::InvalidArgument as c_int;
         }
     };
-    
+
     // Convert arguments
     let mut args = Vec::new();
     for i in 0..argc {
@@ -481,7 +520,7 @@ pub unsafe extern "C" fn lambdust_call_function(
             ctx.last_error = Some("Null argument pointer".to_string());
             return LambdustErrorCode::NullPointer as c_int;
         }
-        
+
         let _arg_str = match unsafe { CStr::from_ptr(arg_ptr).to_str() } {
             Ok(s) => s,
             Err(_) => {
@@ -489,7 +528,7 @@ pub unsafe extern "C" fn lambdust_call_function(
                 return LambdustErrorCode::InvalidArgument as c_int;
             }
         };
-        
+
         match unsafe { c_string_to_scheme(arg_ptr) } {
             Ok(value) => args.push(value),
             Err(err) => {
@@ -498,7 +537,7 @@ pub unsafe extern "C" fn lambdust_call_function(
             }
         }
     }
-    
+
     // Build and evaluate the function call
     let call_expr = if args.is_empty() {
         format!("({})", func_name)
@@ -506,14 +545,16 @@ pub unsafe extern "C" fn lambdust_call_function(
         let arg_strs: Vec<String> = args.iter().map(|v| v.to_string()).collect();
         format!("({} {})", func_name, arg_strs.join(" "))
     };
-    
+
     match ctx.interpreter.eval_string(&call_expr) {
         Ok(value) => {
             let result_str = value.to_string();
             let result_value = Value::String(result_str);
             match scheme_string_to_c(&result_value) {
                 Ok(c_str) => {
-                    unsafe { *result = c_str; }
+                    unsafe {
+                        *result = c_str;
+                    }
                     LambdustErrorCode::Success as c_int
                 }
                 Err(_) => {
@@ -533,7 +574,7 @@ pub unsafe extern "C" fn lambdust_call_function(
 mod tests {
     use super::*;
     use std::ffi::CString;
-    
+
     #[test]
     fn test_context_creation_and_destruction() {
         unsafe {
@@ -542,28 +583,28 @@ mod tests {
             lambdust_destroy_context(ctx);
         }
     }
-    
+
     #[test]
     fn test_basic_evaluation() {
         unsafe {
             let ctx = lambdust_create_context();
             assert!(!ctx.is_null());
-            
+
             let code = CString::new("(+ 1 2 3)").unwrap();
             let mut result: *mut c_char = ptr::null_mut();
-            
+
             let error_code = lambdust_eval(ctx, code.as_ptr(), &mut result);
             assert_eq!(error_code, LambdustErrorCode::Success as c_int);
             assert!(!result.is_null());
-            
+
             let result_str = CStr::from_ptr(result).to_str().unwrap();
             assert_eq!(result_str, "6");
-            
+
             lambdust_free_string(result);
             lambdust_destroy_context(ctx);
         }
     }
-    
+
     #[test]
     fn test_host_function_registration() {
         unsafe extern "C" fn test_host_func(
@@ -574,43 +615,45 @@ mod tests {
             if argc != 2 {
                 return LambdustErrorCode::ArityError as c_int;
             }
-            
+
             // Simple addition function
             let a_str = unsafe { CStr::from_ptr(*argv).to_str().unwrap() };
             let b_str = unsafe { CStr::from_ptr(*argv.add(1)).to_str().unwrap() };
-            
+
             let a: i32 = a_str.parse().unwrap_or(0);
             let b: i32 = b_str.parse().unwrap_or(0);
             let sum = a + b;
-            
+
             let result_string = CString::new(sum.to_string()).unwrap();
-            unsafe { *result = result_string.into_raw(); }
-            
+            unsafe {
+                *result = result_string.into_raw();
+            }
+
             LambdustErrorCode::Success as c_int
         }
-        
+
         unsafe {
             let ctx = lambdust_create_context();
             assert!(!ctx.is_null());
-            
+
             let func_name = CString::new("host-add").unwrap();
             let error_code = lambdust_register_function(ctx, func_name.as_ptr(), test_host_func);
             assert_eq!(error_code, LambdustErrorCode::Success as c_int);
-            
-            // Test calling the registered function  
+
+            // Test calling the registered function
             let code = CString::new("(host-add 10 20)").unwrap();
             let mut result: *mut c_char = ptr::null_mut();
-            
+
             let eval_code = lambdust_eval(ctx, code.as_ptr(), &mut result);
             assert_eq!(eval_code, LambdustErrorCode::Success as c_int);
-            
+
             if !result.is_null() {
                 let result_str = CStr::from_ptr(result).to_str().unwrap();
                 // The result is quoted because it comes back as a string value representation
                 assert_eq!(result_str, "30");
                 lambdust_free_string(result);
             }
-            
+
             lambdust_destroy_context(ctx);
         }
     }

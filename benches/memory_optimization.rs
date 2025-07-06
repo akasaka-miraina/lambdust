@@ -1,9 +1,9 @@
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use lambdust::Interpreter;
 
 fn memory_pool_allocation_test(c: &mut Criterion) {
     let mut interpreter = Interpreter::new();
-    
+
     // Test memory pool allocation patterns
     let allocation_code = r#"
     (define (create-many-lists n)
@@ -11,9 +11,9 @@ fn memory_pool_allocation_test(c: &mut Criterion) {
           '()
           (cons (list 1 2 3 4 5) (create-many-lists (- n 1)))))
     "#;
-    
+
     interpreter.eval(allocation_code).unwrap();
-    
+
     c.bench_function("memory_pool_allocations", |b| {
         b.iter(|| {
             // Allocate many small lists to test memory pool efficiency
@@ -24,7 +24,7 @@ fn memory_pool_allocation_test(c: &mut Criterion) {
 
 fn memory_intensive_operations(c: &mut Criterion) {
     let mut interpreter = Interpreter::new();
-    
+
     let setup_code = r#"
     (define (create-vectors n)
       (if (<= n 0)
@@ -34,25 +34,25 @@ fn memory_intensive_operations(c: &mut Criterion) {
     (define (process-data data)
       (map (lambda (x) (* x x)) data))
     "#;
-    
+
     interpreter.eval(setup_code).unwrap();
-    
+
     c.bench_function("memory_intensive_vectors", |b| {
-        b.iter(|| {
-            interpreter.eval("(create-vectors 8)").unwrap()
-        })
+        b.iter(|| interpreter.eval("(create-vectors 8)").unwrap())
     });
-    
+
     c.bench_function("memory_intensive_processing", |b| {
         b.iter(|| {
-            interpreter.eval("(process-data (list 1 2 3 4 5 6 7 8 9 10))").unwrap()
+            interpreter
+                .eval("(process-data (list 1 2 3 4 5 6 7 8 9 10))")
+                .unwrap()
         })
     });
 }
 
 fn garbage_collection_stress_test(c: &mut Criterion) {
     let mut interpreter = Interpreter::new();
-    
+
     let gc_stress_code = r#"
     (define (allocate-and-discard n)
       (if (<= n 0)
@@ -62,19 +62,17 @@ fn garbage_collection_stress_test(c: &mut Criterion) {
             (list 'a 'b 'c 'd 'e)
             (allocate-and-discard (- n 1)))))
     "#;
-    
+
     interpreter.eval(gc_stress_code).unwrap();
-    
+
     c.bench_function("gc_stress_test", |b| {
-        b.iter(|| {
-            interpreter.eval("(allocate-and-discard 15)").unwrap()
-        })
+        b.iter(|| interpreter.eval("(allocate-and-discard 15)").unwrap())
     });
 }
 
 fn continuation_memory_patterns(c: &mut Criterion) {
     let mut interpreter = Interpreter::new();
-    
+
     let continuation_code = r#"
     (define (nested-calls n acc)
       (if (<= n 0)
@@ -86,25 +84,25 @@ fn continuation_memory_patterns(c: &mut Criterion) {
           acc
           (tail-recursive-sum (cdr lst) (+ acc (car lst)))))
     "#;
-    
+
     interpreter.eval(continuation_code).unwrap();
-    
+
     c.bench_function("continuation_memory_nested", |b| {
-        b.iter(|| {
-            interpreter.eval("(nested-calls 25 0)").unwrap()
-        })
+        b.iter(|| interpreter.eval("(nested-calls 25 0)").unwrap())
     });
-    
+
     c.bench_function("continuation_memory_tail_recursive", |b| {
         b.iter(|| {
-            interpreter.eval("(tail-recursive-sum (list 1 2 3 4 5 6 7 8 9 10) 0)").unwrap()
+            interpreter
+                .eval("(tail-recursive-sum (list 1 2 3 4 5 6 7 8 9 10) 0)")
+                .unwrap()
         })
     });
 }
 
 fn string_memory_operations(c: &mut Criterion) {
     let mut interpreter = Interpreter::new();
-    
+
     let string_code = r#"
     (define (create-strings n)
       (if (<= n 0)
@@ -113,26 +111,22 @@ fn string_memory_operations(c: &mut Criterion) {
           
     (define test-string "hello world scheme programming language")
     "#;
-    
+
     interpreter.eval(string_code).unwrap();
-    
+
     c.bench_function("string_memory_operations", |b| {
-        b.iter(|| {
-            interpreter.eval("(create-strings 8)").unwrap()
-        })
+        b.iter(|| interpreter.eval("(create-strings 8)").unwrap())
     });
-    
+
     c.bench_function("string_memory_length_ops", |b| {
-        b.iter(|| {
-            interpreter.eval("(string-length test-string)").unwrap()
-        })
+        b.iter(|| interpreter.eval("(string-length test-string)").unwrap())
     });
 }
 
 fn raii_vs_gc_comparison(c: &mut Criterion) {
     // Test different allocation patterns that benefit from either RAII or GC
     let mut interpreter = Interpreter::new();
-    
+
     let mixed_allocation_code = r#"
     (define (mixed-allocations n)
       (if (<= n 0)
@@ -141,13 +135,11 @@ fn raii_vs_gc_comparison(c: &mut Criterion) {
             (vector (list n) (+ n 1) (* n 2))
             (mixed-allocations (- n 1)))))
     "#;
-    
+
     interpreter.eval(mixed_allocation_code).unwrap();
-    
+
     c.bench_function("mixed_allocation_patterns", |b| {
-        b.iter(|| {
-            interpreter.eval("(mixed-allocations 12)").unwrap()
-        })
+        b.iter(|| interpreter.eval("(mixed-allocations 12)").unwrap())
     });
 }
 

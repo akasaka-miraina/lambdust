@@ -47,7 +47,8 @@ impl SymbolInterner {
         let boxed = symbol.to_string().into_boxed_str();
         let leaked: &'static str = Box::leak(boxed);
         self.symbols.insert(symbol.to_string(), leaked);
-        self.interned_storage.push(leaked.to_string().into_boxed_str());
+        self.interned_storage
+            .push(leaked.to_string().into_boxed_str());
         leaked
     }
 
@@ -82,7 +83,8 @@ impl ValuePool {
 
         // Pre-allocate small integers (-128 to 127) for common arithmetic
         for i in -128..=127 {
-            pool.small_integer_pool.push(Value::Number(SchemeNumber::Integer(i)));
+            pool.small_integer_pool
+                .push(Value::Number(SchemeNumber::Integer(i)));
         }
 
         pool
@@ -329,7 +331,7 @@ mod tests {
     fn test_value_pool_boolean_caching() {
         let true_val1 = Value::new_boolean(true);
         let true_val2 = Value::new_boolean(true);
-        
+
         // Values should be equivalent
         assert!(matches!(true_val1, Value::Boolean(true)));
         assert!(matches!(true_val2, Value::Boolean(true)));
@@ -338,12 +340,15 @@ mod tests {
     #[test]
     fn test_small_integer_pooling() {
         let pool = ValuePool::new();
-        
+
         // Small integers should be pooled
         let small_int = pool.get_small_integer(42);
         assert!(small_int.is_some());
-        assert!(matches!(small_int.unwrap(), Value::Number(SchemeNumber::Integer(42))));
-        
+        assert!(matches!(
+            small_int.unwrap(),
+            Value::Number(SchemeNumber::Integer(42))
+        ));
+
         // Large integers should not be pooled
         let large_int = pool.get_small_integer(1000);
         assert!(large_int.is_none());
@@ -353,7 +358,7 @@ mod tests {
     fn test_symbol_interning() {
         let symbol1 = Value::new_symbol("test");
         let symbol2 = Value::new_symbol("test");
-        
+
         // Symbols should be equivalent
         assert!(matches!(symbol1, Value::Symbol(_)));
         assert!(matches!(symbol2, Value::Symbol(_)));
@@ -369,14 +374,14 @@ mod tests {
     #[test]
     fn test_continuation_pool_basic() {
         let mut pool = ContinuationPool::new();
-        
+
         // Pool should be pre-initialized
         assert!(!pool.identity_pool.is_empty());
-        
+
         // Get an identity continuation
         let cont = pool.get_identity();
         assert!(matches!(cont, Continuation::Identity));
-        
+
         // Stats should reflect creation
         let stats = pool.stats();
         assert_eq!(stats.total_created, 1);
@@ -386,14 +391,14 @@ mod tests {
     fn test_continuation_pool_recycling() {
         let mut pool = ContinuationPool::new();
         let initial_pool_size = pool.identity_pool.len();
-        
+
         // Get and recycle a continuation
         let cont = pool.get_identity();
         pool.recycle_continuation(cont);
-        
+
         // Pool size should be back to initial (recycled)
         assert_eq!(pool.identity_pool.len(), initial_pool_size);
-        
+
         let stats = pool.stats();
         assert_eq!(stats.total_created, 1);
         assert_eq!(stats.total_recycled, 1);
@@ -405,7 +410,7 @@ mod tests {
         // Test global pool functions
         let cont = Continuation::new_identity();
         assert!(matches!(cont, Continuation::Identity));
-        
+
         let stats = Continuation::pool_stats();
         assert!(stats.total_created > 0);
     }

@@ -65,7 +65,8 @@ pub fn eval_with_exception_handler(
     let thunk_expr = &operands[1];
 
     // Evaluate handler first
-    let handler_value = evaluator.eval(handler_expr.clone(), env.clone(), Continuation::Identity)?;
+    let handler_value =
+        evaluator.eval(handler_expr.clone(), env.clone(), Continuation::Identity)?;
 
     // Install exception handler
     let handler_info = ExceptionHandlerInfo {
@@ -290,23 +291,13 @@ impl Evaluator {
 
         // Evaluate each guard clause in order
         for (condition_expr, result_exprs) in &guard_handler.clauses {
-            // Evaluate the condition expression
-            match self.eval(
-                condition_expr.clone(),
-                Rc::new(guard_env.clone()),
-                Continuation::Identity,
-            ) {
-                Ok(condition_result) => {
-                    // Check if condition is true (any non-#f value is true in Scheme)
-                    if !matches!(condition_result, Value::Boolean(false)) {
-                        // Condition matched, evaluate and return the result expressions
-                        return self.eval_sequence(result_exprs.clone(), Rc::new(guard_env), cont);
-                    }
-                }
-                Err(_) => {
-                    // Condition evaluation failed, continue to next clause
-                    continue;
-                }
+            if let Some(result) = self.try_evaluate_guard_clause(
+                condition_expr,
+                result_exprs,
+                &guard_env,
+                cont.clone(),
+            )? {
+                return Ok(result);
             }
         }
 
@@ -333,6 +324,34 @@ impl Evaluator {
         self.exception_handlers_mut().push(handler_info);
 
         result
+    }
+
+    /// Try to evaluate a single guard clause, returning Some(result) if the condition matches
+    fn try_evaluate_guard_clause(
+        &mut self,
+        condition_expr: &Expr,
+        result_exprs: &[Expr],
+        guard_env: &Environment,
+        cont: Continuation,
+    ) -> Result<Option<Value>> {
+        // Evaluate the condition expression
+        let condition_result = match self.eval(
+            condition_expr.clone(),
+            Rc::new(guard_env.clone()),
+            Continuation::Identity,
+        ) {
+            Ok(result) => result,
+            Err(_) => return Ok(None), // Condition evaluation failed, continue to next clause
+        };
+
+        // Check if condition is true (any non-#f value is true in Scheme)
+        if matches!(condition_result, Value::Boolean(false)) {
+            return Ok(None);
+        }
+
+        // Condition matched, evaluate and return the result expressions
+        let result = self.eval_sequence(result_exprs.to_vec(), Rc::new(guard_env.clone()), cont)?;
+        Ok(Some(result))
     }
 
     /// Apply exception handler continuation

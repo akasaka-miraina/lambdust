@@ -3,10 +3,13 @@
 //! This module implements a continuation-passing style evaluator
 //! that strictly follows the R7RS formal semantics definition.
 
+pub mod ast_converter;
 pub mod continuation;
 pub mod control_flow;
+pub mod evaluation;
 pub mod higher_order;
 pub mod imports;
+pub mod memory;
 #[cfg(feature = "raii-store")]
 pub mod raii_store;
 pub mod special_forms;
@@ -17,9 +20,11 @@ use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::macros::expand_macro;
 use crate::value::{Procedure, Value};
+use ast_converter::AstConverter;
 
 // Re-export main types
 pub use continuation::{Continuation, DynamicPoint, LightContinuation};
+pub use evaluation::{EvalOrder, ExceptionHandlerInfo};
 pub use types::*;
 
 use std::rc::Rc;
@@ -197,50 +202,7 @@ impl Evaluator {
 
     /// Evaluate quote form: E['E]ρκσ = κ(E[E])
     fn eval_quote(&mut self, expr: Expr, cont: Continuation) -> Result<Value> {
-        let value = Self::expr_to_value(expr)?;
-        self.apply_continuation(cont, value)
-    }
-
-    /// Convert expression to value (for quote)
-    fn expr_to_value(expr: Expr) -> Result<Value> {
-        match expr {
-            Expr::Literal(lit) => Ok(match lit {
-                Literal::Boolean(b) => Value::Boolean(b),
-                Literal::Number(n) => Value::Number(n),
-                Literal::String(s) => Value::String(s),
-                Literal::Character(c) => Value::Character(c),
-                Literal::Nil => Value::Nil,
-            }),
-            Expr::Variable(name) => Ok(Value::Symbol(name)),
-            Expr::List(exprs) => {
-                let mut result = Value::Nil;
-                for expr in exprs.into_iter().rev() {
-                    let value = Self::expr_to_value(expr)?;
-                    result = Value::cons(value, result);
-                }
-                Ok(result)
-            }
-            Expr::Vector(exprs) => {
-                let values: Result<Vec<Value>> =
-                    exprs.into_iter().map(Self::expr_to_value).collect();
-                Ok(Value::from_vector(values?))
-            }
-            Expr::Quote(expr) => Self::expr_to_value(*expr),
-            Expr::DottedList(elements, tail) => {
-                // Handle dotted list: (a b . c) -> cons(a, cons(b, c))
-                let mut result = Self::expr_to_value(*tail)?;
-                for expr in elements.into_iter().rev() {
-                    let value = Self::expr_to_value(expr)?;
-                    result = Value::cons(value, result);
-                }
-                Ok(result)
-            }
-            Expr::Quasiquote(_) | Expr::Unquote(_) | Expr::UnquoteSplicing(_) => {
-                Err(LambdustError::syntax_error(
-                    "Quasiquote forms not yet implemented in quote context".to_string(),
-                ))
-            }
-        }
+        self.apply_continuation(cont, AstConverter::expr_to_value(expr)?)
     }
 
     /// Evaluate quasiquote (simplified implementation)
@@ -252,8 +214,7 @@ impl Evaluator {
     ) -> Result<Value> {
         // For basic quasiquote without unquote/unquote-splicing,
         // it's equivalent to quote
-        let value = Self::expr_to_value(expr)?;
-        self.apply_continuation(cont, value)
+        self.apply_continuation(cont, AstConverter::expr_to_value(expr)?)
     }
 
     /// Evaluate vector
@@ -409,11 +370,11 @@ impl Evaluator {
                 operator,
                 evaluated_args,
                 remaining_args: remaining.to_vec(),
-                env: env.clone(),
+                env: Rc::clone(&env),
                 parent: Box::new(parent),
             };
 
-            self.eval(next_arg.clone(), env, app_cont)
+            self.eval(next_arg.clone(), Rc::clone(&env), app_cont)
         }
     }
 
@@ -433,11 +394,11 @@ impl Evaluator {
                     operator,
                     evaluated_args: Vec::new(),
                     remaining_args: remaining.to_vec(),
-                    env: env.clone(),
+                    env: Rc::clone(&env),
                     parent: Box::new(parent),
                 };
 
-                self.eval(first_arg.clone(), env, app_cont)
+                self.eval(first_arg.clone(), Rc::clone(&env), app_cont)
             }
             EvalOrder::RightToLeft => {
                 // Evaluate from right to left
@@ -447,11 +408,11 @@ impl Evaluator {
                     operator,
                     evaluated_args: Vec::new(),
                     remaining_args: remaining.to_vec(),
-                    env: env.clone(),
+                    env: Rc::clone(&env),
                     parent: Box::new(parent),
                 };
 
-                self.eval(last_arg.clone(), env, app_cont)
+                self.eval(last_arg.clone(), Rc::clone(&env), app_cont)
             }
             EvalOrder::Unspecified => {
                 // For now, default to left-to-right
@@ -470,140 +431,194 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         match procedure {
-            Value::Procedure(proc) => match proc {
-                Procedure::Builtin { func, arity, .. } => {
-                    // Check arity if specified
-                    if let Some(expected) = arity {
-                        if args.len() != expected {
-                            return Err(LambdustError::arity_error(expected, args.len()));
-                        }
-                    }
-
-                    // Apply builtin function
-                    let result = func(&args)?;
-                    self.apply_continuation(cont, result)
-                }
-                Procedure::Lambda {
-                    params,
-                    body,
-                    closure,
-                    variadic,
-                } => {
-                    // Check arity for lambda
-                    if variadic {
-                        if args.len() < params.len() - 1 {
-                            return Err(LambdustError::arity_error(params.len() - 1, args.len()));
-                        }
-                    } else if args.len() != params.len() {
-                        return Err(LambdustError::arity_error(params.len(), args.len()));
-                    }
-
-                    // Create new environment for lambda body
-                    let lambda_env = Environment::with_parent(closure);
-
-                    // Bind parameters
-                    if variadic {
-                        // Bind fixed parameters
-                        for (i, param) in params.iter().enumerate().take(params.len() - 1) {
-                            lambda_env.define(param.clone(), args[i].clone());
-                        }
-
-                        // Bind rest parameter
-                        let rest_param = &params[params.len() - 1];
-                        let rest_args = args[(params.len() - 1)..].to_vec();
-                        lambda_env.define(rest_param.clone(), Value::from_vector(rest_args));
-                    } else {
-                        for (param, arg) in params.iter().zip(args.iter()) {
-                            lambda_env.define(param.clone(), arg.clone());
-                        }
-                    }
-
-                    // Evaluate body
-                    self.eval_sequence(body, Rc::new(lambda_env), cont)
-                }
-                Procedure::Continuation {
-                    continuation: _captured_cont,
-                } => {
-                    // Apply captured continuation (basic escape implementation)
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-
-                    // Basic escape: return the value directly to the captured continuation
-                    // This implements a simplified form of non-local exit
-                    // A full implementation would need to properly restore the captured continuation state
-                    Ok(args[0].clone())
-                }
-                Procedure::CapturedContinuation {
-                    continuation: captured_cont,
-                } => {
-                    // Apply captured continuation from evaluator
-                    // R7RS allows continuations to be called with multiple values,
-                    // but only the first value is used (others are ignored)
-                    // If no arguments are provided, use #<void> as the default value
-                    let escape_value = if args.is_empty() {
-                        Value::Undefined
-                    } else {
-                        args[0].clone()
-                    };
-
-                    // Apply the captured continuation with complete non-local exit
-                    // Use only the first argument, following R7RS semantics
-                    self.apply_captured_continuation_with_non_local_exit(
-                        *captured_cont.clone(),
-                        escape_value,
-                    )
-                }
-                Procedure::ReusableContinuation {
-                    continuation: captured_cont,
-                    capture_env,
-                    is_escaping,
-                    ..
-                } => {
-                    // Handle reusable continuation (for both escape and reuse)
-                    let escape_value = if args.is_empty() {
-                        Value::Undefined
-                    } else {
-                        args[0].clone()
-                    };
-
-                    // Simple heuristic: if current continuation has CallCc, use escape semantics
-                    // This handles the common case of call/cc immediate escape
-                    let is_escape_context = matches!(cont, Continuation::CallCc { .. }) || is_escaping;
-                    
-                    if is_escape_context {
-                        // Use escape semantics (skip intermediate computations)
-                        self.apply_captured_continuation_with_non_local_exit(
-                            *captured_cont.clone(),
-                            escape_value,
-                        )
-                    } else {
-                        // Use reuse semantics (preserve computation context)
-                        self.apply_reusable_continuation_with_context(
-                            *captured_cont.clone(),
-                            capture_env.clone(),
-                            escape_value,
-                            cont,
-                        )
-                    }
-                }
-                Procedure::HostFunction { func, arity, .. } => {
-                    // Check arity if specified
-                    if let Some(expected) = arity {
-                        if args.len() != expected {
-                            return Err(LambdustError::arity_error(expected, args.len()));
-                        }
-                    }
-
-                    // Apply host function
-                    let result = func(&args)?;
-                    self.apply_continuation(cont, result)
-                }
-            },
+            Value::Procedure(proc) => self.apply_procedure_variant(proc, args, cont),
             _ => Err(LambdustError::type_error(
                 "Cannot apply non-procedure".to_string(),
             )),
         }
+    }
+
+    /// Apply specific procedure variant
+    fn apply_procedure_variant(
+        &mut self,
+        proc: Procedure,
+        args: Vec<Value>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        match proc {
+            Procedure::Builtin { func, arity, .. } => {
+                self.apply_builtin_procedure(func, arity, args, cont)
+            }
+            Procedure::Lambda {
+                params,
+                body,
+                closure,
+                variadic,
+            } => self.apply_lambda_procedure(params, body, closure, variadic, args, cont),
+            Procedure::Continuation {
+                continuation: _captured_cont,
+            } => self.apply_simple_continuation(args),
+            Procedure::CapturedContinuation {
+                continuation: captured_cont,
+            } => self.apply_captured_continuation_procedure(*captured_cont, args),
+            Procedure::ReusableContinuation {
+                continuation: captured_cont,
+                capture_env,
+                is_escaping,
+                ..
+            } => self.apply_reusable_continuation(
+                *captured_cont,
+                capture_env,
+                is_escaping,
+                args,
+                cont,
+            ),
+            Procedure::HostFunction { func, arity, .. } => {
+                self.apply_host_function(func, arity, args, cont)
+            }
+        }
+    }
+
+    /// Apply builtin procedure
+    fn apply_builtin_procedure(
+        &mut self,
+        func: fn(&[Value]) -> Result<Value>,
+        arity: Option<usize>,
+        args: Vec<Value>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if let Some(expected) = arity {
+            if args.len() != expected {
+                return Err(LambdustError::arity_error(expected, args.len()));
+            }
+        }
+        let result = func(&args)?;
+        self.apply_continuation(cont, result)
+    }
+
+    /// Apply lambda procedure
+    fn apply_lambda_procedure(
+        &mut self,
+        params: Vec<String>,
+        body: Vec<Expr>,
+        closure: Rc<Environment>,
+        variadic: bool,
+        args: Vec<Value>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        // Check arity for lambda
+        if variadic {
+            if args.len() < params.len() - 1 {
+                return Err(LambdustError::arity_error(params.len() - 1, args.len()));
+            }
+        } else if args.len() != params.len() {
+            return Err(LambdustError::arity_error(params.len(), args.len()));
+        }
+
+        // Create new environment for lambda body
+        let lambda_env = Environment::with_parent(closure);
+        self.bind_lambda_parameters(&lambda_env, &params, &args, variadic)?;
+
+        // Evaluate body
+        self.eval_sequence(body, Rc::new(lambda_env), cont)
+    }
+
+    /// Bind lambda parameters to arguments
+    fn bind_lambda_parameters(
+        &self,
+        lambda_env: &Environment,
+        params: &[String],
+        args: &[Value],
+        variadic: bool,
+    ) -> Result<()> {
+        if variadic {
+            // Bind fixed parameters
+            for (i, param) in params.iter().enumerate().take(params.len() - 1) {
+                lambda_env.define(param.clone(), args[i].clone());
+            }
+
+            // Bind rest parameter
+            let rest_param = &params[params.len() - 1];
+            let rest_args = args[(params.len() - 1)..].to_vec();
+            lambda_env.define(rest_param.clone(), Value::from_vector(rest_args));
+        } else {
+            for (param, arg) in params.iter().zip(args.iter()) {
+                lambda_env.define(param.clone(), arg.clone());
+            }
+        }
+        Ok(())
+    }
+
+    /// Apply simple continuation
+    fn apply_simple_continuation(&self, args: Vec<Value>) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(LambdustError::arity_error(1, args.len()));
+        }
+        Ok(args[0].clone())
+    }
+
+    /// Apply captured continuation from procedure call
+    fn apply_captured_continuation_procedure(
+        &mut self,
+        captured_cont: Continuation,
+        args: Vec<Value>,
+    ) -> Result<Value> {
+        let escape_value = if args.is_empty() {
+            Value::Undefined
+        } else {
+            args[0].clone()
+        };
+
+        self.apply_captured_continuation_with_non_local_exit(captured_cont, escape_value)
+    }
+
+    /// Apply reusable continuation
+    fn apply_reusable_continuation(
+        &mut self,
+        captured_cont: Continuation,
+        capture_env: Rc<Environment>,
+        _is_escaping: bool,
+        args: Vec<Value>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        let escape_value = if args.is_empty() {
+            Value::Undefined
+        } else {
+            args[0].clone()
+        };
+
+        // Always treat call to captured continuation as an escape
+        // This is the fundamental semantics of call/cc: any invocation of the captured
+        // continuation should perform non-local exit
+        let is_escape_context = true;
+
+        if is_escape_context {
+            self.apply_captured_continuation_with_non_local_exit(captured_cont, escape_value)
+        } else {
+            self.apply_reusable_continuation_with_context(
+                captured_cont,
+                capture_env,
+                escape_value,
+                cont,
+            )
+        }
+    }
+
+    /// Apply host function
+    fn apply_host_function(
+        &mut self,
+        func: crate::host::HostFunc,
+        arity: Option<usize>,
+        args: Vec<Value>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        if let Some(expected) = arity {
+            if args.len() != expected {
+                return Err(LambdustError::arity_error(expected, args.len()));
+            }
+        }
+        let result = func(&args)?;
+        self.apply_continuation(cont, result)
     }
 
     /// Apply special continuations (delegates to appropriate modules)
@@ -639,7 +654,7 @@ impl Evaluator {
         // Evaluate all expressions, return the last result
         let mut result = Value::Undefined;
         for expr in exprs {
-            result = self.eval(expr, self.global_env.clone(), Continuation::Identity)?;
+            result = self.eval(expr, Rc::clone(&self.global_env), Continuation::Identity)?;
         }
 
         Ok(result)
@@ -650,7 +665,7 @@ impl Evaluator {
         self.apply_procedure(
             procedure,
             args,
-            self.global_env.clone(),
+            Rc::clone(&self.global_env),
             Continuation::Identity,
         )
     }
@@ -695,7 +710,7 @@ impl Evaluator {
             // For Application continuations, we need to distinguish between:
             // 1. call/cc escape (should skip all intermediate computation)
             // 2. captured continuation reuse (should preserve computation context)
-            // 
+            //
             // The fundamental issue is that both cases look the same at this point.
             // For now, implement proper escape behavior by skipping Application continuations.
             // This means continuation reuse might not work correctly for certain cases,
@@ -738,18 +753,18 @@ impl Evaluator {
                 self.apply_continuation(*parent, value)
             }
             // For Application continuations, we preserve the context
-            Continuation::Application { 
+            Continuation::Application {
                 operator,
                 evaluated_args,
                 remaining_args,
                 env,
-                parent 
+                parent,
             } => {
                 // Build new application with the value inserted in the captured context
                 // This enables proper continuation reuse semantics
                 let mut new_args = evaluated_args;
                 new_args.push(value);
-                
+
                 if remaining_args.is_empty() {
                     // All arguments are ready, apply the operator
                     self.apply_procedure(operator, new_args, env, *parent)
@@ -757,7 +772,7 @@ impl Evaluator {
                     // Continue evaluating remaining arguments
                     let next_arg = &remaining_args[0];
                     let remaining = remaining_args[1..].to_vec();
-                    
+
                     let app_cont = Continuation::Application {
                         operator,
                         evaluated_args: new_args,
@@ -765,7 +780,7 @@ impl Evaluator {
                         env: env.clone(),
                         parent,
                     };
-                    
+
                     self.eval(next_arg.clone(), env, app_cont)
                 }
             }
@@ -773,7 +788,6 @@ impl Evaluator {
             _ => self.apply_continuation(captured_cont, value),
         }
     }
-
 }
 
 /// Public API for evaluation

@@ -8,17 +8,23 @@ use crate::value::{Procedure, Value};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+// Type aliases to reduce complexity warnings
+type TypeTestFn = Option<Rc<dyn Fn(&Value) -> bool>>;
+type EqualityFn = Rc<dyn Fn(&Value, &Value) -> bool>;
+type ComparisonFn = Option<Rc<dyn Fn(&Value, &Value) -> Result<i32>>>;
+type HashFn = Option<Rc<dyn Fn(&Value) -> Result<i64>>>;
+
 /// Comparator data structure
 #[derive(Clone)]
 pub struct Comparator {
     /// Type test procedure: obj -> boolean
-    pub type_test: Option<Rc<dyn Fn(&Value) -> bool>>,
+    pub type_test: TypeTestFn,
     /// Equality procedure: obj1 obj2 -> boolean  
-    pub equality: Rc<dyn Fn(&Value, &Value) -> bool>,
+    pub equality: EqualityFn,
     /// Comparison procedure: obj1 obj2 -> -1|0|1
-    pub comparison: Option<Rc<dyn Fn(&Value, &Value) -> Result<i32>>>,
+    pub comparison: ComparisonFn,
     /// Hash function: obj -> integer
-    pub hash_fn: Option<Rc<dyn Fn(&Value) -> Result<i64>>>,
+    pub hash_fn: HashFn,
     /// Comparator name for debugging
     pub name: String,
 }
@@ -27,10 +33,10 @@ impl Comparator {
     /// Create a new comparator
     pub fn new(
         name: String,
-        type_test: Option<Rc<dyn Fn(&Value) -> bool>>,
-        equality: Rc<dyn Fn(&Value, &Value) -> bool>,
-        comparison: Option<Rc<dyn Fn(&Value, &Value) -> Result<i32>>>,
-        hash_fn: Option<Rc<dyn Fn(&Value) -> Result<i64>>>,
+        type_test: TypeTestFn,
+        equality: EqualityFn,
+        comparison: ComparisonFn,
+        hash_fn: HashFn,
     ) -> Self {
         Self {
             type_test,
@@ -258,7 +264,7 @@ impl super::SrfiModule for Srfi128 {
             }),
         );
 
-        // comparator-hashable? predicate  
+        // comparator-hashable? predicate
         exports.insert(
             "comparator-hashable?".to_string(),
             Value::Procedure(Procedure::Builtin {
@@ -286,11 +292,11 @@ impl super::SrfiModule for Srfi128 {
                     if args.len() < 2 || args.len() > 4 {
                         return Err(LambdustError::arity_error_range(2, 4, args.len()));
                     }
-                    
+
                     // For now, create a simple comparator that works with basic types
                     // In a full implementation, we would parse the procedure arguments
                     let name = format!("custom-comparator-{}", std::ptr::addr_of!(args) as usize);
-                    
+
                     let comparator = Comparator::new(
                         name,
                         None, // Accept all types for simplicity
@@ -312,16 +318,24 @@ impl super::SrfiModule for Srfi128 {
                                 (Value::Number(n1), Value::Number(n2)) => {
                                     let f1 = n1.to_f64();
                                     let f2 = n2.to_f64();
-                                    if f1 < f2 { Ok(-1) } else if f1 > f2 { Ok(1) } else { Ok(0) }
+                                    if f1 < f2 {
+                                        Ok(-1)
+                                    } else if f1 > f2 {
+                                        Ok(1)
+                                    } else {
+                                        Ok(0)
+                                    }
                                 }
                                 (Value::String(s1), Value::String(s2)) => Ok(s1.cmp(s2) as i32),
                                 (Value::Symbol(s1), Value::Symbol(s2)) => Ok(s1.cmp(s2) as i32),
-                                _ => Err(LambdustError::type_error("Cannot compare these types".to_string())),
+                                _ => Err(LambdustError::type_error(
+                                    "Cannot compare these types".to_string(),
+                                )),
                             }
                         })),
                         None, // No hash function for custom comparators yet
                     );
-                    
+
                     Ok(Value::Comparator(Rc::new(comparator)))
                 },
                 arity: None, // Variable arity
@@ -337,7 +351,7 @@ impl super::SrfiModule for Srfi128 {
                     if args.len() < 3 {
                         return Err(LambdustError::arity_error_min(3, args.len()));
                     }
-                    
+
                     if let Value::Comparator(comp) = &args[0] {
                         // Compare all objects for equality
                         for i in 1..args.len() - 1 {
@@ -363,12 +377,12 @@ impl super::SrfiModule for Srfi128 {
                     if args.len() < 3 {
                         return Err(LambdustError::arity_error_min(3, args.len()));
                     }
-                    
+
                     if let Value::Comparator(comp) = &args[0] {
                         // Check if all objects are in increasing order
                         for i in 1..args.len() - 1 {
                             match comp.compare(&args[i], &args[i + 1])? {
-                                -1 => continue, // Less than, good
+                                -1 => continue,                        // Less than, good
                                 _ => return Ok(Value::Boolean(false)), // Not less than
                             }
                         }
@@ -386,10 +400,10 @@ impl super::SrfiModule for Srfi128 {
             "default-comparator".to_string(),
             Value::Comparator(Rc::new(Comparator::new(
                 "default-comparator".to_string(),
-                None, // Accept all types
+                None,                               // Accept all types
                 Rc::new(|obj1, obj2| obj1 == obj2), // Use Value's PartialEq
-                None, // No ordering for default comparator
-                None, // No hash for default comparator
+                None,                               // No ordering for default comparator
+                None,                               // No hash for default comparator
             ))),
         );
 

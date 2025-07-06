@@ -1,7 +1,7 @@
 //! Unit tests for SRFI 128: Comparators
 
-use lambdust::srfi::srfi_128::{default_number_comparator, default_string_comparator, Srfi128};
 use lambdust::srfi::SrfiModule;
+use lambdust::srfi::srfi_128::{Srfi128, default_number_comparator, default_string_comparator};
 use lambdust::value::{Procedure, Value};
 use std::rc::Rc;
 
@@ -200,7 +200,7 @@ fn test_exports_for_parts() {
     let srfi = Srfi128;
     let all_exports = srfi.exports();
     let parts_exports = srfi.exports_for_parts(&[]).unwrap();
-    
+
     // Should return all exports since SRFI 128 has no parts
     assert_eq!(all_exports.len(), parts_exports.len());
 }

@@ -63,25 +63,13 @@ Examples:
 "#;
 
 /// Debug mode state
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DebugState {
     pub enabled: bool,
     pub breakpoint_set: bool,
     pub step_mode: bool,
     pub call_stack: Vec<String>,
     pub last_expression: Option<String>,
-}
-
-impl Default for DebugState {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            breakpoint_set: false,
-            step_mode: false,
-            call_stack: Vec::new(),
-            last_expression: None,
-        }
-    }
 }
 
 /// REPL configuration
@@ -123,79 +111,223 @@ pub struct SchemeHelper {
 }
 
 impl SchemeHelper {
+    #[allow(dead_code)]
     fn new() -> Self {
         let mut builtin_functions = HashSet::new();
         let mut special_forms = HashSet::new();
-        
+
         // R7RS builtin functions
         for func in &[
             // Arithmetic
-            "+", "-", "*", "/", "quotient", "remainder", "modulo", "abs", "floor", 
-            "ceiling", "sqrt", "expt", "min", "max", "exact?", "inexact?", "number?",
-            "integer?", "real?", "rational?", "complex?", "exact->inexact", "inexact->exact",
-            "number->string", "string->number",
-            
+            "+",
+            "-",
+            "*",
+            "/",
+            "quotient",
+            "remainder",
+            "modulo",
+            "abs",
+            "floor",
+            "ceiling",
+            "sqrt",
+            "expt",
+            "min",
+            "max",
+            "exact?",
+            "inexact?",
+            "number?",
+            "integer?",
+            "real?",
+            "rational?",
+            "complex?",
+            "exact->inexact",
+            "inexact->exact",
+            "number->string",
+            "string->number",
             // Comparison
-            "=", "<", ">", "<=", ">=", "eq?", "eqv?", "equal?",
-            
+            "=",
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "eq?",
+            "eqv?",
+            "equal?",
             // List operations
-            "car", "cdr", "cons", "list", "append", "reverse", "length", "null?",
-            "pair?", "list?", "set-car!", "set-cdr!", "list->vector", "list->string",
-            
+            "car",
+            "cdr",
+            "cons",
+            "list",
+            "append",
+            "reverse",
+            "length",
+            "null?",
+            "pair?",
+            "list?",
+            "set-car!",
+            "set-cdr!",
+            "list->vector",
+            "list->string",
             // String operations
-            "string?", "string=?", "string<?", "string>?", "string<=?", "string>=?",
-            "string-ci=?", "string-ci<?", "string-ci>?", "string-ci<=?", "string-ci>=?",
-            "make-string", "string-length", "string-ref", "string-set!", "substring",
-            "string-append", "string->list", "string-copy", "string-fill!",
-            
-            // Character operations  
-            "char?", "char=?", "char<?", "char>?", "char<=?", "char>=?",
-            "char-ci=?", "char-ci<?", "char-ci>?", "char-ci<=?", "char-ci>=?",
-            "char-alphabetic?", "char-numeric?", "char-whitespace?", "char-upper-case?",
-            "char-lower-case?", "char-upcase", "char-downcase", "char->integer", "integer->char",
-            
+            "string?",
+            "string=?",
+            "string<?",
+            "string>?",
+            "string<=?",
+            "string>=?",
+            "string-ci=?",
+            "string-ci<?",
+            "string-ci>?",
+            "string-ci<=?",
+            "string-ci>=?",
+            "make-string",
+            "string-length",
+            "string-ref",
+            "string-set!",
+            "substring",
+            "string-append",
+            "string->list",
+            "string-copy",
+            "string-fill!",
+            // Character operations
+            "char?",
+            "char=?",
+            "char<?",
+            "char>?",
+            "char<=?",
+            "char>=?",
+            "char-ci=?",
+            "char-ci<?",
+            "char-ci>?",
+            "char-ci<=?",
+            "char-ci>=?",
+            "char-alphabetic?",
+            "char-numeric?",
+            "char-whitespace?",
+            "char-upper-case?",
+            "char-lower-case?",
+            "char-upcase",
+            "char-downcase",
+            "char->integer",
+            "integer->char",
             // Vector operations
-            "vector?", "make-vector", "vector", "vector-length", "vector-ref", "vector-set!",
-            "vector->list", "list->vector", "vector-copy", "vector-fill!",
-            
+            "vector?",
+            "make-vector",
+            "vector",
+            "vector-length",
+            "vector-ref",
+            "vector-set!",
+            "vector->list",
+            "list->vector",
+            "vector-copy",
+            "vector-fill!",
             // I/O
-            "read", "write", "display", "newline", "read-char", "write-char", "peek-char",
-            "eof-object?", "char-ready?", "load",
-            
+            "read",
+            "write",
+            "display",
+            "newline",
+            "read-char",
+            "write-char",
+            "peek-char",
+            "eof-object?",
+            "char-ready?",
+            "load",
             // Higher-order functions
-            "map", "for-each", "apply", "fold", "fold-right", "filter",
-            
+            "map",
+            "for-each",
+            "apply",
+            "fold",
+            "fold-right",
+            "filter",
             // Control
-            "call/cc", "call-with-current-continuation", "values", "call-with-values",
-            "dynamic-wind", "raise", "with-exception-handler", "error",
-            
+            "call/cc",
+            "call-with-current-continuation",
+            "values",
+            "call-with-values",
+            "dynamic-wind",
+            "raise",
+            "with-exception-handler",
+            "error",
             // Type predicates
-            "boolean?", "symbol?", "procedure?", "port?", "input-port?", "output-port?",
-            
+            "boolean?",
+            "symbol?",
+            "procedure?",
+            "port?",
+            "input-port?",
+            "output-port?",
             // Record types (SRFI 9)
-            "make-record", "record-of-type?", "record-field", "record-set-field!",
-            
+            "make-record",
+            "record-of-type?",
+            "record-field",
+            "record-set-field!",
             // SRFI functions
-            "take", "drop", "concatenate", "delete-duplicates", "find", "any", "every",
-            "string-null?", "string-hash", "string-hash-ci", "string-prefix?", "string-suffix?",
-            "string-contains", "string-take", "string-drop", "string-concatenate",
-            "make-hash-table", "hash-table?", "hash-table-set!", "hash-table-ref",
-            "hash-table-delete!", "hash-table-size", "hash-table-exists?", "hash-table-keys",
-            "hash-table-values", "hash-table->alist", "alist->hash-table", "hash", "string-hash",
+            "take",
+            "drop",
+            "concatenate",
+            "delete-duplicates",
+            "find",
+            "any",
+            "every",
+            "string-null?",
+            "string-hash",
+            "string-hash-ci",
+            "string-prefix?",
+            "string-suffix?",
+            "string-contains",
+            "string-take",
+            "string-drop",
+            "string-concatenate",
+            "make-hash-table",
+            "hash-table?",
+            "hash-table-set!",
+            "hash-table-ref",
+            "hash-table-delete!",
+            "hash-table-size",
+            "hash-table-exists?",
+            "hash-table-keys",
+            "hash-table-values",
+            "hash-table->alist",
+            "alist->hash-table",
+            "hash",
+            "string-hash",
         ] {
             builtin_functions.insert(func.to_string());
         }
-        
+
         // Special forms
         for form in &[
-            "define", "lambda", "if", "cond", "case", "and", "or", "when", "unless",
-            "begin", "do", "let", "let*", "letrec", "letrec*", "set!", "quote", "quasiquote",
-            "unquote", "unquote-splicing", "syntax-rules", "define-syntax", "guard",
-            "define-record-type", "delay", "lazy", "force", "promise?",
+            "define",
+            "lambda",
+            "if",
+            "cond",
+            "case",
+            "and",
+            "or",
+            "when",
+            "unless",
+            "begin",
+            "do",
+            "let",
+            "let*",
+            "letrec",
+            "letrec*",
+            "set!",
+            "quote",
+            "quasiquote",
+            "unquote",
+            "unquote-splicing",
+            "syntax-rules",
+            "define-syntax",
+            "guard",
+            "define-record-type",
+            "delay",
+            "lazy",
+            "force",
+            "promise?",
         ] {
             special_forms.insert(form.to_string());
         }
-        
+
         Self {
             completer: FilenameCompleter::new(),
             highlighter: MatchingBracketHighlighter::new(),
@@ -205,13 +337,14 @@ impl SchemeHelper {
             special_forms,
         }
     }
-    
+
+    #[allow(dead_code)]
     fn update_builtin_functions(&mut self, interpreter: &LambdustInterpreter) {
         // Add host functions
         for func_name in interpreter.list_host_functions() {
             self.builtin_functions.insert(func_name.clone());
         }
-        
+
         // Add scheme functions
         for func_name in interpreter.list_scheme_functions() {
             self.builtin_functions.insert(func_name.clone());
@@ -221,7 +354,7 @@ impl SchemeHelper {
 
 impl Completer for SchemeHelper {
     type Candidate = Pair;
-    
+
     fn complete(
         &self,
         line: &str,
@@ -237,14 +370,14 @@ impl Completer for SchemeHelper {
             }
             start -= 1;
         }
-        
+
         let word = &line[start..pos];
         if word.is_empty() {
             return Ok((start, vec![]));
         }
-        
+
         let mut candidates = Vec::new();
-        
+
         // Complete builtin functions
         for func in &self.builtin_functions {
             if func.starts_with(word) {
@@ -254,7 +387,7 @@ impl Completer for SchemeHelper {
                 });
             }
         }
-        
+
         // Complete special forms
         for form in &self.special_forms {
             if form.starts_with(word) {
@@ -264,22 +397,22 @@ impl Completer for SchemeHelper {
                 });
             }
         }
-        
+
         // If no matches and word looks like a filename, try file completion
         if candidates.is_empty() && (word.contains('/') || word.contains('.')) {
             return self.completer.complete(line, pos, _ctx);
         }
-        
+
         // Sort candidates alphabetically
         candidates.sort_by(|a, b| a.display.cmp(&b.display));
-        
+
         Ok((start, candidates))
     }
 }
 
 impl Hinter for SchemeHelper {
     type Hint = String;
-    
+
     fn hint(&self, line: &str, pos: usize, ctx: &Context<'_>) -> Option<String> {
         self.hinter.hint(line, pos, ctx)
     }
@@ -289,11 +422,11 @@ impl Highlighter for SchemeHelper {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
         // Simple syntax highlighting for demonstration
         let mut result = String::new();
-        let mut chars = line.chars().peekable();
+        let chars = line.chars();
         let mut in_string = false;
         let mut in_comment = false;
-        
-        while let Some(ch) = chars.next() {
+
+        for ch in chars {
             match ch {
                 // String literals
                 '"' if !in_comment => {
@@ -307,13 +440,13 @@ impl Highlighter for SchemeHelper {
                         continue;
                     }
                 }
-                
+
                 // Comments
                 ';' if !in_string => {
                     result.push_str("\x1b[90m"); // Gray for comments
                     in_comment = true;
                 }
-                
+
                 // Numbers (simplified detection)
                 c if c.is_ascii_digit() && !in_string && !in_comment => {
                     result.push_str("\x1b[94m"); // Light blue for numbers
@@ -321,7 +454,7 @@ impl Highlighter for SchemeHelper {
                     result.push_str("\x1b[0m");
                     continue;
                 }
-                
+
                 // Reset comment flag at end of line
                 '\n' => {
                     if in_comment {
@@ -331,21 +464,21 @@ impl Highlighter for SchemeHelper {
                         continue;
                     }
                 }
-                
+
                 _ => {}
             }
-            
+
             result.push(ch);
         }
-        
+
         // Reset color at end if still in string or comment
         if in_string || in_comment {
             result.push_str("\x1b[0m");
         }
-        
+
         Owned(result)
     }
-    
+
     fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
         &'s self,
         prompt: &'p str,
@@ -353,11 +486,11 @@ impl Highlighter for SchemeHelper {
     ) -> Cow<'b, str> {
         Borrowed(prompt)
     }
-    
+
     fn highlight_hint<'h>(&self, hint: &'h str) -> Cow<'h, str> {
         Owned("\x1b[1m".to_owned() + hint + "\x1b[m")
     }
-    
+
     fn highlight_char(&self, line: &str, pos: usize, forced: bool) -> bool {
         self.highlighter.highlight_char(line, pos, forced)
     }
@@ -370,7 +503,7 @@ impl Validator for SchemeHelper {
     ) -> RustylineResult<rustyline::validate::ValidationResult> {
         self.validator.validate(ctx)
     }
-    
+
     fn validate_while_typing(&self) -> bool {
         self.validator.validate_while_typing()
     }
@@ -384,6 +517,7 @@ pub struct Repl {
     editor: DefaultEditor,
     config: ReplConfig,
     debug_state: DebugState,
+    #[allow(dead_code)]
     completion_enabled: bool,
 }
 
@@ -534,7 +668,9 @@ impl Repl {
             }
             "(debug on)" => {
                 self.debug_state.enabled = true;
-                println!("Debug mode enabled. Use (break) to set breakpoints, (step) to step through code.");
+                println!(
+                    "Debug mode enabled. Use (break) to set breakpoints, (step) to step through code."
+                );
                 Some(true)
             }
             "(debug off)" => {
@@ -617,28 +753,30 @@ impl Repl {
         // Handle debug mode
         if self.debug_state.enabled {
             self.debug_state.last_expression = Some(input.to_string());
-            
+
             if self.debug_state.breakpoint_set || self.debug_state.step_mode {
                 println!("\x1b[93m[DEBUG]\x1b[0m Breaking at: {}", input);
-                println!("\x1b[93m[DEBUG]\x1b[0m Use (continue) to proceed, (backtrace) to see stack");
+                println!(
+                    "\x1b[93m[DEBUG]\x1b[0m Use (continue) to proceed, (backtrace) to see stack"
+                );
                 self.debug_state.breakpoint_set = false;
                 return;
             }
         }
-        
+
         match self.interpreter.eval_string(input) {
             Ok(value) => {
                 // Add to call stack for debugging
                 if self.debug_state.enabled && input.trim().starts_with('(') {
                     let call_info = self.extract_call_info(input);
                     self.debug_state.call_stack.push(call_info);
-                    
+
                     // Limit stack size
                     if self.debug_state.call_stack.len() > 20 {
                         self.debug_state.call_stack.remove(0);
                     }
                 }
-                
+
                 // Don't print undefined values (common for definitions)
                 if !matches!(value, lambdust::value::Value::Undefined) {
                     println!("{}", value);
@@ -688,11 +826,11 @@ impl Repl {
         println!("Goodbye!");
         Ok(())
     }
-    
+
     /// Show current environment bindings
     fn show_environment(&self) {
         println!("\x1b[96m[ENVIRONMENT]\x1b[0m Available functions and variables:");
-        
+
         // Show host functions
         let host_funcs = self.interpreter.list_host_functions();
         if !host_funcs.is_empty() {
@@ -705,7 +843,7 @@ impl Repl {
             }
             println!();
         }
-        
+
         // Show user-defined functions
         let scheme_funcs = self.interpreter.list_scheme_functions();
         if !scheme_funcs.is_empty() {
@@ -719,7 +857,7 @@ impl Repl {
             println!();
         }
     }
-    
+
     /// Show debug backtrace
     fn show_backtrace(&self) {
         println!("\x1b[93m[BACKTRACE]\x1b[0m Call stack:");
@@ -730,12 +868,12 @@ impl Repl {
                 println!("  {}: {}", i, call);
             }
         }
-        
+
         if let Some(ref expr) = self.debug_state.last_expression {
             println!("\x1b[93m[CURRENT]\x1b[0m {}", expr);
         }
     }
-    
+
     /// Extract call information for debugging
     fn extract_call_info(&self, input: &str) -> String {
         let trimmed = input.trim();
@@ -744,7 +882,7 @@ impl Repl {
                 let func_name = &trimmed[1..end];
                 format!("{}(...)", func_name)
             } else if trimmed.len() > 2 {
-                let func_name = &trimmed[1..trimmed.len()-1];
+                let func_name = &trimmed[1..trimmed.len() - 1];
                 format!("{}()", func_name)
             } else {
                 "(unknown)".to_string()

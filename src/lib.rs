@@ -82,8 +82,6 @@ pub mod error;
 pub mod evaluator;
 pub mod ffi;
 pub mod ffi_enhanced;
-#[cfg(any(feature = "wasm", feature = "wasi"))]
-pub mod wasm;
 pub mod host;
 pub mod interpreter;
 pub mod lexer;
@@ -96,22 +94,24 @@ pub mod parser;
 pub mod srfi;
 pub mod stack_monitor;
 pub mod value;
+#[cfg(any(feature = "wasm", feature = "wasi"))]
+pub mod wasm;
 
 // REPL module will be implemented in future versions
 // #[cfg(feature = "repl")]
 // pub mod repl;
 
-pub use adaptive_memory::{AdaptiveMemoryManager, MemoryPressure, AllocationStrategy};
+pub use adaptive_memory::{AdaptiveMemoryManager, AllocationStrategy, MemoryPressure};
 pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
-pub use cps_inlining::{CpsInliner, InliningDecision, ChainStrategy};
+pub use cps_inlining::{ChainStrategy, CpsInliner, InliningDecision};
 pub use error::{LambdustError, Result};
 pub use evaluator::{Evaluator, eval_with_formal_semantics};
 pub use interpreter::LambdustInterpreter;
-pub use memory_pool::{ValuePool, PoolStats, ContinuationPool, ContinuationPoolStats};
+pub use memory_pool::{ContinuationPool, ContinuationPoolStats, PoolStats, ValuePool};
 pub use module_system::ModuleSystem;
-pub use optimized_collections::{SliceRef, CowVec, ArgVec, ExprVec};
+pub use optimized_collections::{ArgVec, CowVec, ExprVec, SliceRef};
 pub use srfi::SrfiRegistry;
-pub use stack_monitor::{StackMonitor, StackFrameType, OptimizationRecommendation};
+pub use stack_monitor::{OptimizationRecommendation, StackFrameType, StackMonitor};
 pub use value::Value;
 
 /// The main interpreter struct that provides the public API

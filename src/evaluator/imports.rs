@@ -26,7 +26,7 @@ impl Evaluator {
 
         // Process each import specification
         for import_spec in operands {
-            self.process_import_spec(import_spec, env.clone())?;
+            self.process_import_spec(import_spec, Rc::clone(&env))?;
         }
 
         // Import returns unspecified value

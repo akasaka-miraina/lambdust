@@ -28,14 +28,14 @@ pub fn eval_call_cc(
     let reuse_id = evaluator.next_reuse_id();
     let captured_cont = Value::Procedure(Procedure::ReusableContinuation {
         continuation: Box::new(cont.clone()),
-        capture_env: env.clone(),
+        capture_env: Rc::clone(&env),
         reuse_id,
         is_escaping: false, // Will be set to true if used for escape
     });
 
     let call_cc_cont = Continuation::CallCc {
         captured_cont,
-        env: env.clone(),
+        env: Rc::clone(&env),
         parent: Box::new(cont),
     };
 
@@ -77,13 +77,14 @@ impl Evaluator {
         // and jump directly to the captured point
         match captured_cont {
             // For CallCc continuation, skip to its parent (the capture point)
-            Continuation::CallCc { parent, .. } => {
-                self.apply_continuation(*parent, escape_value)
-            }
+            Continuation::CallCc { parent, .. } => self.apply_continuation(*parent, escape_value),
             // For intermediate computation continuations, skip them entirely
             cont if cont.is_intermediate_computation() => {
                 if let Some(parent) = cont.parent() {
-                    self.apply_captured_continuation_with_complete_exit(parent.clone(), escape_value)
+                    self.apply_captured_continuation_with_complete_exit(
+                        parent.clone(),
+                        escape_value,
+                    )
                 } else {
                     // No parent, this is the final destination
                     Ok(escape_value)

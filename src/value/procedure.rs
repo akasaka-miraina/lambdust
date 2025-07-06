@@ -89,7 +89,11 @@ impl std::fmt::Debug for Procedure {
                 .field("continuation", continuation)
                 .finish(),
             Self::CapturedContinuation { .. } => f.debug_struct("CapturedContinuation").finish(),
-            Self::ReusableContinuation { reuse_id, is_escaping, .. } => f
+            Self::ReusableContinuation {
+                reuse_id,
+                is_escaping,
+                ..
+            } => f
                 .debug_struct("ReusableContinuation")
                 .field("reuse_id", reuse_id)
                 .field("is_escaping", is_escaping)
@@ -150,7 +154,10 @@ impl PartialEq for Procedure {
             (Self::CapturedContinuation { .. }, Self::CapturedContinuation { .. }) => {
                 false // Captured continuations are never equal
             }
-            (Self::ReusableContinuation { reuse_id: l_id, .. }, Self::ReusableContinuation { reuse_id: r_id, .. }) => {
+            (
+                Self::ReusableContinuation { reuse_id: l_id, .. },
+                Self::ReusableContinuation { reuse_id: r_id, .. },
+            ) => {
                 l_id == r_id // Reusable continuations are equal if they have the same reuse ID
             }
             _ => false,

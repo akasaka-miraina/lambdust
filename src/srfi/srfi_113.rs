@@ -2,8 +2,11 @@
 //!
 //! This SRFI provides linear-update sets and bags (multisets).
 
+use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
-use crate::value::{Procedure, Value};
+#[cfg(test)]
+use crate::value::Procedure;
+use crate::value::Value;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -230,214 +233,158 @@ impl super::SrfiModule for Srfi113 {
         // set constructor
         exports.insert(
             "set".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "set".to_string(),
-                func: |args| {
-                    let set = Set::from_values(args.to_vec());
-                    Ok(Value::External(crate::bridge::ExternalObject {
-                        id: 0, // Will be assigned by the system
-                        type_name: "set".to_string(),
-                        data: Arc::new(set),
-                    }))
-                },
-                arity: None, // Variable arity
+            make_builtin_procedure("set", None, |args| {
+                let set = Set::from_values(args.to_vec());
+                Ok(Value::External(crate::bridge::ExternalObject {
+                    id: 0, // Will be assigned by the system
+                    type_name: "set".to_string(),
+                    data: Arc::new(set),
+                }))
             }),
         );
 
         // set? predicate
         exports.insert(
             "set?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "set?".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
+            make_builtin_procedure("set?", Some(1), |args| {
+                check_arity(args, 1)?;
 
-                    let is_set = match &args[0] {
-                        Value::External(obj) => obj.type_name == "set",
-                        _ => false,
-                    };
-                    Ok(Value::Boolean(is_set))
-                },
-                arity: Some(1),
+                let is_set = match &args[0] {
+                    Value::External(obj) => obj.type_name == "set",
+                    _ => false,
+                };
+                Ok(Value::Boolean(is_set))
             }),
         );
 
         // set-contains? predicate
         exports.insert(
             "set-contains?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "set-contains?".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
+            make_builtin_procedure("set-contains?", Some(2), |args| {
+                check_arity(args, 2)?;
 
-                    if let Value::External(obj) = &args[0] {
-                        if obj.type_name == "set" {
-                            if let Some(set) = obj.data.downcast_ref::<Set>() {
-                                return Ok(Value::Boolean(set.contains(&args[1])));
-                            }
+                if let Value::External(obj) = &args[0] {
+                    if obj.type_name == "set" {
+                        if let Some(set) = obj.data.downcast_ref::<Set>() {
+                            return Ok(Value::Boolean(set.contains(&args[1])));
                         }
                     }
-                    Err(LambdustError::type_error("Expected set".to_string()))
-                },
-                arity: Some(2),
+                }
+                Err(LambdustError::type_error("Expected set".to_string()))
             }),
         );
 
         // set-size procedure
         exports.insert(
             "set-size".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "set-size".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
+            make_builtin_procedure("set-size", Some(1), |args| {
+                check_arity(args, 1)?;
 
-                    if let Value::External(obj) = &args[0] {
-                        if obj.type_name == "set" {
-                            if let Some(set) = obj.data.downcast_ref::<Set>() {
-                                return Ok(Value::from(set.size() as i64));
-                            }
+                if let Value::External(obj) = &args[0] {
+                    if obj.type_name == "set" {
+                        if let Some(set) = obj.data.downcast_ref::<Set>() {
+                            return Ok(Value::from(set.size() as i64));
                         }
                     }
-                    Err(LambdustError::type_error("Expected set".to_string()))
-                },
-                arity: Some(1),
+                }
+                Err(LambdustError::type_error("Expected set".to_string()))
             }),
         );
 
         // set-empty? predicate
         exports.insert(
             "set-empty?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "set-empty?".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
+            make_builtin_procedure("set-empty?", Some(1), |args| {
+                check_arity(args, 1)?;
 
-                    if let Value::External(obj) = &args[0] {
-                        if obj.type_name == "set" {
-                            if let Some(set) = obj.data.downcast_ref::<Set>() {
-                                return Ok(Value::Boolean(set.is_empty()));
-                            }
+                if let Value::External(obj) = &args[0] {
+                    if obj.type_name == "set" {
+                        if let Some(set) = obj.data.downcast_ref::<Set>() {
+                            return Ok(Value::Boolean(set.is_empty()));
                         }
                     }
-                    Err(LambdustError::type_error("Expected set".to_string()))
-                },
-                arity: Some(1),
+                }
+                Err(LambdustError::type_error("Expected set".to_string()))
             }),
         );
 
         // set->list converter
         exports.insert(
             "set->list".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "set->list".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
+            make_builtin_procedure("set->list", Some(1), |args| {
+                check_arity(args, 1)?;
 
-                    if let Value::External(obj) = &args[0] {
-                        if obj.type_name == "set" {
-                            if let Some(set) = obj.data.downcast_ref::<Set>() {
-                                return Ok(Value::from_vector(set.to_vector()));
-                            }
+                if let Value::External(obj) = &args[0] {
+                    if obj.type_name == "set" {
+                        if let Some(set) = obj.data.downcast_ref::<Set>() {
+                            return Ok(Value::from_vector(set.to_vector()));
                         }
                     }
-                    Err(LambdustError::type_error("Expected set".to_string()))
-                },
-                arity: Some(1),
+                }
+                Err(LambdustError::type_error("Expected set".to_string()))
             }),
         );
 
         // list->set converter
         exports.insert(
             "list->set".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "list->set".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
+            make_builtin_procedure("list->set", Some(1), |args| {
+                check_arity(args, 1)?;
 
-                    if let Some(vec) = args[0].to_vector() {
-                        let set = Set::from_values(vec);
-                        Ok(Value::External(crate::bridge::ExternalObject {
-                            id: 0,
-                            type_name: "set".to_string(),
-                            data: Arc::new(set),
-                        }))
-                    } else {
-                        Err(LambdustError::type_error("Expected list".to_string()))
-                    }
-                },
-                arity: Some(1),
+                if let Some(vec) = args[0].to_vector() {
+                    let set = Set::from_values(vec);
+                    Ok(Value::External(crate::bridge::ExternalObject {
+                        id: 0,
+                        type_name: "set".to_string(),
+                        data: Arc::new(set),
+                    }))
+                } else {
+                    Err(LambdustError::type_error("Expected list".to_string()))
+                }
             }),
         );
 
         // bag constructor
         exports.insert(
             "bag".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "bag".to_string(),
-                func: |args| {
-                    let bag = Bag::from_values(args.to_vec());
-                    Ok(Value::External(crate::bridge::ExternalObject {
-                        id: 0,
-                        type_name: "bag".to_string(),
-                        data: Arc::new(bag),
-                    }))
-                },
-                arity: None, // Variable arity
+            make_builtin_procedure("bag", None, |args| {
+                let bag = Bag::from_values(args.to_vec());
+                Ok(Value::External(crate::bridge::ExternalObject {
+                    id: 0,
+                    type_name: "bag".to_string(),
+                    data: Arc::new(bag),
+                }))
             }),
         );
 
         // bag? predicate
         exports.insert(
             "bag?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "bag?".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
+            make_builtin_procedure("bag?", Some(1), |args| {
+                check_arity(args, 1)?;
 
-                    let is_bag = match &args[0] {
-                        Value::External(obj) => obj.type_name == "bag",
-                        _ => false,
-                    };
-                    Ok(Value::Boolean(is_bag))
-                },
-                arity: Some(1),
+                let is_bag = match &args[0] {
+                    Value::External(obj) => obj.type_name == "bag",
+                    _ => false,
+                };
+                Ok(Value::Boolean(is_bag))
             }),
         );
 
         // bag-count procedure
         exports.insert(
             "bag-count".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "bag-count".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
+            make_builtin_procedure("bag-count", Some(2), |args| {
+                check_arity(args, 2)?;
 
-                    if let Value::External(obj) = &args[0] {
-                        if obj.type_name == "bag" {
-                            if let Some(bag) = obj.data.downcast_ref::<Bag>() {
-                                return Ok(Value::from(bag.count(&args[1]) as i64));
-                            }
+                if let Value::External(obj) = &args[0] {
+                    if obj.type_name == "bag" {
+                        if let Some(bag) = obj.data.downcast_ref::<Bag>() {
+                            return Ok(Value::from(bag.count(&args[1]) as i64));
                         }
                     }
-                    Err(LambdustError::type_error("Expected bag".to_string()))
-                },
-                arity: Some(2),
+                }
+                Err(LambdustError::type_error("Expected bag".to_string()))
             }),
         );
 

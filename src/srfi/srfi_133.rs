@@ -2,6 +2,7 @@
 //!
 //! This SRFI provides a complete library of vector manipulation procedures.
 
+use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
 use crate::value::{Procedure, Value};
 use std::collections::HashMap;
@@ -28,103 +29,86 @@ impl super::SrfiModule for Srfi133 {
         // vector-empty? predicate
         exports.insert(
             "vector-empty?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "vector-empty?".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
+            make_builtin_procedure("vector-empty?", Some(1), |args| {
+                check_arity(args, 1)?;
 
-                    if let Value::Vector(vec) = &args[0] {
-                        Ok(Value::Boolean(vec.is_empty()))
-                    } else {
-                        Err(LambdustError::type_error("Expected vector".to_string()))
-                    }
-                },
-                arity: Some(1),
+                if let Value::Vector(vec) = &args[0] {
+                    Ok(Value::Boolean(vec.is_empty()))
+                } else {
+                    Err(LambdustError::type_error("Expected vector".to_string()))
+                }
             }),
         );
 
         // vector-count procedure
         exports.insert(
             "vector-count".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "vector-count".to_string(),
-                func: |args| {
-                    if args.len() < 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
+            make_builtin_procedure("vector-count", None, |args| {
+                if args.len() < 2 {
+                    return Err(LambdustError::arity_error(2, args.len()));
+                }
 
-                    // For now, implement simple predicate counting
-                    let _predicate = &args[0];
-                    let vector = &args[1];
+                // For now, implement simple predicate counting
+                let _predicate = &args[0];
+                let vector = &args[1];
 
-                    if let Value::Vector(vec) = vector {
-                        // Count non-false values for now (simplified predicate)
-                        let count = vec.iter().filter(|v| v.is_truthy()).count();
-                        Ok(Value::from(count as i64))
-                    } else {
-                        Err(LambdustError::type_error("Expected vector".to_string()))
-                    }
-                },
-                arity: None, // Variable arity
+                if let Value::Vector(vec) = vector {
+                    // Count non-false values for now (simplified predicate)
+                    let count = vec.iter().filter(|v| v.is_truthy()).count();
+                    Ok(Value::from(count as i64))
+                } else {
+                    Err(LambdustError::type_error("Expected vector".to_string()))
+                }
             }),
         );
 
         // vector-cumulate procedure
         exports.insert(
             "vector-cumulate".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "vector-cumulate".to_string(),
-                func: |args| {
-                    if args.len() != 3 {
-                        return Err(LambdustError::arity_error(3, args.len()));
-                    }
+            make_builtin_procedure("vector-cumulate", Some(3), |args| {
+                check_arity(args, 3)?;
 
-                    let _combiner = &args[0];
-                    let initial = &args[1];
-                    let vector = &args[2];
+                let _combiner = &args[0];
+                let initial = &args[1];
+                let vector = &args[2];
 
-                    if let Value::Vector(vec) = vector {
-                        let mut result = Vec::new();
-                        let mut acc = initial.clone();
+                if let Value::Vector(vec) = vector {
+                    let mut result = Vec::new();
+                    let mut acc = initial.clone();
 
-                        result.push(acc.clone());
+                    result.push(acc.clone());
 
-                        for value in vec {
-                            // For now, implement addition for numeric values
-                            if let (Some(acc_num), Some(val_num)) =
-                                (acc.as_number(), value.as_number())
-                            {
-                                use crate::lexer::SchemeNumber;
-                                let sum = match (acc_num, val_num) {
-                                    (SchemeNumber::Integer(a), SchemeNumber::Integer(b)) => {
-                                        Value::from(a + b)
-                                    }
-                                    (SchemeNumber::Real(a), SchemeNumber::Real(b)) => {
-                                        Value::from(a + b)
-                                    }
-                                    (SchemeNumber::Integer(a), SchemeNumber::Real(b)) => {
-                                        Value::from(*a as f64 + b)
-                                    }
-                                    (SchemeNumber::Real(a), SchemeNumber::Integer(b)) => {
-                                        Value::from(a + *b as f64)
-                                    }
-                                    _ => value.clone(), // Fallback
-                                };
-                                acc = sum;
-                            } else {
-                                acc = value.clone();
-                            }
-                            result.push(acc.clone());
+                    for value in vec {
+                        // For now, implement addition for numeric values
+                        if let (Some(acc_num), Some(val_num)) = (acc.as_number(), value.as_number())
+                        {
+                            use crate::lexer::SchemeNumber;
+                            let sum = match (acc_num, val_num) {
+                                (SchemeNumber::Integer(a), SchemeNumber::Integer(b)) => {
+                                    Value::from(a + b)
+                                }
+                                (SchemeNumber::Real(a), SchemeNumber::Real(b)) => {
+                                    Value::from(a + b)
+                                }
+                                (SchemeNumber::Integer(a), SchemeNumber::Real(b)) => {
+                                    Value::from(*a as f64 + b)
+                                }
+                                (SchemeNumber::Real(a), SchemeNumber::Integer(b)) => {
+                                    Value::from(a + *b as f64)
+                                }
+                                _ => value.clone(), // Fallback
+                            };
+                            acc = sum;
+                        } else {
+                            acc = value.clone();
                         }
-
-                        Ok(Value::Vector(result))
-                    } else {
-                        Err(LambdustError::type_error("Expected vector".to_string()))
+                        result.push(acc.clone());
                     }
-                },
-                arity: Some(3),
+
+                    Ok(Value::Vector(result))
+                } else {
+                    Err(LambdustError::type_error("Expected vector".to_string()))
+                }
             }),
         );
 
