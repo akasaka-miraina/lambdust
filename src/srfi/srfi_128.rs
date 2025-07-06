@@ -8,17 +8,23 @@ use crate::value::{Procedure, Value};
 use std::collections::HashMap;
 use std::rc::Rc;
 
+// Type aliases to reduce complexity warnings
+type TypeTestFn = Option<Rc<dyn Fn(&Value) -> bool>>;
+type EqualityFn = Rc<dyn Fn(&Value, &Value) -> bool>;
+type ComparisonFn = Option<Rc<dyn Fn(&Value, &Value) -> Result<i32>>>;
+type HashFn = Option<Rc<dyn Fn(&Value) -> Result<i64>>>;
+
 /// Comparator data structure
 #[derive(Clone)]
 pub struct Comparator {
     /// Type test procedure: obj -> boolean
-    pub type_test: Option<Rc<dyn Fn(&Value) -> bool>>,
+    pub type_test: TypeTestFn,
     /// Equality procedure: obj1 obj2 -> boolean  
-    pub equality: Rc<dyn Fn(&Value, &Value) -> bool>,
+    pub equality: EqualityFn,
     /// Comparison procedure: obj1 obj2 -> -1|0|1
-    pub comparison: Option<Rc<dyn Fn(&Value, &Value) -> Result<i32>>>,
+    pub comparison: ComparisonFn,
     /// Hash function: obj -> integer
-    pub hash_fn: Option<Rc<dyn Fn(&Value) -> Result<i64>>>,
+    pub hash_fn: HashFn,
     /// Comparator name for debugging
     pub name: String,
 }
@@ -27,10 +33,10 @@ impl Comparator {
     /// Create a new comparator
     pub fn new(
         name: String,
-        type_test: Option<Rc<dyn Fn(&Value) -> bool>>,
-        equality: Rc<dyn Fn(&Value, &Value) -> bool>,
-        comparison: Option<Rc<dyn Fn(&Value, &Value) -> Result<i32>>>,
-        hash_fn: Option<Rc<dyn Fn(&Value) -> Result<i64>>>,
+        type_test: TypeTestFn,
+        equality: EqualityFn,
+        comparison: ComparisonFn,
+        hash_fn: HashFn,
     ) -> Self {
         Self {
             type_test,

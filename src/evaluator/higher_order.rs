@@ -73,8 +73,7 @@ impl Evaluator {
             results.push(result);
         }
 
-        let result_list = Value::from_vector(results);
-        self.apply_continuation(cont, result_list)
+        self.apply_continuation(cont, Value::from_vector(results))
     }
 
     /// Evaluate apply as special form
@@ -299,8 +298,7 @@ impl Evaluator {
             }
         }
 
-        let result_list = Value::from_vector(results);
-        self.apply_continuation(cont, result_list)
+        self.apply_continuation(cont, Value::from_vector(results))
     }
 
     /// Apply procedure with full evaluator integration
@@ -453,7 +451,7 @@ impl Evaluator {
 
         // Apply procedure to each key-value pair
         let ht = hash_table.borrow();
-        for (key, value) in ht.iter() {
+        for (key, value) in ht.table.iter() {
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone()];
 
@@ -503,7 +501,7 @@ impl Evaluator {
 
         // Fold over each key-value pair
         let ht = hash_table.borrow();
-        for (key, value) in ht.iter() {
+        for (key, value) in ht.table.iter() {
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone(), accumulator];
 
@@ -717,7 +715,7 @@ impl Evaluator {
             }
         };
 
-        let location = crate::evaluator::types::Location::new(location_id);
+        let location = crate::evaluator::memory::Location::new(location_id);
 
         if let Some(value) = self.store_get(location) {
             self.apply_continuation(cont, value.clone())
@@ -755,7 +753,7 @@ impl Evaluator {
             }
         };
 
-        let location = crate::evaluator::types::Location::new(location_id);
+        let location = crate::evaluator::memory::Location::new(location_id);
         self.store_set(location, new_value)?;
 
         self.apply_continuation(cont, Value::Undefined)

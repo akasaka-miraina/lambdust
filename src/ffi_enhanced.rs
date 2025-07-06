@@ -11,6 +11,13 @@ use std::os::raw::{c_char, c_int, c_void};
 use std::time::{SystemTime, Duration};
 
 /// Enhanced memory allocation with tracking
+/// 
+/// # Safety
+/// 
+/// This function uses malloc and manipulates raw pointers. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - size is a reasonable allocation size that won't cause overflow
+/// - the returned pointer should be freed using lambdust_free_tracked
 #[unsafe(no_mangle)]
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe extern "C" fn lambdust_alloc_tracked(
@@ -47,6 +54,14 @@ pub unsafe extern "C" fn lambdust_alloc_tracked(
 }
 
 /// Enhanced memory deallocation with tracking
+///
+/// # Safety
+///
+/// This function dereferences raw pointers and calls libc::free. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - ptr is a valid pointer that was previously allocated by lambdust_alloc_tracked
+/// - ptr has not been freed before and will not be used after this call
+/// - the memory tracker in context is properly initialized and accessible
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_free_tracked(
     context: *mut LambdustContext,
@@ -72,6 +87,14 @@ pub unsafe extern "C" fn lambdust_free_tracked(
 }
 
 /// Get memory usage statistics
+///
+/// # Safety
+///
+/// This function dereferences raw pointers to write statistics. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - total_allocated, peak_usage, and allocation_count (if not null) point to valid memory
+/// - the output pointers remain valid for the duration of the call
+/// - the memory tracker in context is properly initialized and accessible
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_get_memory_stats(
     context: *mut LambdustContext,
@@ -102,6 +125,15 @@ pub unsafe extern "C" fn lambdust_get_memory_stats(
 }
 
 /// Register an enhanced host function with user data and thread safety info
+///
+/// # Safety
+///
+/// This function dereferences raw pointers and stores function pointers. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - name is a valid null-terminated C string pointer
+/// - func is a valid function pointer with the correct signature
+/// - user_data (if not null) points to valid memory that remains valid during callback lifetime
+/// - the function pointer and user_data remain valid for the lifetime of the context
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_register_function_enhanced(
     context: *mut LambdustContext,
@@ -144,6 +176,14 @@ pub unsafe extern "C" fn lambdust_register_function_enhanced(
 }
 
 /// Set error callback for enhanced error handling
+///
+/// # Safety
+///
+/// This function stores function pointers and user data. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - callback is a valid function pointer with the correct signature
+/// - user_data (if not null) points to valid memory that remains valid during callback lifetime
+/// - the callback function pointer and user_data remain valid for the lifetime of the context
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_set_error_callback(
     context: *mut LambdustContext,
@@ -159,6 +199,14 @@ pub unsafe extern "C" fn lambdust_set_error_callback(
 }
 
 /// Check context health and integrity
+///
+/// # Safety
+///
+/// This function dereferences a raw pointer to validate context state. The caller must ensure:
+/// - context is a valid pointer (may be null, which is handled gracefully)
+/// - if context is non-null, it points to a properly initialized LambdustContext
+/// - the context structure remains valid for the duration of the call
+/// - concurrent access to the context is properly synchronized
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_check_context_health(
     context: *mut LambdustContext,
@@ -195,6 +243,14 @@ pub unsafe extern "C" fn lambdust_check_context_health(
 }
 
 /// Increment context reference count for shared usage
+///
+/// # Safety
+///
+/// This function dereferences a raw pointer and modifies reference count state. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - the context structure remains valid for the duration of the call
+/// - proper synchronization when multiple threads access the same context
+/// - the reference count is properly decremented when no longer needed
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_context_ref(
     context: *mut LambdustContext,
@@ -214,6 +270,15 @@ pub unsafe extern "C" fn lambdust_context_ref(
 }
 
 /// Evaluate with timeout to prevent infinite loops
+///
+/// # Safety
+///
+/// This function dereferences multiple raw pointers and delegates to lambdust_eval. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - code is a valid null-terminated C string pointer
+/// - result is a valid pointer to a pointer that will receive the allocated result string
+/// - all pointers remain valid for the duration of the call
+/// - the allocated result string must be freed by the caller using lambdust_free_string
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_eval_with_timeout(
     context: *mut LambdustContext,
@@ -235,6 +300,14 @@ pub unsafe extern "C" fn lambdust_eval_with_timeout(
 }
 
 /// Create a sandboxed context with resource limits
+///
+/// # Safety
+///
+/// This function creates a new context by calling lambdust_create_context. The caller must ensure:
+/// - the returned pointer (if non-null) is eventually freed using lambdust_destroy_context
+/// - the context is not used after being destroyed
+/// - proper synchronization if the context is shared across threads
+/// - max_memory and max_execution_time_ms are reasonable values that won't cause overflow
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_create_sandboxed_context(
     _max_memory: usize,
@@ -251,6 +324,16 @@ pub unsafe extern "C" fn lambdust_create_sandboxed_context(
 }
 
 /// Get detailed error information
+///
+/// # Safety
+///
+/// This function dereferences multiple raw pointers and allocates C strings. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - error_code (if not null) points to valid memory for writing the error code
+/// - error_message (if not null) points to valid memory for writing the error message pointer
+/// - error_location (if not null) points to valid memory for writing the error location pointer
+/// - all output pointers remain valid for the duration of the call
+/// - allocated error message strings must be freed by the caller
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_get_detailed_error(
     context: *mut LambdustContext,
@@ -284,6 +367,14 @@ pub unsafe extern "C" fn lambdust_get_detailed_error(
 }
 
 /// Security function to clear sensitive data
+///
+/// # Safety
+///
+/// This function dereferences a raw pointer and modifies context state. The caller must ensure:
+/// - context is a valid, non-null pointer to an initialized LambdustContext
+/// - the context structure remains valid for the duration of the call
+/// - concurrent access to the context is properly synchronized
+/// - callbacks and user data referenced by the context remain valid during cleanup
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn lambdust_clear_sensitive_data(
     context: *mut LambdustContext,

@@ -3,8 +3,11 @@
 //! This SRFI provides boxes: objects with a single mutable state
 //! that can be updated by calling box-set! and observed by calling unbox.
 
+use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
-use crate::value::{Procedure, Value};
+use crate::value::Value;
+#[cfg(test)]
+use crate::value::Procedure;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -62,69 +65,45 @@ impl super::SrfiModule for Srfi111 {
         // box constructor
         exports.insert(
             "box".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "box".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    Ok(Value::Box(Box::new(args[0].clone())))
-                },
-                arity: Some(1),
+            make_builtin_procedure("box", Some(1), |args| {
+                check_arity(args, 1)?;
+                Ok(Value::Box(Box::new(args[0].clone())))
             }),
         );
 
         // unbox procedure
         exports.insert(
             "unbox".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "unbox".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    if let Value::Box(box_val) = &args[0] {
-                        Ok(box_val.unbox())
-                    } else {
-                        Err(LambdustError::type_error("Expected box".to_string()))
-                    }
-                },
-                arity: Some(1),
+            make_builtin_procedure("unbox", Some(1), |args| {
+                check_arity(args, 1)?;
+                if let Value::Box(box_val) = &args[0] {
+                    Ok(box_val.unbox())
+                } else {
+                    Err(LambdustError::type_error("Expected box".to_string()))
+                }
             }),
         );
 
         // set-box! procedure
         exports.insert(
             "set-box!".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "set-box!".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
-                    if let Value::Box(box_val) = &args[0] {
-                        box_val.set(args[1].clone());
-                        Ok(Value::Undefined)
-                    } else {
-                        Err(LambdustError::type_error("Expected box".to_string()))
-                    }
-                },
-                arity: Some(2),
+            make_builtin_procedure("set-box!", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let Value::Box(box_val) = &args[0] {
+                    box_val.set(args[1].clone());
+                    Ok(Value::Undefined)
+                } else {
+                    Err(LambdustError::type_error("Expected box".to_string()))
+                }
             }),
         );
 
         // box? predicate
         exports.insert(
             "box?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "box?".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    Ok(Value::Boolean(matches!(args[0], Value::Box(_))))
-                },
-                arity: Some(1),
+            make_builtin_procedure("box?", Some(1), |args| {
+                check_arity(args, 1)?;
+                Ok(Value::Boolean(matches!(args[0], Value::Box(_))))
             }),
         );
 

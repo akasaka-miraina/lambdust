@@ -80,7 +80,7 @@ impl Evaluator {
         if operands.len() != 1 {
             return Err(LambdustError::arity_error(1, operands.len()));
         }
-        let value = crate::evaluator::Evaluator::expr_to_value(operands[0].clone())?;
+        let value = crate::evaluator::ast_converter::AstConverter::expr_to_value(operands[0].clone())?;
         self.apply_continuation(cont, value)
     }
 
@@ -508,39 +508,61 @@ impl Evaluator {
         parent: Continuation,
     ) -> Result<Value> {
         if test_value.is_truthy() {
-            if consequent.is_empty() {
-                self.apply_continuation(parent, test_value)
-            } else {
-                self.eval_sequence(consequent, env, parent)
-            }
-        } else if remaining_clauses.is_empty() {
-            self.apply_continuation(parent, Value::Undefined)
-        } else {
-            // Continue with next clause
-            let (next_test, next_consequent) = remaining_clauses[0].clone();
-            let remaining = remaining_clauses[1..].to_vec();
-
-            // Special handling for else clause
-            if let Expr::Variable(name) = &next_test {
-                if name == "else" {
-                    if !remaining.is_empty() {
-                        return Err(LambdustError::syntax_error(
-                            "cond: else clause must be last".to_string(),
-                        ));
-                    }
-                    return self.eval_sequence(next_consequent, env, parent);
-                }
-            }
-
-            let cond_cont = Continuation::CondTest {
-                consequent: next_consequent,
-                remaining_clauses: remaining,
-                env: env.clone(),
-                parent: Box::new(parent),
-            };
-
-            self.eval(next_test, env, cond_cont)
+            return self.handle_truthy_cond_test(test_value, consequent, env, parent);
         }
+        
+        if remaining_clauses.is_empty() {
+            return self.apply_continuation(parent, Value::Undefined);
+        }
+        
+        self.process_next_cond_clause(remaining_clauses, env, parent)
+    }
+
+    /// Handle the case when a cond test is truthy
+    fn handle_truthy_cond_test(
+        &mut self,
+        test_value: Value,
+        consequent: Vec<Expr>,
+        env: Rc<Environment>,
+        parent: Continuation,
+    ) -> Result<Value> {
+        if consequent.is_empty() {
+            self.apply_continuation(parent, test_value)
+        } else {
+            self.eval_sequence(consequent, env, parent)
+        }
+    }
+
+    /// Process the next clause in a cond expression
+    fn process_next_cond_clause(
+        &mut self,
+        remaining_clauses: Vec<(Expr, Vec<Expr>)>,
+        env: Rc<Environment>,
+        parent: Continuation,
+    ) -> Result<Value> {
+        let (next_test, next_consequent) = remaining_clauses[0].clone();
+        let remaining = remaining_clauses[1..].to_vec();
+
+        // Special handling for else clause
+        if let Expr::Variable(name) = &next_test {
+            if name == "else" {
+                if !remaining.is_empty() {
+                    return Err(LambdustError::syntax_error(
+                        "cond: else clause must be last".to_string(),
+                    ));
+                }
+                return self.eval_sequence(next_consequent, env, parent);
+            }
+        }
+
+        let cond_cont = Continuation::CondTest {
+            consequent: next_consequent,
+            remaining_clauses: remaining,
+            env: env.clone(),
+            parent: Box::new(parent),
+        };
+
+        self.eval(next_test, env, cond_cont)
     }
 
     /// Apply assignment continuation

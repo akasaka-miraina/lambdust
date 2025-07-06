@@ -63,25 +63,13 @@ Examples:
 "#;
 
 /// Debug mode state
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct DebugState {
     pub enabled: bool,
     pub breakpoint_set: bool,
     pub step_mode: bool,
     pub call_stack: Vec<String>,
     pub last_expression: Option<String>,
-}
-
-impl Default for DebugState {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            breakpoint_set: false,
-            step_mode: false,
-            call_stack: Vec::new(),
-            last_expression: None,
-        }
-    }
 }
 
 /// REPL configuration
@@ -123,6 +111,7 @@ pub struct SchemeHelper {
 }
 
 impl SchemeHelper {
+    #[allow(dead_code)]
     fn new() -> Self {
         let mut builtin_functions = HashSet::new();
         let mut special_forms = HashSet::new();
@@ -206,6 +195,7 @@ impl SchemeHelper {
         }
     }
     
+    #[allow(dead_code)]
     fn update_builtin_functions(&mut self, interpreter: &LambdustInterpreter) {
         // Add host functions
         for func_name in interpreter.list_host_functions() {
@@ -289,11 +279,11 @@ impl Highlighter for SchemeHelper {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
         // Simple syntax highlighting for demonstration
         let mut result = String::new();
-        let mut chars = line.chars().peekable();
+        let chars = line.chars();
         let mut in_string = false;
         let mut in_comment = false;
         
-        while let Some(ch) = chars.next() {
+        for ch in chars {
             match ch {
                 // String literals
                 '"' if !in_comment => {
@@ -384,6 +374,7 @@ pub struct Repl {
     editor: DefaultEditor,
     config: ReplConfig,
     debug_state: DebugState,
+    #[allow(dead_code)]
     completion_enabled: bool,
 }
 

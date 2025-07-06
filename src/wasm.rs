@@ -17,7 +17,7 @@ use crate::interpreter::LambdustInterpreter;
 use crate::bridge::LambdustBridge;
 use crate::value::Value;
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+// Removed unused Arc, Mutex imports
 
 /// WebAssembly-compatible Lambdust interpreter
 #[cfg(feature = "wasm")]
@@ -26,7 +26,14 @@ pub struct WasmLambdustInterpreter {
     interpreter: LambdustInterpreter,
     bridge: LambdustBridge,
     last_error: Option<String>,
-    js_functions: Arc<Mutex<HashMap<String, js_sys::Function>>>,
+    js_functions: std::rc::Rc<std::cell::RefCell<HashMap<String, js_sys::Function>>>,
+}
+
+#[cfg(feature = "wasm")]
+impl Default for WasmLambdustInterpreter {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 #[cfg(feature = "wasm")]
@@ -42,7 +49,7 @@ impl WasmLambdustInterpreter {
             interpreter: LambdustInterpreter::new(),
             bridge: LambdustBridge::new(),
             last_error: None,
-            js_functions: Arc::new(Mutex::new(HashMap::new())),
+            js_functions: std::rc::Rc::new(std::cell::RefCell::new(HashMap::new())),
         }
     }
     
@@ -67,7 +74,7 @@ impl WasmLambdustInterpreter {
         match self.interpreter.eval_string(code) {
             Ok(value) => {
                 self.last_error = None;
-                Ok(self.scheme_value_to_js(&value)?)
+                Ok(Self::scheme_value_to_js(&value)?)
             }
             Err(error) => {
                 self.last_error = Some(error.to_string());
@@ -86,7 +93,7 @@ impl WasmLambdustInterpreter {
     #[wasm_bindgen]
     pub fn register_js_function(&mut self, name: String, func: js_sys::Function) -> Result<(), JsValue> {
         // Store the JavaScript function
-        if let Ok(mut js_functions) = self.js_functions.lock() {
+        if let Ok(mut js_functions) = self.js_functions.try_borrow_mut() {
             js_functions.insert(name.to_string(), func.clone());
         }
         
@@ -119,7 +126,7 @@ impl WasmLambdustInterpreter {
         self.interpreter = LambdustInterpreter::new();
         self.bridge = LambdustBridge::new();
         self.last_error = None;
-        if let Ok(mut js_functions) = self.js_functions.lock() {
+        if let Ok(mut js_functions) = self.js_functions.try_borrow_mut() {
             js_functions.clear();
         }
     }
@@ -134,11 +141,11 @@ impl WasmLambdustInterpreter {
     #[wasm_bindgen]
     pub fn is_healthy(&self) -> bool {
         // Simple health check - could be expanded
-        self.js_functions.lock().is_ok()
+        self.js_functions.try_borrow().is_ok()
     }
     
     /// Convert a Scheme Value to a JavaScript value
-    fn scheme_value_to_js(&self, value: &Value) -> Result<JsValue, JsValue> {
+    fn scheme_value_to_js(value: &Value) -> Result<JsValue, JsValue> {
         match value {
             Value::Undefined => Ok(JsValue::undefined()),
             Value::Boolean(b) => Ok(JsValue::from_bool(*b)),
@@ -158,13 +165,13 @@ impl WasmLambdustInterpreter {
                     let next = match &current {
                         Value::Pair(pair_ref) => {
                             let pair = pair_ref.borrow();
-                            items.push(self.scheme_value_to_js(&pair.car)?);
+                            items.push(Self::scheme_value_to_js(&pair.car)?);
                             pair.cdr.clone()
                         }
                         Value::Nil => break,
                         _ => {
                             // Improper list - add final element
-                            items.push(self.scheme_value_to_js(&current)?);
+                            items.push(Self::scheme_value_to_js(&current)?);
                             break;
                         }
                     };
@@ -183,7 +190,7 @@ impl WasmLambdustInterpreter {
             Value::Vector(items) => {
                 let array = Array::new();
                 for item in items {
-                    array.push(&self.scheme_value_to_js(item)?);
+                    array.push(&Self::scheme_value_to_js(item)?);
                 }
                 Ok(array.into())
             }
@@ -204,17 +211,23 @@ impl WasmLambdustInterpreter {
 #[cfg(feature = "wasi")]
 pub struct WasiLambdustInterpreter {
     interpreter: LambdustInterpreter,
-    bridge: LambdustBridge,
+}
+
+#[cfg(feature = "wasi")]
+#[allow(clippy::derivable_impls)]
+impl Default for WasiLambdustInterpreter {
+    fn default() -> Self {
+        WasiLambdustInterpreter {
+            interpreter: LambdustInterpreter::new(),
+        }
+    }
 }
 
 #[cfg(feature = "wasi")]
 impl WasiLambdustInterpreter {
     /// Create a new WASI Lambdust interpreter
     pub fn new() -> Self {
-        WasiLambdustInterpreter {
-            interpreter: LambdustInterpreter::new(),
-            bridge: LambdustBridge::new(),
-        }
+        Self::default()
     }
     
     /// Evaluate Scheme code
@@ -316,8 +329,8 @@ mod tests {
         #[cfg(feature = "wasi")]
         {
             let _interpreter = WasiLambdustInterpreter::new();
-            // Basic test to ensure creation works
-            assert!(true);
+            // Basic test to ensure creation works - simply verifying compilation
+            // and constructor execution without panics
         }
     }
     

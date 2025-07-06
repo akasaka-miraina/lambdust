@@ -3,8 +3,9 @@
 //! This SRFI extends SRFI 13 with string cursor abstractions for high-performance
 //! string processing without intermediate string allocation.
 
+use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
-use crate::value::{Procedure, Value};
+use crate::value::Value;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -177,56 +178,38 @@ impl super::SrfiModule for Srfi130 {
         // string-cursor-start
         exports.insert(
             "string-cursor-start".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-cursor-start".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    if let Value::String(s) = &args[0] {
-                        let cursor = StringCursor::new(s.clone());
-                        Ok(Value::StringCursor(Rc::new(cursor)))
-                    } else {
-                        Err(LambdustError::type_error("Expected string".to_string()))
-                    }
-                },
-                arity: Some(1),
+            make_builtin_procedure("string-cursor-start", Some(1), |args| {
+                check_arity(args, 1)?;
+                if let Value::String(s) = &args[0] {
+                    let cursor = StringCursor::new(s.clone());
+                    Ok(Value::StringCursor(Rc::new(cursor)))
+                } else {
+                    Err(LambdustError::type_error("Expected string".to_string()))
+                }
             }),
         );
 
         // string-cursor-end
         exports.insert(
             "string-cursor-end".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-cursor-end".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    if let Value::String(s) = &args[0] {
-                        let mut cursor = StringCursor::new(s.clone());
-                        cursor.position = cursor.end;
-                        Ok(Value::StringCursor(Rc::new(cursor)))
-                    } else {
-                        Err(LambdustError::type_error("Expected string".to_string()))
-                    }
-                },
-                arity: Some(1),
+            make_builtin_procedure("string-cursor-end", Some(1), |args| {
+                check_arity(args, 1)?;
+                if let Value::String(s) = &args[0] {
+                    let mut cursor = StringCursor::new(s.clone());
+                    cursor.position = cursor.end;
+                    Ok(Value::StringCursor(Rc::new(cursor)))
+                } else {
+                    Err(LambdustError::type_error("Expected string".to_string()))
+                }
             }),
         );
 
         // string-cursor? predicate
         exports.insert(
             "string-cursor?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-cursor?".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    Ok(Value::Boolean(matches!(args[0], Value::StringCursor(_))))
-                },
-                arity: Some(1),
+            make_builtin_procedure("string-cursor?", Some(1), |args| {
+                check_arity(args, 1)?;
+                Ok(Value::Boolean(matches!(args[0], Value::StringCursor(_))))
             }),
         );
 
@@ -235,42 +218,30 @@ impl super::SrfiModule for Srfi130 {
         // string-cursor-next
         exports.insert(
             "string-cursor-next".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-cursor-next".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    if let Value::StringCursor(cursor_rc) = &args[0] {
-                        let mut new_cursor = cursor_rc.clone_cursor();
-                        new_cursor.advance()?;
-                        Ok(Value::StringCursor(Rc::new(new_cursor)))
-                    } else {
-                        Err(LambdustError::type_error("Expected string cursor".to_string()))
-                    }
-                },
-                arity: Some(1),
+            make_builtin_procedure("string-cursor-next", Some(1), |args| {
+                check_arity(args, 1)?;
+                if let Value::StringCursor(cursor_rc) = &args[0] {
+                    let mut new_cursor = cursor_rc.clone_cursor();
+                    new_cursor.advance()?;
+                    Ok(Value::StringCursor(Rc::new(new_cursor)))
+                } else {
+                    Err(LambdustError::type_error("Expected string cursor".to_string()))
+                }
             }),
         );
 
         // string-cursor-prev
         exports.insert(
             "string-cursor-prev".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-cursor-prev".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    if let Value::StringCursor(cursor_rc) = &args[0] {
-                        let mut new_cursor = cursor_rc.clone_cursor();
-                        new_cursor.retreat()?;
-                        Ok(Value::StringCursor(Rc::new(new_cursor)))
-                    } else {
-                        Err(LambdustError::type_error("Expected string cursor".to_string()))
-                    }
-                },
-                arity: Some(1),
+            make_builtin_procedure("string-cursor-prev", Some(1), |args| {
+                check_arity(args, 1)?;
+                if let Value::StringCursor(cursor_rc) = &args[0] {
+                    let mut new_cursor = cursor_rc.clone_cursor();
+                    new_cursor.retreat()?;
+                    Ok(Value::StringCursor(Rc::new(new_cursor)))
+                } else {
+                    Err(LambdustError::type_error("Expected string cursor".to_string()))
+                }
             }),
         );
 
@@ -279,52 +250,40 @@ impl super::SrfiModule for Srfi130 {
         // string-cursor=?
         exports.insert(
             "string-cursor=?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-cursor=?".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
-                    if let (Value::StringCursor(c1), Value::StringCursor(c2)) = (&args[0], &args[1]) {
-                        Ok(Value::Boolean(
-                            c1.position() == c2.position()
-                                && c1.string() == c2.string()
-                                && c1.start() == c2.start()
-                                && c1.end() == c2.end(),
-                        ))
-                    } else {
-                        Err(LambdustError::type_error(
-                            "Expected string cursors".to_string(),
-                        ))
-                    }
-                },
-                arity: Some(2),
+            make_builtin_procedure("string-cursor=?", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let (Value::StringCursor(c1), Value::StringCursor(c2)) = (&args[0], &args[1]) {
+                    Ok(Value::Boolean(
+                        c1.position() == c2.position()
+                            && c1.string() == c2.string()
+                            && c1.start() == c2.start()
+                            && c1.end() == c2.end(),
+                    ))
+                } else {
+                    Err(LambdustError::type_error(
+                        "Expected string cursors".to_string(),
+                    ))
+                }
             }),
         );
 
         // string-cursor<?
         exports.insert(
             "string-cursor<?".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-cursor<?".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
+            make_builtin_procedure("string-cursor<?", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let (Value::StringCursor(c1), Value::StringCursor(c2)) = (&args[0], &args[1]) {
+                    if c1.string() != c2.string() {
+                        return Err(LambdustError::runtime_error(
+                            "Cursors must reference the same string".to_string(),
+                        ));
                     }
-                    if let (Value::StringCursor(c1), Value::StringCursor(c2)) = (&args[0], &args[1]) {
-                        if c1.string() != c2.string() {
-                            return Err(LambdustError::runtime_error(
-                                "Cursors must reference the same string".to_string(),
-                            ));
-                        }
-                        Ok(Value::Boolean(c1.position() < c2.position()))
-                    } else {
-                        Err(LambdustError::type_error(
-                            "Expected string cursors".to_string(),
-                        ))
-                    }
-                },
-                arity: Some(2),
+                    Ok(Value::Boolean(c1.position() < c2.position()))
+                } else {
+                    Err(LambdustError::type_error(
+                        "Expected string cursors".to_string(),
+                    ))
+                }
             }),
         );
 
@@ -333,54 +292,42 @@ impl super::SrfiModule for Srfi130 {
         // string-cursor-ref
         exports.insert(
             "string-cursor-ref".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-cursor-ref".to_string(),
-                func: |args| {
-                    if args.len() != 1 {
-                        return Err(LambdustError::arity_error(1, args.len()));
-                    }
-                    if let Value::StringCursor(cursor) = &args[0] {
-                        let ch = cursor.current_char()?;
-                        Ok(Value::Character(ch))
-                    } else {
-                        Err(LambdustError::type_error("Expected string cursor".to_string()))
-                    }
-                },
-                arity: Some(1),
+            make_builtin_procedure("string-cursor-ref", Some(1), |args| {
+                check_arity(args, 1)?;
+                if let Value::StringCursor(cursor) = &args[0] {
+                    let ch = cursor.current_char()?;
+                    Ok(Value::Character(ch))
+                } else {
+                    Err(LambdustError::type_error("Expected string cursor".to_string()))
+                }
             }),
         );
 
         // substring/cursors
         exports.insert(
             "substring/cursors".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "substring/cursors".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
+            make_builtin_procedure("substring/cursors", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let (Value::StringCursor(start), Value::StringCursor(end)) =
+                    (&args[0], &args[1])
+                {
+                    if start.string() != end.string() {
+                        return Err(LambdustError::runtime_error(
+                            "Cursors must reference the same string".to_string(),
+                        ));
                     }
-                    if let (Value::StringCursor(start), Value::StringCursor(end)) =
-                        (&args[0], &args[1])
-                    {
-                        if start.string() != end.string() {
-                            return Err(LambdustError::runtime_error(
-                                "Cursors must reference the same string".to_string(),
-                            ));
-                        }
-                        if start.position() > end.position() {
-                            return Err(LambdustError::runtime_error(
-                                "Start cursor must not be after end cursor".to_string(),
-                            ));
-                        }
-                        let substring = &start.string()[start.position()..end.position()];
-                        Ok(Value::String(substring.to_string()))
-                    } else {
-                        Err(LambdustError::type_error(
-                            "Expected string cursors".to_string(),
-                        ))
+                    if start.position() > end.position() {
+                        return Err(LambdustError::runtime_error(
+                            "Start cursor must not be after end cursor".to_string(),
+                        ));
                     }
-                },
-                arity: Some(2),
+                    let substring = &start.string()[start.position()..end.position()];
+                    Ok(Value::String(substring.to_string()))
+                } else {
+                    Err(LambdustError::type_error(
+                        "Expected string cursors".to_string(),
+                    ))
+                }
             }),
         );
 
@@ -389,54 +336,42 @@ impl super::SrfiModule for Srfi130 {
         // string-take-cursor
         exports.insert(
             "string-take-cursor".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-take-cursor".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
-                    if let (Value::String(s), Value::Number(n)) = (&args[0], &args[1]) {
-                        let count = n.to_i64() as usize;
-                        let mut result = String::new();
-                        let mut chars = s.chars();
-                        for _ in 0..count {
-                            if let Some(ch) = chars.next() {
-                                result.push(ch);
-                            } else {
-                                break;
-                            }
+            make_builtin_procedure("string-take-cursor", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let (Value::String(s), Value::Number(n)) = (&args[0], &args[1]) {
+                    let count = n.to_i64() as usize;
+                    let mut result = String::new();
+                    let mut chars = s.chars();
+                    for _ in 0..count {
+                        if let Some(ch) = chars.next() {
+                            result.push(ch);
+                        } else {
+                            break;
                         }
-                        Ok(Value::String(result))
-                    } else {
-                        Err(LambdustError::type_error(
-                            "Expected string and number".to_string(),
-                        ))
                     }
-                },
-                arity: Some(2),
+                    Ok(Value::String(result))
+                } else {
+                    Err(LambdustError::type_error(
+                        "Expected string and number".to_string(),
+                    ))
+                }
             }),
         );
 
         // string-drop-cursor
         exports.insert(
             "string-drop-cursor".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-drop-cursor".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
-                    if let (Value::String(s), Value::Number(n)) = (&args[0], &args[1]) {
-                        let count = n.to_i64() as usize;
-                        let result: String = s.chars().skip(count).collect();
-                        Ok(Value::String(result))
-                    } else {
-                        Err(LambdustError::type_error(
-                            "Expected string and number".to_string(),
-                        ))
-                    }
-                },
-                arity: Some(2),
+            make_builtin_procedure("string-drop-cursor", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let (Value::String(s), Value::Number(n)) = (&args[0], &args[1]) {
+                    let count = n.to_i64() as usize;
+                    let result: String = s.chars().skip(count).collect();
+                    Ok(Value::String(result))
+                } else {
+                    Err(LambdustError::type_error(
+                        "Expected string and number".to_string(),
+                    ))
+                }
             }),
         );
 
@@ -445,88 +380,70 @@ impl super::SrfiModule for Srfi130 {
         // string-index-cursor
         exports.insert(
             "string-index-cursor".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-index-cursor".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
-                    if let (Value::String(s), Value::Character(target_char)) = (&args[0], &args[1]) {
-                        for (i, ch) in s.char_indices() {
-                            if ch == *target_char {
-                                let mut cursor = StringCursor::new(s.clone());
-                                cursor.position = i;
-                                return Ok(Value::StringCursor(Rc::new(cursor)));
-                            }
+            make_builtin_procedure("string-index-cursor", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let (Value::String(s), Value::Character(target_char)) = (&args[0], &args[1]) {
+                    for (i, ch) in s.char_indices() {
+                        if ch == *target_char {
+                            let mut cursor = StringCursor::new(s.clone());
+                            cursor.position = i;
+                            return Ok(Value::StringCursor(Rc::new(cursor)));
                         }
-                        Ok(Value::Boolean(false)) // Not found
-                    } else {
-                        Err(LambdustError::type_error(
-                            "Expected string and character".to_string(),
-                        ))
                     }
-                },
-                arity: Some(2),
+                    Ok(Value::Boolean(false)) // Not found
+                } else {
+                    Err(LambdustError::type_error(
+                        "Expected string and character".to_string(),
+                    ))
+                }
             }),
         );
 
         // string-contains-cursor
         exports.insert(
             "string-contains-cursor".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-contains-cursor".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
-                    }
-                    if let (Value::String(haystack), Value::String(needle)) = (&args[0], &args[1]) {
-                        if let Some(pos) = haystack.find(needle) {
-                            let mut cursor = StringCursor::new(haystack.clone());
-                            cursor.position = pos;
-                            Ok(Value::StringCursor(Rc::new(cursor)))
-                        } else {
-                            Ok(Value::Boolean(false)) // Not found
-                        }
+            make_builtin_procedure("string-contains-cursor", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let (Value::String(haystack), Value::String(needle)) = (&args[0], &args[1]) {
+                    if let Some(pos) = haystack.find(needle) {
+                        let mut cursor = StringCursor::new(haystack.clone());
+                        cursor.position = pos;
+                        Ok(Value::StringCursor(Rc::new(cursor)))
                     } else {
-                        Err(LambdustError::type_error(
-                            "Expected strings".to_string(),
-                        ))
+                        Ok(Value::Boolean(false)) // Not found
                     }
-                },
-                arity: Some(2),
+                } else {
+                    Err(LambdustError::type_error(
+                        "Expected strings".to_string(),
+                    ))
+                }
             }),
         );
 
         // string-length/cursors (enhanced version with cursor support)
         exports.insert(
             "string-length/cursors".to_string(),
-            Value::Procedure(Procedure::Builtin {
-                name: "string-length/cursors".to_string(),
-                func: |args| {
-                    if args.len() != 2 {
-                        return Err(LambdustError::arity_error(2, args.len()));
+            make_builtin_procedure("string-length/cursors", Some(2), |args| {
+                check_arity(args, 2)?;
+                if let (Value::StringCursor(start), Value::StringCursor(end)) =
+                    (&args[0], &args[1])
+                {
+                    if start.string() != end.string() {
+                        return Err(LambdustError::runtime_error(
+                            "Cursors must reference the same string".to_string(),
+                        ));
                     }
-                    if let (Value::StringCursor(start), Value::StringCursor(end)) =
-                        (&args[0], &args[1])
-                    {
-                        if start.string() != end.string() {
-                            return Err(LambdustError::runtime_error(
-                                "Cursors must reference the same string".to_string(),
-                            ));
-                        }
-                        let char_count = start.string()[start.position()..end.position()]
-                            .chars()
-                            .count();
-                        Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
-                            char_count as i64,
-                        )))
-                    } else {
-                        Err(LambdustError::type_error(
-                            "Expected string cursors".to_string(),
-                        ))
-                    }
-                },
-                arity: Some(2),
+                    let char_count = start.string()[start.position()..end.position()]
+                        .chars()
+                        .count();
+                    Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
+                        char_count as i64,
+                    )))
+                } else {
+                    Err(LambdustError::type_error(
+                        "Expected string cursors".to_string(),
+                    ))
+                }
             }),
         );
 

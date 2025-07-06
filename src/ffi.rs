@@ -58,35 +58,62 @@ pub enum LambdustErrorCode {
 /// Enhanced context handle with safety features
 #[repr(C)]
 pub struct LambdustContext {
+    /// Core Scheme interpreter instance
     pub interpreter: LambdustInterpreter,
+    /// Bridge for host function integration
     pub bridge: LambdustBridge,
+    /// Last error message for C error handling
     pub last_error: Option<String>,
-    // Safety and tracking fields
+    /// Thread identification for safety verification
     pub thread_id: std::thread::ThreadId,
+    /// Creation timestamp for context validation
     pub creation_time: SystemTime,
+    /// Magic number for context integrity verification
     pub magic_number: u64,
+    /// Reference count for shared context management
     pub ref_count: Arc<Mutex<u32>>,
+    /// Memory allocation tracking for debugging
     pub memory_tracker: Arc<RwLock<MemoryTracker>>,
+    /// Registered callback functions and metadata
     pub callbacks: Arc<RwLock<HashMap<String, CallbackInfo>>>,
 }
 
 /// Memory tracking for FFI allocations
 #[derive(Debug, Default)]
 pub struct MemoryTracker {
+    /// Map of allocated string pointers to their sizes
     pub allocated_strings: HashMap<*mut c_char, usize>,
+    /// Total currently allocated memory in bytes
     pub total_allocated: usize,
+    /// Peak memory usage ever reached
     pub peak_usage: usize,
+    /// Total number of allocations performed
     pub allocation_count: u64,
 }
+
+// SAFETY: MemoryTracker only contains thread-safe types
+// The HashMap uses raw pointers as keys but doesn't dereference them in Send/Sync contexts
+unsafe impl Send for MemoryTracker {}
+unsafe impl Sync for MemoryTracker {}
 
 /// Callback function information
 #[derive(Debug, Clone)]
 pub struct CallbackInfo {
+    /// The host function pointer to call
     pub function: LambdustHostFunction,
+    /// User-provided data passed to the function
     pub user_data: *mut c_void,
+    /// Whether this function can be called from multiple threads
     pub thread_safe: bool,
+    /// When this callback was registered
     pub registered_time: SystemTime,
 }
+
+// SAFETY: CallbackInfo contains function pointers and raw pointers, but these are
+// designed to be shared across threads in FFI contexts where thread safety is 
+// the caller's responsibility
+unsafe impl Send for CallbackInfo {}
+unsafe impl Sync for CallbackInfo {}
 
 /// Enhanced C-compatible host function signature
 pub type LambdustEnhancedHostFunction = unsafe extern "C" fn(
@@ -108,6 +135,12 @@ pub type LambdustErrorCallback = unsafe extern "C" fn(
 pub const CONTEXT_MAGIC: u64 = 0xDEADBEEF_CAFEBABE;
 
 /// Context validation helper
+/// 
+/// # Safety
+/// 
+/// This function dereferences a raw pointer and must be called with a valid, 
+/// non-null pointer to a properly initialized LambdustContext. The caller 
+/// must ensure the context remains valid for the duration of this call.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe fn validate_context(context: *const LambdustContext) -> bool {
     if context.is_null() {
@@ -119,6 +152,12 @@ pub unsafe fn validate_context(context: *const LambdustContext) -> bool {
 }
 
 /// Thread safety check
+/// 
+/// # Safety
+/// 
+/// This function dereferences a raw pointer and calls validate_context. 
+/// The caller must ensure the context pointer is valid and points to a 
+/// properly initialized LambdustContext that remains valid during the call.
 #[allow(unsafe_op_in_unsafe_fn)]
 pub unsafe fn check_thread_safety(context: *const LambdustContext) -> bool {
     if !validate_context(context) {

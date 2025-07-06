@@ -3,6 +3,92 @@
 use super::{Procedure, Value};
 use std::fmt;
 
+impl Value {
+    /// Display a pair value
+    fn display_pair(&self, f: &mut fmt::Formatter<'_>, pair_ref: &std::rc::Rc<std::cell::RefCell<crate::value::pair::PairData>>) -> fmt::Result {
+        write!(f, "(")?;
+        let pair = pair_ref.borrow();
+        write!(f, "{}", pair.car)?;
+
+        let mut current = pair.cdr.clone();
+        loop {
+            match current {
+                Value::Nil => break,
+                Value::Pair(inner_pair_ref) => {
+                    let inner_pair = inner_pair_ref.borrow();
+                    write!(f, " {}", inner_pair.car)?;
+                    current = inner_pair.cdr.clone();
+                }
+                _ => {
+                    write!(f, " . {current}")?;
+                    break;
+                }
+            }
+        }
+        write!(f, ")")
+    }
+
+    /// Display a procedure value
+    fn display_procedure(&self, f: &mut fmt::Formatter<'_>, proc: &Procedure) -> fmt::Result {
+        match proc {
+            Procedure::Lambda {
+                params, variadic, ..
+            } => {
+                write!(f, "#<procedure (")?;
+                self.display_lambda_params(f, params, *variadic)?;
+                write!(f, ")>")
+            }
+            Procedure::Builtin { name, .. } => write!(f, "#<builtin {name}>"),
+            Procedure::HostFunction { name, .. } => write!(f, "#<host-function {name}>"),
+            Procedure::Continuation { .. } => write!(f, "#<continuation>"),
+            Procedure::CapturedContinuation { .. } => write!(f, "#<continuation>"),
+            Procedure::ReusableContinuation { reuse_id, .. } => write!(f, "#<reusable-continuation:{}>", reuse_id),
+        }
+    }
+
+    /// Display lambda parameters
+    fn display_lambda_params(&self, f: &mut fmt::Formatter<'_>, params: &[String], variadic: bool) -> fmt::Result {
+        for (i, param) in params.iter().enumerate() {
+            if i > 0 {
+                write!(f, " ")?;
+            }
+            write!(f, "{param}")?;
+        }
+        if variadic {
+            write!(f, " ...")?;
+        }
+        Ok(())
+    }
+
+    /// Display a vector value
+    fn display_vector(&self, f: &mut fmt::Formatter<'_>, values: &[Value]) -> fmt::Result {
+        write!(f, "#(")?;
+        for (i, value) in values.iter().enumerate() {
+            if i > 0 {
+                write!(f, " ")?;
+            }
+            write!(f, "{value}")?;
+        }
+        write!(f, ")")
+    }
+
+    /// Display values (multiple values)
+    fn display_values(&self, f: &mut fmt::Formatter<'_>, values: &[Value]) -> fmt::Result {
+        if values.len() == 1 {
+            write!(f, "{}", values[0])
+        } else {
+            write!(f, "values(")?;
+            for (i, value) in values.iter().enumerate() {
+                if i > 0 {
+                    write!(f, " ")?;
+                }
+                write!(f, "{}", value)?;
+            }
+            write!(f, ")")
+        }
+    }
+}
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -17,61 +103,10 @@ impl fmt::Display for Value {
                 _ => write!(f, "#\\{c}"),
             },
             Value::Symbol(s) => write!(f, "{s}"),
-            Value::Pair(pair_ref) => {
-                write!(f, "(")?;
-                let pair = pair_ref.borrow();
-                write!(f, "{}", pair.car)?;
-
-                let mut current = pair.cdr.clone();
-                loop {
-                    match current {
-                        Value::Nil => break,
-                        Value::Pair(inner_pair_ref) => {
-                            let inner_pair = inner_pair_ref.borrow();
-                            write!(f, " {}", inner_pair.car)?;
-                            current = inner_pair.cdr.clone();
-                        }
-                        _ => {
-                            write!(f, " . {current}")?;
-                            break;
-                        }
-                    }
-                }
-                write!(f, ")")
-            }
+            Value::Pair(pair_ref) => self.display_pair(f, pair_ref),
             Value::Nil => write!(f, "()"),
-            Value::Procedure(proc) => match proc {
-                Procedure::Lambda {
-                    params, variadic, ..
-                } => {
-                    write!(f, "#<procedure (")?;
-                    for (i, param) in params.iter().enumerate() {
-                        if i > 0 {
-                            write!(f, " ")?;
-                        }
-                        write!(f, "{param}")?;
-                    }
-                    if *variadic {
-                        write!(f, " ...")?;
-                    }
-                    write!(f, ")>")
-                }
-                Procedure::Builtin { name, .. } => write!(f, "#<builtin {name}>"),
-                Procedure::HostFunction { name, .. } => write!(f, "#<host-function {name}>"),
-                Procedure::Continuation { .. } => write!(f, "#<continuation>"),
-                Procedure::CapturedContinuation { .. } => write!(f, "#<continuation>"),
-                Procedure::ReusableContinuation { reuse_id, .. } => write!(f, "#<reusable-continuation:{}>", reuse_id),
-            },
-            Value::Vector(values) => {
-                write!(f, "#(")?;
-                for (i, value) in values.iter().enumerate() {
-                    if i > 0 {
-                        write!(f, " ")?;
-                    }
-                    write!(f, "{value}")?;
-                }
-                write!(f, ")")
-            }
+            Value::Procedure(proc) => self.display_procedure(f, proc),
+            Value::Vector(values) => self.display_vector(f, values),
             Value::Port(_) => write!(f, "#<port>"),
             Value::External(obj) => write!(f, "#<external:{}>", obj.type_name),
             Value::Record(record) => {
@@ -84,22 +119,7 @@ impl fmt::Display for Value {
                 }
                 write!(f, ">")
             }
-            Value::Values(values) => {
-                if values.len() == 1 {
-                    // Single value should display as the value itself
-                    write!(f, "{}", values[0])
-                } else {
-                    // Multiple values display
-                    write!(f, "values(")?;
-                    for (i, value) in values.iter().enumerate() {
-                        if i > 0 {
-                            write!(f, " ")?;
-                        }
-                        write!(f, "{}", value)?;
-                    }
-                    write!(f, ")")
-                }
-            }
+            Value::Values(values) => self.display_values(f, values),
             Value::Continuation(_) => write!(f, "#<continuation>"),
             Value::Promise(promise) => match &promise.state {
                 crate::value::PromiseState::Lazy { .. } => write!(f, "#<promise:lazy>"),

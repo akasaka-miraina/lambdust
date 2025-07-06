@@ -422,6 +422,17 @@ pub fn make_symbol(symbol: &str) -> Value {
     Value::new_symbol(symbol)
 }
 
+/// Create a placeholder procedure that returns a runtime error
+/// This is useful for functions that require evaluator integration
+pub fn make_placeholder_procedure(name: &str, _reason: &str) -> Value {
+    // Use a static error function to avoid closure capture issues
+    fn placeholder_error(_args: &[Value]) -> Result<Value, LambdustError> {
+        Err(LambdustError::runtime_error("Function requires evaluator integration".to_string()))
+    }
+    
+    make_builtin_procedure(name, None, placeholder_error)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

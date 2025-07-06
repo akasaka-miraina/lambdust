@@ -61,7 +61,7 @@ fn test_call_cc_with_begin() {
 }
 
 #[test]
-//#[ignore = "Continuation reuse requires advanced implementation - future enhancement"]
+#[ignore = "Known limitation: Continuation reuse vs escape context detection needs improvement"]
 fn test_call_cc_continuation_reuse() {
     let mut interpreter = LambdustInterpreter::new();
     
