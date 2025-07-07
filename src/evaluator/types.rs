@@ -23,6 +23,8 @@ use crate::evaluator::control_flow::DoLoopContinuationPool;
 use crate::evaluator::continuation_pooling::ContinuationPoolManager;
 // Phase 6-B-Step3: Inline evaluation imports
 use crate::evaluator::inline_evaluation::InlineEvaluator;
+// Phase 6-C: JIT loop optimization imports
+use crate::evaluator::jit_loop_optimization::JitLoopOptimizer;
 
 /// Location handle trait for abstracting over different memory management strategies
 pub trait LocationHandle: Debug {
@@ -155,6 +157,8 @@ pub struct Evaluator {
     continuation_pool_manager: ContinuationPoolManager,
     /// Phase 6-B-Step3: Inline evaluator for lightweight continuation optimization
     inline_evaluator: InlineEvaluator,
+    /// Phase 6-C: JIT loop optimizer for native iteration code generation
+    jit_loop_optimizer: JitLoopOptimizer,
 }
 
 impl Evaluator {
@@ -176,6 +180,7 @@ impl Evaluator {
             doloop_continuation_pool: DoLoopContinuationPool::default(),
             continuation_pool_manager: ContinuationPoolManager::new(),
             inline_evaluator: InlineEvaluator::new(),
+            jit_loop_optimizer: JitLoopOptimizer::new(),
         }
     }
 
@@ -197,6 +202,7 @@ impl Evaluator {
             doloop_continuation_pool: DoLoopContinuationPool::default(),
             continuation_pool_manager: ContinuationPoolManager::new(),
             inline_evaluator: InlineEvaluator::new(),
+            jit_loop_optimizer: JitLoopOptimizer::new(),
         }
     }
 
@@ -218,6 +224,7 @@ impl Evaluator {
             doloop_continuation_pool: DoLoopContinuationPool::default(),
             continuation_pool_manager: ContinuationPoolManager::new(),
             inline_evaluator: InlineEvaluator::new(),
+            jit_loop_optimizer: JitLoopOptimizer::new(),
         }
     }
 
@@ -592,6 +599,16 @@ impl Evaluator {
     /// Phase 6-B-Step3: Get mutable reference to inline evaluator
     pub fn inline_evaluator_mut(&mut self) -> &mut InlineEvaluator {
         &mut self.inline_evaluator
+    }
+
+    /// Phase 6-C: Get reference to JIT loop optimizer
+    pub fn jit_loop_optimizer(&self) -> &JitLoopOptimizer {
+        &self.jit_loop_optimizer
+    }
+
+    /// Phase 6-C: Get mutable reference to JIT loop optimizer
+    pub fn jit_loop_optimizer_mut(&mut self) -> &mut JitLoopOptimizer {
+        &mut self.jit_loop_optimizer
     }
 
     /// Apply control flow continuation

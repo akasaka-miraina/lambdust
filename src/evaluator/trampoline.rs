@@ -810,12 +810,27 @@ impl TrampolineEvaluator {
 pub trait TrampolineEvaluation {
     /// Evaluate expression using trampoline to prevent stack overflow
     fn eval_trampoline(&mut self, expr: Expr, env: Rc<Environment>, cont: Continuation) -> Result<Value>;
+    
+    /// Evaluate do-loop using trampoline to prevent stack overflow (Phase 6-A integration)
+    fn evaluate_do_loop_trampoline(&mut self, operands: &[Expr], env: Rc<Environment>, cont: Continuation) -> Result<Value>;
 }
 
 impl TrampolineEvaluation for Evaluator {
     fn eval_trampoline(&mut self, expr: Expr, env: Rc<Environment>, cont: Continuation) -> Result<Value> {
         let initial_thunk = ContinuationThunk::Bounce { expr, env, cont };
         TrampolineEvaluator::eval_trampoline(self, initial_thunk)
+    }
+    
+    fn evaluate_do_loop_trampoline(&mut self, operands: &[Expr], env: Rc<Environment>, cont: Continuation) -> Result<Value> {
+        // Use existing do-loop trampoline implementation from TrampolineEvaluator
+        let do_bounce = TrampolineEvaluator::eval_do_special_form(self, operands, env, cont)?;
+        
+        // Execute the bounce using the trampoline mechanism
+        match do_bounce {
+            Bounce::Done(value) => Ok(value),
+            Bounce::Continue(thunk) => TrampolineEvaluator::eval_trampoline(self, *thunk),
+            Bounce::Error(err) => Err(err),
+        }
     }
 }
 

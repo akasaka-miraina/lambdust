@@ -40,7 +40,6 @@ mod formal_evaluator_tests {
     }
 
     #[test]
-    #[ignore = "CPS evaluator stack limitation: do-loops cause stack overflow due to deep recursion"]
     fn test_do_loops_stack_limitation() {
         let mut interpreter = Interpreter::new();
 
@@ -66,7 +65,6 @@ mod formal_evaluator_tests {
     }
 
     #[test]
-    #[ignore = "do-loop implementation has semantic issues with variable binding and condition evaluation"]
     fn test_do_loops_simple_cases() {
         let mut interpreter = Interpreter::new();
 
