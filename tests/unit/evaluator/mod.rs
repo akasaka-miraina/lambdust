@@ -8,5 +8,9 @@ pub mod exceptions_tests;
 pub mod expression_analyzer_tests;
 pub mod phase5_raii_unified_tests;
 pub mod phase6a_trampoline_tests;
+// Phase 6-B-Step1: DoLoop specialized continuation tests
+pub mod phase6b_doloop_continuation_tests;
+// Phase 6-B-Step2: Unified continuation pooling tests
+pub mod phase6b_continuation_pooling_tests;
 pub mod special_forms_tests;
 pub mod store_tests;

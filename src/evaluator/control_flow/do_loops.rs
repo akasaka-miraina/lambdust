@@ -11,52 +11,28 @@ use crate::value::Value;
 use std::rc::Rc;
 
 /// Evaluate do loop special form
+/// Phase 6-A-Step3: Auto-delegate to trampoline evaluator for stack overflow prevention
 pub fn eval_do(
     evaluator: &mut Evaluator,
     operands: &[Expr],
     env: Rc<Environment>,
     cont: Continuation,
 ) -> Result<Value> {
-    if operands.len() < 2 {
-        return Err(LambdustError::syntax_error(
-            "do: requires at least bindings and test".to_string(),
-        ));
-    }
-
-    // Parse bindings: ((var init step) ...)
-    let bindings = parse_do_bindings(&operands[0])?;
-
-    // Parse test clause: (test result ...)
-    let (test, result_exprs) = parse_do_test(&operands[1])?;
-
-    // Body expressions
-    let body_exprs = operands[2..].to_vec();
-
-    // Create new environment for the do loop
-    let do_env = Rc::new(Environment::with_parent(env));
-
-    // Initialize variables with init expressions
-    for (var, init_expr, _) in &bindings {
-        let init_value =
-            evaluator.eval(init_expr.clone(), do_env.clone(), Continuation::Identity)?;
-        do_env.define(var.clone(), init_value);
-    }
-
-    // Create do continuation
-    let do_cont = Continuation::Do {
-        bindings,
-        test,
-        result_exprs,
-        body_exprs,
-        env: do_env.clone(),
-        parent: Box::new(cont),
-    };
-
-    // Start the loop by evaluating the test
-    evaluator.eval(do_cont.test_unchecked().clone(), do_env, do_cont)
+    // Phase 6-A-Step3: Automatically use trampoline evaluator for do-loops
+    // to prevent stack overflow in iterative constructs
+    use crate::evaluator::TrampolineEvaluation;
+    
+    // Construct the do-loop expression for trampoline evaluation
+    let mut do_expr_parts = vec![crate::ast::Expr::Variable("do".to_string())];
+    do_expr_parts.extend_from_slice(operands);
+    let do_expr = crate::ast::Expr::List(do_expr_parts);
+    
+    // Delegate to trampoline evaluator for stack-safe evaluation
+    evaluator.eval_trampoline(do_expr, env, cont)
 }
 
 /// Parse do bindings
+#[allow(dead_code)]
 fn parse_do_bindings(bindings_expr: &Expr) -> Result<Vec<(String, Expr, Option<Expr>)>> {
     match bindings_expr {
         Expr::List(bindings) => {
@@ -100,6 +76,7 @@ fn parse_do_bindings(bindings_expr: &Expr) -> Result<Vec<(String, Expr, Option<E
 }
 
 /// Parse do test clause
+#[allow(dead_code)]
 fn parse_do_test(test_expr: &Expr) -> Result<(Expr, Vec<Expr>)> {
     match test_expr {
         Expr::List(test_parts) => {

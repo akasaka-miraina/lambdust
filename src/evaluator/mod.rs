@@ -5,6 +5,8 @@
 
 pub mod ast_converter;
 pub mod continuation;
+// Phase 6-B-Step2: Unified continuation pooling system
+pub mod continuation_pooling;
 pub mod control_flow;
 pub mod evaluation;
 pub mod expression_analyzer;
@@ -27,8 +29,13 @@ use ast_converter::AstConverter;
 
 // Re-export main types
 pub use continuation::{
-    CompactContinuation, Continuation, DynamicPoint, EnvironmentRef, InlineContinuation,
+    CompactContinuation, Continuation, DoLoopState, DynamicPoint, EnvironmentRef, InlineContinuation,
     LightContinuation,
+};
+// Phase 6-B-Step2: Continuation pooling system exports
+pub use continuation_pooling::{
+    ContinuationPoolManager, ContinuationType, PoolStatistics, SharedContinuationPoolManager,
+    TypedContinuationPool,
 };
 pub use evaluation::{EvalOrder, ExceptionHandlerInfo};
 pub use expression_analyzer::{

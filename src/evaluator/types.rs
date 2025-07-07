@@ -17,6 +17,10 @@ use std::rc::Rc;
 // Import control flow functions
 use crate::ast::Expr;
 use crate::evaluator::Continuation;
+// Phase 6-B-Step1: DoLoop continuation pool import
+use crate::evaluator::control_flow::DoLoopContinuationPool;
+// Phase 6-B-Step2: Unified continuation pooling imports
+use crate::evaluator::continuation_pooling::ContinuationPoolManager;
 
 /// Location handle trait for abstracting over different memory management strategies
 pub trait LocationHandle: Debug {
@@ -143,6 +147,10 @@ pub struct Evaluator {
     value_optimizer: ValueOptimizer,
     /// Expression analyzer for Phase 5 compile-time optimization
     expression_analyzer: ExpressionAnalyzer,
+    /// Phase 6-B-Step1: DoLoop continuation pool for memory optimization
+    doloop_continuation_pool: DoLoopContinuationPool,
+    /// Phase 6-B-Step2: Global continuation pool manager for unified pooling
+    continuation_pool_manager: ContinuationPoolManager,
 }
 
 impl Evaluator {
@@ -161,6 +169,8 @@ impl Evaluator {
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             value_optimizer: ValueOptimizer::new(),
             expression_analyzer: ExpressionAnalyzer::new(),
+            doloop_continuation_pool: DoLoopContinuationPool::default(),
+            continuation_pool_manager: ContinuationPoolManager::new(),
         }
     }
 
@@ -179,6 +189,8 @@ impl Evaluator {
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             value_optimizer: ValueOptimizer::new(),
             expression_analyzer: ExpressionAnalyzer::new(),
+            doloop_continuation_pool: DoLoopContinuationPool::default(),
+            continuation_pool_manager: ContinuationPoolManager::new(),
         }
     }
 
@@ -197,6 +209,8 @@ impl Evaluator {
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             value_optimizer: ValueOptimizer::new(),
             expression_analyzer: ExpressionAnalyzer::new(),
+            doloop_continuation_pool: DoLoopContinuationPool::default(),
+            continuation_pool_manager: ContinuationPoolManager::new(),
         }
     }
 
@@ -541,6 +555,26 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         crate::evaluator::control_flow::eval_guard(self, operands, env, cont)
+    }
+
+    /// Phase 6-B-Step1: Get reference to DoLoop continuation pool
+    pub fn doloop_continuation_pool(&self) -> &DoLoopContinuationPool {
+        &self.doloop_continuation_pool
+    }
+
+    /// Phase 6-B-Step1: Get mutable reference to DoLoop continuation pool
+    pub fn doloop_continuation_pool_mut(&mut self) -> &mut DoLoopContinuationPool {
+        &mut self.doloop_continuation_pool
+    }
+
+    /// Phase 6-B-Step2: Get reference to global continuation pool manager
+    pub fn continuation_pool_manager(&self) -> &ContinuationPoolManager {
+        &self.continuation_pool_manager
+    }
+
+    /// Phase 6-B-Step2: Get mutable reference to global continuation pool manager
+    pub fn continuation_pool_manager_mut(&mut self) -> &mut ContinuationPoolManager {
+        &mut self.continuation_pool_manager
     }
 
     /// Apply control flow continuation
