@@ -12,6 +12,8 @@ pub mod evaluation;
 pub mod expression_analyzer;
 pub mod higher_order;
 pub mod imports;
+// Phase 6-B-Step3: Inline evaluation system
+pub mod inline_evaluation;
 pub mod memory;
 // Phase 5-Step2: RAII store is now always available
 pub mod raii_store;
@@ -41,6 +43,11 @@ pub use evaluation::{EvalOrder, ExceptionHandlerInfo};
 pub use expression_analyzer::{
     AnalysisResult, EvaluationComplexity, ExpressionAnalyzer, OptimizationHint, OptimizationStats,
     TypeHint,
+};
+// Phase 6-B-Step3: Inline evaluation exports
+pub use inline_evaluation::{
+    CacheFriendlyPatterns, ContinuationWeight, HotPathDetector, InlineEvaluator, InlineHint,
+    InlineResult,
 };
 // Phase 6-A: Trampoline evaluator exports
 pub use trampoline::{Bounce, ContinuationThunk, TrampolineEvaluation, TrampolineEvaluator};
@@ -277,6 +284,22 @@ impl Evaluator {
 
     /// Apply continuation: κ(v)
     pub fn apply_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
+        // Phase 6-B-Step3: Try inline evaluation first for maximum performance
+        let should_inline = self.should_inline_continuation_impl(&cont);
+        if should_inline {
+            if let Some(result) = self.try_inline_continuation_impl(&cont, &value)? {
+                // Update inline evaluator statistics
+                self.inline_evaluator_mut().record_successful_inline(&cont);
+                return Ok(result);
+            }
+        }
+        
+        // Fallback to regular continuation evaluation
+        self.apply_continuation_regular(cont, value)
+    }
+
+    /// Apply continuation using regular (non-inline) evaluation
+    pub fn apply_continuation_regular(&mut self, cont: Continuation, value: Value) -> Result<Value> {
         // Performance optimization: Try compact continuation first (Phase 4 optimization)
         let compact_cont = CompactContinuation::from_continuation(cont.clone());
         if compact_cont.is_inline() {
@@ -590,6 +613,80 @@ impl Evaluator {
             }
         }
         Ok(())
+    }
+
+    /// Phase 6-B-Step3: Check if continuation should be inlined
+    fn should_inline_continuation_impl(&self, cont: &Continuation) -> bool {
+        use crate::evaluator::inline_evaluation::ContinuationWeight;
+        
+        let weight = ContinuationWeight::from_continuation(cont);
+        let cont_type = self.get_continuation_type_name_impl(cont);
+        let hint = self.inline_evaluator().get_inline_hint(&cont_type);
+        
+        weight.should_inline(hint)
+    }
+
+    /// Phase 6-B-Step3: Check if continuation should be inlined (public test version)
+    #[cfg(test)]
+    pub fn should_inline_continuation(&self, cont: &Continuation) -> bool {
+        self.should_inline_continuation_impl(cont)
+    }
+
+    /// Phase 6-B-Step3: Try to evaluate continuation inline
+    fn try_inline_continuation_impl(&mut self, cont: &Continuation, value: &Value) -> Result<Option<Value>> {
+        match cont {
+            // Identity continuation - most common case
+            Continuation::Identity => Ok(Some(value.clone())),
+            
+            // Simple value accumulation
+            Continuation::Values { values, .. } => {
+                let mut new_values = values.clone();
+                new_values.push(value.clone());
+                Ok(Some(Value::Values(new_values)))
+            }
+            
+            // Variable assignment
+            Continuation::Assignment { variable, env, .. } => {
+                env.set(variable, value.clone())?;
+                Ok(Some(Value::Undefined))
+            }
+            
+            // Variable definition
+            Continuation::Define { variable, env, .. } => {
+                env.define(variable.clone(), value.clone());
+                Ok(Some(Value::Undefined))
+            }
+            
+            // Other continuations require full evaluation
+            _ => Ok(None),
+        }
+    }
+
+    /// Phase 6-B-Step3: Try to evaluate continuation inline (public test version)
+    #[cfg(test)]
+    pub fn try_inline_continuation(&mut self, cont: &Continuation, value: &Value) -> Result<Option<Value>> {
+        self.try_inline_continuation_impl(cont, value)
+    }
+
+    /// Get continuation type name for tracking
+    fn get_continuation_type_name_impl(&self, cont: &Continuation) -> String {
+        match cont {
+            Continuation::Identity => "Identity".to_string(),
+            Continuation::Values { .. } => "Values".to_string(),
+            Continuation::Assignment { .. } => "Assignment".to_string(),
+            Continuation::Define { .. } => "Define".to_string(),
+            Continuation::Begin { .. } => "Begin".to_string(),
+            Continuation::IfTest { .. } => "IfTest".to_string(),
+            Continuation::Application { .. } => "Application".to_string(),
+            Continuation::Operator { .. } => "Operator".to_string(),
+            _ => "Other".to_string(),
+        }
+    }
+
+    /// Get continuation type name for tracking (public test version)
+    #[cfg(test)]
+    pub fn get_continuation_type_name(&self, cont: &Continuation) -> String {
+        self.get_continuation_type_name_impl(cont)
     }
 
     /// Apply simple continuation
@@ -999,6 +1096,7 @@ impl Evaluator {
     pub fn clear_expression_cache(&mut self) {
         self.expression_analyzer_mut().clear_cache();
     }
+
 }
 
 /// Public API for evaluation

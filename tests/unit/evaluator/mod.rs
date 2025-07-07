@@ -12,5 +12,7 @@ pub mod phase6a_trampoline_tests;
 pub mod phase6b_doloop_continuation_tests;
 // Phase 6-B-Step2: Unified continuation pooling tests
 pub mod phase6b_continuation_pooling_tests;
+// Phase 6-B-Step3: Inline evaluation system tests
+pub mod phase6b_inline_evaluation_tests;
 pub mod special_forms_tests;
 pub mod store_tests;

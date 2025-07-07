@@ -21,6 +21,8 @@ use crate::evaluator::Continuation;
 use crate::evaluator::control_flow::DoLoopContinuationPool;
 // Phase 6-B-Step2: Unified continuation pooling imports
 use crate::evaluator::continuation_pooling::ContinuationPoolManager;
+// Phase 6-B-Step3: Inline evaluation imports
+use crate::evaluator::inline_evaluation::InlineEvaluator;
 
 /// Location handle trait for abstracting over different memory management strategies
 pub trait LocationHandle: Debug {
@@ -151,6 +153,8 @@ pub struct Evaluator {
     doloop_continuation_pool: DoLoopContinuationPool,
     /// Phase 6-B-Step2: Global continuation pool manager for unified pooling
     continuation_pool_manager: ContinuationPoolManager,
+    /// Phase 6-B-Step3: Inline evaluator for lightweight continuation optimization
+    inline_evaluator: InlineEvaluator,
 }
 
 impl Evaluator {
@@ -171,6 +175,7 @@ impl Evaluator {
             expression_analyzer: ExpressionAnalyzer::new(),
             doloop_continuation_pool: DoLoopContinuationPool::default(),
             continuation_pool_manager: ContinuationPoolManager::new(),
+            inline_evaluator: InlineEvaluator::new(),
         }
     }
 
@@ -191,6 +196,7 @@ impl Evaluator {
             expression_analyzer: ExpressionAnalyzer::new(),
             doloop_continuation_pool: DoLoopContinuationPool::default(),
             continuation_pool_manager: ContinuationPoolManager::new(),
+            inline_evaluator: InlineEvaluator::new(),
         }
     }
 
@@ -211,6 +217,7 @@ impl Evaluator {
             expression_analyzer: ExpressionAnalyzer::new(),
             doloop_continuation_pool: DoLoopContinuationPool::default(),
             continuation_pool_manager: ContinuationPoolManager::new(),
+            inline_evaluator: InlineEvaluator::new(),
         }
     }
 
@@ -575,6 +582,16 @@ impl Evaluator {
     /// Phase 6-B-Step2: Get mutable reference to global continuation pool manager
     pub fn continuation_pool_manager_mut(&mut self) -> &mut ContinuationPoolManager {
         &mut self.continuation_pool_manager
+    }
+
+    /// Phase 6-B-Step3: Get reference to inline evaluator
+    pub fn inline_evaluator(&self) -> &InlineEvaluator {
+        &self.inline_evaluator
+    }
+
+    /// Phase 6-B-Step3: Get mutable reference to inline evaluator
+    pub fn inline_evaluator_mut(&mut self) -> &mut InlineEvaluator {
+        &mut self.inline_evaluator
     }
 
     /// Apply control flow continuation

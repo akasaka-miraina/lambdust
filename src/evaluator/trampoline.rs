@@ -82,7 +82,7 @@ impl TrampolineEvaluator {
     ) -> Result<Value> {
         let mut current_thunk = initial_thunk;
         let mut iteration_count = 0;
-        const MAX_ITERATIONS: usize = 1_000_000; // Prevent infinite loops
+        const MAX_ITERATIONS: usize = 10_000_000; // Prevent infinite loops - increased for complex computations
         
         loop {
             iteration_count += 1;
