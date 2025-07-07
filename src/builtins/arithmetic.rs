@@ -1,7 +1,7 @@
 //! Arithmetic operations for Scheme
 
 use crate::builtins::utils::{
-    apply_numeric_operation, check_arity_range, compare_numbers, expect_number, is_even,
+    apply_numeric_operation, check_arity, check_arity_range, compare_numbers, expect_number, is_even,
     is_negative, is_odd, is_positive, is_zero, make_builtin_procedure,
 };
 use crate::error::{LambdustError, Result};
@@ -53,6 +53,37 @@ pub fn register_arithmetic_functions(builtins: &mut HashMap<String, Value>) {
         "negative?".to_string(),
         make_predicate!("negative?", is_negative),
     );
+
+    // SRFI 141: Integer Division
+    // Floor division family
+    builtins.insert("floor-quotient".to_string(), srfi_141_floor_quotient());
+    builtins.insert("floor-remainder".to_string(), srfi_141_floor_remainder());
+    builtins.insert("floor/".to_string(), srfi_141_floor_div());
+
+    // Ceiling division family
+    builtins.insert("ceiling-quotient".to_string(), srfi_141_ceiling_quotient());
+    builtins.insert("ceiling-remainder".to_string(), srfi_141_ceiling_remainder());
+    builtins.insert("ceiling/".to_string(), srfi_141_ceiling_div());
+
+    // Truncate division family
+    builtins.insert("truncate-quotient".to_string(), srfi_141_truncate_quotient());
+    builtins.insert("truncate-remainder".to_string(), srfi_141_truncate_remainder());
+    builtins.insert("truncate/".to_string(), srfi_141_truncate_div());
+
+    // Round division family
+    builtins.insert("round-quotient".to_string(), srfi_141_round_quotient());
+    builtins.insert("round-remainder".to_string(), srfi_141_round_remainder());
+    builtins.insert("round/".to_string(), srfi_141_round_div());
+
+    // Euclidean division family
+    builtins.insert("euclidean-quotient".to_string(), srfi_141_euclidean_quotient());
+    builtins.insert("euclidean-remainder".to_string(), srfi_141_euclidean_remainder());
+    builtins.insert("euclidean/".to_string(), srfi_141_euclidean_div());
+
+    // Balanced division family
+    builtins.insert("balanced-quotient".to_string(), srfi_141_balanced_quotient());
+    builtins.insert("balanced-remainder".to_string(), srfi_141_balanced_remainder());
+    builtins.insert("balanced/".to_string(), srfi_141_balanced_div());
 }
 
 // Helper function for handling division with proper integer results
@@ -674,4 +705,496 @@ fn lcm_helper(a: i64, b: i64) -> i64 {
     } else {
         (a.abs() / gcd_helper(a, b)) * b.abs()
     }
+}
+
+// SRFI 141: Integer Division implementations
+// Provides comprehensive integer division operations with six families:
+// floor, ceiling, truncate, round, Euclidean, and balanced division
+
+/// Helper function to perform floor division
+fn floor_division(x: i64, y: i64) -> (i64, i64) {
+    if y == 0 {
+        panic!("Division by zero");
+    }
+    
+    let q = x / y;
+    let r = x % y;
+    
+    if (r != 0) && ((r < 0) != (y < 0)) {
+        (q - 1, r + y)
+    } else {
+        (q, r)
+    }
+}
+
+/// Helper function to perform ceiling division
+fn ceiling_division(x: i64, y: i64) -> (i64, i64) {
+    let (q, r) = floor_division(x, y);
+    if r == 0 {
+        (q, r)
+    } else {
+        (q + 1, r - y)
+    }
+}
+
+/// Helper function to perform truncate division (same as built-in / and %)
+fn truncate_division(x: i64, y: i64) -> (i64, i64) {
+    if y == 0 {
+        panic!("Division by zero");
+    }
+    (x / y, x % y)
+}
+
+/// Helper function to perform round division
+fn round_division(x: i64, y: i64) -> (i64, i64) {
+    if y == 0 {
+        panic!("Division by zero");
+    }
+    
+    let (q, r) = floor_division(x, y);
+    
+    if r.abs() < (y.abs() + 1) / 2 {
+        (q, r)
+    } else if r.abs() > (y.abs() + 1) / 2 {
+        if r > 0 {
+            (q + 1, r - y)
+        } else {
+            (q - 1, r + y)
+        }
+    } else {
+        // Tie case: round to even
+        if q % 2 == 0 {
+            (q, r)
+        } else if r > 0 {
+            (q + 1, r - y)
+        } else {
+            (q - 1, r + y)
+        }
+    }
+}
+
+/// Helper function to perform Euclidean division
+fn euclidean_division(x: i64, y: i64) -> (i64, i64) {
+    if y == 0 {
+        panic!("Division by zero");
+    }
+    
+    let (q, r) = floor_division(x, y);
+    
+    if r >= 0 {
+        (q, r)
+    } else if y > 0 {
+        (q - 1, r + y)
+    } else {
+        (q + 1, r - y)
+    }
+}
+
+/// Helper function to perform balanced division
+fn balanced_division(x: i64, y: i64) -> (i64, i64) {
+    if y == 0 {
+        panic!("Division by zero");
+    }
+    
+    let (q, r) = euclidean_division(x, y);
+    let half_y = y.abs() / 2;
+    
+    if r <= half_y {
+        (q, r)
+    } else if y > 0 {
+        (q + 1, r - y)
+    } else {
+        (q - 1, r + y)
+    }
+}
+
+// Floor division family
+fn srfi_141_floor_quotient() -> Value {
+    make_builtin_procedure("floor-quotient", Some(2), |args| {
+        check_arity(args, 2)?;
+        let x = expect_number(&args[0], "floor-quotient")?;
+        let y = expect_number(&args[1], "floor-quotient")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, _) = floor_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(q)))
+            }
+            _ => Err(LambdustError::type_error(
+                "floor-quotient requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_floor_remainder() -> Value {
+    make_builtin_procedure("floor-remainder", Some(2), |args| {
+        check_arity(args, 2)?;
+        let x = expect_number(&args[0], "floor-remainder")?;
+        let y = expect_number(&args[1], "floor-remainder")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (_, r) = floor_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(r)))
+            }
+            _ => Err(LambdustError::type_error(
+                "floor-remainder requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_floor_div() -> Value {
+    make_builtin_procedure("floor/", Some(2), |args| {
+        check_arity(args, 2)?;
+        let x = expect_number(&args[0], "floor/")?;
+        let y = expect_number(&args[1], "floor/")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, r) = floor_division(*x, *y);
+                Ok(Value::Values(vec![
+                    Value::Number(SchemeNumber::Integer(q)),
+                    Value::Number(SchemeNumber::Integer(r)),
+                ]))
+            }
+            _ => Err(LambdustError::type_error(
+                "floor/ requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+// Ceiling division family
+fn srfi_141_ceiling_quotient() -> Value {
+    make_builtin_procedure("ceiling-quotient", Some(2), |args| {
+        check_arity(args, 2)?;
+        let x = expect_number(&args[0], "ceiling-quotient")?;
+        let y = expect_number(&args[1], "ceiling-quotient")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, _) = ceiling_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(q)))
+            }
+            _ => Err(LambdustError::type_error(
+                "ceiling-quotient requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_ceiling_remainder() -> Value {
+    make_builtin_procedure("ceiling-remainder", Some(2), |args| {
+        check_arity(args, 2)?;
+        let x = expect_number(&args[0], "ceiling-remainder")?;
+        let y = expect_number(&args[1], "ceiling-remainder")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (_, r) = ceiling_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(r)))
+            }
+            _ => Err(LambdustError::type_error(
+                "ceiling-remainder requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_ceiling_div() -> Value {
+    make_builtin_procedure("ceiling/", Some(2), |args| {
+        check_arity(args, 2)?;
+        let x = expect_number(&args[0], "ceiling/")?;
+        let y = expect_number(&args[1], "ceiling/")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, r) = ceiling_division(*x, *y);
+                Ok(Value::Values(vec![
+                    Value::Number(SchemeNumber::Integer(q)),
+                    Value::Number(SchemeNumber::Integer(r)),
+                ]))
+            }
+            _ => Err(LambdustError::type_error(
+                "ceiling/ requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+// Truncate division family
+fn srfi_141_truncate_quotient() -> Value {
+    make_builtin_procedure("truncate-quotient", Some(2), |args| {
+        check_arity(args, 2)?;
+        let x = expect_number(&args[0], "truncate-quotient")?;
+        let y = expect_number(&args[1], "truncate-quotient")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, _) = truncate_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(q)))
+            }
+            _ => Err(LambdustError::type_error(
+                "truncate-quotient requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_truncate_remainder() -> Value {
+    make_builtin_procedure("truncate-remainder", Some(2), |args| {
+        let x = expect_number(&args[0], "truncate-remainder")?;
+        let y = expect_number(&args[1], "truncate-remainder")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (_, r) = truncate_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(r)))
+            }
+            _ => Err(LambdustError::type_error(
+                "truncate-remainder requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_truncate_div() -> Value {
+    make_builtin_procedure("truncate/", Some(2), |args| {
+        let x = expect_number(&args[0], "truncate/")?;
+        let y = expect_number(&args[1], "truncate/")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, r) = truncate_division(*x, *y);
+                Ok(Value::Values(vec![
+                    Value::Number(SchemeNumber::Integer(q)),
+                    Value::Number(SchemeNumber::Integer(r)),
+                ]))
+            }
+            _ => Err(LambdustError::type_error(
+                "truncate/ requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+// Round division family
+fn srfi_141_round_quotient() -> Value {
+    make_builtin_procedure("round-quotient", Some(2), |args| {
+        let x = expect_number(&args[0], "round-quotient")?;
+        let y = expect_number(&args[1], "round-quotient")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, _) = round_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(q)))
+            }
+            _ => Err(LambdustError::type_error(
+                "round-quotient requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_round_remainder() -> Value {
+    make_builtin_procedure("round-remainder", Some(2), |args| {
+        let x = expect_number(&args[0], "round-remainder")?;
+        let y = expect_number(&args[1], "round-remainder")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (_, r) = round_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(r)))
+            }
+            _ => Err(LambdustError::type_error(
+                "round-remainder requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_round_div() -> Value {
+    make_builtin_procedure("round/", Some(2), |args| {
+        let x = expect_number(&args[0], "round/")?;
+        let y = expect_number(&args[1], "round/")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, r) = round_division(*x, *y);
+                Ok(Value::Values(vec![
+                    Value::Number(SchemeNumber::Integer(q)),
+                    Value::Number(SchemeNumber::Integer(r)),
+                ]))
+            }
+            _ => Err(LambdustError::type_error(
+                "round/ requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+// Euclidean division family
+fn srfi_141_euclidean_quotient() -> Value {
+    make_builtin_procedure("euclidean-quotient", Some(2), |args| {
+        let x = expect_number(&args[0], "euclidean-quotient")?;
+        let y = expect_number(&args[1], "euclidean-quotient")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, _) = euclidean_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(q)))
+            }
+            _ => Err(LambdustError::type_error(
+                "euclidean-quotient requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_euclidean_remainder() -> Value {
+    make_builtin_procedure("euclidean-remainder", Some(2), |args| {
+        let x = expect_number(&args[0], "euclidean-remainder")?;
+        let y = expect_number(&args[1], "euclidean-remainder")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (_, r) = euclidean_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(r)))
+            }
+            _ => Err(LambdustError::type_error(
+                "euclidean-remainder requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_euclidean_div() -> Value {
+    make_builtin_procedure("euclidean/", Some(2), |args| {
+        let x = expect_number(&args[0], "euclidean/")?;
+        let y = expect_number(&args[1], "euclidean/")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, r) = euclidean_division(*x, *y);
+                Ok(Value::Values(vec![
+                    Value::Number(SchemeNumber::Integer(q)),
+                    Value::Number(SchemeNumber::Integer(r)),
+                ]))
+            }
+            _ => Err(LambdustError::type_error(
+                "euclidean/ requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+// Balanced division family
+fn srfi_141_balanced_quotient() -> Value {
+    make_builtin_procedure("balanced-quotient", Some(2), |args| {
+        let x = expect_number(&args[0], "balanced-quotient")?;
+        let y = expect_number(&args[1], "balanced-quotient")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, _) = balanced_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(q)))
+            }
+            _ => Err(LambdustError::type_error(
+                "balanced-quotient requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_balanced_remainder() -> Value {
+    make_builtin_procedure("balanced-remainder", Some(2), |args| {
+        let x = expect_number(&args[0], "balanced-remainder")?;
+        let y = expect_number(&args[1], "balanced-remainder")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (_, r) = balanced_division(*x, *y);
+                Ok(Value::Number(SchemeNumber::Integer(r)))
+            }
+            _ => Err(LambdustError::type_error(
+                "balanced-remainder requires integer arguments".to_string(),
+            )),
+        }
+    })
+}
+
+fn srfi_141_balanced_div() -> Value {
+    make_builtin_procedure("balanced/", Some(2), |args| {
+        let x = expect_number(&args[0], "balanced/")?;
+        let y = expect_number(&args[1], "balanced/")?;
+        
+        match (x, y) {
+            (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
+                if *y == 0 {
+                    return Err(LambdustError::division_by_zero());
+                }
+                let (q, r) = balanced_division(*x, *y);
+                Ok(Value::Values(vec![
+                    Value::Number(SchemeNumber::Integer(q)),
+                    Value::Number(SchemeNumber::Integer(r)),
+                ]))
+            }
+            _ => Err(LambdustError::type_error(
+                "balanced/ requires integer arguments".to_string(),
+            )),
+        }
+    })
 }

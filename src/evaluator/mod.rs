@@ -14,7 +14,13 @@ pub mod higher_order;
 pub mod imports;
 // Phase 6-B-Step3: Inline evaluation system
 pub mod inline_evaluation;
+// Phase 6-C: JIT loop optimization system
+pub mod jit_loop_optimization;
 pub mod memory;
+// Phase 6-D: Tail call optimization system
+pub mod tail_call_optimization;
+// Phase 6-D: LLVM backend for advanced tail call optimization
+pub mod llvm_backend;
 // Phase 5-Step2: RAII store is now always available
 pub mod raii_store;
 pub mod special_forms;
@@ -48,6 +54,21 @@ pub use expression_analyzer::{
 pub use inline_evaluation::{
     CacheFriendlyPatterns, ContinuationWeight, HotPathDetector, InlineEvaluator, InlineHint,
     InlineResult,
+};
+// Phase 6-D: Tail call optimization exports
+pub use tail_call_optimization::{
+    TailCallAnalyzer, TailCallContext, TailCallOptimizer, TailCallStats, OptimizedTailCall,
+    OptimizationLevel, ArgEvaluationStrategy,
+};
+// Phase 6-D: LLVM backend exports
+pub use llvm_backend::{
+    LLVMCodeGenerator, LLVMCompilerIntegration, LLVMOptimizationLevel, LLVMTailCallIntrinsic,
+    LLVMFunction, LLVMInstruction, LLVMOptimizationStats,
+};
+// Phase 6-C: JIT loop optimization exports
+pub use jit_loop_optimization::{
+    GeneratedCode, IterationStrategy, IteratorType, JitHint, JitLoopOptimizer, JitOptimizationStats,
+    LoopPattern, NativeCodeGenerator,
 };
 // Phase 6-A: Trampoline evaluator exports
 pub use trampoline::{Bounce, ContinuationThunk, TrampolineEvaluation, TrampolineEvaluator};
