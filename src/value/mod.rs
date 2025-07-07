@@ -6,6 +6,7 @@ pub mod conversions;
 pub mod display;
 pub mod equality;
 pub mod list;
+pub mod optimized;
 pub mod pair;
 pub mod port;
 pub mod predicates;
@@ -15,6 +16,7 @@ pub mod record;
 
 // Re-export key types
 pub use continuation::{Continuation, StackFrame};
+pub use optimized::{OptimizationStats, OptimizedValue, ShortStringData, ValueOptimizer};
 pub use pair::PairData;
 pub use port::Port;
 pub use procedure::Procedure;

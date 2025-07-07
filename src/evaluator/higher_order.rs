@@ -581,53 +581,31 @@ impl Evaluator {
             ),
         ];
 
-        // Add store-type-specific statistics
-        match &stats {
-            crate::evaluator::types::StoreStatisticsWrapper::Traditional(traditional_stats) => {
-                stats_pairs.push(Value::cons(
-                    Value::Symbol("gc-cycles".to_string()),
-                    Value::Number(crate::lexer::SchemeNumber::Integer(
-                        traditional_stats.gc_cycles as i64,
-                    )),
-                ));
-                if let Ok(store) = self.store() {
-                    stats_pairs.push(Value::cons(
-                        Value::Symbol("location-count".to_string()),
-                        Value::Number(crate::lexer::SchemeNumber::Integer(
-                            store.location_count() as i64
-                        )),
-                    ));
-                }
-                stats_pairs.push(Value::cons(
-                    Value::Symbol("store-type".to_string()),
-                    Value::Symbol("traditional-gc".to_string()),
-                ));
-            }
-            #[cfg(feature = "raii-store")]
-            crate::evaluator::types::StoreStatisticsWrapper::Raii(raii_stats) => {
-                stats_pairs.push(Value::cons(
-                    Value::Symbol("active-locations".to_string()),
-                    Value::Number(crate::lexer::SchemeNumber::Integer(
-                        raii_stats.active_locations as i64,
-                    )),
-                ));
-                stats_pairs.push(Value::cons(
-                    Value::Symbol("peak-active-locations".to_string()),
-                    Value::Number(crate::lexer::SchemeNumber::Integer(
-                        raii_stats.peak_active_locations as i64,
-                    )),
-                ));
-                stats_pairs.push(Value::cons(
-                    Value::Symbol("auto-cleanup-events".to_string()),
-                    Value::Number(crate::lexer::SchemeNumber::Integer(
-                        raii_stats.auto_cleanup_events as i64,
-                    )),
-                ));
-                stats_pairs.push(Value::cons(
-                    Value::Symbol("store-type".to_string()),
-                    Value::Symbol("raii".to_string()),
-                ));
-            }
+        // Add RAII store-specific statistics (Phase 5-Step2: RAII-only)
+        let raii_stats = stats.raii_statistics();
+        {
+            stats_pairs.push(Value::cons(
+                Value::Symbol("active-locations".to_string()),
+                Value::Number(crate::lexer::SchemeNumber::Integer(
+                    raii_stats.active_locations as i64,
+                )),
+            ));
+            stats_pairs.push(Value::cons(
+                Value::Symbol("peak-active-locations".to_string()),
+                Value::Number(crate::lexer::SchemeNumber::Integer(
+                    raii_stats.peak_active_locations as i64,
+                )),
+            ));
+            stats_pairs.push(Value::cons(
+                Value::Symbol("auto-cleanup-events".to_string()),
+                Value::Number(crate::lexer::SchemeNumber::Integer(
+                    raii_stats.auto_cleanup_events as i64,
+                )),
+            ));
+            stats_pairs.push(Value::cons(
+                Value::Symbol("store-type".to_string()),
+                Value::Symbol("raii".to_string()),
+            ));
         }
 
         let result = Value::from_vector(stats_pairs);
@@ -691,7 +669,7 @@ impl Evaluator {
         let value_expr = operands[0].clone();
         let value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
 
-        let _location_handle = self.allocate(value)?;
+        let _location_handle = self.allocate(value);
         // For now, return the location handle's ID as a number
         // In a full implementation, we'd need a Location value type
         let location_id = _location_handle.id();
@@ -704,7 +682,7 @@ impl Evaluator {
         &mut self,
         operands: &[Expr],
         env: Rc<Environment>,
-        cont: Continuation,
+        _cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 1 {
             return Err(LambdustError::arity_error(1, operands.len()));
@@ -713,7 +691,7 @@ impl Evaluator {
         let location_expr = operands[0].clone();
         let location_value = self.eval(location_expr, env.clone(), Continuation::Identity)?;
 
-        let location_id = match &location_value {
+        let _location_id = match &location_value {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
             _ => {
                 return Err(LambdustError::type_error(
@@ -722,16 +700,11 @@ impl Evaluator {
             }
         };
 
-        let location = crate::evaluator::memory::Location::new(location_id);
-
-        if let Some(value) = self.store_get(location) {
-            self.apply_continuation(cont, value.clone())
-        } else {
-            Err(LambdustError::runtime_error(format!(
-                "Invalid location: {}",
-                location
-            )))
-        }
+        // Phase 5-Step2: location-ref placeholder - RAII locations are managed automatically
+        // TODO: Implement location registry for stable location references
+        Err(LambdustError::runtime_error(
+            "location-ref not yet implemented for RAII store".to_string()
+        ))
     }
 
     /// Evaluate location-set! as special form
@@ -739,7 +712,7 @@ impl Evaluator {
         &mut self,
         operands: &[Expr],
         env: Rc<Environment>,
-        cont: Continuation,
+        _cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 2 {
             return Err(LambdustError::arity_error(2, operands.len()));
@@ -749,9 +722,9 @@ impl Evaluator {
         let value_expr = operands[1].clone();
 
         let location_value = self.eval(location_expr, env.clone(), Continuation::Identity)?;
-        let new_value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
+        let _new_value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
 
-        let location_id = match &location_value {
+        let _location_id = match &location_value {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
             _ => {
                 return Err(LambdustError::type_error(
@@ -760,9 +733,10 @@ impl Evaluator {
             }
         };
 
-        let location = crate::evaluator::memory::Location::new(location_id);
-        self.store_set(location, new_value)?;
-
-        self.apply_continuation(cont, Value::Undefined)
+        // Phase 5-Step2: location-set! placeholder - RAII locations are managed automatically
+        // TODO: Implement location registry for stable location references
+        Err(LambdustError::runtime_error(
+            "location-set! not yet implemented for RAII store".to_string()
+        ))
     }
 }

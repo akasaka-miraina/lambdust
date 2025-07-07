@@ -11,6 +11,7 @@ use crate::value::Value;
 use std::rc::Rc;
 
 /// Evaluate do loop special form
+/// Basic implementation to avoid circular dependency with trampoline evaluator
 pub fn eval_do(
     evaluator: &mut Evaluator,
     operands: &[Expr],
@@ -19,41 +20,87 @@ pub fn eval_do(
 ) -> Result<Value> {
     if operands.len() < 2 {
         return Err(LambdustError::syntax_error(
-            "do: requires at least bindings and test".to_string(),
+            "do requires at least variable bindings and test clause".to_string(),
         ));
     }
 
-    // Parse bindings: ((var init step) ...)
+    // Parse variable bindings
     let bindings = parse_do_bindings(&operands[0])?;
-
+    
     // Parse test clause: (test result ...)
-    let (test, result_exprs) = parse_do_test(&operands[1])?;
+    let (test_expr, result_exprs) = match &operands[1] {
+        Expr::List(test_clause) if !test_clause.is_empty() => {
+            let test = test_clause[0].clone();
+            let results = test_clause[1..].to_vec();
+            (test, results)
+        }
+        _ => {
+            return Err(LambdustError::syntax_error(
+                "do requires test clause".to_string(),
+            ));
+        }
+    };
 
     // Body expressions
     let body_exprs = operands[2..].to_vec();
 
-    // Create new environment for the do loop
-    let do_env = Rc::new(Environment::with_parent(env));
-
-    // Initialize variables with init expressions
+    // Create loop environment
+    let loop_env = Environment::new();
+    
+    // Initialize variables
     for (var, init_expr, _) in &bindings {
-        let init_value =
-            evaluator.eval(init_expr.clone(), do_env.clone(), Continuation::Identity)?;
-        do_env.define(var.clone(), init_value);
+        let init_value = evaluator.eval(init_expr.clone(), env.clone(), Continuation::Identity)?;
+        loop_env.define(var.clone(), init_value);
+    }
+    
+    let loop_env_rc = Rc::new(loop_env.extend());
+
+    // Simple loop implementation (limited iterations to prevent infinite loops)
+    const MAX_ITERATIONS: usize = 1000;
+    
+    for _ in 0..MAX_ITERATIONS {
+        // Evaluate test condition
+        let test_result = evaluator.eval(test_expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+        
+        if test_result.is_truthy() {
+            // Test passed - evaluate result expressions
+            if result_exprs.is_empty() {
+                return evaluator.apply_continuation(cont, Value::Undefined);
+            } else if result_exprs.len() == 1 {
+                return evaluator.eval(result_exprs[0].clone(), loop_env_rc, cont);
+            } else {
+                // Multiple result expressions - evaluate in sequence
+                let last_idx = result_exprs.len() - 1;
+                for (i, expr) in result_exprs.iter().enumerate() {
+                    if i == last_idx {
+                        // Last expression uses original continuation
+                        return evaluator.eval(expr.clone(), loop_env_rc, cont);
+                    } else {
+                        // Intermediate expressions use Identity continuation
+                        evaluator.eval(expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+                    }
+                }
+            }
+        }
+
+        // Execute body expressions
+        for expr in &body_exprs {
+            evaluator.eval(expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+        }
+
+        // Update variables with step expressions
+        for (var, _, step_expr) in &bindings {
+            if let Some(step) = step_expr {
+                let new_value = evaluator.eval(step.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+                loop_env_rc.set(var, new_value)?;
+            }
+        }
     }
 
-    // Create do continuation
-    let do_cont = Continuation::Do {
-        bindings,
-        test,
-        result_exprs,
-        body_exprs,
-        env: do_env.clone(),
-        parent: Box::new(cont),
-    };
-
-    // Start the loop by evaluating the test
-    evaluator.eval(do_cont.test_unchecked().clone(), do_env, do_cont)
+    // If we reach here, the loop didn't terminate
+    Err(LambdustError::runtime_error(
+        "do loop exceeded maximum iterations".to_string(),
+    ))
 }
 
 /// Parse do bindings
@@ -100,6 +147,7 @@ fn parse_do_bindings(bindings_expr: &Expr) -> Result<Vec<(String, Expr, Option<E
 }
 
 /// Parse do test clause
+#[allow(dead_code)]
 fn parse_do_test(test_expr: &Expr) -> Result<(Expr, Vec<Expr>)> {
     match test_expr {
         Expr::List(test_parts) => {
@@ -172,7 +220,9 @@ impl Evaluator {
                     step_values.push((var.clone(), step_value));
                 } else {
                     // If no step expression, keep current value
-                    let current_value = env.get(var)?;
+                    let current_value = env
+                        .get(var)
+                        .ok_or_else(|| LambdustError::undefined_variable(var.clone()))?;
                     step_values.push((var.clone(), current_value));
                 }
             }

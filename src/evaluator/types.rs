@@ -7,15 +7,22 @@ use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::continuation::DynamicPoint;
 use crate::evaluator::evaluation::{EvalOrder, ExceptionHandlerInfo};
-use crate::evaluator::memory::{Location, Store, StoreStatistics};
+use crate::evaluator::expression_analyzer::ExpressionAnalyzer;
+// Phase 5-Step2: RAII-only memory management - removed traditional Store and Location imports
 use crate::srfi::SrfiRegistry;
-use crate::value::Value;
+use crate::value::{Value, ValueOptimizer};
 use std::fmt::Debug;
 use std::rc::Rc;
 
 // Import control flow functions
 use crate::ast::Expr;
 use crate::evaluator::Continuation;
+// Phase 6-B-Step1: DoLoop continuation pool import
+use crate::evaluator::control_flow::DoLoopContinuationPool;
+// Phase 6-B-Step2: Unified continuation pooling imports
+use crate::evaluator::continuation_pooling::ContinuationPoolManager;
+// Phase 6-B-Step3: Inline evaluation imports
+use crate::evaluator::inline_evaluation::InlineEvaluator;
 
 /// Location handle trait for abstracting over different memory management strategies
 pub trait LocationHandle: Debug {
@@ -29,36 +36,7 @@ pub trait LocationHandle: Debug {
     fn id(&self) -> usize;
 }
 
-/// Traditional location wrapper for legacy store compatibility
-#[derive(Debug)]
-pub struct TraditionalLocation {
-    location: Location,
-}
-
-impl LocationHandle for TraditionalLocation {
-    fn get(&self) -> Option<Value> {
-        // This would need evaluator context - simplified for now
-        None
-    }
-
-    fn set(&self, _value: Value) -> Result<()> {
-        // This would need evaluator context - simplified for now
-        Err(LambdustError::runtime_error(
-            "Traditional location access requires evaluator context".to_string(),
-        ))
-    }
-
-    fn is_valid(&self) -> bool {
-        true // Traditional locations are always valid while store exists
-    }
-
-    fn id(&self) -> usize {
-        self.location.id()
-    }
-}
-
-/// RAII location handle implementation
-#[cfg(feature = "raii-store")]
+/// RAII location handle implementation (Phase 5-Step2: Always available)
 impl LocationHandle for crate::evaluator::raii_store::RaiiLocation {
     fn get(&self) -> Option<Value> {
         self.get()
@@ -77,58 +55,70 @@ impl LocationHandle for crate::evaluator::raii_store::RaiiLocation {
     }
 }
 
-/// Statistics wrapper to handle different store types
+/// Statistics wrapper for unified RAII memory management
+/// Phase 5-Step2: Simplified to use only RAII store statistics
 #[derive(Debug, Clone)]
-pub enum StoreStatisticsWrapper {
-    /// Traditional GC statistics
-    Traditional(StoreStatistics),
+pub struct StoreStatisticsWrapper {
     /// RAII store statistics
-    #[cfg(feature = "raii-store")]
-    Raii(crate::evaluator::raii_store::RaiiStoreStatistics),
+    raii_stats: crate::evaluator::raii_store::RaiiStoreStatistics,
 }
 
 impl StoreStatisticsWrapper {
-    /// Get total allocations regardless of store type
+    /// Create from RAII statistics
+    pub fn from_raii(stats: crate::evaluator::raii_store::RaiiStoreStatistics) -> Self {
+        StoreStatisticsWrapper { raii_stats: stats }
+    }
+
+    /// Get total allocations
     pub fn total_allocations(&self) -> usize {
-        match self {
-            StoreStatisticsWrapper::Traditional(stats) => stats.total_allocations,
-            #[cfg(feature = "raii-store")]
-            StoreStatisticsWrapper::Raii(stats) => stats.total_allocations,
-        }
+        self.raii_stats.total_allocations
     }
 
-    /// Get total deallocations regardless of store type
+    /// Get total deallocations
     pub fn total_deallocations(&self) -> usize {
-        match self {
-            StoreStatisticsWrapper::Traditional(stats) => stats.total_deallocations,
-            #[cfg(feature = "raii-store")]
-            StoreStatisticsWrapper::Raii(stats) => stats.total_deallocations,
-        }
+        self.raii_stats.total_deallocations
     }
 
-    /// Get memory usage regardless of store type
+    /// Get memory usage
     pub fn memory_usage(&self) -> usize {
-        match self {
-            StoreStatisticsWrapper::Traditional(stats) => stats.peak_memory_usage,
-            #[cfg(feature = "raii-store")]
-            StoreStatisticsWrapper::Raii(stats) => stats.estimated_memory_usage,
-        }
+        self.raii_stats.estimated_memory_usage
+    }
+
+    /// Get RAII-specific statistics
+    pub fn raii_statistics(&self) -> &crate::evaluator::raii_store::RaiiStoreStatistics {
+        &self.raii_stats
     }
 }
 
 /// Memory management strategy for the evaluator
-#[derive(Debug)]
-pub enum MemoryStrategy {
-    /// Traditional GC-based store (current implementation)
-    TraditionalGC(Store),
+/// Phase 5-Step2: Unified RAII-only memory management
+#[derive(Debug, Default)]
+pub struct MemoryStrategy {
     /// RAII-based store leveraging Rust's ownership model
-    #[cfg(feature = "raii-store")]
-    RaiiStore(crate::evaluator::raii_store::RaiiStore),
+    raii_store: crate::evaluator::raii_store::RaiiStore,
 }
 
-impl Default for MemoryStrategy {
-    fn default() -> Self {
-        MemoryStrategy::TraditionalGC(Store::new())
+impl MemoryStrategy {
+    /// Create new RAII-based memory strategy
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create with memory limit
+    pub fn with_memory_limit(limit: usize) -> Self {
+        MemoryStrategy {
+            raii_store: crate::evaluator::raii_store::RaiiStore::with_memory_limit(limit),
+        }
+    }
+
+    /// Get reference to RAII store
+    pub fn raii_store(&self) -> &crate::evaluator::raii_store::RaiiStore {
+        &self.raii_store
+    }
+
+    /// Get mutable reference to RAII store
+    pub fn raii_store_mut(&mut self) -> &mut crate::evaluator::raii_store::RaiiStore {
+        &mut self.raii_store
     }
 }
 
@@ -155,13 +145,23 @@ pub struct Evaluator {
     exception_handlers: Vec<ExceptionHandlerInfo>,
     /// SRFI registry for module imports
     srfi_registry: SrfiRegistry,
+    /// Value optimizer for Phase 4 memory optimization
+    value_optimizer: ValueOptimizer,
+    /// Expression analyzer for Phase 5 compile-time optimization
+    expression_analyzer: ExpressionAnalyzer,
+    /// Phase 6-B-Step1: DoLoop continuation pool for memory optimization
+    doloop_continuation_pool: DoLoopContinuationPool,
+    /// Phase 6-B-Step2: Global continuation pool manager for unified pooling
+    continuation_pool_manager: ContinuationPoolManager,
+    /// Phase 6-B-Step3: Inline evaluator for lightweight continuation optimization
+    inline_evaluator: InlineEvaluator,
 }
 
 impl Evaluator {
     /// Create a new formal evaluator
     pub fn new() -> Self {
         Evaluator {
-            memory_strategy: MemoryStrategy::default(),
+            memory_strategy: MemoryStrategy::new(),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
             next_reuse_id: 0,
@@ -171,13 +171,39 @@ impl Evaluator {
             max_recursion_depth: 1000, // Configurable recursion limit
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
+            value_optimizer: ValueOptimizer::new(),
+            expression_analyzer: ExpressionAnalyzer::new(),
+            doloop_continuation_pool: DoLoopContinuationPool::default(),
+            continuation_pool_manager: ContinuationPoolManager::new(),
+            inline_evaluator: InlineEvaluator::new(),
+        }
+    }
+
+    /// Create evaluator with RAII store and memory limit
+    pub fn with_raii_memory_limit(memory_limit: usize) -> Self {
+        Evaluator {
+            memory_strategy: MemoryStrategy::with_memory_limit(memory_limit),
+            dynamic_points: Vec::new(),
+            next_dynamic_point_id: 0,
+            next_reuse_id: 0,
+            eval_order: EvalOrder::LeftToRight,
+            global_env: Rc::new(Environment::with_builtins()),
+            recursion_depth: 0,
+            max_recursion_depth: 1000,
+            exception_handlers: Vec::new(),
+            srfi_registry: SrfiRegistry::with_standard_srfis(),
+            value_optimizer: ValueOptimizer::new(),
+            expression_analyzer: ExpressionAnalyzer::new(),
+            doloop_continuation_pool: DoLoopContinuationPool::default(),
+            continuation_pool_manager: ContinuationPoolManager::new(),
+            inline_evaluator: InlineEvaluator::new(),
         }
     }
 
     /// Create evaluator with custom evaluation order
     pub fn with_eval_order(eval_order: EvalOrder) -> Self {
         Evaluator {
-            memory_strategy: MemoryStrategy::default(),
+            memory_strategy: MemoryStrategy::new(),
             dynamic_points: Vec::new(),
             next_dynamic_point_id: 0,
             next_reuse_id: 0,
@@ -187,6 +213,11 @@ impl Evaluator {
             max_recursion_depth: 1000,
             exception_handlers: Vec::new(),
             srfi_registry: SrfiRegistry::with_standard_srfis(),
+            value_optimizer: ValueOptimizer::new(),
+            expression_analyzer: ExpressionAnalyzer::new(),
+            doloop_continuation_pool: DoLoopContinuationPool::default(),
+            continuation_pool_manager: ContinuationPoolManager::new(),
+            inline_evaluator: InlineEvaluator::new(),
         }
     }
 
@@ -236,6 +267,26 @@ impl Evaluator {
         &self.srfi_registry
     }
 
+    /// Get reference to value optimizer
+    pub fn value_optimizer(&self) -> &ValueOptimizer {
+        &self.value_optimizer
+    }
+
+    /// Get mutable reference to value optimizer
+    pub fn value_optimizer_mut(&mut self) -> &mut ValueOptimizer {
+        &mut self.value_optimizer
+    }
+
+    /// Get reference to expression analyzer
+    pub fn expression_analyzer(&self) -> &ExpressionAnalyzer {
+        &self.expression_analyzer
+    }
+
+    /// Get mutable reference to expression analyzer
+    pub fn expression_analyzer_mut(&mut self) -> &mut ExpressionAnalyzer {
+        &mut self.expression_analyzer
+    }
+
     /// Increment recursion depth
     pub fn increment_recursion_depth(&mut self) -> Result<()> {
         self.recursion_depth += 1;
@@ -255,180 +306,39 @@ impl Evaluator {
         }
     }
 
-    /// Get mutable reference to store (traditional GC only)
-    pub fn store_mut(&mut self) -> Result<&mut Store> {
-        match &mut self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => Ok(store),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(_) => Err(LambdustError::runtime_error(
-                "Store access not available in RAII mode".to_string(),
-            )),
-        }
+    /// Get mutable reference to RAII store
+    pub fn raii_store_mut(&mut self) -> &mut crate::evaluator::raii_store::RaiiStore {
+        self.memory_strategy.raii_store_mut()
     }
 
-    /// Get reference to store (traditional GC only)
-    pub fn store(&self) -> Result<&Store> {
-        match &self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => Ok(store),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(_) => Err(LambdustError::runtime_error(
-                "Store access not available in RAII mode".to_string(),
-            )),
-        }
+    /// Get reference to RAII store
+    pub fn raii_store(&self) -> &crate::evaluator::raii_store::RaiiStore {
+        self.memory_strategy.raii_store()
     }
 
-    /// Allocate a new location in the store
-    pub fn allocate(&mut self, value: Value) -> Result<Box<dyn LocationHandle>> {
-        match &mut self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => {
-                let location = store.allocate(value);
-                Ok(Box::new(TraditionalLocation { location }))
-            }
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(store) => {
-                let location = store.allocate(value);
-                Ok(Box::new(location))
-            }
-        }
+    /// Allocate a new location with initial value in the RAII store
+    pub fn allocate(&mut self, value: Value) -> crate::evaluator::raii_store::RaiiLocation {
+        self.memory_strategy.raii_store().allocate(value)
     }
 
-    /// Get value from store location (traditional GC only)
-    pub fn store_get(&self, location: Location) -> Option<&Value> {
-        match &self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => store.get(location),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(_) => None,
-        }
-    }
-
-    /// Set value at store location (traditional GC only)
-    pub fn store_set(&mut self, location: Location, value: Value) -> Result<()> {
-        match &mut self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => store.set(location, value),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(_) => Err(LambdustError::runtime_error(
-                "Direct location access not available in RAII mode".to_string(),
-            )),
-        }
-    }
-
-    /// Check if store contains location (traditional GC only)
-    pub fn store_contains(&self, location: Location) -> bool {
-        match &self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => store.contains(location),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(_) => false,
-        }
-    }
-
-    /// Increment reference count for location (traditional GC only)
-    pub fn store_incref(&mut self, location: Location) -> Result<()> {
-        match &mut self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => store.incref(location),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(_) => Ok(()), // No-op for RAII
-        }
-    }
-
-    /// Decrement reference count for location (traditional GC only)
-    pub fn store_decref(&mut self, location: Location) -> Result<()> {
-        match &mut self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => store.decref(location),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(_) => Ok(()), // No-op for RAII
-        }
-    }
-
-    /// Force garbage collection
+    /// Force garbage collection in RAII store (age-based cleanup)
     pub fn collect_garbage(&mut self) {
-        match &mut self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => store.collect_garbage(),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(store) => store.manual_cleanup(),
-        }
+        self.memory_strategy.raii_store_mut().manual_cleanup();
     }
 
     /// Get store memory statistics
     pub fn store_statistics(&self) -> StoreStatisticsWrapper {
-        match &self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => {
-                StoreStatisticsWrapper::Traditional(store.get_statistics().clone())
-            }
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(store) => StoreStatisticsWrapper::Raii(store.statistics()),
-        }
+        StoreStatisticsWrapper::from_raii(self.memory_strategy.raii_store().statistics())
     }
 
     /// Get current memory usage
     pub fn memory_usage(&self) -> usize {
-        match &self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => store.memory_usage(),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(store) => store.memory_usage(),
-        }
+        self.memory_strategy.raii_store().memory_usage()
     }
 
     /// Set memory limit for store
     pub fn set_memory_limit(&mut self, limit: usize) {
-        match &mut self.memory_strategy {
-            MemoryStrategy::TraditionalGC(store) => store.set_memory_limit(limit),
-            #[cfg(feature = "raii-store")]
-            MemoryStrategy::RaiiStore(store) => store.set_memory_limit(limit),
-        }
-    }
-
-    /// Create evaluator with custom memory limit
-    pub fn with_memory_limit(memory_limit: usize) -> Self {
-        Evaluator {
-            memory_strategy: MemoryStrategy::TraditionalGC(Store::with_memory_limit(memory_limit)),
-            dynamic_points: Vec::new(),
-            next_dynamic_point_id: 0,
-            next_reuse_id: 0,
-            eval_order: EvalOrder::LeftToRight,
-            global_env: Rc::new(Environment::with_builtins()),
-            recursion_depth: 0,
-            max_recursion_depth: 1000,
-            exception_handlers: Vec::new(),
-            srfi_registry: SrfiRegistry::with_standard_srfis(),
-        }
-    }
-
-    /// Create evaluator with RAII memory management
-    #[cfg(feature = "raii-store")]
-    pub fn with_raii_store() -> Self {
-        Evaluator {
-            memory_strategy: MemoryStrategy::RaiiStore(
-                crate::evaluator::raii_store::RaiiStore::new(),
-            ),
-            dynamic_points: Vec::new(),
-            next_dynamic_point_id: 0,
-            next_reuse_id: 0,
-            eval_order: EvalOrder::LeftToRight,
-            global_env: Rc::new(Environment::with_builtins()),
-            recursion_depth: 0,
-            max_recursion_depth: 1000,
-            exception_handlers: Vec::new(),
-            srfi_registry: SrfiRegistry::with_standard_srfis(),
-        }
-    }
-
-    /// Create evaluator with RAII memory management and custom limit
-    #[cfg(feature = "raii-store")]
-    pub fn with_raii_store_memory_limit(memory_limit: usize) -> Self {
-        Evaluator {
-            memory_strategy: MemoryStrategy::RaiiStore(
-                crate::evaluator::raii_store::RaiiStore::with_memory_limit(memory_limit),
-            ),
-            dynamic_points: Vec::new(),
-            next_dynamic_point_id: 0,
-            next_reuse_id: 0,
-            eval_order: EvalOrder::LeftToRight,
-            global_env: Rc::new(Environment::with_builtins()),
-            recursion_depth: 0,
-            max_recursion_depth: 1000,
-            exception_handlers: Vec::new(),
-            srfi_registry: SrfiRegistry::with_standard_srfis(),
-        }
+        self.memory_strategy.raii_store_mut().set_memory_limit(limit);
     }
 
     /// Dynamic Points management methods
@@ -652,6 +562,36 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         crate::evaluator::control_flow::eval_guard(self, operands, env, cont)
+    }
+
+    /// Phase 6-B-Step1: Get reference to DoLoop continuation pool
+    pub fn doloop_continuation_pool(&self) -> &DoLoopContinuationPool {
+        &self.doloop_continuation_pool
+    }
+
+    /// Phase 6-B-Step1: Get mutable reference to DoLoop continuation pool
+    pub fn doloop_continuation_pool_mut(&mut self) -> &mut DoLoopContinuationPool {
+        &mut self.doloop_continuation_pool
+    }
+
+    /// Phase 6-B-Step2: Get reference to global continuation pool manager
+    pub fn continuation_pool_manager(&self) -> &ContinuationPoolManager {
+        &self.continuation_pool_manager
+    }
+
+    /// Phase 6-B-Step2: Get mutable reference to global continuation pool manager
+    pub fn continuation_pool_manager_mut(&mut self) -> &mut ContinuationPoolManager {
+        &mut self.continuation_pool_manager
+    }
+
+    /// Phase 6-B-Step3: Get reference to inline evaluator
+    pub fn inline_evaluator(&self) -> &InlineEvaluator {
+        &self.inline_evaluator
+    }
+
+    /// Phase 6-B-Step3: Get mutable reference to inline evaluator
+    pub fn inline_evaluator_mut(&mut self) -> &mut InlineEvaluator {
+        &mut self.inline_evaluator
     }
 
     /// Apply control flow continuation

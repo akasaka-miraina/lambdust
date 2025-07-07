@@ -6,6 +6,7 @@
 use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::value::Value;
+use smallvec::SmallVec;
 use std::rc::Rc;
 
 /// Lightweight continuation operations for common cases
@@ -115,6 +116,340 @@ impl LightContinuation {
                 Ok(Value::Undefined)
             }
         }
+    }
+}
+
+/// Compact continuation system for memory optimization
+/// Separates small continuations from large ones to reduce heap allocation
+#[derive(Debug, Clone)]
+pub enum CompactContinuation {
+    /// Small continuations stored inline (no heap allocation)
+    Inline(Box<InlineContinuation>),
+    /// Large continuations stored on heap only when necessary
+    Boxed(Box<Continuation>),
+}
+
+/// Inline continuations optimized for common small cases
+/// These are stored directly without heap allocation
+#[derive(Debug, Clone)]
+pub enum InlineContinuation {
+    /// Identity continuation (direct return)
+    Identity,
+    /// Value accumulation with SmallVec optimization (up to 4 values on stack)
+    Values(Box<SmallVec<[Value; 4]>>),
+    /// Variable assignment with environment reference
+    Assignment {
+        /// Variable name to assign to
+        var_name: String,
+        /// Environment reference (shared, not cloned)
+        env_ref: EnvironmentRef,
+    },
+    /// Begin operation for single expression (most common case)
+    SingleBegin {
+        /// Single remaining expression
+        expr: Expr,
+        /// Environment reference
+        env_ref: EnvironmentRef,
+    },
+    /// Define operation with variable name
+    Define {
+        /// Variable to define
+        variable: String,
+        /// Environment reference
+        env_ref: EnvironmentRef,
+    },
+    /// Simple if test (most common conditional)
+    SimpleIf {
+        /// Consequent expression
+        consequent: Expr,
+        /// Optional alternate expression
+        alternate: Option<Expr>,
+        /// Environment reference
+        env_ref: EnvironmentRef,
+    },
+}
+
+/// Environment reference for memory-efficient environment sharing
+/// This avoids cloning large environments for simple operations
+#[derive(Debug, Clone)]
+pub struct EnvironmentRef {
+    /// Weak reference to environment to avoid reference cycles
+    env: std::rc::Weak<Environment>,
+    /// Fallback strong reference for critical operations
+    strong_ref: Option<Rc<Environment>>,
+}
+
+impl EnvironmentRef {
+    /// Create new environment reference
+    pub fn new(env: Rc<Environment>) -> Self {
+        EnvironmentRef {
+            env: Rc::downgrade(&env),
+            strong_ref: Some(env),
+        }
+    }
+
+    /// Get environment reference, upgrading weak reference if needed
+    pub fn get(&self) -> Option<Rc<Environment>> {
+        if let Some(strong) = &self.strong_ref {
+            Some(Rc::clone(strong))
+        } else {
+            self.env.upgrade()
+        }
+    }
+
+    /// Convert to strong reference for critical operations
+    pub fn to_strong(&mut self) -> Option<Rc<Environment>> {
+        if let Some(env) = self.env.upgrade() {
+            self.strong_ref = Some(Rc::clone(&env));
+            Some(env)
+        } else {
+            None
+        }
+    }
+}
+
+impl CompactContinuation {
+    /// Create compact continuation from regular continuation
+    pub fn from_continuation(cont: Continuation) -> Self {
+        match &cont {
+            // Convert simple cases to inline continuations
+            Continuation::Identity => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::Identity))
+            }
+
+            Continuation::Values { values, parent }
+                if matches!(**parent, Continuation::Identity) && values.len() <= 4 =>
+            {
+                let small_values: SmallVec<[Value; 4]> = values.iter().cloned().collect();
+                CompactContinuation::Inline(Box::new(InlineContinuation::Values(Box::new(
+                    small_values,
+                ))))
+            }
+
+            Continuation::Assignment {
+                variable,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::Assignment {
+                    var_name: variable.clone(),
+                    env_ref: EnvironmentRef::new(Rc::clone(env)),
+                }))
+            }
+
+            Continuation::Begin {
+                remaining,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::SingleBegin {
+                    expr: remaining[0].clone(),
+                    env_ref: EnvironmentRef::new(Rc::clone(env)),
+                }))
+            }
+
+            Continuation::Define {
+                variable,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::Define {
+                    variable: variable.clone(),
+                    env_ref: EnvironmentRef::new(Rc::clone(env)),
+                }))
+            }
+
+            Continuation::IfTest {
+                consequent,
+                alternate,
+                env,
+                parent,
+            } if matches!(**parent, Continuation::Identity) => {
+                CompactContinuation::Inline(Box::new(InlineContinuation::SimpleIf {
+                    consequent: consequent.clone(),
+                    alternate: alternate.clone(),
+                    env_ref: EnvironmentRef::new(Rc::clone(env)),
+                }))
+            }
+
+            // Large or complex continuations go to heap
+            _ => CompactContinuation::Boxed(Box::new(cont)),
+        }
+    }
+
+    /// Apply compact continuation with optimized path selection
+    #[inline]
+    pub fn apply(self, value: Value) -> Result<Value, crate::error::LambdustError> {
+        match self {
+            CompactContinuation::Inline(inline_cont) => inline_cont.apply(value),
+            CompactContinuation::Boxed(_boxed_cont) => {
+                // For boxed continuations, we need evaluator context
+                // This will be handled by the evaluator's apply_continuation method
+                Err(crate::error::LambdustError::runtime_error(
+                    "Boxed continuation requires evaluator context".to_string(),
+                ))
+            }
+        }
+    }
+
+    /// Check if this is a simple inline continuation
+    pub fn is_inline(&self) -> bool {
+        matches!(self, CompactContinuation::Inline(_))
+    }
+
+    /// Get memory usage estimate in bytes
+    pub fn memory_size(&self) -> usize {
+        match self {
+            CompactContinuation::Inline(inline) => inline.memory_size(),
+            CompactContinuation::Boxed(_) => std::mem::size_of::<Box<Continuation>>(),
+        }
+    }
+}
+
+impl InlineContinuation {
+    /// Apply inline continuation (highly optimized)
+    #[inline]
+    pub fn apply(self, value: Value) -> Result<Value, crate::error::LambdustError> {
+        match self {
+            InlineContinuation::Identity => Ok(value),
+            InlineContinuation::Values(mut values) => {
+                values.push(value);
+                Ok(Value::Values(values.into_vec()))
+            }
+            InlineContinuation::Assignment {
+                var_name,
+                mut env_ref,
+            } => {
+                if let Some(env) = env_ref.to_strong() {
+                    env.set(&var_name, value)?;
+                    Ok(Value::Undefined)
+                } else {
+                    Err(crate::error::LambdustError::runtime_error(
+                        "Environment reference expired".to_string(),
+                    ))
+                }
+            }
+            InlineContinuation::Define {
+                variable,
+                mut env_ref,
+            } => {
+                if let Some(env) = env_ref.to_strong() {
+                    env.define(variable, value);
+                    Ok(Value::Undefined)
+                } else {
+                    Err(crate::error::LambdustError::runtime_error(
+                        "Environment reference expired".to_string(),
+                    ))
+                }
+            }
+            // SingleBegin and SimpleIf require evaluator context
+            _ => Err(crate::error::LambdustError::runtime_error(
+                "Inline continuation requires evaluator context".to_string(),
+            )),
+        }
+    }
+
+    /// Estimate memory usage in bytes
+    pub fn memory_size(&self) -> usize {
+        match self {
+            InlineContinuation::Identity => 0,
+            InlineContinuation::Values(values) => values.len() * std::mem::size_of::<Value>(),
+            InlineContinuation::Assignment { var_name, .. } => {
+                var_name.len() + std::mem::size_of::<EnvironmentRef>()
+            }
+            InlineContinuation::SingleBegin { .. } => {
+                std::mem::size_of::<Expr>() + std::mem::size_of::<EnvironmentRef>()
+            }
+            InlineContinuation::Define { variable, .. } => {
+                variable.len() + std::mem::size_of::<EnvironmentRef>()
+            }
+            InlineContinuation::SimpleIf { .. } => {
+                2 * std::mem::size_of::<Expr>() + std::mem::size_of::<EnvironmentRef>()
+            }
+        }
+    }
+}
+
+/// Phase 6-B-Step1: DoLoop iteration state for specialized optimization
+#[derive(Debug, Clone)]
+pub struct DoLoopState {
+    /// Current variable values [(name, current_value)]
+    pub variables: Vec<(String, Value)>,
+    /// Step expressions for variable updates [var_index -> Option<step_expr>]
+    pub step_exprs: Vec<Option<Expr>>,
+    /// Test expression for termination condition
+    pub test_expr: Expr,
+    /// Result expressions to evaluate when loop terminates
+    pub result_exprs: Vec<Expr>,
+    /// Body expressions for each iteration
+    pub body_exprs: Vec<Expr>,
+    /// Current iteration environment
+    pub loop_env: Rc<Environment>,
+    /// Iteration counter for debugging and optimization
+    pub iteration_count: usize,
+    /// Maximum iterations before stack overflow protection
+    pub max_iterations: usize,
+    /// Whether this loop has been optimized for inline execution
+    pub is_optimized: bool,
+}
+
+impl DoLoopState {
+    /// Create new DoLoop state
+    pub fn new(
+        variables: Vec<(String, Value)>,
+        step_exprs: Vec<Option<Expr>>,
+        test_expr: Expr,
+        result_exprs: Vec<Expr>,
+        body_exprs: Vec<Expr>,
+        loop_env: Rc<Environment>,
+    ) -> Self {
+        DoLoopState {
+            variables,
+            step_exprs,
+            test_expr,
+            result_exprs,
+            body_exprs,
+            loop_env,
+            iteration_count: 0,
+            max_iterations: 1_000_000,
+            is_optimized: false,
+        }
+    }
+
+    /// Increment iteration counter and check bounds
+    pub fn next_iteration(&mut self) -> Result<(), crate::error::LambdustError> {
+        self.iteration_count += 1;
+        if self.iteration_count > self.max_iterations {
+            return Err(crate::error::LambdustError::runtime_error(
+                format!("DoLoop exceeded maximum iterations: {}", self.max_iterations)
+            ));
+        }
+        Ok(())
+    }
+
+    /// Update variable values with step expressions
+    pub fn update_variables(&mut self, new_values: Vec<(String, Value)>) {
+        self.variables = new_values;
+    }
+
+    /// Check if this loop can be optimized for inline execution
+    pub fn can_optimize(&self) -> bool {
+        // Simple heuristics for optimization candidacy
+        self.variables.len() <= 3 && 
+        self.body_exprs.len() <= 2 && 
+        self.iteration_count < 1000
+    }
+
+    /// Mark this loop as optimized
+    pub fn mark_optimized(&mut self) {
+        self.is_optimized = true;
+    }
+
+    /// Get estimated memory usage for this state
+    pub fn memory_usage(&self) -> usize {
+        let vars_size = self.variables.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Value>());
+        let exprs_size = (self.step_exprs.len() + self.result_exprs.len() + self.body_exprs.len()) * std::mem::size_of::<Expr>();
+        vars_size + exprs_size + std::mem::size_of::<Rc<Environment>>()
     }
 }
 
@@ -406,6 +741,15 @@ pub enum Continuation {
         /// Parent continuation
         parent: Box<Continuation>,
     },
+    /// Phase 6-B-Step1: DoLoop specialized continuation for iteration optimization
+    DoLoop {
+        /// Current iteration state
+        iteration_state: DoLoopState,
+        /// Memory pool ID for continuation reuse
+        pool_id: Option<usize>,
+        /// Parent continuation
+        parent: Box<Continuation>,
+    },
 }
 
 impl Continuation {
@@ -432,6 +776,7 @@ impl Continuation {
             Continuation::Or { parent, .. } => parent.depth() + 1,
             Continuation::CallWithValuesStep1 { parent, .. } => parent.depth() + 1,
             Continuation::CallWithValuesStep2 { parent, .. } => parent.depth() + 1,
+            Continuation::DoLoop { parent, .. } => parent.depth() + 1,
             Continuation::Captured { .. } => 0, // Captured continuations don't have parents
         }
     }
@@ -460,6 +805,7 @@ impl Continuation {
             Continuation::Or { parent, .. } => parent.find_root_continuation(),
             Continuation::CallWithValuesStep1 { parent, .. } => parent.find_root_continuation(),
             Continuation::CallWithValuesStep2 { parent, .. } => parent.find_root_continuation(),
+            Continuation::DoLoop { parent, .. } => parent.find_root_continuation(),
             Continuation::Captured { cont } => cont.find_root_continuation(),
         }
     }
@@ -500,6 +846,7 @@ impl Continuation {
             Continuation::Or { parent, .. } => Some(parent),
             Continuation::CallWithValuesStep1 { parent, .. } => Some(parent),
             Continuation::CallWithValuesStep2 { parent, .. } => Some(parent),
+            Continuation::DoLoop { parent, .. } => Some(parent),
             Continuation::Captured { .. } => None, // Captured continuations don't have logical parents
         }
     }

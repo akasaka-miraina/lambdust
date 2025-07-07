@@ -5,14 +5,21 @@
 
 pub mod ast_converter;
 pub mod continuation;
+// Phase 6-B-Step2: Unified continuation pooling system
+pub mod continuation_pooling;
 pub mod control_flow;
 pub mod evaluation;
+pub mod expression_analyzer;
 pub mod higher_order;
 pub mod imports;
+// Phase 6-B-Step3: Inline evaluation system
+pub mod inline_evaluation;
 pub mod memory;
-#[cfg(feature = "raii-store")]
+// Phase 5-Step2: RAII store is now always available
 pub mod raii_store;
 pub mod special_forms;
+// Phase 6-A: Trampoline evaluator for stack overflow prevention
+pub mod trampoline;
 pub mod types;
 
 use crate::ast::{Expr, Literal};
@@ -23,8 +30,27 @@ use crate::value::{Procedure, Value};
 use ast_converter::AstConverter;
 
 // Re-export main types
-pub use continuation::{Continuation, DynamicPoint, LightContinuation};
+pub use continuation::{
+    CompactContinuation, Continuation, DoLoopState, DynamicPoint, EnvironmentRef, InlineContinuation,
+    LightContinuation,
+};
+// Phase 6-B-Step2: Continuation pooling system exports
+pub use continuation_pooling::{
+    ContinuationPoolManager, ContinuationType, PoolStatistics, SharedContinuationPoolManager,
+    TypedContinuationPool,
+};
 pub use evaluation::{EvalOrder, ExceptionHandlerInfo};
+pub use expression_analyzer::{
+    AnalysisResult, EvaluationComplexity, ExpressionAnalyzer, OptimizationHint, OptimizationStats,
+    TypeHint,
+};
+// Phase 6-B-Step3: Inline evaluation exports
+pub use inline_evaluation::{
+    CacheFriendlyPatterns, ContinuationWeight, HotPathDetector, InlineEvaluator, InlineHint,
+    InlineResult,
+};
+// Phase 6-A: Trampoline evaluator exports
+pub use trampoline::{Bounce, ContinuationThunk, TrampolineEvaluation, TrampolineEvaluator};
 pub use types::*;
 
 use std::rc::Rc;
@@ -37,6 +63,16 @@ impl Evaluator {
     /// - κ: continuation
     /// - σ: store
     pub fn eval(&mut self, expr: Expr, env: Rc<Environment>, cont: Continuation) -> Result<Value> {
+        // Phase 5-Step1: Pre-analysis optimization
+        let analysis_result = self.analyze_expression_for_optimization(&expr, &env);
+        
+        // Apply constant folding optimization if available
+        if let Ok(analysis) = &analysis_result {
+            if let Some(optimized_value) = self.try_apply_optimizations(analysis, &cont)? {
+                return Ok(optimized_value);
+            }
+        }
+
         // Stack overflow prevention
         if self.recursion_depth() >= self.max_recursion_depth() {
             return Err(LambdustError::stack_overflow());
@@ -82,6 +118,12 @@ impl Evaluator {
 
     /// Evaluate literal: K[K]
     fn eval_literal(&mut self, lit: Literal, cont: Continuation) -> Result<Value> {
+        let value = self.literal_to_value(lit)?;
+        self.apply_continuation(cont, value)
+    }
+    
+    /// Convert literal to value (helper for trampoline evaluator)
+    pub fn literal_to_value(&self, lit: Literal) -> Result<Value> {
         let value = match lit {
             Literal::Boolean(b) => Value::Boolean(b),
             Literal::Number(n) => Value::Number(n),
@@ -89,7 +131,7 @@ impl Evaluator {
             Literal::Character(c) => Value::Character(c),
             Literal::Nil => Value::Nil,
         };
-        self.apply_continuation(cont, value)
+        Ok(value)
     }
 
     /// Evaluate variable: σ(ρ(I))
@@ -100,8 +142,8 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         match env.get(&name) {
-            Ok(value) => self.apply_continuation(cont, value),
-            Err(_) => Err(LambdustError::undefined_variable(name)),
+            Some(value) => self.apply_continuation(cont, value),
+            None => Err(LambdustError::undefined_variable(name)),
         }
     }
 
@@ -242,7 +284,31 @@ impl Evaluator {
 
     /// Apply continuation: κ(v)
     pub fn apply_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
-        // Performance optimization: Try lightweight continuation first
+        // Phase 6-B-Step3: Try inline evaluation first for maximum performance
+        let should_inline = self.should_inline_continuation_impl(&cont);
+        if should_inline {
+            if let Some(result) = self.try_inline_continuation_impl(&cont, &value)? {
+                // Update inline evaluator statistics
+                self.inline_evaluator_mut().record_successful_inline(&cont);
+                return Ok(result);
+            }
+        }
+        
+        // Fallback to regular continuation evaluation
+        self.apply_continuation_regular(cont, value)
+    }
+
+    /// Apply continuation using regular (non-inline) evaluation
+    pub fn apply_continuation_regular(&mut self, cont: Continuation, value: Value) -> Result<Value> {
+        // Performance optimization: Try compact continuation first (Phase 4 optimization)
+        let compact_cont = CompactContinuation::from_continuation(cont.clone());
+        if compact_cont.is_inline() {
+            if let Ok(result) = self.apply_compact_continuation(compact_cont, value.clone()) {
+                return Ok(result);
+            }
+        }
+
+        // Fallback: Try lightweight continuation
         if let Some(light_cont) = LightContinuation::from_continuation(&cont) {
             return light_cont.apply(value);
         }
@@ -549,6 +615,80 @@ impl Evaluator {
         Ok(())
     }
 
+    /// Phase 6-B-Step3: Check if continuation should be inlined
+    fn should_inline_continuation_impl(&self, cont: &Continuation) -> bool {
+        use crate::evaluator::inline_evaluation::ContinuationWeight;
+        
+        let weight = ContinuationWeight::from_continuation(cont);
+        let cont_type = self.get_continuation_type_name_impl(cont);
+        let hint = self.inline_evaluator().get_inline_hint(&cont_type);
+        
+        weight.should_inline(hint)
+    }
+
+    /// Phase 6-B-Step3: Check if continuation should be inlined (public test version)
+    #[cfg(test)]
+    pub fn should_inline_continuation(&self, cont: &Continuation) -> bool {
+        self.should_inline_continuation_impl(cont)
+    }
+
+    /// Phase 6-B-Step3: Try to evaluate continuation inline
+    fn try_inline_continuation_impl(&mut self, cont: &Continuation, value: &Value) -> Result<Option<Value>> {
+        match cont {
+            // Identity continuation - most common case
+            Continuation::Identity => Ok(Some(value.clone())),
+            
+            // Simple value accumulation
+            Continuation::Values { values, .. } => {
+                let mut new_values = values.clone();
+                new_values.push(value.clone());
+                Ok(Some(Value::Values(new_values)))
+            }
+            
+            // Variable assignment
+            Continuation::Assignment { variable, env, .. } => {
+                env.set(variable, value.clone())?;
+                Ok(Some(Value::Undefined))
+            }
+            
+            // Variable definition
+            Continuation::Define { variable, env, .. } => {
+                env.define(variable.clone(), value.clone());
+                Ok(Some(Value::Undefined))
+            }
+            
+            // Other continuations require full evaluation
+            _ => Ok(None),
+        }
+    }
+
+    /// Phase 6-B-Step3: Try to evaluate continuation inline (public test version)
+    #[cfg(test)]
+    pub fn try_inline_continuation(&mut self, cont: &Continuation, value: &Value) -> Result<Option<Value>> {
+        self.try_inline_continuation_impl(cont, value)
+    }
+
+    /// Get continuation type name for tracking
+    fn get_continuation_type_name_impl(&self, cont: &Continuation) -> String {
+        match cont {
+            Continuation::Identity => "Identity".to_string(),
+            Continuation::Values { .. } => "Values".to_string(),
+            Continuation::Assignment { .. } => "Assignment".to_string(),
+            Continuation::Define { .. } => "Define".to_string(),
+            Continuation::Begin { .. } => "Begin".to_string(),
+            Continuation::IfTest { .. } => "IfTest".to_string(),
+            Continuation::Application { .. } => "Application".to_string(),
+            Continuation::Operator { .. } => "Operator".to_string(),
+            _ => "Other".to_string(),
+        }
+    }
+
+    /// Get continuation type name for tracking (public test version)
+    #[cfg(test)]
+    pub fn get_continuation_type_name(&self, cont: &Continuation) -> String {
+        self.get_continuation_type_name_impl(cont)
+    }
+
     /// Apply simple continuation
     fn apply_simple_continuation(&self, args: Vec<Value>) -> Result<Value> {
         if args.len() != 1 {
@@ -788,6 +928,175 @@ impl Evaluator {
             _ => self.apply_continuation(captured_cont, value),
         }
     }
+
+    /// Apply compact continuation with optimized inline processing
+    /// This is the core of Phase 4 continuation optimization
+    pub fn apply_compact_continuation(
+        &mut self,
+        compact_cont: CompactContinuation,
+        value: Value,
+    ) -> Result<Value> {
+        match compact_cont {
+            CompactContinuation::Inline(inline_cont) => {
+                self.apply_inline_continuation(*inline_cont, value)
+            }
+            CompactContinuation::Boxed(boxed_cont) => {
+                // For boxed continuations, use regular path
+                self.apply_continuation(*boxed_cont, value)
+            }
+        }
+    }
+
+    /// Apply inline continuation with specialized handling for evaluator context
+    #[inline]
+    pub fn apply_inline_continuation(
+        &mut self,
+        inline_cont: InlineContinuation,
+        value: Value,
+    ) -> Result<Value> {
+        match inline_cont {
+            InlineContinuation::Identity => Ok(value),
+            InlineContinuation::Values(mut values) => {
+                values.push(value);
+                Ok(Value::Values(values.into_vec()))
+            }
+            InlineContinuation::Assignment {
+                var_name,
+                mut env_ref,
+            } => {
+                if let Some(env) = env_ref.to_strong() {
+                    env.set(&var_name, value)?;
+                    Ok(Value::Undefined)
+                } else {
+                    Err(LambdustError::runtime_error(
+                        "Environment reference expired in compact continuation".to_string(),
+                    ))
+                }
+            }
+            InlineContinuation::Define {
+                variable,
+                mut env_ref,
+            } => {
+                if let Some(env) = env_ref.to_strong() {
+                    env.define(variable, value);
+                    Ok(Value::Undefined)
+                } else {
+                    Err(LambdustError::runtime_error(
+                        "Environment reference expired in compact continuation".to_string(),
+                    ))
+                }
+            }
+            InlineContinuation::SingleBegin { expr, mut env_ref } => {
+                if let Some(env) = env_ref.to_strong() {
+                    // For SingleBegin, we discard the current value and evaluate the expression
+                    self.eval(expr, env, Continuation::Identity)
+                } else {
+                    Err(LambdustError::runtime_error(
+                        "Environment reference expired in compact continuation".to_string(),
+                    ))
+                }
+            }
+            InlineContinuation::SimpleIf {
+                consequent,
+                alternate,
+                mut env_ref,
+            } => {
+                if let Some(env) = env_ref.to_strong() {
+                    if value.is_truthy() {
+                        self.eval(consequent, env, Continuation::Identity)
+                    } else if let Some(alt) = alternate {
+                        self.eval(alt, env, Continuation::Identity)
+                    } else {
+                        Ok(Value::Undefined)
+                    }
+                } else {
+                    Err(LambdustError::runtime_error(
+                        "Environment reference expired in compact continuation".to_string(),
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Analyze expression for optimization opportunities (Phase 5-Step1)
+    fn analyze_expression_for_optimization(&mut self, expr: &Expr, env: &Environment) -> Result<AnalysisResult> {
+        self.expression_analyzer_mut().analyze(expr, Some(env))
+    }
+
+    /// Try to apply optimizations based on analysis result
+    fn try_apply_optimizations(&mut self, analysis: &AnalysisResult, cont: &Continuation) -> Result<Option<Value>> {
+        for optimization in &analysis.optimizations {
+            match optimization {
+                OptimizationHint::ConstantFold(value) => {
+                    // Apply constant folding: skip evaluation and return constant value
+                    let result = self.apply_continuation(cont.clone(), value.clone())?;
+                    return Ok(Some(result));
+                }
+                OptimizationHint::InlineVariable(var_name, value) => {
+                    // Variable inlining optimization
+                    self.expression_analyzer_mut().add_constant(var_name.clone(), value.clone());
+                    let result = self.apply_continuation(cont.clone(), value.clone())?;
+                    return Ok(Some(result));
+                }
+                OptimizationHint::DeadCode => {
+                    // Dead code elimination: return undefined for unreachable code
+                    let result = self.apply_continuation(cont.clone(), Value::Undefined)?;
+                    return Ok(Some(result));
+                }
+                _ => {
+                    // Other optimizations are applied during evaluation, not here
+                    continue;
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    /// Update expression analyzer with specific variable information
+    pub fn update_analyzer_with_variable(&mut self, name: &str, value: &Value) {
+        if self.is_analyzable_constant(value) {
+            self.expression_analyzer_mut().add_constant(name.to_string(), value.clone());
+            
+            // Add type hint based on value
+            let type_hint = self.value_to_type_hint(value);
+            self.expression_analyzer_mut().add_type_hint(name.to_string(), type_hint);
+        }
+    }
+
+    /// Check if a value can be used as a constant in analysis
+    fn is_analyzable_constant(&self, value: &Value) -> bool {
+        matches!(
+            value,
+            Value::Boolean(_) | Value::Number(_) | Value::String(_) 
+            | Value::Character(_) | Value::Symbol(_) | Value::Nil
+        )
+    }
+
+    /// Convert value to type hint for analyzer
+    fn value_to_type_hint(&self, value: &Value) -> TypeHint {
+        match value {
+            Value::Boolean(_) => TypeHint::Boolean,
+            Value::Number(_) => TypeHint::Number,
+            Value::String(_) => TypeHint::String,
+            Value::Character(_) => TypeHint::Character,
+            Value::Symbol(_) => TypeHint::Symbol,
+            Value::Pair(_) | Value::Nil => TypeHint::List,
+            Value::Vector(_) => TypeHint::Vector,
+            Value::Procedure(_) => TypeHint::Procedure,
+            _ => TypeHint::Unknown,
+        }
+    }
+
+    /// Get optimization statistics from expression analyzer
+    pub fn get_optimization_statistics(&self) -> OptimizationStats {
+        self.expression_analyzer().optimization_stats()
+    }
+
+    /// Clear expression analyzer cache (useful for memory management)
+    pub fn clear_expression_cache(&mut self) {
+        self.expression_analyzer_mut().clear_cache();
+    }
+
 }
 
 /// Public API for evaluation

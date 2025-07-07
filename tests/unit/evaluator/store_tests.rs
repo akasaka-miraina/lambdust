@@ -1,7 +1,7 @@
 //! Store system tests for R7RS memory management
 
 use lambdust::ast::{Expr, Literal};
-use lambdust::evaluator::{Continuation, Evaluator, StoreStatisticsWrapper};
+use lambdust::evaluator::{Continuation, Evaluator};
 use lambdust::lexer::SchemeNumber;
 use lambdust::value::Value;
 
@@ -95,16 +95,9 @@ fn test_garbage_collection() {
 
     // Get statistics after GC
     let stats = evaluator.store_statistics();
-    // Note: GC cycles only available in traditional store
-    match &stats {
-        StoreStatisticsWrapper::Traditional(traditional_stats) => {
-            assert!(traditional_stats.gc_cycles > 0);
-        }
-        #[cfg(feature = "raii-store")]
-        StoreStatisticsWrapper::Raii(_) => {
-            // RAII store doesn't have GC cycles
-        }
-    }
+    // Phase 5-Step2: Only RAII store available, no traditional GC cycles
+    let _raii_stats = stats.raii_statistics();
+    // RAII store doesn't have GC cycles, but has auto cleanup events
 }
 
 #[test]
@@ -284,16 +277,7 @@ fn test_memory_operations_integration() {
 
     // Check that GC was triggered (traditional store only)
     let final_stats = evaluator.store_statistics();
-    match (&initial_stats, &final_stats) {
-        (
-            StoreStatisticsWrapper::Traditional(initial_traditional),
-            StoreStatisticsWrapper::Traditional(final_traditional),
-        ) => {
-            assert!(final_traditional.gc_cycles > initial_traditional.gc_cycles);
-        }
-        _ => {
-            // For RAII store, just check that memory management happened
-            assert!(final_stats.total_deallocations() >= initial_stats.total_deallocations());
-        }
-    }
+    // Phase 5-Step2: Only RAII store available
+    // Check that memory management happened
+    assert!(final_stats.total_deallocations() >= initial_stats.total_deallocations());
 }

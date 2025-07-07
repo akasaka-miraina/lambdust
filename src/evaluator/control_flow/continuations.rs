@@ -74,6 +74,12 @@ pub fn apply_control_flow_continuation(
         } => {
             evaluator.apply_dynamic_wind_continuation(value, after_thunk, dynamic_point_id, *parent)
         }
+        // Phase 6-B-Step1: DoLoop specialized continuation handling
+        Continuation::DoLoop {
+            iteration_state,
+            pool_id,
+            parent,
+        } => evaluator.apply_doloop_continuation(value, iteration_state, pool_id, *parent),
         _ => Err(LambdustError::runtime_error(
             "Unhandled continuation type in control flow".to_string(),
         )),

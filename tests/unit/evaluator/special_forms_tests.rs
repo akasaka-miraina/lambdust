@@ -179,7 +179,7 @@ mod define_tests {
 
         // Check that the variable was defined
         let lookup_result = env.get("x");
-        assert!(lookup_result.is_ok());
+        assert!(lookup_result.is_some());
         assert_eq!(
             lookup_result.unwrap(),
             Value::Number(SchemeNumber::Real(42.0))
@@ -202,7 +202,7 @@ mod define_tests {
 
         // Check that the function was defined
         let lookup_result = env.get("square");
-        assert!(lookup_result.is_ok());
+        assert!(lookup_result.is_some());
         match lookup_result.unwrap() {
             Value::Procedure(_) => {}
             other => panic!("Expected Procedure, got {:?}", other),
@@ -425,7 +425,7 @@ mod set_tests {
 
         // Check that the variable was updated
         let lookup_result = env.get("x");
-        assert!(lookup_result.is_ok());
+        assert!(lookup_result.is_some());
         assert_eq!(
             lookup_result.unwrap(),
             Value::Number(SchemeNumber::Real(42.0))
