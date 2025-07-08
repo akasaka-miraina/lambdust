@@ -50,14 +50,17 @@
 //!
 //! ## Architecture
 //!
-//! The interpreter consists of several key components:
+//! Lambdust follows a modular architecture with specialized components:
 //!
-//! - **Lexer**: Tokenizes Scheme source code
-//! - **Parser**: Builds Abstract Syntax Trees (AST) from tokens
-//! - **Evaluator**: Executes Scheme expressions with proper semantics
-//! - **Environment**: Manages variable bindings and lexical scoping
-//! - **Macro System**: Handles macro expansion and transformation
-//! - **Bridge**: Provides interoperability with external Rust code
+//! - **`evaluator/`**: CPS evaluator with 7 specialized modules for R7RS compliance
+//! - **`builtins/`**: 13 organized builtin function modules (103+ functions)
+//! - **`srfi/`**: Comprehensive SRFI library implementations (9 major SRFIs)
+//! - **`value/`**: Unified value system with optimized representations
+//! - **`bridge/`**: Type-safe Rust-Scheme interoperability layer
+//! - **`optimization/`**: JIT compilation and formal verification framework
+//! - **`lexer/parser`**: Robust tokenization and AST construction
+//! - **`environment/`**: Advanced variable binding and lexical scoping
+//! - **`macros/`**: Complete macro expansion and transformation system
 //!
 //! ## Supported Scheme Features
 //!
@@ -104,7 +107,7 @@ pub mod value;
 pub mod bridge;
 
 #[cfg(not(feature = "embedded"))]
-pub mod builtins;  
+pub mod builtins;
 
 #[cfg(not(feature = "embedded"))]
 pub mod host;
@@ -129,81 +132,95 @@ pub mod srfi {
     //! Stub SRFI module for minimal builds
     #[derive(Debug)]
     pub struct SrfiRegistry;
-    
+
     impl SrfiRegistry {
-        pub fn new() -> Self { Self }
-        pub fn with_standard_srfis() -> Self { Self }
+        pub fn new() -> Self {
+            Self
+        }
+        pub fn with_standard_srfis() -> Self {
+            Self
+        }
         pub fn register_srfi(&mut self, _id: u32) {}
-        pub fn has_srfi(&self, _id: u32) -> bool { false }
-        pub fn available_srfis(&self) -> Vec<u32> { Vec::new() }
-        pub fn get_srfi_info(&self, _id: u32) -> Option<(u32, String, Vec<String>)> { None }
-        pub fn get_exports_for_parts(&mut self, _srfi_number: u32, _parts: &[&str]) -> Result<Vec<(String, crate::value::Value)>, crate::error::LambdustError> {
+        pub fn has_srfi(&self, _id: u32) -> bool {
+            false
+        }
+        pub fn available_srfis(&self) -> Vec<u32> {
+            Vec::new()
+        }
+        pub fn get_srfi_info(&self, _id: u32) -> Option<(u32, String, Vec<String>)> {
+            None
+        }
+        pub fn get_exports_for_parts(
+            &mut self,
+            _srfi_number: u32,
+            _parts: &[&str],
+        ) -> Result<Vec<(String, crate::value::Value)>, crate::error::LambdustError> {
             Ok(Vec::new())
         }
     }
-    
+
     // Stub SRFI modules
     pub mod srfi_1 {
-        use std::collections::HashMap;
         use crate::value::Value;
+        use std::collections::HashMap;
         pub fn register_srfi_1_functions(_builtins: &mut HashMap<String, Value>) {
             // No-op in minimal build
         }
     }
-    
+
     pub mod srfi_13 {
-        use std::collections::HashMap;
         use crate::value::Value;
+        use std::collections::HashMap;
         pub fn register_srfi_13_functions(_builtins: &mut HashMap<String, Value>) {
             // No-op in minimal build
         }
     }
-    
+
     pub mod srfi_69 {
-        use std::collections::HashMap;
         use crate::value::Value;
-        
+        use std::collections::HashMap;
+
         #[derive(Debug, PartialEq, Clone)]
         pub struct HashTable {
             pub table: HashMap<String, Value>,
         }
-        
+
         impl HashTable {
             pub fn new() -> Self {
                 Self {
                     table: HashMap::new(),
                 }
             }
-            
+
             pub fn size(&self) -> usize {
                 self.table.len()
             }
         }
-        
+
         pub fn register_srfi_69_functions(_builtins: &mut HashMap<String, Value>) {
             // No-op in minimal build
         }
     }
-    
+
     pub mod srfi_111 {
         use crate::value::Value;
-        
+
         #[derive(Debug, PartialEq, Clone)]
         pub struct Box;
-        
+
         impl Box {
             pub fn unbox(&self) -> Value {
                 Value::Undefined
             }
         }
     }
-    
+
     pub mod srfi_128 {
         #[derive(Debug, PartialEq, Clone)]
         pub struct Comparator {
             pub name: String,
         }
-        
+
         impl Comparator {
             pub fn new() -> Self {
                 Self {
@@ -212,56 +229,72 @@ pub mod srfi {
             }
         }
     }
-    
+
     pub mod srfi_130 {
         #[derive(Debug, PartialEq, Clone)]
         pub struct StringCursor;
-        
+
         impl StringCursor {
-            pub fn position(&self) -> usize { 0 }
-            pub fn string(&self) -> String { String::new() }
+            pub fn position(&self) -> usize {
+                0
+            }
+            pub fn string(&self) -> String {
+                String::new()
+            }
         }
     }
-    
+
     pub mod srfi_134 {
         use crate::value::Value;
-        
+
         #[derive(Debug, PartialEq, Clone)]
         pub struct Ideque;
-        
+
         impl Ideque {
-            pub fn len(&self) -> usize { 0 }
-            pub fn to_list(&self) -> Vec<Value> { Vec::new() }
+            pub fn len(&self) -> usize {
+                0
+            }
+            pub fn to_list(&self) -> Vec<Value> {
+                Vec::new()
+            }
         }
     }
-    
+
     pub mod srfi_135 {
         #[derive(Debug, PartialEq, Clone)]
         pub struct Text;
-        
+
         impl Text {
-            pub fn length(&self) -> usize { 0 }
-            pub fn text_to_string(&self) -> String { String::new() }
-            pub fn text_equal(&self, _other: &Text) -> bool { true }
+            pub fn length(&self) -> usize {
+                0
+            }
+            pub fn text_to_string(&self) -> String {
+                String::new()
+            }
+            pub fn text_equal(&self, _other: &Text) -> bool {
+                true
+            }
         }
     }
-    
+
     pub mod srfi_136 {
         #[derive(Debug, PartialEq, Clone)]
         pub struct RecordTypeDescriptor;
     }
-    
+
     pub mod srfi_140 {
         #[derive(Debug, PartialEq, Clone)]
         pub struct IString;
-        
+
         impl IString {
-            pub fn length(&self) -> usize { 0 }
+            pub fn length(&self) -> usize {
+                0
+            }
         }
-        
+
         impl ToString for IString {
-            fn to_string(&self) -> String { 
-                String::new() 
+            fn to_string(&self) -> String {
+                String::new()
             }
         }
     }
@@ -297,28 +330,60 @@ pub mod debug {
     //! Stub debug module for minimal builds
     /// Stub debug tracer for non-debug builds
     pub struct DebugTracer;
-    
+
     /// Trace level for debug messages
-    pub enum TraceLevel { 
+    pub enum TraceLevel {
         /// Informational messages
-        INFO, 
+        INFO,
         /// Function entry
-        ENTRY, 
+        ENTRY,
         /// Function exit
-        EXIT, 
+        EXIT,
         /// Error messages
-        ERROR 
+        ERROR,
     }
-    
+
     impl DebugTracer {
         /// Trace a debug message
-        pub fn trace(_module: &str, _function: &str, _line: u32, _level: TraceLevel, _message: String) {}
+        pub fn trace(
+            _module: &str,
+            _function: &str,
+            _line: u32,
+            _level: TraceLevel,
+            _message: String,
+        ) {
+        }
         /// Trace an expression
-        pub fn trace_expr(_module: &str, _function: &str, _line: u32, _level: TraceLevel, _message: String, _expr: &crate::ast::Expr) {}
+        pub fn trace_expr(
+            _module: &str,
+            _function: &str,
+            _line: u32,
+            _level: TraceLevel,
+            _message: String,
+            _expr: &crate::ast::Expr,
+        ) {
+        }
         /// Trace a value
-        pub fn trace_value(_module: &str, _function: &str, _line: u32, _level: TraceLevel, _message: String, _value: &crate::value::Value) {}
+        pub fn trace_value(
+            _module: &str,
+            _function: &str,
+            _line: u32,
+            _level: TraceLevel,
+            _message: String,
+            _value: &crate::value::Value,
+        ) {
+        }
         /// Trace a continuation
-        pub fn trace_continuation(_module: &str, _function: &str, _line: u32, _level: TraceLevel, _message: String, _name: &str, _depth: Option<usize>) {}
+        pub fn trace_continuation(
+            _module: &str,
+            _function: &str,
+            _line: u32,
+            _level: TraceLevel,
+            _message: String,
+            _name: &str,
+            _depth: Option<usize>,
+        ) {
+        }
     }
 }
 
@@ -346,7 +411,7 @@ pub use error::{LambdustError, Result};
 pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
 
 #[cfg(not(feature = "embedded"))]
-pub use evaluator::{Evaluator, eval_with_formal_semantics};
+pub use evaluator::{eval_with_formal_semantics, Evaluator};
 
 #[cfg(not(feature = "embedded"))]
 pub use interpreter::LambdustInterpreter;
@@ -356,7 +421,7 @@ pub use value::Value;
 
 // Embedded API (only available in embedded mode)
 #[cfg(feature = "embedded")]
-pub use embedded_evaluator::{EmbeddedEvaluator, EmbeddedValue, EmbeddedEnvironment};
+pub use embedded_evaluator::{EmbeddedEnvironment, EmbeddedEvaluator, EmbeddedValue};
 
 // ===== Feature-Gated Exports =====
 
@@ -427,10 +492,10 @@ pub struct Interpreter {
 ///
 /// // Basic arithmetic
 /// let result = interpreter.eval("(+ 1 2)").unwrap();
-/// 
+///
 /// // Simple conditionals
 /// let result = interpreter.eval("(if (> 5 3) 10 20)").unwrap();
-/// 
+///
 /// // Lambda functions
 /// let result = interpreter.eval("((lambda (x) (* x x)) 5)").unwrap();
 /// ```

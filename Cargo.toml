@@ -1,13 +1,30 @@
 [package]
 name = "lambdust"
 version = "0.3.0"
-edition = "2024"
-description = "A Rust implementation of R7RS Scheme interpreter for embedding in applications"
+edition = "2021"
+description = "Production-ready R7RS Scheme interpreter with advanced optimizations, SRFI support, and formal verification"
 authors = ["Mitsuki Akasaka <m.akasaka@miraina-step.co.jp>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/akasaka-miraina/lambdust"
-keywords = ["scheme", "lisp", "interpreter", "r7rs"]
-categories = ["compilers", "embedded"]
+homepage = "https://github.com/akasaka-miraina/lambdust"
+documentation = "https://docs.rs/lambdust"
+readme = "README.md"
+keywords = ["scheme", "lisp", "interpreter", "r7rs", "srfi"]
+categories = ["compilers", "embedded", "development-tools"]
+exclude = [
+    "debug_*",
+    "test_*",
+    "*.scm",
+    "target/",
+    "agda/",
+    "formal_verification_strategy.md",
+    "refactor_evaluator.md",
+    "review.md",
+    "language_implementation_insights.md",
+    "DEPLOYMENT_STRATEGY.md",
+    "PHASE_II_DESIGN.md",
+    "SURGICAL_PLAN.md"
+]
 
 [dependencies]
 # Core dependencies for the interpreter

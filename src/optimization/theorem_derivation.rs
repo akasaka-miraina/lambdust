@@ -64,12 +64,12 @@ impl TheoremDerivationEngine {
             learned_patterns: Vec::new(),
             proof_cache: HashMap::new(),
         };
-        
+
         // Initialize proof cache with base theorems
         engine.initialize_proof_cache();
         engine
     }
-    
+
     /// Initialize proof cache with base theorem proofs
     fn initialize_proof_cache(&mut self) {
         self.proof_cache.insert(
@@ -85,52 +85,42 @@ impl TheoremDerivationEngine {
             "agda/Optimizations/TheoremDerivation.agda".to_string(),
         );
     }
-    
+
     /// Check if inference rule is applicable to expression
     pub fn is_applicable(&self, rule: &InferenceRule, expr: &Expr) -> bool {
         match (rule, expr) {
             // Associativity: (a + b) + c
-            (InferenceRule::Associativity, Expr::List(exprs)) => {
-                self.is_nested_addition(exprs)
-            }
-            
-            // Commutativity: a + b  
-            (InferenceRule::Commutativity, Expr::List(exprs)) => {
-                self.is_simple_addition(exprs)
-            }
-            
+            (InferenceRule::Associativity, Expr::List(exprs)) => self.is_nested_addition(exprs),
+
+            // Commutativity: a + b
+            (InferenceRule::Commutativity, Expr::List(exprs)) => self.is_simple_addition(exprs),
+
             // Identity: a + 0
-            (InferenceRule::Identity, Expr::List(exprs)) => {
-                self.has_zero_operand(exprs)
-            }
-            
+            (InferenceRule::Identity, Expr::List(exprs)) => self.has_zero_operand(exprs),
+
             _ => false,
         }
     }
-    
+
     /// Apply inference rule to generate optimized expression
     pub fn apply_rule(&self, rule: &InferenceRule, expr: &Expr) -> Result<Expr> {
         match (rule, expr) {
-            (InferenceRule::Associativity, Expr::List(exprs)) => {
-                self.apply_associativity(exprs)
-            }
-            
-            (InferenceRule::Commutativity, Expr::List(exprs)) => {
-                self.apply_commutativity(exprs)
-            }
-            
-            (InferenceRule::Identity, Expr::List(exprs)) => {
-                self.apply_identity(exprs)
-            }
-            
-            _ => Err(LambdustError::runtime_error("Rule not applicable to expression")),
+            (InferenceRule::Associativity, Expr::List(exprs)) => self.apply_associativity(exprs),
+
+            (InferenceRule::Commutativity, Expr::List(exprs)) => self.apply_commutativity(exprs),
+
+            (InferenceRule::Identity, Expr::List(exprs)) => self.apply_identity(exprs),
+
+            _ => Err(LambdustError::runtime_error(
+                "Rule not applicable to expression",
+            )),
         }
     }
-    
+
     /// Derive new theorems from base theorems
     pub fn derive_new_theorems(&mut self) -> Vec<InferenceRule> {
         let mut new_theorems = Vec::new();
-        
+
         // Derive theorems by combining base theorems
         for base1 in &self.base_theorems {
             for base2 in &self.base_theorems {
@@ -142,29 +132,33 @@ impl TheoremDerivationEngine {
                 }
             }
         }
-        
+
         new_theorems
     }
-    
+
     /// Combine two theorems to derive a new one
-    fn combine_theorems(&self, rule1: &InferenceRule, rule2: &InferenceRule) -> Option<InferenceRule> {
+    fn combine_theorems(
+        &self,
+        rule1: &InferenceRule,
+        rule2: &InferenceRule,
+    ) -> Option<InferenceRule> {
         match (rule1, rule2) {
             // Associativity + Commutativity = more flexible reordering
-            (InferenceRule::Associativity, InferenceRule::Commutativity) |
-            (InferenceRule::Commutativity, InferenceRule::Associativity) => {
+            (InferenceRule::Associativity, InferenceRule::Commutativity)
+            | (InferenceRule::Commutativity, InferenceRule::Associativity) => {
                 Some(InferenceRule::Composition)
             }
-            
+
             // Identity + Associativity = absorption patterns
-            (InferenceRule::Identity, InferenceRule::Associativity) |
-            (InferenceRule::Associativity, InferenceRule::Identity) => {
+            (InferenceRule::Identity, InferenceRule::Associativity)
+            | (InferenceRule::Associativity, InferenceRule::Identity) => {
                 Some(InferenceRule::Absorption)
             }
-            
+
             _ => None,
         }
     }
-    
+
     /// Learn pattern from successful optimization
     pub fn learn_pattern(&mut self, original: Expr, transformed: Expr) {
         let pattern = LearnedPattern {
@@ -173,17 +167,20 @@ impl TheoremDerivationEngine {
             confidence: 1.0,
             success_count: 1,
         };
-        
+
         // Check if pattern already exists
-        if let Some(existing) = self.learned_patterns.iter_mut()
-            .find(|p| p.original == pattern.original && p.transformed == pattern.transformed) {
+        if let Some(existing) = self
+            .learned_patterns
+            .iter_mut()
+            .find(|p| p.original == pattern.original && p.transformed == pattern.transformed)
+        {
             existing.success_count += 1;
             existing.confidence = (existing.confidence + 1.0) / 2.0; // Simple confidence update
         } else {
             self.learned_patterns.push(pattern);
         }
     }
-    
+
     /// Extract inference rule from learned pattern
     pub fn extract_rule_from_pattern(&self, pattern: &LearnedPattern) -> Option<InferenceRule> {
         match (&pattern.original, &pattern.transformed) {
@@ -191,16 +188,16 @@ impl TheoremDerivationEngine {
             (Expr::List(orig), Expr::List(trans)) if self.is_nested_addition(orig) => {
                 Some(InferenceRule::Associativity)
             }
-            
+
             // Pattern: a + b -> b + a
             (Expr::List(orig), Expr::List(trans)) if self.is_simple_addition(orig) => {
                 Some(InferenceRule::Commutativity)
             }
-            
+
             _ => None,
         }
     }
-    
+
     /// Generate new optimization based on learned patterns
     pub fn generate_optimization(&self, expr: &Expr) -> Result<Option<Expr>> {
         // Try base theorems first
@@ -211,7 +208,7 @@ impl TheoremDerivationEngine {
                 }
             }
         }
-        
+
         // Try derived theorems
         for rule in &self.derived_theorems {
             if self.is_applicable(rule, expr) {
@@ -220,79 +217,79 @@ impl TheoremDerivationEngine {
                 }
             }
         }
-        
+
         // Try learned patterns
         for pattern in &self.learned_patterns {
             if pattern.confidence > 0.8 && self.pattern_matches(expr, &pattern.original) {
                 return Ok(Some(pattern.transformed.clone()));
             }
         }
-        
+
         Ok(None)
     }
-    
+
     /// Evolve the optimization algorithm by learning new patterns
     pub fn evolve_optimizer(&mut self, training_data: Vec<(Expr, Expr)>) {
         // Learn from training data
         for (original, transformed) in training_data {
             self.learn_pattern(original, transformed);
         }
-        
+
         // Extract rules from learned patterns
-        let learned_rules: Vec<InferenceRule> = self.learned_patterns.iter()
+        let learned_rules: Vec<InferenceRule> = self
+            .learned_patterns
+            .iter()
             .filter_map(|p| self.extract_rule_from_pattern(p))
             .collect();
-        
+
         // Add high-confidence learned rules to base theorems
         for rule in learned_rules {
             if !self.base_theorems.contains(&rule) {
                 self.base_theorems.push(rule);
             }
         }
-        
+
         // Derive new theorems from expanded base set
         self.derive_new_theorems();
     }
-    
+
     /// Get proof file path for a theorem
     pub fn get_proof_file(&self, theorem_name: &str) -> Option<&String> {
         self.proof_cache.get(theorem_name)
     }
-    
+
     // Helper methods for pattern matching
-    
+
     fn is_nested_addition(&self, exprs: &[Expr]) -> bool {
         if exprs.len() != 3 {
             return false;
         }
-        
+
         // Check if first operand is also an addition
         if let Expr::List(inner) = &exprs[1] {
-            inner.len() == 3 && 
-            matches!(inner[0], Expr::Variable(ref name) if name == "+")
+            inner.len() == 3 && matches!(inner[0], Expr::Variable(ref name) if name == "+")
         } else {
             false
         }
     }
-    
+
     fn is_simple_addition(&self, exprs: &[Expr]) -> bool {
-        exprs.len() == 3 && 
-        matches!(exprs[0], Expr::Variable(ref name) if name == "+")
+        exprs.len() == 3 && matches!(exprs[0], Expr::Variable(ref name) if name == "+")
     }
-    
+
     fn has_zero_operand(&self, exprs: &[Expr]) -> bool {
         exprs.iter().any(|e| {
-            matches!(e, Expr::Literal(crate::ast::Literal::Number(n)) 
+            matches!(e, Expr::Literal(crate::ast::Literal::Number(n))
                 if matches!(n, crate::lexer::SchemeNumber::Integer(0)))
         })
     }
-    
+
     fn apply_associativity(&self, exprs: &[Expr]) -> Result<Expr> {
         // Transform ((a + b) + c) to (a + (b + c))
         // This is a simplified implementation
         Ok(exprs[0].clone()) // Placeholder
     }
-    
+
     fn apply_commutativity(&self, exprs: &[Expr]) -> Result<Expr> {
         // Transform (a + b) to (b + a)
         if exprs.len() == 3 {
@@ -302,24 +299,27 @@ impl TheoremDerivationEngine {
                 exprs[1].clone(), // first operand second
             ]))
         } else {
-            Err(LambdustError::runtime_error("Invalid expression for commutativity"))
+            Err(LambdustError::runtime_error(
+                "Invalid expression for commutativity",
+            ))
         }
     }
-    
+
     fn apply_identity(&self, exprs: &[Expr]) -> Result<Expr> {
         // Transform (a + 0) to a
         for (i, expr) in exprs.iter().enumerate() {
-            if matches!(expr, Expr::Literal(crate::ast::Literal::Number(n)) 
-                if matches!(n, crate::lexer::SchemeNumber::Integer(0))) {
+            if matches!(expr, Expr::Literal(crate::ast::Literal::Number(n))
+                if matches!(n, crate::lexer::SchemeNumber::Integer(0)))
+            {
                 // Return the non-zero operand
                 let non_zero_idx = if i == 1 { 2 } else { 1 };
                 return Ok(exprs[non_zero_idx].clone());
             }
         }
-        
+
         Err(LambdustError::runtime_error("No identity operation found"))
     }
-    
+
     fn pattern_matches(&self, expr: &Expr, pattern: &Expr) -> bool {
         // Simplified pattern matching
         matches!((expr, pattern), (Expr::List(_), Expr::List(_)))
@@ -337,50 +337,48 @@ mod tests {
     use super::*;
     use crate::ast::Literal;
     use crate::lexer::SchemeNumber;
-    
+
     #[test]
     fn test_theorem_derivation() {
         let mut engine = TheoremDerivationEngine::new();
-        
+
         // Test basic theorem application
         let expr = Expr::List(vec![
             Expr::Variable("+".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
         ]);
-        
+
         assert!(engine.is_applicable(&InferenceRule::Commutativity, &expr));
-        
+
         // Test theorem derivation
         let new_theorems = engine.derive_new_theorems();
         assert!(!new_theorems.is_empty());
-        
+
         // Test pattern learning
         let original = Expr::Variable("x".to_string());
         let transformed = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         engine.learn_pattern(original, transformed);
-        
+
         assert_eq!(engine.learned_patterns.len(), 1);
     }
-    
+
     #[test]
     fn test_optimization_evolution() {
         let mut engine = TheoremDerivationEngine::new();
-        
+
         // Provide training data
-        let training_data = vec![
-            (
-                Expr::List(vec![
-                    Expr::Variable("+".to_string()),
-                    Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-                    Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-                ]),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
-            ),
-        ];
-        
+        let training_data = vec![(
+            Expr::List(vec![
+                Expr::Variable("+".to_string()),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
+            ]),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
+        )];
+
         engine.evolve_optimizer(training_data);
-        
+
         // Engine should have learned from the training data
         assert!(!engine.learned_patterns.is_empty());
     }

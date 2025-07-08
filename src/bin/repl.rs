@@ -6,7 +6,7 @@
 
 use clap::{Arg, Command};
 use lambdust::error::LambdustError;
-use lambdust::interpreter::LambdustInterpreter;
+use lambdust::Interpreter;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
@@ -339,7 +339,7 @@ impl SchemeHelper {
     }
 
     #[allow(dead_code)]
-    fn update_builtin_functions(&mut self, interpreter: &LambdustInterpreter) {
+    fn update_builtin_functions(&mut self, interpreter: &Interpreter) {
         // Add host functions
         for func_name in interpreter.list_host_functions() {
             self.builtin_functions.insert(func_name.clone());
@@ -513,7 +513,7 @@ impl rustyline::Helper for SchemeHelper {}
 
 /// Interactive REPL session
 pub struct Repl {
-    interpreter: LambdustInterpreter,
+    interpreter: Interpreter,
     editor: DefaultEditor,
     config: ReplConfig,
     debug_state: DebugState,
@@ -530,7 +530,7 @@ impl Repl {
     /// Create a new REPL session with custom configuration
     pub fn new_with_config(config: ReplConfig) -> RustylineResult<Self> {
         let mut editor = DefaultEditor::new()?;
-        let interpreter = LambdustInterpreter::new();
+        let interpreter = Interpreter::new();
 
         // Load history if enabled
         if config.enable_history {
@@ -715,7 +715,7 @@ impl Repl {
                 Some(true)
             }
             "(reset)" => {
-                self.interpreter = LambdustInterpreter::new();
+                self.interpreter = Interpreter::new();
                 self.debug_state = DebugState::default();
                 println!("Interpreter state reset");
                 Some(true)
@@ -778,7 +778,7 @@ impl Repl {
                 }
 
                 // Don't print undefined values (common for definitions)
-                if !matches!(value, lambdust::value::Value::Undefined) {
+                if !matches!(value, lambdust::Value::Undefined) {
                     println!("{}", value);
                 }
             }
