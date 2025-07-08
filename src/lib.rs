@@ -78,29 +78,259 @@
 #![allow(clippy::should_implement_trait)]
 #![allow(clippy::inherent_to_string)]
 
-pub mod adaptive_memory;
+// ===== Core Modules (Always Included) =====
 pub mod ast;
-pub mod bridge;
-pub mod builtins;
-pub mod cps_inlining;
-pub mod debug;
-pub mod environment;
 pub mod error;
-pub mod evaluator;
-pub mod ffi;
-pub mod ffi_enhanced;
-pub mod host;
-pub mod interpreter;
 pub mod lexer;
-pub mod macros;
-pub mod marshal;
-pub mod memory_pool;
-pub mod module_system;
-pub mod optimized_collections;
 pub mod parser;
-pub mod srfi;
-pub mod stack_monitor;
+
+// Environment system (not needed in embedded mode)
+#[cfg(not(feature = "embedded"))]
+pub mod environment;
+
+// ===== Evaluator Selection =====
+#[cfg(feature = "embedded")]
+pub mod embedded_evaluator;
+
+#[cfg(not(feature = "embedded"))]
+pub mod evaluator;
+
+// ===== Value System =====
+#[cfg(not(feature = "embedded"))]
 pub mod value;
+
+// ===== Basic Modules (Minimal Configuration) =====
+#[cfg(not(feature = "embedded"))]
+pub mod bridge;
+
+#[cfg(not(feature = "embedded"))]
+pub mod builtins;  
+
+#[cfg(not(feature = "embedded"))]
+pub mod host;
+
+#[cfg(not(feature = "embedded"))]
+pub mod interpreter;
+
+#[cfg(not(feature = "embedded"))]
+pub mod macros;
+
+#[cfg(not(feature = "embedded"))]
+pub mod marshal;
+
+// ===== Feature-Gated Modules =====
+
+// SRFI Support (Not available in embedded mode)
+#[cfg(all(feature = "srfi-support", not(feature = "embedded")))]
+pub mod srfi;
+
+#[cfg(all(not(feature = "srfi-support"), not(feature = "embedded")))]
+pub mod srfi {
+    //! Stub SRFI module for minimal builds
+    #[derive(Debug)]
+    pub struct SrfiRegistry;
+    
+    impl SrfiRegistry {
+        pub fn new() -> Self { Self }
+        pub fn with_standard_srfis() -> Self { Self }
+        pub fn register_srfi(&mut self, _id: u32) {}
+        pub fn has_srfi(&self, _id: u32) -> bool { false }
+        pub fn available_srfis(&self) -> Vec<u32> { Vec::new() }
+        pub fn get_srfi_info(&self, _id: u32) -> Option<(u32, String, Vec<String>)> { None }
+        pub fn get_exports_for_parts(&mut self, _srfi_number: u32, _parts: &[&str]) -> Result<Vec<(String, crate::value::Value)>, crate::error::LambdustError> {
+            Ok(Vec::new())
+        }
+    }
+    
+    // Stub SRFI modules
+    pub mod srfi_1 {
+        use std::collections::HashMap;
+        use crate::value::Value;
+        pub fn register_srfi_1_functions(_builtins: &mut HashMap<String, Value>) {
+            // No-op in minimal build
+        }
+    }
+    
+    pub mod srfi_13 {
+        use std::collections::HashMap;
+        use crate::value::Value;
+        pub fn register_srfi_13_functions(_builtins: &mut HashMap<String, Value>) {
+            // No-op in minimal build
+        }
+    }
+    
+    pub mod srfi_69 {
+        use std::collections::HashMap;
+        use crate::value::Value;
+        
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct HashTable {
+            pub table: HashMap<String, Value>,
+        }
+        
+        impl HashTable {
+            pub fn new() -> Self {
+                Self {
+                    table: HashMap::new(),
+                }
+            }
+            
+            pub fn size(&self) -> usize {
+                self.table.len()
+            }
+        }
+        
+        pub fn register_srfi_69_functions(_builtins: &mut HashMap<String, Value>) {
+            // No-op in minimal build
+        }
+    }
+    
+    pub mod srfi_111 {
+        use crate::value::Value;
+        
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct Box;
+        
+        impl Box {
+            pub fn unbox(&self) -> Value {
+                Value::Undefined
+            }
+        }
+    }
+    
+    pub mod srfi_128 {
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct Comparator {
+            pub name: String,
+        }
+        
+        impl Comparator {
+            pub fn new() -> Self {
+                Self {
+                    name: "stub-comparator".to_string(),
+                }
+            }
+        }
+    }
+    
+    pub mod srfi_130 {
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct StringCursor;
+        
+        impl StringCursor {
+            pub fn position(&self) -> usize { 0 }
+            pub fn string(&self) -> String { String::new() }
+        }
+    }
+    
+    pub mod srfi_134 {
+        use crate::value::Value;
+        
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct Ideque;
+        
+        impl Ideque {
+            pub fn len(&self) -> usize { 0 }
+            pub fn to_list(&self) -> Vec<Value> { Vec::new() }
+        }
+    }
+    
+    pub mod srfi_135 {
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct Text;
+        
+        impl Text {
+            pub fn length(&self) -> usize { 0 }
+            pub fn text_to_string(&self) -> String { String::new() }
+            pub fn text_equal(&self, _other: &Text) -> bool { true }
+        }
+    }
+    
+    pub mod srfi_136 {
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct RecordTypeDescriptor;
+    }
+    
+    pub mod srfi_140 {
+        #[derive(Debug, PartialEq, Clone)]
+        pub struct IString;
+        
+        impl IString {
+            pub fn length(&self) -> usize { 0 }
+        }
+        
+        impl ToString for IString {
+            fn to_string(&self) -> String { 
+                String::new() 
+            }
+        }
+    }
+}
+
+// Basic Optimization (Not available in embedded mode)
+#[cfg(all(feature = "basic-optimization", not(feature = "embedded")))]
+pub mod cps_inlining;
+
+#[cfg(all(feature = "basic-optimization", not(feature = "embedded")))]
+pub mod optimized_collections;
+
+// Memory Management (Not available in embedded mode)
+#[cfg(all(feature = "memory-pooling", not(feature = "embedded")))]
+pub mod adaptive_memory;
+
+#[cfg(all(feature = "memory-pooling", not(feature = "embedded")))]
+pub mod memory_pool;
+
+// Advanced Features (Not available in embedded mode)
+#[cfg(all(feature = "theorem-derivation", not(feature = "embedded")))]
+pub mod optimization;
+
+#[cfg(all(feature = "runtime-verification", not(feature = "embedded")))]
+pub mod module_system;
+
+// Development Tools (Not available in embedded mode)
+#[cfg(all(feature = "debug-tracing", not(feature = "embedded")))]
+pub mod debug;
+
+#[cfg(all(not(feature = "debug-tracing"), not(feature = "embedded")))]
+pub mod debug {
+    //! Stub debug module for minimal builds
+    /// Stub debug tracer for non-debug builds
+    pub struct DebugTracer;
+    
+    /// Trace level for debug messages
+    pub enum TraceLevel { 
+        /// Informational messages
+        INFO, 
+        /// Function entry
+        ENTRY, 
+        /// Function exit
+        EXIT, 
+        /// Error messages
+        ERROR 
+    }
+    
+    impl DebugTracer {
+        /// Trace a debug message
+        pub fn trace(_module: &str, _function: &str, _line: u32, _level: TraceLevel, _message: String) {}
+        /// Trace an expression
+        pub fn trace_expr(_module: &str, _function: &str, _line: u32, _level: TraceLevel, _message: String, _expr: &crate::ast::Expr) {}
+        /// Trace a value
+        pub fn trace_value(_module: &str, _function: &str, _line: u32, _level: TraceLevel, _message: String, _value: &crate::value::Value) {}
+        /// Trace a continuation
+        pub fn trace_continuation(_module: &str, _function: &str, _line: u32, _level: TraceLevel, _message: String, _name: &str, _depth: Option<usize>) {}
+    }
+}
+
+#[cfg(feature = "debug-tracing")]
+pub mod stack_monitor;
+
+// Platform-Specific
+#[cfg(feature = "wasm")]
+pub mod ffi;
+
+#[cfg(feature = "wasm")]
+pub mod ffi_enhanced;
 #[cfg(any(feature = "wasm", feature = "wasi"))]
 pub mod wasm;
 
@@ -108,18 +338,53 @@ pub mod wasm;
 // #[cfg(feature = "repl")]
 // pub mod repl;
 
-pub use adaptive_memory::{AdaptiveMemoryManager, AllocationStrategy, MemoryPressure};
-pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
-pub use cps_inlining::{ChainStrategy, CpsInliner, InliningDecision};
+// ===== Core Exports =====
 pub use error::{LambdustError, Result};
+
+// Standard API (not available in embedded mode)
+#[cfg(not(feature = "embedded"))]
+pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
+
+#[cfg(not(feature = "embedded"))]
 pub use evaluator::{Evaluator, eval_with_formal_semantics};
+
+#[cfg(not(feature = "embedded"))]
 pub use interpreter::LambdustInterpreter;
-pub use memory_pool::{ContinuationPool, ContinuationPoolStats, PoolStats, ValuePool};
-pub use module_system::ModuleSystem;
-pub use optimized_collections::{ArgVec, CowVec, ExprVec, SliceRef};
-pub use srfi::SrfiRegistry;
-pub use stack_monitor::{OptimizationRecommendation, StackFrameType, StackMonitor};
+
+#[cfg(not(feature = "embedded"))]
 pub use value::Value;
+
+// Embedded API (only available in embedded mode)
+#[cfg(feature = "embedded")]
+pub use embedded_evaluator::{EmbeddedEvaluator, EmbeddedValue, EmbeddedEnvironment};
+
+// ===== Feature-Gated Exports =====
+
+// Memory Management (Not available in embedded mode)
+#[cfg(all(feature = "memory-pooling", not(feature = "embedded")))]
+pub use adaptive_memory::{AdaptiveMemoryManager, AllocationStrategy, MemoryPressure};
+
+#[cfg(all(feature = "memory-pooling", not(feature = "embedded")))]
+pub use memory_pool::{ContinuationPool, ContinuationPoolStats, PoolStats, ValuePool};
+
+// Basic Optimization (Not available in embedded mode)
+#[cfg(all(feature = "basic-optimization", not(feature = "embedded")))]
+pub use cps_inlining::{ChainStrategy, CpsInliner, InliningDecision};
+
+#[cfg(all(feature = "basic-optimization", not(feature = "embedded")))]
+pub use optimized_collections::{ArgVec, CowVec, ExprVec, SliceRef};
+
+// SRFI Support (Not available in embedded mode)
+#[cfg(all(feature = "srfi-support", not(feature = "embedded")))]
+pub use srfi::SrfiRegistry;
+
+// Advanced Features (Not available in embedded mode)
+#[cfg(all(feature = "runtime-verification", not(feature = "embedded")))]
+pub use module_system::ModuleSystem;
+
+// Development Tools (Not available in embedded mode)
+#[cfg(all(feature = "debug-tracing", not(feature = "embedded")))]
+pub use stack_monitor::{OptimizationRecommendation, StackFrameType, StackMonitor};
 
 /// The main interpreter struct that provides the public API
 ///
@@ -143,10 +408,38 @@ pub use value::Value;
 /// let result = interpreter.eval("(square 5)").unwrap();
 /// assert_eq!(result.to_string(), "25");
 /// ```
+#[cfg(not(feature = "embedded"))]
 pub struct Interpreter {
     evaluator: Evaluator,
 }
 
+/// Ultra-lightweight embedded interpreter for no-std environments
+///
+/// This interpreter provides minimal Scheme functionality with extremely
+/// small binary size, suitable for embedded systems and macro use.
+///
+/// # Examples
+///
+/// ```rust
+/// use lambdust::EmbeddedInterpreter;
+///
+/// let mut interpreter = EmbeddedInterpreter::new();
+///
+/// // Basic arithmetic
+/// let result = interpreter.eval("(+ 1 2)").unwrap();
+/// 
+/// // Simple conditionals
+/// let result = interpreter.eval("(if (> 5 3) 10 20)").unwrap();
+/// 
+/// // Lambda functions
+/// let result = interpreter.eval("((lambda (x) (* x x)) 5)").unwrap();
+/// ```
+#[cfg(feature = "embedded")]
+pub struct EmbeddedInterpreter {
+    evaluator: EmbeddedEvaluator,
+}
+
+#[cfg(not(feature = "embedded"))]
 impl Interpreter {
     /// Create a new interpreter instance
     ///
@@ -235,7 +528,73 @@ impl Interpreter {
     }
 }
 
+#[cfg(not(feature = "embedded"))]
 impl Default for Interpreter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[cfg(feature = "embedded")]
+impl EmbeddedInterpreter {
+    /// Create a new embedded interpreter instance
+    ///
+    /// Creates a new ultra-lightweight Scheme interpreter with minimal
+    /// built-in functions for embedded use.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use lambdust::EmbeddedInterpreter;
+    ///
+    /// let mut interpreter = EmbeddedInterpreter::new();
+    /// let result = interpreter.eval("(+ 1 2)").unwrap();
+    /// ```
+    pub fn new() -> Self {
+        Self {
+            evaluator: EmbeddedEvaluator::new(),
+        }
+    }
+
+    /// Evaluate a Scheme expression from a string
+    ///
+    /// Parses and evaluates the given Scheme expression string, returning
+    /// the result as an [`EmbeddedValue`].
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - A string containing valid Scheme code
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(EmbeddedValue)` containing the result of evaluation, or an error
+    /// if parsing or evaluation fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use lambdust::EmbeddedInterpreter;
+    ///
+    /// let mut interpreter = EmbeddedInterpreter::new();
+    ///
+    /// // Arithmetic
+    /// let result = interpreter.eval("(* 6 7)").unwrap();
+    ///
+    /// // Conditionals
+    /// let result = interpreter.eval("(if (> 10 5) 'yes 'no)").unwrap();
+    ///
+    /// // Lambda functions
+    /// let result = interpreter.eval("((lambda (x) (* x x)) 5)").unwrap();
+    /// ```
+    pub fn eval(&mut self, input: &str) -> Result<EmbeddedValue> {
+        let tokens = crate::lexer::tokenize(input)?;
+        let expr = crate::parser::parse(tokens)?;
+        self.evaluator.eval(&expr)
+    }
+}
+
+#[cfg(feature = "embedded")]
+impl Default for EmbeddedInterpreter {
     fn default() -> Self {
         Self::new()
     }

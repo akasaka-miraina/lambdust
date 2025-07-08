@@ -4,6 +4,7 @@
 //! in C and C++ applications. Features enhanced safety, thread safety,
 //! advanced error handling, and resource tracking.
 
+#![cfg(not(feature = "embedded"))]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::bridge::LambdustBridge;
@@ -542,7 +543,7 @@ pub unsafe extern "C" fn lambdust_call_function(
     let call_expr = if args.is_empty() {
         format!("({})", func_name)
     } else {
-        let arg_strs: Vec<String> = args.iter().map(|v| v.to_string()).collect();
+        let arg_strs: Vec<String> = args.iter().map(|v: &Value| v.to_string()).collect();
         format!("({} {})", func_name, arg_strs.join(" "))
     };
 

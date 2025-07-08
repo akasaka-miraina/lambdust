@@ -23,6 +23,8 @@ pub mod tail_call_optimization;
 pub mod llvm_backend;
 // Phase 5-Step2: RAII store is now always available
 pub mod raii_store;
+// Phase II: Pure R7RS semantic evaluator
+pub mod semantic;
 pub mod special_forms;
 // Phase 6-A: Trampoline evaluator for stack overflow prevention
 pub mod trampoline;
@@ -70,6 +72,8 @@ pub use jit_loop_optimization::{
     GeneratedCode, IterationStrategy, IteratorType, JitHint, JitLoopOptimizer, JitOptimizationStats,
     LoopPattern, NativeCodeGenerator,
 };
+// Phase II: Pure semantic evaluator exports
+pub use semantic::SemanticEvaluator;
 // Phase 6-A: Trampoline evaluator exports
 pub use trampoline::{Bounce, ContinuationThunk, TrampolineEvaluation, TrampolineEvaluator};
 pub use types::*;

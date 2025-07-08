@@ -437,7 +437,7 @@ pub fn make_nil() -> Value {
 /// Create an optimized symbol value using symbol interning
 /// This reduces string allocation overhead for symbols
 pub fn make_symbol(symbol: &str) -> Value {
-    Value::new_symbol(symbol)
+    Value::new_symbol_ref(symbol)
 }
 
 /// Create a placeholder procedure that returns a runtime error

@@ -8,6 +8,7 @@ use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{Continuation, Evaluator};
 use crate::value::{Procedure, Value};
+// use crate::value::conversions::ToValue;
 use std::rc::Rc;
 
 impl Evaluator {

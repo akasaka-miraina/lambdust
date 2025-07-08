@@ -36,10 +36,14 @@ pub fn create_builtins() -> HashMap<String, Value> {
     lazy::register_lazy_functions(&mut builtins);
     misc::register_misc_functions(&mut builtins);
     srfi::register_srfi_functions(&mut builtins);
-    // SRFI functions now handled by module system
-    crate::srfi::srfi_1::register_srfi_1_functions(&mut builtins);
-    crate::srfi::srfi_13::register_srfi_13_functions(&mut builtins);
-    crate::srfi::srfi_69::register_srfi_69_functions(&mut builtins);
+    
+    // SRFI functions now handled by module system (only in srfi-support builds)
+    #[cfg(feature = "srfi-support")]
+    {
+        crate::srfi::srfi_1::register_srfi_1_functions(&mut builtins);
+        crate::srfi::srfi_13::register_srfi_13_functions(&mut builtins);
+        crate::srfi::srfi_69::register_srfi_69_functions(&mut builtins);
+    }
 
     builtins
 }

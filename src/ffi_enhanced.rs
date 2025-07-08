@@ -3,6 +3,7 @@
 //! This module extends the basic FFI with advanced safety, memory tracking,
 //! thread safety, and callback mechanisms.
 
+#![cfg(not(feature = "embedded"))]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ffi::*;
@@ -347,7 +348,7 @@ pub unsafe extern "C" fn lambdust_get_detailed_error(
         unsafe {
             if !error_message.is_null() {
                 let c_msg =
-                    CString::new(error_msg.clone()).unwrap_or_else(|_| CString::new("").unwrap());
+                    CString::new(error_msg.as_str()).unwrap_or_else(|_| CString::new("").unwrap());
                 *error_message = c_msg.into_raw();
             }
             if !error_code.is_null() {
