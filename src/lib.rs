@@ -71,12 +71,19 @@
 
 #![warn(missing_docs)]
 #![warn(rust_2018_idioms)]
+#![allow(clippy::crate_in_macro_def)]
+#![allow(clippy::writeln_empty_string)]
+#![allow(clippy::collapsible_match)]
+#![allow(clippy::needless_borrow)]
+#![allow(clippy::should_implement_trait)]
+#![allow(clippy::inherent_to_string)]
 
 pub mod adaptive_memory;
 pub mod ast;
 pub mod bridge;
 pub mod builtins;
 pub mod cps_inlining;
+pub mod debug;
 pub mod environment;
 pub mod error;
 pub mod evaluator;

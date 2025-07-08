@@ -414,6 +414,9 @@ impl Store {
             Value::Box(_) => 32,          // Box overhead
             Value::Comparator(_) => 64,   // Comparator overhead
             Value::StringCursor(_) => 48, // StringCursor overhead
+            Value::Ideque(ideque) => ideque.len() * 8 + 32, // Ideque overhead
+            Value::Text(text) => text.length() * 4 + 32, // Text overhead (4 bytes per char approx)
+            Value::IString(istring) => istring.length() * 4 + 32, // IString overhead (4 bytes per char approx)
         }
     }
 

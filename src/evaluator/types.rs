@@ -25,6 +25,8 @@ use crate::evaluator::continuation_pooling::ContinuationPoolManager;
 use crate::evaluator::inline_evaluation::InlineEvaluator;
 // Phase 6-C: JIT loop optimization imports
 use crate::evaluator::jit_loop_optimization::JitLoopOptimizer;
+// Phase 6-D: Tail call optimization imports
+use crate::evaluator::tail_call_optimization::TailCallOptimizer;
 
 /// Location handle trait for abstracting over different memory management strategies
 pub trait LocationHandle: Debug {
@@ -159,6 +161,8 @@ pub struct Evaluator {
     inline_evaluator: InlineEvaluator,
     /// Phase 6-C: JIT loop optimizer for native iteration code generation
     jit_loop_optimizer: JitLoopOptimizer,
+    /// Phase 6-D: Tail call optimizer for recursive function optimization
+    tail_call_optimizer: TailCallOptimizer,
 }
 
 impl Evaluator {
@@ -181,6 +185,7 @@ impl Evaluator {
             continuation_pool_manager: ContinuationPoolManager::new(),
             inline_evaluator: InlineEvaluator::new(),
             jit_loop_optimizer: JitLoopOptimizer::new(),
+            tail_call_optimizer: TailCallOptimizer::new(),
         }
     }
 
@@ -203,6 +208,7 @@ impl Evaluator {
             continuation_pool_manager: ContinuationPoolManager::new(),
             inline_evaluator: InlineEvaluator::new(),
             jit_loop_optimizer: JitLoopOptimizer::new(),
+            tail_call_optimizer: TailCallOptimizer::new(),
         }
     }
 
@@ -225,6 +231,7 @@ impl Evaluator {
             continuation_pool_manager: ContinuationPoolManager::new(),
             inline_evaluator: InlineEvaluator::new(),
             jit_loop_optimizer: JitLoopOptimizer::new(),
+            tail_call_optimizer: TailCallOptimizer::new(),
         }
     }
 
@@ -609,6 +616,16 @@ impl Evaluator {
     /// Phase 6-C: Get mutable reference to JIT loop optimizer
     pub fn jit_loop_optimizer_mut(&mut self) -> &mut JitLoopOptimizer {
         &mut self.jit_loop_optimizer
+    }
+
+    /// Phase 6-D: Get reference to tail call optimizer
+    pub fn tail_call_optimizer(&self) -> &TailCallOptimizer {
+        &self.tail_call_optimizer
+    }
+
+    /// Phase 6-D: Get mutable reference to tail call optimizer
+    pub fn tail_call_optimizer_mut(&mut self) -> &mut TailCallOptimizer {
+        &mut self.tail_call_optimizer
     }
 
     /// Apply control flow continuation

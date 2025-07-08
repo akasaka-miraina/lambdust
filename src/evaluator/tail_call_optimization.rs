@@ -734,6 +734,11 @@ impl TailCallOptimizer {
     pub fn clear_cache(&mut self) {
         self.optimization_cache.clear();
     }
+
+    /// Register a function for tail call analysis
+    pub fn register_function(&mut self, name: String, param_count: i32) {
+        self.analyzer.register_function(name, param_count);
+    }
 }
 
 impl Default for TailCallOptimizer {

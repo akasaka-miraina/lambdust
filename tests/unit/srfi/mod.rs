@@ -14,3 +14,6 @@ pub mod srfi_69_enhanced_tests;
 pub mod srfi_97_tests;
 pub mod srfi_9_tests;
 pub mod srfi_134_tests;
+pub mod srfi_136_tests;
+pub mod srfi_139_tests;
+pub mod srfi_140_tests;

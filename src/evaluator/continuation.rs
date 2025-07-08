@@ -237,16 +237,20 @@ impl CompactContinuation {
                 }))
             }
 
-            Continuation::Begin {
-                remaining,
-                env,
-                parent,
-            } if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
-                CompactContinuation::Inline(Box::new(InlineContinuation::SingleBegin {
-                    expr: remaining[0].clone(),
-                    env_ref: EnvironmentRef::new(Rc::clone(env)),
-                }))
-            }
+            // Note: SingleBegin optimization disabled to ensure proper continuation evaluation
+            // in begin blocks where variable bindings may be established in previous expressions.
+            // This prevents premature termination of evaluation sequences.
+            //
+            // Continuation::Begin {
+            //     remaining,
+            //     env,
+            //     parent,
+            // } if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
+            //     CompactContinuation::Inline(Box::new(InlineContinuation::SingleBegin {
+            //         expr: remaining[0].clone(),
+            //         env_ref: EnvironmentRef::new(Rc::clone(env)),
+            //     }))
+            // }
 
             Continuation::Define {
                 variable,

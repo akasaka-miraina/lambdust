@@ -72,4 +72,6 @@ pub enum Value {
     Ideque(std::rc::Rc<crate::srfi::srfi_134::Ideque>),
     /// Immutable text values (SRFI 135)
     Text(std::rc::Rc<crate::srfi::srfi_135::Text>),
+    /// Immutable string values (SRFI 140)
+    IString(std::rc::Rc<crate::srfi::srfi_140::IString>),
 }

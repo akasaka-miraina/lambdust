@@ -167,6 +167,9 @@ impl fmt::Display for Value {
             Value::Text(text) => {
                 write!(f, "\"{}\"", text.text_to_string())
             }
+            Value::IString(istring) => {
+                write!(f, "\"{}\"", istring.to_string())
+            }
         }
     }
 }
@@ -205,6 +208,7 @@ impl std::fmt::Debug for Value {
                 .finish(),
             Self::Ideque(arg0) => f.debug_tuple("Ideque").field(arg0).finish(),
             Self::Text(arg0) => f.debug_tuple("Text").field(&arg0.text_to_string()).finish(),
+            Self::IString(arg0) => f.debug_tuple("IString").field(&arg0.to_string()).finish(),
         }
     }
 }

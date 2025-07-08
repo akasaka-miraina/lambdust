@@ -15,6 +15,9 @@ pub mod srfi_132; // Sort Libraries
 pub mod srfi_133; // Vector Libraries
 pub mod srfi_134; // Immutable Deques
 pub mod srfi_135; // Immutable Texts
+pub mod srfi_136; // Extensible Record Types
+pub mod srfi_139; // Syntax Parameters
+pub mod srfi_140; // Immutable Strings
 pub mod srfi_141; // Integer Division
 pub mod srfi_45; // Lazy evaluation
 pub mod srfi_46; // Syntax-rules extensions
