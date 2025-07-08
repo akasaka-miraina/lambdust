@@ -156,6 +156,17 @@ impl fmt::Display for Value {
                     cursor.string().len()
                 )
             }
+            Value::Ideque(ideque) => {
+                write!(f, "#<ideque")?;
+                let elements = ideque.to_list();
+                for element in elements {
+                    write!(f, " {}", element)?;
+                }
+                write!(f, ">")
+            }
+            Value::Text(text) => {
+                write!(f, "\"{}\"", text.text_to_string())
+            }
         }
     }
 }
@@ -192,6 +203,8 @@ impl std::fmt::Debug for Value {
                 .debug_tuple("StringCursor")
                 .field(&arg0.position())
                 .finish(),
+            Self::Ideque(arg0) => f.debug_tuple("Ideque").field(arg0).finish(),
+            Self::Text(arg0) => f.debug_tuple("Text").field(&arg0.text_to_string()).finish(),
         }
     }
 }

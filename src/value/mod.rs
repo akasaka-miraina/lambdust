@@ -68,4 +68,8 @@ pub enum Value {
     Comparator(std::rc::Rc<crate::srfi::srfi_128::Comparator>),
     /// String cursor values (SRFI 130)
     StringCursor(std::rc::Rc<crate::srfi::srfi_130::StringCursor>),
+    /// Immutable deque values (SRFI 134)
+    Ideque(std::rc::Rc<crate::srfi::srfi_134::Ideque>),
+    /// Immutable text values (SRFI 135)
+    Text(std::rc::Rc<crate::srfi::srfi_135::Text>),
 }

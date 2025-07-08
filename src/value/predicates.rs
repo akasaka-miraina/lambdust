@@ -111,4 +111,22 @@ impl Value {
     pub fn is_string_cursor(&self) -> bool {
         matches!(self, Value::StringCursor(_))
     }
+
+    /// Check if this value is an ideque
+    pub fn is_ideque(&self) -> bool {
+        matches!(self, Value::Ideque(_))
+    }
+
+    /// Check if this value is a text
+    pub fn is_text(&self) -> bool {
+        matches!(self, Value::Text(_))
+    }
+
+    /// Get the text if this is a text
+    pub fn as_text(&self) -> Option<&crate::srfi::srfi_135::Text> {
+        match self {
+            Value::Text(t) => Some(t),
+            _ => None,
+        }
+    }
 }

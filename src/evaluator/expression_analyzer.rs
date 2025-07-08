@@ -801,27 +801,39 @@ impl ExpressionAnalyzer {
             return Err(LambdustError::arity_error(1, 0));
         }
 
+        let mut has_real = false;
         let mut result = 0.0;
+        
         for (i, arg) in args.iter().enumerate() {
-            if let Value::Number(SchemeNumber::Integer(n)) = arg {
-                let val = *n as f64;
-                if i == 0 {
-                    result = val;
-                } else {
-                    result = op(result, val);
+            match arg {
+                Value::Number(SchemeNumber::Integer(n)) => {
+                    let val = *n as f64;
+                    if i == 0 {
+                        result = val;
+                    } else {
+                        result = op(result, val);
+                    }
                 }
-            } else if let Value::Number(SchemeNumber::Real(f)) = arg {
-                if i == 0 {
-                    result = *f;
-                } else {
-                    result = op(result, *f);
+                Value::Number(SchemeNumber::Real(f)) => {
+                    has_real = true;
+                    if i == 0 {
+                        result = *f;
+                    } else {
+                        result = op(result, *f);
+                    }
                 }
-            } else {
-                return Err(LambdustError::type_error("Expected number".to_string()));
+                _ => {
+                    return Err(LambdustError::type_error("Expected number".to_string()));
+                }
             }
         }
 
-        Ok(Value::Number(SchemeNumber::Real(result)))
+        // Return integer if all inputs were integers and result is a whole number
+        if !has_real && result.fract() == 0.0 && result.is_finite() {
+            Ok(Value::Number(SchemeNumber::Integer(result as i64)))
+        } else {
+            Ok(Value::Number(SchemeNumber::Real(result)))
+        }
     }
 
     /// Fold subtraction

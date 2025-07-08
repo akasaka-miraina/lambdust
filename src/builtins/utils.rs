@@ -203,13 +203,31 @@ where
 
     let result = operation(x, y);
 
-    // If both inputs were integers and result is a whole number, keep as integer
-    if matches!((a, b), (SchemeNumber::Integer(_), SchemeNumber::Integer(_)))
-        && result.fract() == 0.0
-    {
-        Ok(SchemeNumber::Integer(result as i64))
-    } else {
-        Ok(SchemeNumber::Real(result))
+    // Debug logging for troubleshooting (disabled for performance)
+    // if std::env::var("LAMBDUST_DEBUG").is_ok() {
+    //     eprintln!("apply_numeric_operation: op={}, a={:?}, b={:?}, result={}", 
+    //               op_name, a, b, result);
+    // }
+
+    // If both inputs were integers, try to keep result as integer when possible
+    match (a, b) {
+        (SchemeNumber::Integer(_), SchemeNumber::Integer(_)) => {
+            // Both integers: prefer integer result for basic operations
+            if op_name == "add" || op_name == "subtract" || op_name == "mul" || op_name == "multiply" {
+                // Basic arithmetic operations: always keep as integer for integer inputs
+                Ok(SchemeNumber::Integer(result as i64))
+            } else if result.fract() == 0.0 && result.is_finite() {
+                // Other operations: keep as integer if result is a whole number
+                Ok(SchemeNumber::Integer(result as i64))
+            } else {
+                // Result is not a whole number
+                Ok(SchemeNumber::Real(result))
+            }
+        }
+        _ => {
+            // Mixed types or real inputs: return real
+            Ok(SchemeNumber::Real(result))
+        }
     }
 }
 

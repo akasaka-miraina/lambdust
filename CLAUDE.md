@@ -10,8 +10,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **R7RS Large実装**: 完全実装済み（546/546テスト全通過）
 - **完了したタスク**: R7RS Large Red Edition SRFIs（111・113・125・132・133・141）完全実装
 - **完了したタスク**: パフォーマンス最適化Phase 3完了・call/cc完全non-local exit実装完了・継続再利用機能実装
-- **🎯 最新完了（2025年7月）**: Phase 6-C JIT Loop Optimization・SRFI 141 Integer Division・【CRITICAL】do-loop stack overflow根本解決完成
-- **次のタスク**: SRFI 134 Immutable Deques実装・Phase 6-D tail call最適化・高度SRFI統合
+- **🎯 最新完了（2025年7月）**: SRFI 134・135完全統合・数値計算問題根本解決・expression analyzer定数畳み込み修正
+- **次期タスク**: Phase 6-D tail call最適化・0.3.0正式リリース・SRFI 136-141順次実装
 
 ### 🔄 開発フローの遵守
 
@@ -27,7 +27,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 9. ✅ **SRFI 141完了**: Integer Division完全実装・6つの除算ファミリー・18関数・10テスト全通過（R7RS Large Tangerine）
 10. ✅ **【CRITICAL】do-loop stack overflow根本解決完了**: 直接評価システム・trampoline回避・R7RS基本制御構造実用化
 11. ✅ **🎯 Phase 6-C統合完了（2025年7月最新マージ）**: JIT・SRFI 141・stack overflow解決統合完成・production ready実現
-12. ✅ **次期タスク**: SRFI 134 Immutable Deques実装・Phase 6-D tail call最適化・高度SRFI統合
+12. ✅ **SRFI 135 Immutable Texts完全実装（2025年7月最新）**: 高度SRFI 9個完全実装・39テスト全通過・rope構造・Unicode対応
+13. ✅ **【CRITICAL】数値計算バグ根本解決（2025年7月最新実装）**: expression analyzer定数畳み込み整数保持修正・evaluator数値型統一化
 
 #### 🎯 Phase 6-C統合マージ完了（2025年7月最新成果）
 
@@ -48,6 +49,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 102. **【CRITICAL】スタックオーバーフロー根本解決** 🆕
      - 直接評価システム: evaluate_expression_directly()・trampoline回避・stack安全性保証 ✅
      - 反復実装強化: 10,000回制限・bounded memory使用・線形実行時間保証 ✅
+
+103. **0.3.0-rc リリース準備完了（2025年7月最新実装）** 🆕
+     - 高度SRFI 9個完全実装: 111・113・128・130・132・133・134・135・141 全対応 ✅
+     - 39テスト全通過: SRFI機能完全性検証・API互換性確保・品質保証完成 ✅
+     - Production Ready達成: Cargo.toml更新・テスト強化・リリース準備完了 ✅
+     - R7RS Large拡張: Immutable Deques・Comparators・String Cursors・Sort Libraries・Immutable Texts実装 ✅
      - Production Ready達成: 全do-loopテスト正常動作・R7RS基本制御構造完全実用化 ✅
      - Zero regression保証: 546/546テスト継続通過・既存機能完全互換性保持 ✅
 
@@ -84,6 +91,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **モジュール統合**: SrfiModule trait・registry.rs登録システム
 - **完全実装**: SRFI 1・13・69・111・113・125・132・133・141
 - **型安全**: 統一インターフェース・エラーハンドリング統合
+
+#### 埋め込みAPI（src/）
+- **bridge.rs**: Rust-Scheme間の型安全な値交換・関数登録・オブジェクト管理
+- **interpreter.rs**: 高レベルAPI・実行環境・評価インターフェース
+- **marshal.rs**: 自動型変換・ToScheme/FromScheme traits・エラーハンドリング
 
 ## 重要
 
@@ -200,6 +212,15 @@ make coverage-open
 
 # 全CI確認
 make ci-check
+
+# REPLの実行
+cargo run --features repl
+
+# ベンチマーク実行
+cargo bench
+
+# 特定のベンチマーク実行
+cargo bench --bench performance_benchmark
 ```
 
 ## 開発ステータス
@@ -382,6 +403,12 @@ make ci-check
     - large iteration (100回): 0→99→100停止・stack overflow防止・メモリ効率維持 ✅
     - production readiness: infinite loop protection・resource safety・error recovery完備 ✅
 
+104. **【CRITICAL】数値計算バグ根本解決（2025年7月最新実装）** 🆕
+    - expression analyzer定数畳み込み修正: fold_arithmetic_operation整数保持・has_real判定追加 ✅
+    - apply_numeric_operation統一化: add・subtract・mul・multiply整数演算保証・型安全性確保 ✅
+    - evaluator test suite復旧: test_formal_begin・test_formal_call_cc_no_escape全通過・回帰防止 ✅
+    - production quality向上: 数値型整合性保証・R7RS準拠性確保・zero regression達成 ✅
+
 4. **Phase 6-D: Tail Call最適化 (MEDIUM)** ⏳
    - LLVM backend: Rust tail call支援・system-level最適化・compiler integration
    - continuation optimization: tail継続識別・stack frame除去・memory効率化
@@ -410,7 +437,14 @@ make ci-check
 7. **Pull Request**: GitHub CopilotのレビューコメントあるPRを作成
 8. **レビュー・マージ**: コードレビュー後、mainブランチにマージ
 
-### 🔄 重要な開発フロー原則
+### 開発に関する**重要禁止**事項
+
+- #[allow()] によるClippy警告無視の禁止
+- 3段以上のネスト禁止
+- 100行以上のメソッド禁止
+- 1,000行以上のrsファイル作成禁止
+
+ ### 🔄 重要な開発フロー原則
 
 - **必須**: 各機能完了後に必ずCLAUDE.mdに進捗を記録
 - **必須**: テスト追加とpre-commitフック通過

@@ -35,6 +35,8 @@ impl Value {
             (Value::Box(a), Value::Box(b)) => a.unbox().equal(&b.unbox()),
             (Value::Comparator(a), Value::Comparator(b)) => a == b,
             (Value::StringCursor(a), Value::StringCursor(b)) => a == b,
+            (Value::Ideque(a), Value::Ideque(b)) => a == b,
+            (Value::Text(a), Value::Text(b)) => a.text_equal(b),
             _ => false,
         }
     }
@@ -103,6 +105,8 @@ impl PartialEq for Value {
             (Self::Box(l0), Self::Box(r0)) => l0 == r0,
             (Self::Comparator(l0), Self::Comparator(r0)) => l0 == r0,
             (Self::StringCursor(l0), Self::StringCursor(r0)) => l0 == r0,
+            (Self::Ideque(l0), Self::Ideque(r0)) => l0 == r0,
+            (Self::Text(l0), Self::Text(r0)) => l0.text_equal(r0),
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
     }
