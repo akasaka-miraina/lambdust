@@ -6,7 +6,7 @@
 
 use clap::{Arg, Command};
 use lambdust::error::LambdustError;
-use lambdust::Interpreter;
+use lambdust::interpreter::LambdustInterpreter;
 use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
@@ -339,7 +339,7 @@ impl SchemeHelper {
     }
 
     #[allow(dead_code)]
-    fn update_builtin_functions(&mut self, interpreter: &Interpreter) {
+    fn update_builtin_functions(&mut self, interpreter: &LambdustInterpreter) {
         // Add host functions
         for func_name in interpreter.list_host_functions() {
             self.builtin_functions.insert(func_name.clone());
@@ -513,7 +513,7 @@ impl rustyline::Helper for SchemeHelper {}
 
 /// Interactive REPL session
 pub struct Repl {
-    interpreter: Interpreter,
+    interpreter: LambdustInterpreter,
     editor: DefaultEditor,
     config: ReplConfig,
     debug_state: DebugState,
@@ -530,7 +530,7 @@ impl Repl {
     /// Create a new REPL session with custom configuration
     pub fn new_with_config(config: ReplConfig) -> RustylineResult<Self> {
         let mut editor = DefaultEditor::new()?;
-        let interpreter = Interpreter::new();
+        let interpreter = LambdustInterpreter::new();
 
         // Load history if enabled
         if config.enable_history {
@@ -715,7 +715,7 @@ impl Repl {
                 Some(true)
             }
             "(reset)" => {
-                self.interpreter = Interpreter::new();
+                self.interpreter = LambdustInterpreter::new();
                 self.debug_state = DebugState::default();
                 println!("Interpreter state reset");
                 Some(true)
