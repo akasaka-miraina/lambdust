@@ -11,3 +11,7 @@ pub mod srfi_1_tests;
 pub mod srfi_69_tests;
 pub mod srfi_tests;
 pub mod string_char_tests;
+// I/O operations tests
+pub mod io_tests;
+// Error handling tests
+pub mod error_handling_tests;
