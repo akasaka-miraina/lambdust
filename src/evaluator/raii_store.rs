@@ -481,6 +481,14 @@ impl RaiiStoreManager {
             Value::Box(_) => 24,          // Rc<RefCell<Value>> overhead
             Value::Comparator(_) => 64,   // Comparator overhead
             Value::StringCursor(_) => 48, // StringCursor overhead
+            Value::Ideque(ideque) => ideque.len() * 8 + 32, // Ideque overhead
+            Value::Text(text) => text.length() * 4 + 32, // Text overhead (4 bytes per char approx)
+            Value::IString(istring) => istring.length() * 4 + 32, // IString overhead (4 bytes per char approx)
+            Value::LazyVector(lazy_vec) => {
+                let storage = lazy_vec.borrow();
+                let stats = storage.memory_stats();
+                stats.estimated_bytes + 128 // Add overhead for LazyVector wrapper
+            }
         }
     }
 }

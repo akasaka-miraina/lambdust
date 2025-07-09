@@ -4,6 +4,8 @@
 //! to run in browsers and Node.js environments. It includes both browser-specific
 //! bindings using wasm-bindgen and WASI-compatible interfaces.
 
+#![cfg(not(feature = "embedded"))]
+
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 

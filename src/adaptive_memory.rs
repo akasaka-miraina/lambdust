@@ -4,7 +4,62 @@
 //! strategies based on runtime evaluation patterns and memory pressure.
 
 use crate::memory_pool::{ContinuationPoolStats, PoolStats};
+#[cfg(feature = "debug-tracing")]
 use crate::stack_monitor::{OptimizationRecommendation, StackStatistics};
+
+#[cfg(not(feature = "debug-tracing"))]
+mod stub_types {
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum OptimizationRecommendation {
+        MemoryCompression,
+        ContinuationInlining,
+        ForceGarbageCollection,
+        TailCallOptimization,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct StackStatistics {
+        pub stack_depth: usize,
+        pub max_stack_depth: usize,
+        pub continuation_count: usize,
+        pub stack_memory_usage: usize,
+        pub total_memory_estimate: usize,
+        pub current_depth: usize,
+        pub max_depth: usize,
+        pub total_frames: usize,
+        pub optimizations_applied: usize,
+        pub average_frame_time: std::time::Duration,
+        pub optimizable_frames: usize,
+    }
+
+    impl Default for StackStatistics {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl StackStatistics {
+        pub fn new() -> Self {
+            Self {
+                stack_depth: 0,
+                max_stack_depth: 0,
+                continuation_count: 0,
+                stack_memory_usage: 0,
+                total_memory_estimate: 0,
+                current_depth: 0,
+                max_depth: 0,
+                total_frames: 0,
+                optimizations_applied: 0,
+                average_frame_time: std::time::Duration::from_millis(0),
+                optimizable_frames: 0,
+            }
+        }
+    }
+}
+
+#[cfg(not(feature = "debug-tracing"))]
+use stub_types::{OptimizationRecommendation, StackStatistics};
+
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 

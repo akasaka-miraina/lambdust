@@ -237,17 +237,20 @@ impl CompactContinuation {
                 }))
             }
 
-            Continuation::Begin {
-                remaining,
-                env,
-                parent,
-            } if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
-                CompactContinuation::Inline(Box::new(InlineContinuation::SingleBegin {
-                    expr: remaining[0].clone(),
-                    env_ref: EnvironmentRef::new(Rc::clone(env)),
-                }))
-            }
-
+            // Note: SingleBegin optimization disabled to ensure proper continuation evaluation
+            // in begin blocks where variable bindings may be established in previous expressions.
+            // This prevents premature termination of evaluation sequences.
+            //
+            // Continuation::Begin {
+            //     remaining,
+            //     env,
+            //     parent,
+            // } if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
+            //     CompactContinuation::Inline(Box::new(InlineContinuation::SingleBegin {
+            //         expr: remaining[0].clone(),
+            //         env_ref: EnvironmentRef::new(Rc::clone(env)),
+            //     }))
+            // }
             Continuation::Define {
                 variable,
                 env,
@@ -420,9 +423,10 @@ impl DoLoopState {
     pub fn next_iteration(&mut self) -> Result<(), crate::error::LambdustError> {
         self.iteration_count += 1;
         if self.iteration_count > self.max_iterations {
-            return Err(crate::error::LambdustError::runtime_error(
-                format!("DoLoop exceeded maximum iterations: {}", self.max_iterations)
-            ));
+            return Err(crate::error::LambdustError::runtime_error(format!(
+                "DoLoop exceeded maximum iterations: {}",
+                self.max_iterations
+            )));
         }
         Ok(())
     }
@@ -435,9 +439,7 @@ impl DoLoopState {
     /// Check if this loop can be optimized for inline execution
     pub fn can_optimize(&self) -> bool {
         // Simple heuristics for optimization candidacy
-        self.variables.len() <= 3 && 
-        self.body_exprs.len() <= 2 && 
-        self.iteration_count < 1000
+        self.variables.len() <= 3 && self.body_exprs.len() <= 2 && self.iteration_count < 1000
     }
 
     /// Mark this loop as optimized
@@ -447,8 +449,10 @@ impl DoLoopState {
 
     /// Get estimated memory usage for this state
     pub fn memory_usage(&self) -> usize {
-        let vars_size = self.variables.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Value>());
-        let exprs_size = (self.step_exprs.len() + self.result_exprs.len() + self.body_exprs.len()) * std::mem::size_of::<Expr>();
+        let vars_size =
+            self.variables.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Value>());
+        let exprs_size = (self.step_exprs.len() + self.result_exprs.len() + self.body_exprs.len())
+            * std::mem::size_of::<Expr>();
         vars_size + exprs_size + std::mem::size_of::<Rc<Environment>>()
     }
 }

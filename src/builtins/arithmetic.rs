@@ -1,8 +1,8 @@
 //! Arithmetic operations for Scheme
 
 use crate::builtins::utils::{
-    apply_numeric_operation, check_arity, check_arity_range, compare_numbers, expect_number, is_even,
-    is_negative, is_odd, is_positive, is_zero, make_builtin_procedure,
+    apply_numeric_operation, check_arity, check_arity_range, compare_numbers, expect_number,
+    is_even, is_negative, is_odd, is_positive, is_zero, make_builtin_procedure,
 };
 use crate::error::{LambdustError, Result};
 use crate::lexer::SchemeNumber;
@@ -62,12 +62,21 @@ pub fn register_arithmetic_functions(builtins: &mut HashMap<String, Value>) {
 
     // Ceiling division family
     builtins.insert("ceiling-quotient".to_string(), srfi_141_ceiling_quotient());
-    builtins.insert("ceiling-remainder".to_string(), srfi_141_ceiling_remainder());
+    builtins.insert(
+        "ceiling-remainder".to_string(),
+        srfi_141_ceiling_remainder(),
+    );
     builtins.insert("ceiling/".to_string(), srfi_141_ceiling_div());
 
     // Truncate division family
-    builtins.insert("truncate-quotient".to_string(), srfi_141_truncate_quotient());
-    builtins.insert("truncate-remainder".to_string(), srfi_141_truncate_remainder());
+    builtins.insert(
+        "truncate-quotient".to_string(),
+        srfi_141_truncate_quotient(),
+    );
+    builtins.insert(
+        "truncate-remainder".to_string(),
+        srfi_141_truncate_remainder(),
+    );
     builtins.insert("truncate/".to_string(), srfi_141_truncate_div());
 
     // Round division family
@@ -76,13 +85,25 @@ pub fn register_arithmetic_functions(builtins: &mut HashMap<String, Value>) {
     builtins.insert("round/".to_string(), srfi_141_round_div());
 
     // Euclidean division family
-    builtins.insert("euclidean-quotient".to_string(), srfi_141_euclidean_quotient());
-    builtins.insert("euclidean-remainder".to_string(), srfi_141_euclidean_remainder());
+    builtins.insert(
+        "euclidean-quotient".to_string(),
+        srfi_141_euclidean_quotient(),
+    );
+    builtins.insert(
+        "euclidean-remainder".to_string(),
+        srfi_141_euclidean_remainder(),
+    );
     builtins.insert("euclidean/".to_string(), srfi_141_euclidean_div());
 
     // Balanced division family
-    builtins.insert("balanced-quotient".to_string(), srfi_141_balanced_quotient());
-    builtins.insert("balanced-remainder".to_string(), srfi_141_balanced_remainder());
+    builtins.insert(
+        "balanced-quotient".to_string(),
+        srfi_141_balanced_quotient(),
+    );
+    builtins.insert(
+        "balanced-remainder".to_string(),
+        srfi_141_balanced_remainder(),
+    );
     builtins.insert("balanced/".to_string(), srfi_141_balanced_div());
 }
 
@@ -716,10 +737,10 @@ fn floor_division(x: i64, y: i64) -> (i64, i64) {
     if y == 0 {
         panic!("Division by zero");
     }
-    
+
     let q = x / y;
     let r = x % y;
-    
+
     if (r != 0) && ((r < 0) != (y < 0)) {
         (q - 1, r + y)
     } else {
@@ -750,9 +771,9 @@ fn round_division(x: i64, y: i64) -> (i64, i64) {
     if y == 0 {
         panic!("Division by zero");
     }
-    
+
     let (q, r) = floor_division(x, y);
-    
+
     if r.abs() < (y.abs() + 1) / 2 {
         (q, r)
     } else if r.abs() > (y.abs() + 1) / 2 {
@@ -778,9 +799,9 @@ fn euclidean_division(x: i64, y: i64) -> (i64, i64) {
     if y == 0 {
         panic!("Division by zero");
     }
-    
+
     let (q, r) = floor_division(x, y);
-    
+
     if r >= 0 {
         (q, r)
     } else if y > 0 {
@@ -795,10 +816,10 @@ fn balanced_division(x: i64, y: i64) -> (i64, i64) {
     if y == 0 {
         panic!("Division by zero");
     }
-    
+
     let (q, r) = euclidean_division(x, y);
     let half_y = y.abs() / 2;
-    
+
     if r <= half_y {
         (q, r)
     } else if y > 0 {
@@ -814,7 +835,7 @@ fn srfi_141_floor_quotient() -> Value {
         check_arity(args, 2)?;
         let x = expect_number(&args[0], "floor-quotient")?;
         let y = expect_number(&args[1], "floor-quotient")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -835,7 +856,7 @@ fn srfi_141_floor_remainder() -> Value {
         check_arity(args, 2)?;
         let x = expect_number(&args[0], "floor-remainder")?;
         let y = expect_number(&args[1], "floor-remainder")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -856,7 +877,7 @@ fn srfi_141_floor_div() -> Value {
         check_arity(args, 2)?;
         let x = expect_number(&args[0], "floor/")?;
         let y = expect_number(&args[1], "floor/")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -881,7 +902,7 @@ fn srfi_141_ceiling_quotient() -> Value {
         check_arity(args, 2)?;
         let x = expect_number(&args[0], "ceiling-quotient")?;
         let y = expect_number(&args[1], "ceiling-quotient")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -902,7 +923,7 @@ fn srfi_141_ceiling_remainder() -> Value {
         check_arity(args, 2)?;
         let x = expect_number(&args[0], "ceiling-remainder")?;
         let y = expect_number(&args[1], "ceiling-remainder")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -923,7 +944,7 @@ fn srfi_141_ceiling_div() -> Value {
         check_arity(args, 2)?;
         let x = expect_number(&args[0], "ceiling/")?;
         let y = expect_number(&args[1], "ceiling/")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -948,7 +969,7 @@ fn srfi_141_truncate_quotient() -> Value {
         check_arity(args, 2)?;
         let x = expect_number(&args[0], "truncate-quotient")?;
         let y = expect_number(&args[1], "truncate-quotient")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -968,7 +989,7 @@ fn srfi_141_truncate_remainder() -> Value {
     make_builtin_procedure("truncate-remainder", Some(2), |args| {
         let x = expect_number(&args[0], "truncate-remainder")?;
         let y = expect_number(&args[1], "truncate-remainder")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -988,7 +1009,7 @@ fn srfi_141_truncate_div() -> Value {
     make_builtin_procedure("truncate/", Some(2), |args| {
         let x = expect_number(&args[0], "truncate/")?;
         let y = expect_number(&args[1], "truncate/")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1012,7 +1033,7 @@ fn srfi_141_round_quotient() -> Value {
     make_builtin_procedure("round-quotient", Some(2), |args| {
         let x = expect_number(&args[0], "round-quotient")?;
         let y = expect_number(&args[1], "round-quotient")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1032,7 +1053,7 @@ fn srfi_141_round_remainder() -> Value {
     make_builtin_procedure("round-remainder", Some(2), |args| {
         let x = expect_number(&args[0], "round-remainder")?;
         let y = expect_number(&args[1], "round-remainder")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1052,7 +1073,7 @@ fn srfi_141_round_div() -> Value {
     make_builtin_procedure("round/", Some(2), |args| {
         let x = expect_number(&args[0], "round/")?;
         let y = expect_number(&args[1], "round/")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1076,7 +1097,7 @@ fn srfi_141_euclidean_quotient() -> Value {
     make_builtin_procedure("euclidean-quotient", Some(2), |args| {
         let x = expect_number(&args[0], "euclidean-quotient")?;
         let y = expect_number(&args[1], "euclidean-quotient")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1096,7 +1117,7 @@ fn srfi_141_euclidean_remainder() -> Value {
     make_builtin_procedure("euclidean-remainder", Some(2), |args| {
         let x = expect_number(&args[0], "euclidean-remainder")?;
         let y = expect_number(&args[1], "euclidean-remainder")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1116,7 +1137,7 @@ fn srfi_141_euclidean_div() -> Value {
     make_builtin_procedure("euclidean/", Some(2), |args| {
         let x = expect_number(&args[0], "euclidean/")?;
         let y = expect_number(&args[1], "euclidean/")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1140,7 +1161,7 @@ fn srfi_141_balanced_quotient() -> Value {
     make_builtin_procedure("balanced-quotient", Some(2), |args| {
         let x = expect_number(&args[0], "balanced-quotient")?;
         let y = expect_number(&args[1], "balanced-quotient")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1160,7 +1181,7 @@ fn srfi_141_balanced_remainder() -> Value {
     make_builtin_procedure("balanced-remainder", Some(2), |args| {
         let x = expect_number(&args[0], "balanced-remainder")?;
         let y = expect_number(&args[1], "balanced-remainder")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {
@@ -1180,7 +1201,7 @@ fn srfi_141_balanced_div() -> Value {
     make_builtin_procedure("balanced/", Some(2), |args| {
         let x = expect_number(&args[0], "balanced/")?;
         let y = expect_number(&args[1], "balanced/")?;
-        
+
         match (x, y) {
             (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => {
                 if *y == 0 {

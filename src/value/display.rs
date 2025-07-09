@@ -118,6 +118,16 @@ impl fmt::Display for Value {
             Value::Nil => write!(f, "()"),
             Value::Procedure(proc) => self.display_procedure(f, proc),
             Value::Vector(values) => self.display_vector(f, values),
+            Value::LazyVector(lazy_vec) => {
+                let storage = lazy_vec.borrow();
+                let stats = storage.memory_stats();
+                write!(
+                    f,
+                    "#<lazy-vector:{}:{:.1}%>",
+                    stats.logical_size,
+                    stats.materialization_ratio() * 100.0
+                )
+            }
             Value::Port(_) => write!(f, "#<port>"),
             Value::External(obj) => write!(f, "#<external:{}>", obj.type_name),
             Value::Record(record) => {
@@ -156,6 +166,20 @@ impl fmt::Display for Value {
                     cursor.string().len()
                 )
             }
+            Value::Ideque(ideque) => {
+                write!(f, "#<ideque")?;
+                let elements = ideque.to_list();
+                for element in elements {
+                    write!(f, " {}", element)?;
+                }
+                write!(f, ">")
+            }
+            Value::Text(text) => {
+                write!(f, "\"{}\"", text.text_to_string())
+            }
+            Value::IString(istring) => {
+                write!(f, "\"{}\"", istring.to_string())
+            }
         }
     }
 }
@@ -179,6 +203,17 @@ impl std::fmt::Debug for Value {
             Self::Nil => write!(f, "Nil"),
             Self::Procedure(arg0) => f.debug_tuple("Procedure").field(arg0).finish(),
             Self::Vector(arg0) => f.debug_tuple("Vector").field(arg0).finish(),
+            Self::LazyVector(arg0) => {
+                let storage = arg0.borrow();
+                let stats = storage.memory_stats();
+                f.debug_tuple("LazyVector")
+                    .field(&format!(
+                        "size:{}, materialized:{:.1}%",
+                        stats.logical_size,
+                        stats.materialization_ratio() * 100.0
+                    ))
+                    .finish()
+            }
             Self::Port(arg0) => f.debug_tuple("Port").field(arg0).finish(),
             Self::External(arg0) => f.debug_tuple("External").field(arg0).finish(),
             Self::Record(arg0) => f.debug_tuple("Record").field(arg0).finish(),
@@ -192,6 +227,9 @@ impl std::fmt::Debug for Value {
                 .debug_tuple("StringCursor")
                 .field(&arg0.position())
                 .finish(),
+            Self::Ideque(arg0) => f.debug_tuple("Ideque").field(arg0).finish(),
+            Self::Text(arg0) => f.debug_tuple("Text").field(&arg0.text_to_string()).finish(),
+            Self::IString(arg0) => f.debug_tuple("IString").field(&arg0.to_string()).finish(),
         }
     }
 }

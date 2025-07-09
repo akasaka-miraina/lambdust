@@ -8,6 +8,7 @@ use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{Continuation, Evaluator};
 use crate::value::{Procedure, Value};
+// use crate::value::conversions::ToValue;
 use std::rc::Rc;
 
 impl Evaluator {
@@ -361,12 +362,20 @@ impl Evaluator {
                         lambda_env.define(rest_param.clone(), Value::from_vector(rest_args));
                     } else {
                         for (param, arg) in params.iter().zip(args.iter()) {
+                            #[cfg(debug_assertions)]
+                            eprintln!("DEBUG: binding param '{}' to value {:?}", param, arg);
                             lambda_env.define(param.clone(), arg.clone());
                         }
                     }
 
-                    // Evaluate body with full evaluator support
-                    self.eval_sequence(body, Rc::new(lambda_env), cont)
+                    // Evaluate body and return result directly (not through continuation)
+                    let result =
+                        self.eval_sequence(body, Rc::new(lambda_env), Continuation::Identity)?;
+
+                    #[cfg(debug_assertions)]
+                    eprintln!("DEBUG: lambda eval_sequence result: {:?}", result);
+
+                    self.apply_continuation(cont, result)
                 }
                 Procedure::Continuation {
                     continuation: _captured_cont,
@@ -508,17 +517,44 @@ impl Evaluator {
 
         // Fold over each key-value pair
         let ht = hash_table.borrow();
-        for (key, value) in ht.table.iter() {
+
+        #[cfg(debug_assertions)]
+        eprintln!(
+            "DEBUG: hash-table-fold starting with {} entries",
+            ht.table.len()
+        );
+
+        for (i, (key, value)) in ht.table.iter().enumerate() {
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "DEBUG: fold iteration {}: key={:?}, value={:?}, acc={:?}",
+                i, key, value, accumulator
+            );
+
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone(), accumulator];
 
+            #[cfg(debug_assertions)]
+            eprintln!("DEBUG: about to call lambda with args: {:?}", call_args);
+
             // Apply procedure to key, value, and accumulator
-            accumulator = self.apply_procedure_with_evaluator(
+            let lambda_result = self.apply_procedure_with_evaluator(
                 proc_value.clone(),
                 call_args,
                 env.clone(),
                 Continuation::Identity,
             )?;
+
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "DEBUG: apply_procedure_with_evaluator returned: {:?}",
+                lambda_result
+            );
+
+            accumulator = lambda_result;
+
+            #[cfg(debug_assertions)]
+            eprintln!("DEBUG: fold result {}: new_acc={:?}", i, accumulator);
         }
 
         self.apply_continuation(cont, accumulator)
@@ -703,7 +739,7 @@ impl Evaluator {
         // Phase 5-Step2: location-ref placeholder - RAII locations are managed automatically
         // TODO: Implement location registry for stable location references
         Err(LambdustError::runtime_error(
-            "location-ref not yet implemented for RAII store".to_string()
+            "location-ref not yet implemented for RAII store".to_string(),
         ))
     }
 
@@ -736,7 +772,7 @@ impl Evaluator {
         // Phase 5-Step2: location-set! placeholder - RAII locations are managed automatically
         // TODO: Implement location registry for stable location references
         Err(LambdustError::runtime_error(
-            "location-set! not yet implemented for RAII store".to_string()
+            "location-set! not yet implemented for RAII store".to_string(),
         ))
     }
 }

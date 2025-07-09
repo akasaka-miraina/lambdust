@@ -198,7 +198,6 @@ mod tests {
     use crate::srfi::SrfiModule;
 
     #[test]
-    #[ignore] // TODO: Fix Procedure API compatibility
     fn test_list_sort() {
         let srfi = Srfi132;
         let exports = srfi.exports();
@@ -234,7 +233,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // TODO: Fix Procedure API compatibility
     fn test_vector_sort() {
         let srfi = Srfi132;
         let exports = srfi.exports();
@@ -265,7 +263,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // TODO: Fix Procedure API compatibility
     fn test_sorted_predicates() {
         let srfi = Srfi132;
         let exports = srfi.exports();

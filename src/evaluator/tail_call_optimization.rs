@@ -13,8 +13,8 @@
 use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
-use crate::evaluator::{Continuation, Evaluator};
 use crate::evaluator::expression_analyzer::{AnalysisResult, OptimizationHint};
+use crate::evaluator::{Continuation, Evaluator};
 use crate::value::{Procedure, Value};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -74,16 +74,14 @@ impl TailCallContext {
 
     /// Check if this is a self-recursive tail call
     pub fn is_self_recursive_tail_call(&self, function_name: &str) -> bool {
-        self.is_tail_position && 
-        self.current_function.as_ref() == Some(&function_name.to_string()) &&
-        self.optimization_enabled
+        self.is_tail_position
+            && self.current_function.as_ref() == Some(&function_name.to_string())
+            && self.optimization_enabled
     }
 
     /// Check if optimization should be applied based on recursion depth
     pub fn should_optimize(&self) -> bool {
-        self.optimization_enabled && 
-        self.is_tail_position && 
-        self.recursion_depth > 0
+        self.optimization_enabled && self.is_tail_position && self.recursion_depth > 0
     }
 }
 
@@ -139,16 +137,23 @@ impl TailCallAnalyzer {
 
     /// Register a function for tail call analysis
     pub fn register_function(&mut self, name: String, param_count: i32) {
-        self.function_signatures.insert(name.clone(), FunctionSignature {
-            name,
-            param_count,
-            is_recursive: false,
-            is_optimized: false,
-        });
+        self.function_signatures.insert(
+            name.clone(),
+            FunctionSignature {
+                name,
+                param_count,
+                is_recursive: false,
+                is_optimized: false,
+            },
+        );
     }
 
     /// Analyze expression for tail call optimization opportunities
-    pub fn analyze_tail_calls(&mut self, expr: &Expr, context: &TailCallContext) -> Result<AnalysisResult> {
+    pub fn analyze_tail_calls(
+        &mut self,
+        expr: &Expr,
+        context: &TailCallContext,
+    ) -> Result<AnalysisResult> {
         match expr {
             // Handle list expressions (function calls, special forms, etc.)
             Expr::List(exprs) if !exprs.is_empty() => {
@@ -158,7 +163,9 @@ impl TailCallAnalyzer {
                         "if" => self.analyze_if_expression(&exprs[1..], context),
                         "cond" => self.analyze_cond_expression(&exprs[1..], context),
                         "begin" => self.analyze_begin_expression(&exprs[1..], context),
-                        "let" | "let*" | "letrec" => self.analyze_let_expression(&exprs[1..], context),
+                        "let" | "let*" | "letrec" => {
+                            self.analyze_let_expression(&exprs[1..], context)
+                        }
                         "lambda" => self.analyze_lambda_expression(&exprs[1..], context),
                         // All other cases are function applications
                         _ => self.analyze_function_application(exprs, context),
@@ -183,7 +190,11 @@ impl TailCallAnalyzer {
     }
 
     /// Analyze function application for tail call optimization
-    fn analyze_function_application(&mut self, exprs: &[Expr], context: &TailCallContext) -> Result<AnalysisResult> {
+    fn analyze_function_application(
+        &mut self,
+        exprs: &[Expr],
+        context: &TailCallContext,
+    ) -> Result<AnalysisResult> {
         if exprs.is_empty() {
             return Ok(AnalysisResult {
                 is_constant: false,
@@ -197,18 +208,18 @@ impl TailCallAnalyzer {
         }
 
         let mut optimizations = Vec::new();
-        
+
         // Check if this is a tail call
         if context.is_tail_position {
             self.analysis_stats.tail_calls_detected += 1;
-            
+
             // Check for function call in tail position
             if let Expr::Variable(func_name) = &exprs[0] {
                 if context.is_self_recursive_tail_call(func_name) {
                     // Self-recursive tail call - highest priority optimization
                     self.analysis_stats.self_recursive_optimized += 1;
                     optimizations.push(OptimizationHint::TailCall);
-                    
+
                     // Mark function as recursive
                     if let Some(sig) = self.function_signatures.get_mut(func_name) {
                         sig.is_recursive = true;
@@ -233,35 +244,47 @@ impl TailCallAnalyzer {
     }
 
     /// Analyze lambda expression tail context
-    fn analyze_lambda_expression(&mut self, args: &[Expr], context: &TailCallContext) -> Result<AnalysisResult> {
+    fn analyze_lambda_expression(
+        &mut self,
+        args: &[Expr],
+        context: &TailCallContext,
+    ) -> Result<AnalysisResult> {
         if args.len() < 2 {
-            return Err(LambdustError::syntax_error("lambda requires at least 2 arguments".to_string()));
+            return Err(LambdustError::syntax_error(
+                "lambda requires at least 2 arguments".to_string(),
+            ));
         }
 
         // Body of lambda is in tail position
         let lambda_context = context.enter_function(None);
         let body_expr = &args[args.len() - 1];
-        
+
         // Analyze body for tail calls
         self.analyze_tail_calls(body_expr, &lambda_context)
     }
 
     /// Analyze if expression tail context
-    fn analyze_if_expression(&mut self, args: &[Expr], context: &TailCallContext) -> Result<AnalysisResult> {
+    fn analyze_if_expression(
+        &mut self,
+        args: &[Expr],
+        context: &TailCallContext,
+    ) -> Result<AnalysisResult> {
         if args.len() < 2 {
-            return Err(LambdustError::syntax_error("if requires at least 2 arguments".to_string()));
+            return Err(LambdustError::syntax_error(
+                "if requires at least 2 arguments".to_string(),
+            ));
         }
 
         let mut optimizations = Vec::new();
-        
+
         // Test expression is not in tail position
         let test_context = context.non_tail();
         let _test_result = self.analyze_tail_calls(&args[0], &test_context)?;
-        
+
         // Consequent and alternate are in tail position
         let then_result = self.analyze_tail_calls(&args[1], context)?;
         optimizations.extend(then_result.optimizations);
-        
+
         if args.len() > 2 {
             let else_result = self.analyze_tail_calls(&args[2], context)?;
             optimizations.extend(else_result.optimizations);
@@ -279,16 +302,20 @@ impl TailCallAnalyzer {
     }
 
     /// Analyze cond expression tail context
-    fn analyze_cond_expression(&mut self, args: &[Expr], context: &TailCallContext) -> Result<AnalysisResult> {
+    fn analyze_cond_expression(
+        &mut self,
+        args: &[Expr],
+        context: &TailCallContext,
+    ) -> Result<AnalysisResult> {
         let mut optimizations = Vec::new();
-        
+
         for clause in args {
             if let Expr::List(clause_exprs) = clause {
                 if clause_exprs.len() >= 2 {
                     // Test is not in tail position
                     let test_context = context.non_tail();
                     let _test_result = self.analyze_tail_calls(&clause_exprs[0], &test_context)?;
-                    
+
                     // Consequent expressions are in tail position (last one)
                     if clause_exprs.len() > 1 {
                         let last_expr = &clause_exprs[clause_exprs.len() - 1];
@@ -311,7 +338,11 @@ impl TailCallAnalyzer {
     }
 
     /// Analyze begin expression tail context
-    fn analyze_begin_expression(&mut self, args: &[Expr], context: &TailCallContext) -> Result<AnalysisResult> {
+    fn analyze_begin_expression(
+        &mut self,
+        args: &[Expr],
+        context: &TailCallContext,
+    ) -> Result<AnalysisResult> {
         if args.is_empty() {
             return Ok(AnalysisResult {
                 is_constant: false,
@@ -329,15 +360,21 @@ impl TailCallAnalyzer {
         for expr in &args[..args.len().saturating_sub(1)] {
             let _result = self.analyze_tail_calls(expr, &non_tail_context)?;
         }
-        
+
         // Last expression is in tail position
         self.analyze_tail_calls(&args[args.len() - 1], context)
     }
 
     /// Analyze let expression tail context
-    fn analyze_let_expression(&mut self, args: &[Expr], context: &TailCallContext) -> Result<AnalysisResult> {
+    fn analyze_let_expression(
+        &mut self,
+        args: &[Expr],
+        context: &TailCallContext,
+    ) -> Result<AnalysisResult> {
         if args.len() < 2 {
-            return Err(LambdustError::syntax_error("let requires at least 2 arguments".to_string()));
+            return Err(LambdustError::syntax_error(
+                "let requires at least 2 arguments".to_string(),
+            ));
         }
 
         // Binding values are not in tail position
@@ -346,12 +383,13 @@ impl TailCallAnalyzer {
             for binding in bindings {
                 if let Expr::List(binding_pair) = binding {
                     if binding_pair.len() == 2 {
-                        let _value_result = self.analyze_tail_calls(&binding_pair[1], &binding_context)?;
+                        let _value_result =
+                            self.analyze_tail_calls(&binding_pair[1], &binding_context)?;
                     }
                 }
             }
         }
-        
+
         // Body expressions - last one is in tail position
         if args.len() > 1 {
             self.analyze_tail_calls(&args[args.len() - 1], context)
@@ -469,11 +507,13 @@ impl TailCallOptimizer {
     ) -> Result<Option<OptimizedTailCall>> {
         // Analyze for tail call optimization opportunity
         let analysis = self.analyzer.analyze_tail_calls(expr, context)?;
-        
+
         // Check if tail call optimization is suggested
-        let has_tail_call_hint = analysis.optimizations.iter()
+        let has_tail_call_hint = analysis
+            .optimizations
+            .iter()
             .any(|hint| matches!(hint, OptimizationHint::TailCall));
-            
+
         if !has_tail_call_hint {
             return Ok(None);
         }
@@ -487,9 +527,9 @@ impl TailCallOptimizer {
                     self.optimizer_stats.cache_hits += 1;
                     return Ok(Some(cached.clone()));
                 }
-                
+
                 self.optimizer_stats.cache_misses += 1;
-                
+
                 // Create optimization
                 let is_self_recursive = context.is_self_recursive_tail_call(func_name);
                 let optimization = self.create_tail_call_optimization(
@@ -498,19 +538,20 @@ impl TailCallOptimizer {
                     is_self_recursive,
                     context,
                 )?;
-                
+
                 // Cache the optimization
-                self.optimization_cache.insert(cache_key, optimization.clone());
+                self.optimization_cache
+                    .insert(cache_key, optimization.clone());
                 self.optimizer_stats.optimizations_applied += 1;
-                
+
                 if is_self_recursive {
                     self.optimizer_stats.self_recursive_optimizations += 1;
                 }
-                
+
                 return Ok(Some(optimization));
             }
         }
-        
+
         Ok(None)
     }
 
@@ -538,7 +579,10 @@ impl TailCallOptimizer {
             ArgEvaluationStrategy::InPlace
         } else if args.len() <= 2 {
             ArgEvaluationStrategy::Direct
-        } else if args.iter().all(|arg| matches!(arg, Expr::Variable(_) | Expr::Literal(_))) {
+        } else if args
+            .iter()
+            .all(|arg| matches!(arg, Expr::Variable(_) | Expr::Literal(_)))
+        {
             ArgEvaluationStrategy::Parallel
         } else {
             ArgEvaluationStrategy::StackReuse
@@ -563,19 +607,21 @@ impl TailCallOptimizer {
         match optimization.optimization_level {
             OptimizationLevel::None => {
                 // No optimization, use regular evaluation
-                Err(LambdustError::runtime_error("No optimization available".to_string()))
+                Err(LambdustError::runtime_error(
+                    "No optimization available".to_string(),
+                ))
             }
-            
+
             OptimizationLevel::Basic => {
                 // Basic tail call elimination: avoid creating new stack frame
                 self.apply_basic_optimization(optimization, args, evaluator, env)
             }
-            
+
             OptimizationLevel::Advanced => {
                 // Advanced optimization with argument optimization
                 self.apply_advanced_optimization(optimization, args, evaluator, env)
             }
-            
+
             OptimizationLevel::Full => {
                 // Full optimization with stack frame reuse
                 self.apply_full_optimization(optimization, args, evaluator, env)
@@ -593,12 +639,14 @@ impl TailCallOptimizer {
     ) -> Result<Value> {
         // For basic optimization, we create a direct jump instead of recursive call
         // This prevents stack frame accumulation
-        
+
         // Look up the function
-        let function = env.get(&optimization.function_name)
-            .ok_or_else(|| LambdustError::runtime_error(
-                format!("Undefined function: {}", optimization.function_name)
-            ))?;
+        let function = env.get(&optimization.function_name).ok_or_else(|| {
+            LambdustError::runtime_error(format!(
+                "Undefined function: {}",
+                optimization.function_name
+            ))
+        })?;
 
         // Apply function directly without creating continuation
         match function {
@@ -607,9 +655,10 @@ impl TailCallOptimizer {
                 self.optimizer_stats.stack_frames_saved += 1;
                 evaluator.apply_procedure_direct(&proc, args.to_vec(), env)
             }
-            _ => Err(LambdustError::runtime_error(
-                format!("Not a procedure: {}", optimization.function_name)
-            )),
+            _ => Err(LambdustError::runtime_error(format!(
+                "Not a procedure: {}",
+                optimization.function_name
+            ))),
         }
     }
 
@@ -622,7 +671,7 @@ impl TailCallOptimizer {
         env: Rc<Environment>,
     ) -> Result<Value> {
         // Advanced optimization includes argument optimization strategies
-        
+
         match optimization.arg_strategy {
             ArgEvaluationStrategy::InPlace => {
                 // For self-recursive calls, update arguments in place
@@ -648,7 +697,7 @@ impl TailCallOptimizer {
         env: Rc<Environment>,
     ) -> Result<Value> {
         // Full optimization reuses the current stack frame entirely
-        
+
         if optimization.is_self_recursive {
             // For self-recursive calls, we can reuse the current frame completely
             self.apply_stack_frame_reuse(optimization, args, evaluator, env)
@@ -668,19 +717,21 @@ impl TailCallOptimizer {
     ) -> Result<Value> {
         // Update arguments in place without creating new environment
         // This is most efficient for self-recursive tail calls
-        
+
         // Create a new environment with updated arguments
         let _new_env = Environment::with_parent(env);
-        
+
         // Apply function with optimized environment
         // For now, fall back to basic optimization
         // TODO: Implement true in-place argument update
-        
+
         self.optimizer_stats.stack_frames_saved += 2; // Saved more frames
-        
+
         // This is a placeholder - in a real implementation, we would
         // update the current environment in place and jump to function start
-        Err(LambdustError::runtime_error("In-place optimization not yet implemented".to_string()))
+        Err(LambdustError::runtime_error(
+            "In-place optimization not yet implemented".to_string(),
+        ))
     }
 
     /// Apply parallel argument evaluation optimization
@@ -693,7 +744,7 @@ impl TailCallOptimizer {
     ) -> Result<Value> {
         // For independent arguments, we can optimize evaluation order
         // In this case, arguments are already evaluated, so we apply basic optimization
-        
+
         self.apply_basic_optimization(optimization, args, evaluator, env)
     }
 
@@ -707,11 +758,13 @@ impl TailCallOptimizer {
     ) -> Result<Value> {
         // Full stack frame reuse - most advanced optimization
         // This would require deep integration with the evaluator's stack management
-        
+
         self.optimizer_stats.stack_frames_saved += 3; // Maximum savings
-        
+
         // Placeholder for now
-        Err(LambdustError::runtime_error("Stack frame reuse optimization not yet implemented".to_string()))
+        Err(LambdustError::runtime_error(
+            "Stack frame reuse optimization not yet implemented".to_string(),
+        ))
     }
 
     /// Get optimization statistics
@@ -734,6 +787,11 @@ impl TailCallOptimizer {
     pub fn clear_cache(&mut self) {
         self.optimization_cache.clear();
     }
+
+    /// Register a function for tail call analysis
+    pub fn register_function(&mut self, name: String, param_count: i32) {
+        self.analyzer.register_function(name, param_count);
+    }
 }
 
 impl Default for TailCallOptimizer {
@@ -753,27 +811,34 @@ impl Evaluator {
     ) -> Result<Value> {
         // Direct procedure application for tail call optimization
         // This bypasses normal continuation creation to save stack frames
-        
+
         match procedure {
             Procedure::Builtin { func, .. } => {
                 // Builtin functions can be called directly
                 func(&args)
             }
-            Procedure::Lambda { params, body, closure, .. } => {
+            Procedure::Lambda {
+                params,
+                body,
+                closure,
+                ..
+            } => {
                 // Create new environment for lambda application
                 let new_env = Environment::with_parent(closure.clone());
-                
+
                 // Bind parameters
                 if params.len() != args.len() {
-                    return Err(LambdustError::runtime_error(
-                        format!("Argument count mismatch: expected {}, got {}", params.len(), args.len())
-                    ));
+                    return Err(LambdustError::runtime_error(format!(
+                        "Argument count mismatch: expected {}, got {}",
+                        params.len(),
+                        args.len()
+                    )));
                 }
-                
+
                 for (param, arg) in params.iter().zip(args.iter()) {
                     new_env.define(param.clone(), arg.clone());
                 }
-                
+
                 // Evaluate body directly using continuation-based evaluation
                 let new_env_rc = Rc::new(new_env);
                 if body.len() == 1 {
@@ -785,19 +850,27 @@ impl Evaluator {
             }
             Procedure::Continuation { .. } => {
                 // Continuations cannot be optimized this way
-                Err(LambdustError::runtime_error("Cannot directly apply continuation".to_string()))
+                Err(LambdustError::runtime_error(
+                    "Cannot directly apply continuation".to_string(),
+                ))
             }
             Procedure::HostFunction { .. } => {
                 // Host functions cannot be optimized this way
-                Err(LambdustError::runtime_error("Cannot directly apply host function".to_string()))
+                Err(LambdustError::runtime_error(
+                    "Cannot directly apply host function".to_string(),
+                ))
             }
             Procedure::CapturedContinuation { .. } => {
                 // Captured continuations cannot be optimized this way
-                Err(LambdustError::runtime_error("Cannot directly apply captured continuation".to_string()))
+                Err(LambdustError::runtime_error(
+                    "Cannot directly apply captured continuation".to_string(),
+                ))
             }
             Procedure::ReusableContinuation { .. } => {
                 // Reusable continuations cannot be optimized this way
-                Err(LambdustError::runtime_error("Cannot directly apply reusable continuation".to_string()))
+                Err(LambdustError::runtime_error(
+                    "Cannot directly apply reusable continuation".to_string(),
+                ))
             }
         }
     }

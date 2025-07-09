@@ -3,8 +3,11 @@
 // Re-export all submodules
 pub mod continuation;
 pub mod conversions;
+#[cfg(test)]
+pub mod conversions_tests;
 pub mod display;
 pub mod equality;
+pub mod lazy_vector;
 pub mod list;
 pub mod optimized;
 pub mod pair;
@@ -16,6 +19,7 @@ pub mod record;
 
 // Re-export key types
 pub use continuation::{Continuation, StackFrame};
+pub use lazy_vector::{MemoryStats, VectorStorage};
 pub use optimized::{OptimizationStats, OptimizedValue, ShortStringData, ValueOptimizer};
 pub use pair::PairData;
 pub use port::Port;
@@ -46,8 +50,10 @@ pub enum Value {
     Nil,
     /// Procedure values (both user-defined and built-in)
     Procedure(Procedure),
-    /// Vector values
+    /// Vector values (traditional immediate allocation)
     Vector(Vec<Value>),
+    /// Lazy vector values (memory-efficient for large vectors)
+    LazyVector(std::rc::Rc<std::cell::RefCell<lazy_vector::VectorStorage>>),
     /// Port values (for I/O)
     Port(Port),
     /// External object values
@@ -68,4 +74,10 @@ pub enum Value {
     Comparator(std::rc::Rc<crate::srfi::srfi_128::Comparator>),
     /// String cursor values (SRFI 130)
     StringCursor(std::rc::Rc<crate::srfi::srfi_130::StringCursor>),
+    /// Immutable deque values (SRFI 134)
+    Ideque(std::rc::Rc<crate::srfi::srfi_134::Ideque>),
+    /// Immutable text values (SRFI 135)
+    Text(std::rc::Rc<crate::srfi::srfi_135::Text>),
+    /// Immutable string values (SRFI 140)
+    IString(std::rc::Rc<crate::srfi::srfi_140::IString>),
 }

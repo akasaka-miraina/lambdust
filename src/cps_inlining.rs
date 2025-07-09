@@ -3,8 +3,8 @@
 //! This module implements comprehensive continuation-passing style inlining
 //! to eliminate intermediate continuation allocations and improve evaluation performance.
 
-use crate::evaluator::Continuation;
 use crate::evaluator::continuation::LightContinuation;
+use crate::evaluator::Continuation;
 use crate::value::Value;
 use std::collections::HashMap;
 

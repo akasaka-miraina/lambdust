@@ -930,13 +930,11 @@ mod conversion_functions_tests {
 
         // Arity errors
         assert!(call_builtin("list->string", vec![]).is_err());
-        assert!(
-            call_builtin(
-                "list->string",
-                vec![list(vec![char('a')]), list(vec![char('b')])]
-            )
-            .is_err()
-        );
+        assert!(call_builtin(
+            "list->string",
+            vec![list(vec![char('a')]), list(vec![char('b')])]
+        )
+        .is_err());
 
         // Type errors
         assert!(call_builtin("list->string", vec![string("hello")]).is_err());

@@ -63,13 +63,14 @@ impl Value {
 
     /// Check if this value is a vector
     pub fn is_vector(&self) -> bool {
-        matches!(self, Value::Vector(_))
+        matches!(self, Value::Vector(_) | Value::LazyVector(_))
     }
 
-    /// Get the vector if this is a vector
+    /// Get the vector if this is a vector (only works for materialized vectors)
     pub fn as_vector(&self) -> Option<&[Value]> {
         match self {
             Value::Vector(v) => Some(v),
+            Value::LazyVector(_) => None, // Lazy vectors cannot be directly converted to slice
             _ => None,
         }
     }
@@ -110,5 +111,23 @@ impl Value {
     /// Check if this value is a string cursor
     pub fn is_string_cursor(&self) -> bool {
         matches!(self, Value::StringCursor(_))
+    }
+
+    /// Check if this value is an ideque
+    pub fn is_ideque(&self) -> bool {
+        matches!(self, Value::Ideque(_))
+    }
+
+    /// Check if this value is a text
+    pub fn is_text(&self) -> bool {
+        matches!(self, Value::Text(_))
+    }
+
+    /// Get the text if this is a text
+    pub fn as_text(&self) -> Option<&crate::srfi::srfi_135::Text> {
+        match self {
+            Value::Text(t) => Some(t),
+            _ => None,
+        }
     }
 }

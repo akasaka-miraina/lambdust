@@ -21,3 +21,9 @@ pub mod phase6d_tail_call_tests;
 pub mod phase6d_llvm_backend_tests;
 pub mod special_forms_tests;
 pub mod store_tests;
+// AST Converter tests
+pub mod ast_converter_tests;
+// Import system tests
+pub mod imports_tests;
+// Semantic evaluator tests
+pub mod semantic_evaluator_tests;

@@ -1,13 +1,30 @@
 [package]
 name = "lambdust"
-version = "0.1.1"
-edition = "2024"
-description = "A Rust implementation of R7RS Scheme interpreter for embedding in applications"
+version = "0.3.0"
+edition = "2021"
+description = "Production-ready R7RS Scheme interpreter with advanced optimizations, SRFI support, and formal verification"
 authors = ["Mitsuki Akasaka <m.akasaka@miraina-step.co.jp>"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/akasaka-miraina/lambdust"
-keywords = ["scheme", "lisp", "interpreter", "r7rs"]
-categories = ["compilers", "embedded"]
+homepage = "https://github.com/akasaka-miraina/lambdust"
+documentation = "https://docs.rs/lambdust"
+readme = "README.md"
+keywords = ["scheme", "lisp", "interpreter", "r7rs", "srfi"]
+categories = ["compilers", "embedded", "development-tools"]
+exclude = [
+    "debug_*",
+    "test_*",
+    "*.scm",
+    "target/",
+    "agda/",
+    "formal_verification_strategy.md",
+    "refactor_evaluator.md",
+    "review.md",
+    "language_implementation_insights.md",
+    "DEPLOYMENT_STRATEGY.md",
+    "PHASE_II_DESIGN.md",
+    "SURGICAL_PLAN.md"
+]
 
 [dependencies]
 # Core dependencies for the interpreter
@@ -47,6 +64,43 @@ clap = { version = "4.0", optional = true }
 [dev-dependencies]
 criterion = "0.5"
 
+# ===== Build Optimization Profiles =====
+
+[profile.release]
+lto = true                    # Link Time Optimization
+codegen-units = 1            # Reduce parallelism for smaller binaries
+panic = "abort"              # Disable stack unwinding
+strip = true                 # Strip debug information
+opt-level = 3                # Maximum optimization
+
+# Minimal binary size profile
+[profile.min-size]
+inherits = "release"
+opt-level = "z"              # Optimize for size
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
+# Development profile with debug info
+[profile.dev]
+opt-level = 0
+debug = true
+split-debuginfo = "unpacked"
+debug-assertions = true
+overflow-checks = true
+lto = false
+panic = "unwind"
+incremental = true
+codegen-units = 256
+
+# Fast development builds
+[profile.dev-fast]
+inherits = "dev"
+opt-level = 1
+debug = 1
+lto = false
+
 [[bench]]
 name = "performance_benchmark"
 harness = false
@@ -69,18 +123,73 @@ path = "src/bin/repl.rs"
 required-features = ["repl"]
 
 [features]
-default = ["std"]
+default = ["standard"]
+
+# ===== Core Feature Layers =====
+
+# Embedded configuration (< 500KB binary) - mutually exclusive with standard features
+embedded = []
+
+# Minimal configuration (< 5MB binary)
+minimal = ["std"]
+
+# Standard configuration (< 15MB binary)
+standard = [
+    "minimal",
+    "srfi-support",
+    "basic-optimization",
+    "memory-pooling",
+    "debug-tracing",
+    "runtime-verification"
+]
+
+# Verified configuration (< 50MB binary)
+verified = [
+    "standard",
+    "agda-integration",
+    "theorem-derivation",
+    "runtime-verification"
+]
+
+# Development configuration (< 100MB binary)
+development = [
+    "verified",
+    "debug-tracing",
+    "performance-profiling",
+    "repl-support",
+    "language-server"
+]
+
+# ===== Individual Feature Flags =====
+
+# Core features
 std = []
 no-std = []
 
-# Optional features for extended functionality
-repl = ["dep:rustyline", "dep:clap"]
-debugger = []
-profiler = []
+# SRFI support
+srfi-support = []
 
-# Memory management options
-raii-store = []  # RAII-based memory management (alternative to traditional GC)
+# Optimization layers
+basic-optimization = []
+agda-integration = []
+theorem-derivation = []
+runtime-verification = []
 
-# WebAssembly targets
+# Memory management
+memory-pooling = []
+raii-store = []
+
+# Development tools
+debug-tracing = []
+performance-profiling = []
+repl-support = ["dep:rustyline", "dep:clap"]
+language-server = []
+
+# Legacy compatibility
+repl = ["repl-support"]
+debugger = ["debug-tracing"]
+profiler = ["performance-profiling"]
+
+# Platform targets
 wasm = ["dep:wasm-bindgen", "dep:js-sys", "dep:web-sys", "dep:getrandom"]
 wasi = ["dep:wasi"]

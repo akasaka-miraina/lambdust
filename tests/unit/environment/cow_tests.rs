@@ -110,11 +110,9 @@ fn test_shared_environment_copy_on_write_set() {
     let mut child = SharedEnvironment::with_parent(Rc::new(parent));
 
     // Setting variable that exists in parent should copy-on-write
-    assert!(
-        child
-            .set("x", Value::Number(SchemeNumber::Integer(20)))
-            .is_ok()
-    );
+    assert!(child
+        .set("x", Value::Number(SchemeNumber::Integer(20)))
+        .is_ok());
     assert_eq!(
         child.get("x"),
         Some(Value::Number(SchemeNumber::Integer(20)))
@@ -161,10 +159,9 @@ fn test_shared_environment_freeze() {
     assert!(env.is_frozen());
 
     // Should not be able to set frozen environment
-    assert!(
-        env.set("x", Value::Number(SchemeNumber::Integer(100)))
-            .is_err()
-    );
+    assert!(env
+        .set("x", Value::Number(SchemeNumber::Integer(100)))
+        .is_err());
 }
 
 #[test]
@@ -291,10 +288,9 @@ fn test_environment_ops_trait() {
     assert!(env.exists("x"));
     assert_eq!(env.depth(), 0);
 
-    assert!(
-        env.set("x", Value::Number(SchemeNumber::Integer(100)))
-            .is_ok()
-    );
+    assert!(env
+        .set("x", Value::Number(SchemeNumber::Integer(100)))
+        .is_ok());
     assert_eq!(
         env.get("x"),
         Some(Value::Number(SchemeNumber::Integer(100)))

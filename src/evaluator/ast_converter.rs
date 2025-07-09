@@ -53,7 +53,7 @@ impl AstConverter {
     /// Convert vector expression to value
     fn vector_to_value(exprs: Vec<Expr>) -> Result<Value> {
         let values: Result<Vec<Value>> = exprs.into_iter().map(Self::expr_to_value).collect();
-        Ok(Value::from_vector(values?))
+        Ok(Value::Vector(values?))
     }
 
     /// Convert dotted list to value: (a b . c) -> cons(a, cons(b, c))

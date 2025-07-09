@@ -46,6 +46,11 @@ impl SrfiRegistry {
         registry.register(Box::new(super::srfi_130::Srfi130)); // Cursor-based String Library
         registry.register(Box::new(super::srfi_132::Srfi132)); // Sort Libraries
         registry.register(Box::new(super::srfi_133::Srfi133)); // Vector Libraries
+        registry.register(Box::new(super::srfi_134::Srfi134)); // Immutable Deques
+        registry.register(Box::new(super::srfi_135::Srfi135)); // Immutable Texts
+        registry.register(Box::new(super::srfi_136::Srfi136)); // Extensible Record Types
+        registry.register(Box::new(super::srfi_139::Srfi139)); // Syntax Parameters
+        registry.register(Box::new(super::srfi_140::Srfi140)); // Immutable Strings
         registry.register(Box::new(super::srfi_141::Srfi141)); // Integer Division
 
         registry

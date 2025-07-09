@@ -6,11 +6,11 @@
 //! - Inline evaluation for simple loops
 //! - Performance tracking and optimization hints
 
+use lambdust::ast::{Expr, Literal};
+use lambdust::environment::Environment;
 use lambdust::evaluator::control_flow::DoLoopContinuationPool;
 use lambdust::evaluator::types::Evaluator;
 use lambdust::evaluator::{Continuation, DoLoopState};
-use lambdust::environment::Environment;
-use lambdust::ast::{Expr, Literal};
 use lambdust::lexer::SchemeNumber;
 use lambdust::value::Value;
 use std::rc::Rc;
@@ -20,7 +20,9 @@ fn test_doloop_state_creation() {
     let env = Rc::new(Environment::new());
     let state = DoLoopState::new(
         vec![("i".to_string(), Value::from(0i64))],
-        vec![Some(Expr::Literal(Literal::Number(SchemeNumber::Integer(1))))],
+        vec![Some(Expr::Literal(Literal::Number(SchemeNumber::Integer(
+            1,
+        ))))],
         Expr::Literal(Literal::Boolean(true)),
         vec![Expr::Variable("i".to_string())],
         vec![],
@@ -56,14 +58,14 @@ fn test_doloop_state_iteration_tracking() {
     // Test variable updates
     let new_vars = vec![("counter".to_string(), Value::from(2i64))];
     state.update_variables(new_vars);
-    
+
     assert_eq!(state.variables[0].1, Value::from(2i64));
 }
 
 #[test]
 fn test_doloop_state_optimization_heuristics() {
     let env = Rc::new(Environment::new());
-    
+
     // Simple loop that can be optimized
     let mut simple_state = DoLoopState::new(
         vec![("i".to_string(), Value::from(0i64))],
@@ -123,7 +125,7 @@ fn test_doloop_state_iteration_limit() {
     // Exceed limit
     let result = state.next_iteration();
     assert!(result.is_err());
-    
+
     if let Err(e) = result {
         let error_msg = format!("{:?}", e);
         assert!(error_msg.contains("exceeded maximum iterations"));
@@ -147,7 +149,7 @@ fn test_doloop_state_memory_usage() {
 
     let usage = state.memory_usage();
     assert!(usage > 0);
-    
+
     // Should account for variables, expressions, and environment
     let expected_minimum = 2 * std::mem::size_of::<String>() + 2 * std::mem::size_of::<Value>();
     assert!(usage >= expected_minimum);
@@ -157,7 +159,7 @@ fn test_doloop_state_memory_usage() {
 fn test_doloop_continuation_pool_basic_operations() {
     let mut pool = DoLoopContinuationPool::new(10);
     let env = Rc::new(Environment::new());
-    
+
     let state = DoLoopState::new(
         vec![("i".to_string(), Value::from(0i64))],
         vec![None],
@@ -196,7 +198,7 @@ fn test_doloop_continuation_pool_basic_operations() {
 fn test_doloop_continuation_pool_size_limit() {
     let mut pool = DoLoopContinuationPool::new(2); // Small pool
     let env = Rc::new(Environment::new());
-    
+
     let state = DoLoopState::new(
         vec![("i".to_string(), Value::from(0i64))],
         vec![None],
@@ -209,7 +211,7 @@ fn test_doloop_continuation_pool_size_limit() {
     // Fill the pool
     let (cont1, _) = pool.allocate(state.clone(), Continuation::Identity);
     pool.deallocate(cont1);
-    
+
     let (cont2, _) = pool.allocate(state.clone(), Continuation::Identity);
     pool.deallocate(cont2);
 
@@ -229,7 +231,7 @@ fn test_doloop_continuation_pool_size_limit() {
 fn test_doloop_continuation_pool_clear() {
     let mut pool = DoLoopContinuationPool::new(5);
     let env = Rc::new(Environment::new());
-    
+
     let state = DoLoopState::new(
         vec![("test".to_string(), Value::from(42i64))],
         vec![None],
@@ -242,7 +244,7 @@ fn test_doloop_continuation_pool_clear() {
     // Add some continuations
     let (cont1, _) = pool.allocate(state.clone(), Continuation::Identity);
     pool.deallocate(cont1);
-    
+
     let (cont2, _) = pool.allocate(state, Continuation::Identity);
     pool.deallocate(cont2);
 
@@ -259,20 +261,20 @@ fn test_doloop_continuation_pool_clear() {
         vec![],
         env2,
     );
-    
+
     let (cont3, _) = pool.allocate(state2, Continuation::Identity);
     let (_allocs, _reuses, _) = pool.statistics();
-    
+
     // Should allocate new since pool was cleared
     assert_eq!(_reuses, 1); // Only from earlier allocations
-    
+
     pool.deallocate(cont3);
 }
 
 #[test]
 fn test_evaluator_doloop_continuation_pool_integration() {
     let mut evaluator = Evaluator::new();
-    
+
     // Test pool access
     let pool_ref = evaluator.doloop_continuation_pool();
     let (allocs, reuses, rate) = pool_ref.statistics();
@@ -283,7 +285,7 @@ fn test_evaluator_doloop_continuation_pool_integration() {
     // Test mutable access
     let pool_mut = evaluator.doloop_continuation_pool_mut();
     let env = Rc::new(Environment::new());
-    
+
     let state = DoLoopState::new(
         vec![("eval_test".to_string(), Value::from(123i64))],
         vec![None],
@@ -295,9 +297,9 @@ fn test_evaluator_doloop_continuation_pool_integration() {
 
     let (cont, _) = pool_mut.allocate(state, Continuation::Identity);
     assert!(matches!(cont, Continuation::DoLoop { .. }));
-    
+
     pool_mut.deallocate(cont);
-    
+
     let (_allocs, _reuses, _) = pool_mut.statistics();
     assert_eq!(_allocs, 1);
 }

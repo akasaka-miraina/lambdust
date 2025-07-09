@@ -1,49 +1,62 @@
-# Lambdust C/C++ Integration Examples
+# Lambdust C/C++ Integration Examples / C/C++統合サンプル
 
 This directory contains comprehensive examples demonstrating how to integrate Lambdust Scheme interpreter with C and C++ applications.
 
-## Overview
+**日本語**: このディレクトリには、Lambdust Schemeインタープリターをを C/C++アプリケーションと統合する方法を示す包括的なサンプルが含まれています。
+
+## Overview / 概要
 
 Lambdust provides a complete C FFI (Foreign Function Interface) that allows:
-- Embedding the Scheme interpreter in C/C++ applications
-- Registering C/C++ functions callable from Scheme
-- Type-safe data exchange between C/C++ and Scheme
-- Advanced template-based integration for modern C++
+- Embedding the Scheme interpreter in C/C++ applications / C/C++アプリケーションへのSchemeインタープリター埋め込み
+- Registering C/C++ functions callable from Scheme / SchemeからC/C++関数の呼び出し
+- Type-safe data exchange between C/C++ and Scheme / C/C++とScheme間の型安全データ交換
+- Advanced template-based integration for modern C++ / モダンC++のためのテンプレートベース統合
+- Production-ready error handling and memory management / プロダクション品質のエラーハンドリングとメモリ管理
 
-## Prerequisites
+## Prerequisites / 前提条件
 
-- CMake 3.15 or later
-- C compiler with C11 support
-- C++ compiler with C++14 support (C++17/20 for advanced examples)
-- Rust toolchain (for building the core library)
+- CMake 3.15 or later / CMake 3.15以降
+- C compiler with C11 support / C11対応Cコンパイラ
+- C++ compiler with C++14 support (C++17/20 for advanced examples) / C++14対応コンパイラ（高度なサンプルにはC++17/20）
+- Rust toolchain (for building the core library) / Rustツールチェーン（コアライブラリのビルドに必要）
 
-## Building the Examples
+## Building the Examples / サンプルのビルド
 
-### Using CMake
+### Using CMake / CMakeを使用
 
 ```bash
-# Configure and build
+# Configure and build / 設定とビルド
 mkdir build && cd build
 cmake .. -DBUILD_EXAMPLES=ON
 make
 
-# Run tests
+# Run tests / テスト実行
 ctest
 ```
 
-### Manual Build (if CMake is not available)
+### Manual Build (if CMake is not available) / 手動ビルド（CMakeが利用できない場合）
 
 ```bash
-# Build the Rust library first
+# Build the Rust library first / 最初にRustライブラリをビルド
 cargo build --release
 
-# Compile C examples
+# Compile C examples / Cサンプルのコンパイル
 gcc -std=c11 -I../include examples/c_integration/basic_usage.c \
     -L../target/release -llambdust -ldl -lm -o basic_usage
 
-# Compile C++ examples  
+# Compile C++ examples / C++サンプルのコンパイル
 g++ -std=c++17 -I../include examples/cpp_integration/cpp_wrapper.cpp \
     -L../target/release -llambdust -ldl -lm -o cpp_wrapper
+```
+
+### Using Cargo Features / Cargoフィーチャーを使用
+
+```bash
+# Build with specific features / 特定機能でビルド
+cargo build --release --features "standard srfi-support"
+
+# Minimal embedded build for smaller binaries / 小さなバイナリ用の最小埋め込みビルド
+cargo build --release --features "embedded"
 ```
 
 ## C Integration Examples

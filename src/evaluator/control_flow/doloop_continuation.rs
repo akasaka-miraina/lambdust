@@ -72,7 +72,11 @@ impl Evaluator {
             )
         } else {
             // Multiple result expressions, evaluate as sequence
-            self.eval_sequence(iteration_state.result_exprs, iteration_state.loop_env, parent)
+            self.eval_sequence(
+                iteration_state.result_exprs,
+                iteration_state.loop_env,
+                parent,
+            )
         }
     }
 
@@ -132,17 +136,18 @@ impl Evaluator {
         let mut updated_variables = Vec::new();
 
         for (i, (var_name, current_value)) in iteration_state.variables.iter().enumerate() {
-            let new_value = if let Some(step_expr) = iteration_state.step_exprs.get(i).unwrap_or(&None) {
-                // Evaluate step expression
-                self.eval(
-                    step_expr.clone(),
-                    iteration_state.loop_env.clone(),
-                    Continuation::Identity,
-                )?
-            } else {
-                // No step expression - keep current value
-                current_value.clone()
-            };
+            let new_value =
+                if let Some(step_expr) = iteration_state.step_exprs.get(i).unwrap_or(&None) {
+                    // Evaluate step expression
+                    self.eval(
+                        step_expr.clone(),
+                        iteration_state.loop_env.clone(),
+                        Continuation::Identity,
+                    )?
+                } else {
+                    // No step expression - keep current value
+                    current_value.clone()
+                };
 
             updated_variables.push((var_name.clone(), new_value));
         }
@@ -225,14 +230,19 @@ impl DoLoopContinuationPool {
     }
 
     /// Allocate continuation from pool or create new one
-    pub fn allocate(&mut self, iteration_state: DoLoopState, parent: Continuation) -> (Continuation, Option<usize>) {
+    pub fn allocate(
+        &mut self,
+        iteration_state: DoLoopState,
+        parent: Continuation,
+    ) -> (Continuation, Option<usize>) {
         if let Some(mut reused_cont) = self.pool.pop() {
             // Reuse existing continuation
-            if let Continuation::DoLoop { 
-                iteration_state: ref mut state, 
-                pool_id: ref mut id, 
-                parent: ref mut p 
-            } = reused_cont {
+            if let Continuation::DoLoop {
+                iteration_state: ref mut state,
+                pool_id: ref mut id,
+                parent: ref mut p,
+            } = reused_cont
+            {
                 *state = iteration_state;
                 *p = Box::new(parent);
                 let pool_id = *id;
@@ -242,21 +252,27 @@ impl DoLoopContinuationPool {
                 // Pool contained wrong type, create new
                 self.allocations += 1;
                 let pool_id = Some(self.allocations);
-                (Continuation::DoLoop {
-                    iteration_state,
+                (
+                    Continuation::DoLoop {
+                        iteration_state,
+                        pool_id,
+                        parent: Box::new(parent),
+                    },
                     pool_id,
-                    parent: Box::new(parent),
-                }, pool_id)
+                )
             }
         } else {
             // Create new continuation
             self.allocations += 1;
             let pool_id = Some(self.allocations);
-            (Continuation::DoLoop {
-                iteration_state,
+            (
+                Continuation::DoLoop {
+                    iteration_state,
+                    pool_id,
+                    parent: Box::new(parent),
+                },
                 pool_id,
-                parent: Box::new(parent),
-            }, pool_id)
+            )
         }
     }
 
@@ -303,7 +319,7 @@ mod tests {
     fn test_doloop_continuation_pool() {
         let mut pool = DoLoopContinuationPool::new(2);
         let env = Rc::new(Environment::new());
-        
+
         // Create test DoLoopState
         let state = DoLoopState::new(
             vec![("i".to_string(), Value::from(0i64))],
@@ -391,7 +407,7 @@ mod tests {
         // Test iteration limit exceeded
         let result = state.next_iteration();
         assert!(result.is_err());
-        
+
         if let Err(e) = result {
             assert!(format!("{:?}", e).contains("exceeded maximum iterations"));
         }

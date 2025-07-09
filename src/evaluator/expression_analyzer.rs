@@ -124,15 +124,45 @@ impl ExpressionAnalyzer {
     /// Register built-in pure functions (no side effects)
     fn register_pure_functions(&mut self) {
         let pure_funcs = [
-            "+", "-", "*", "/", "=", "<", ">", "<=", ">=",
-            "abs", "floor", "ceiling", "sqrt", "expt",
-            "car", "cdr", "cons", "list", "length",
-            "string-length", "string-ref", "substring",
-            "vector-length", "vector-ref",
-            "not", "and", "or",
-            "eq?", "eqv?", "equal?",
-            "number?", "string?", "symbol?", "pair?", "null?",
-            "boolean?", "char?", "vector?", "procedure?",
+            "+",
+            "-",
+            "*",
+            "/",
+            "=",
+            "<",
+            ">",
+            "<=",
+            ">=",
+            "abs",
+            "floor",
+            "ceiling",
+            "sqrt",
+            "expt",
+            "car",
+            "cdr",
+            "cons",
+            "list",
+            "length",
+            "string-length",
+            "string-ref",
+            "substring",
+            "vector-length",
+            "vector-ref",
+            "not",
+            "and",
+            "or",
+            "eq?",
+            "eqv?",
+            "equal?",
+            "number?",
+            "string?",
+            "symbol?",
+            "pair?",
+            "null?",
+            "boolean?",
+            "char?",
+            "vector?",
+            "procedure?",
         ];
 
         for func in &pure_funcs {
@@ -149,33 +179,37 @@ impl ExpressionAnalyzer {
         }
 
         let result = self.analyze_expression(expr, env)?;
-        
+
         // Cache the result
         self.cache.insert(cache_key, result.clone());
         Ok(result)
     }
 
     /// Internal expression analysis implementation
-    fn analyze_expression(&mut self, expr: &Expr, env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_expression(
+        &mut self,
+        expr: &Expr,
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         match expr {
             // Literals are always constant
             Expr::Literal(lit) => self.analyze_literal(lit),
-            
+
             // Variables depend on environment
             Expr::Variable(name) => self.analyze_variable(name, env),
-            
+
             // Lists (function applications)
             Expr::List(exprs) => self.analyze_list(exprs, env),
-            
+
             // Quoted expressions are constant
             Expr::Quote(inner) => self.analyze_quote(inner),
-            
+
             // Quasiquote (simplified as quote for now)
             Expr::Quasiquote(inner) => self.analyze_quote(inner),
-            
+
             // Vectors
             Expr::Vector(exprs) => self.analyze_vector(exprs, env),
-            
+
             // Dotted lists
             Expr::DottedList(_, _) => Ok(AnalysisResult {
                 is_constant: false,
@@ -186,7 +220,7 @@ impl ExpressionAnalyzer {
                 dependencies: Vec::new(),
                 optimizations: Vec::new(),
             }),
-            
+
             // Unquote and UnquoteSplicing (not yet implemented)
             Expr::Unquote(_) | Expr::UnquoteSplicing(_) => Ok(AnalysisResult {
                 is_constant: false,
@@ -232,18 +266,29 @@ impl ExpressionAnalyzer {
                 complexity: EvaluationComplexity::Constant,
                 has_side_effects: false,
                 dependencies: Vec::new(),
-                optimizations: vec![OptimizationHint::InlineVariable(name.to_string(), value.clone())],
+                optimizations: vec![OptimizationHint::InlineVariable(
+                    name.to_string(),
+                    value.clone(),
+                )],
             });
         }
 
         // Try to get type hint
-        let type_hint = self.type_env.get(name).cloned().unwrap_or(TypeHint::Unknown);
+        let type_hint = self
+            .type_env
+            .get(name)
+            .cloned()
+            .unwrap_or(TypeHint::Unknown);
 
         // Check environment for constant values
         let (is_constant, constant_value, optimizations) = if let Some(env) = env {
             if let Some(value) = env.get(name) {
                 if self.is_constant_value(&value) {
-                    (true, Some(value.clone()), vec![OptimizationHint::InlineVariable(name.to_string(), value)])
+                    (
+                        true,
+                        Some(value.clone()),
+                        vec![OptimizationHint::InlineVariable(name.to_string(), value)],
+                    )
                 } else {
                     (false, None, Vec::new())
                 }
@@ -266,7 +311,11 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze list expressions (function applications)
-    fn analyze_list(&mut self, exprs: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_list(
+        &mut self,
+        exprs: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         if exprs.is_empty() {
             return Ok(AnalysisResult {
                 is_constant: true,
@@ -284,7 +333,7 @@ impl ExpressionAnalyzer {
             if self.is_special_form(name) {
                 return self.analyze_special_form(name, &exprs[1..], env);
             }
-            
+
             // Check for function applications
             return self.analyze_function_application(name, &exprs[1..], env);
         }
@@ -309,7 +358,11 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze vector expressions
-    fn analyze_vector(&mut self, exprs: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_vector(
+        &mut self,
+        exprs: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         let mut all_constant = true;
         let mut constant_values = Vec::new();
         let mut complexity = EvaluationComplexity::Constant;
@@ -319,7 +372,7 @@ impl ExpressionAnalyzer {
 
         for expr in exprs {
             let result = self.analyze_expression(expr, env)?;
-            
+
             if result.is_constant {
                 if let Some(value) = result.constant_value {
                     constant_values.push(value);
@@ -337,7 +390,10 @@ impl ExpressionAnalyzer {
 
         let (constant_value, opt_hint) = if all_constant {
             let vector_value = Value::Vector(constant_values);
-            (Some(vector_value.clone()), vec![OptimizationHint::ConstantFold(vector_value)])
+            (
+                Some(vector_value.clone()),
+                vec![OptimizationHint::ConstantFold(vector_value)],
+            )
         } else {
             (None, Vec::new())
         };
@@ -356,7 +412,12 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze special forms
-    fn analyze_special_form(&mut self, name: &str, args: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_special_form(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         match name {
             "if" => self.analyze_if_form(args, env),
             "and" => self.analyze_and_form(args, env),
@@ -366,7 +427,9 @@ impl ExpressionAnalyzer {
                 if args.len() == 1 {
                     self.analyze_quote(&args[0])
                 } else {
-                    Err(LambdustError::syntax_error("quote requires exactly one argument".to_string()))
+                    Err(LambdustError::syntax_error(
+                        "quote requires exactly one argument".to_string(),
+                    ))
                 }
             }
             "lambda" => self.analyze_lambda_form(args, env),
@@ -387,7 +450,12 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze function applications
-    fn analyze_function_application(&mut self, func_name: &str, args: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_function_application(
+        &mut self,
+        func_name: &str,
+        args: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         // Analyze arguments
         let mut arg_results = Vec::new();
         let mut all_args_constant = true;
@@ -399,7 +467,7 @@ impl ExpressionAnalyzer {
 
         for arg in args {
             let result = self.analyze_expression(arg, env)?;
-            
+
             if result.is_constant {
                 if let Some(value) = &result.constant_value {
                     arg_values.push(value.clone());
@@ -424,17 +492,24 @@ impl ExpressionAnalyzer {
         let (is_constant, constant_value, optimizations) = if is_pure && all_args_constant {
             // Try constant folding for pure functions with constant arguments
             match self.try_constant_fold(func_name, &arg_values) {
-                Ok(value) => (true, Some(value.clone()), vec![OptimizationHint::ConstantFold(value)]),
+                Ok(value) => (
+                    true,
+                    Some(value.clone()),
+                    vec![OptimizationHint::ConstantFold(value)],
+                ),
                 Err(_) => (false, None, Vec::new()),
             }
         } else {
             let mut opts = Vec::new();
-            
+
             // Suggest specialization if we have type hints
             if !arg_types.iter().any(|t| matches!(t, TypeHint::Unknown)) {
-                opts.push(OptimizationHint::SpecializeCall(func_name.to_string(), arg_types.clone()));
+                opts.push(OptimizationHint::SpecializeCall(
+                    func_name.to_string(),
+                    arg_types.clone(),
+                ));
             }
-            
+
             (false, None, opts)
         };
 
@@ -450,7 +525,11 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze general applications (non-function-name first element)
-    fn analyze_general_application(&mut self, exprs: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_general_application(
+        &mut self,
+        exprs: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         let mut complexity = EvaluationComplexity::Simple;
         let mut has_side_effects = true; // Conservative assumption
         let mut dependencies = Vec::new();
@@ -474,9 +553,15 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze if expressions
-    fn analyze_if_form(&mut self, args: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_if_form(
+        &mut self,
+        args: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         if args.len() < 2 || args.len() > 3 {
-            return Err(LambdustError::syntax_error("if requires 2 or 3 arguments".to_string()));
+            return Err(LambdustError::syntax_error(
+                "if requires 2 or 3 arguments".to_string(),
+            ));
         }
 
         let test_result = self.analyze_expression(&args[0], env)?;
@@ -492,23 +577,37 @@ impl ExpressionAnalyzer {
             if let Some(test_value) = &test_result.constant_value {
                 if test_value.is_truthy() {
                     // Condition is always true, use then branch
-                    (then_result.is_constant, then_result.constant_value.clone(), 
-                     if then_result.is_constant && then_result.constant_value.is_some() {
-                         vec![OptimizationHint::ConstantFold(then_result.constant_value.unwrap())]
-                     } else {
-                         vec![OptimizationHint::DeadCode] // else branch is dead
-                     })
+                    (
+                        then_result.is_constant,
+                        then_result.constant_value.clone(),
+                        if then_result.is_constant && then_result.constant_value.is_some() {
+                            vec![OptimizationHint::ConstantFold(
+                                then_result.constant_value.unwrap(),
+                            )]
+                        } else {
+                            vec![OptimizationHint::DeadCode] // else branch is dead
+                        },
+                    )
                 } else {
                     // Condition is always false, use else branch
                     if let Some(else_res) = &else_result {
-                        (else_res.is_constant, else_res.constant_value.clone(),
-                         if else_res.is_constant && else_res.constant_value.is_some() {
-                             vec![OptimizationHint::ConstantFold(else_res.constant_value.clone().unwrap())]
-                         } else {
-                             vec![OptimizationHint::DeadCode] // then branch is dead
-                         })
+                        (
+                            else_res.is_constant,
+                            else_res.constant_value.clone(),
+                            if else_res.is_constant && else_res.constant_value.is_some() {
+                                vec![OptimizationHint::ConstantFold(
+                                    else_res.constant_value.clone().unwrap(),
+                                )]
+                            } else {
+                                vec![OptimizationHint::DeadCode] // then branch is dead
+                            },
+                        )
                     } else {
-                        (true, Some(Value::Undefined), vec![OptimizationHint::ConstantFold(Value::Undefined)])
+                        (
+                            true,
+                            Some(Value::Undefined),
+                            vec![OptimizationHint::ConstantFold(Value::Undefined)],
+                        )
                     }
                 }
             } else {
@@ -551,7 +650,11 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze and expressions
-    fn analyze_and_form(&mut self, args: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_and_form(
+        &mut self,
+        args: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         if args.is_empty() {
             return Ok(AnalysisResult {
                 is_constant: true,
@@ -596,12 +699,15 @@ impl ExpressionAnalyzer {
         let (is_constant, constant_value, optimizations) = if all_constant {
             // All arguments are truthy constants, return the last one
             let last_result = self.analyze_expression(&args[args.len() - 1], env)?;
-            (true, last_result.constant_value.clone(), 
-             if let Some(value) = last_result.constant_value {
-                 vec![OptimizationHint::ConstantFold(value)]
-             } else {
-                 Vec::new()
-             })
+            (
+                true,
+                last_result.constant_value.clone(),
+                if let Some(value) = last_result.constant_value {
+                    vec![OptimizationHint::ConstantFold(value)]
+                } else {
+                    Vec::new()
+                },
+            )
         } else {
             (false, None, Vec::new())
         };
@@ -618,7 +724,11 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze or expressions
-    fn analyze_or_form(&mut self, args: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_or_form(
+        &mut self,
+        args: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         if args.is_empty() {
             return Ok(AnalysisResult {
                 is_constant: true,
@@ -683,7 +793,11 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze begin expressions
-    fn analyze_begin_form(&mut self, args: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_begin_form(
+        &mut self,
+        args: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         if args.is_empty() {
             return Ok(AnalysisResult {
                 is_constant: true,
@@ -716,7 +830,11 @@ impl ExpressionAnalyzer {
 
         Ok(AnalysisResult {
             is_constant: !has_side_effects && last_result.is_constant,
-            constant_value: if !has_side_effects { last_result.constant_value.clone() } else { None },
+            constant_value: if !has_side_effects {
+                last_result.constant_value.clone()
+            } else {
+                None
+            },
             type_hint: last_result.type_hint,
             complexity,
             has_side_effects,
@@ -734,9 +852,15 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze lambda expressions
-    fn analyze_lambda_form(&mut self, args: &[Expr], _env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_lambda_form(
+        &mut self,
+        args: &[Expr],
+        _env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         if args.len() < 2 {
-            return Err(LambdustError::syntax_error("lambda requires at least 2 arguments".to_string()));
+            return Err(LambdustError::syntax_error(
+                "lambda requires at least 2 arguments".to_string(),
+            ));
         }
 
         // Lambda expressions are never constant but have no immediate side effects
@@ -752,9 +876,15 @@ impl ExpressionAnalyzer {
     }
 
     /// Analyze define expressions
-    fn analyze_define_form(&mut self, args: &[Expr], env: Option<&Environment>) -> Result<AnalysisResult> {
+    fn analyze_define_form(
+        &mut self,
+        args: &[Expr],
+        env: Option<&Environment>,
+    ) -> Result<AnalysisResult> {
         if args.len() != 2 {
-            return Err(LambdustError::syntax_error("define requires exactly 2 arguments".to_string()));
+            return Err(LambdustError::syntax_error(
+                "define requires exactly 2 arguments".to_string(),
+            ));
         }
 
         // Analyze the value expression
@@ -788,7 +918,10 @@ impl ExpressionAnalyzer {
             "car" => self.fold_car(args),
             "cdr" => self.fold_cdr(args),
             "length" => self.fold_length(args),
-            _ => Err(LambdustError::runtime_error(format!("Cannot constant fold {}", func_name))),
+            _ => Err(LambdustError::runtime_error(format!(
+                "Cannot constant fold {}",
+                func_name
+            ))),
         }
     }
 
@@ -801,27 +934,39 @@ impl ExpressionAnalyzer {
             return Err(LambdustError::arity_error(1, 0));
         }
 
+        let mut has_real = false;
         let mut result = 0.0;
+
         for (i, arg) in args.iter().enumerate() {
-            if let Value::Number(SchemeNumber::Integer(n)) = arg {
-                let val = *n as f64;
-                if i == 0 {
-                    result = val;
-                } else {
-                    result = op(result, val);
+            match arg {
+                Value::Number(SchemeNumber::Integer(n)) => {
+                    let val = *n as f64;
+                    if i == 0 {
+                        result = val;
+                    } else {
+                        result = op(result, val);
+                    }
                 }
-            } else if let Value::Number(SchemeNumber::Real(f)) = arg {
-                if i == 0 {
-                    result = *f;
-                } else {
-                    result = op(result, *f);
+                Value::Number(SchemeNumber::Real(f)) => {
+                    has_real = true;
+                    if i == 0 {
+                        result = *f;
+                    } else {
+                        result = op(result, *f);
+                    }
                 }
-            } else {
-                return Err(LambdustError::type_error("Expected number".to_string()));
+                _ => {
+                    return Err(LambdustError::type_error("Expected number".to_string()));
+                }
             }
         }
 
-        Ok(Value::Number(SchemeNumber::Real(result)))
+        // Return integer if all inputs were integers and result is a whole number
+        if !has_real && result.fract() == 0.0 && result.is_finite() {
+            Ok(Value::Number(SchemeNumber::Integer(result as i64)))
+        } else {
+            Ok(Value::Number(SchemeNumber::Real(result)))
+        }
     }
 
     /// Fold subtraction
@@ -833,7 +978,9 @@ impl ExpressionAnalyzer {
         if args.len() == 1 {
             // Negation
             match &args[0] {
-                Value::Number(SchemeNumber::Integer(n)) => Ok(Value::Number(SchemeNumber::Integer(-n))),
+                Value::Number(SchemeNumber::Integer(n)) => {
+                    Ok(Value::Number(SchemeNumber::Integer(-n)))
+                }
                 Value::Number(SchemeNumber::Real(f)) => Ok(Value::Number(SchemeNumber::Real(-f))),
                 _ => Err(LambdustError::type_error("Expected number".to_string())),
             }
@@ -901,7 +1048,9 @@ impl ExpressionAnalyzer {
                 let pair_data = pair.borrow();
                 Ok(pair_data.car.clone())
             }
-            Value::Nil => Err(LambdustError::runtime_error("Cannot take car of empty list".to_string())),
+            Value::Nil => Err(LambdustError::runtime_error(
+                "Cannot take car of empty list".to_string(),
+            )),
             _ => Err(LambdustError::type_error("Expected pair".to_string())),
         }
     }
@@ -917,7 +1066,9 @@ impl ExpressionAnalyzer {
                 let pair_data = pair.borrow();
                 Ok(pair_data.cdr.clone())
             }
-            Value::Nil => Err(LambdustError::runtime_error("Cannot take cdr of empty list".to_string())),
+            Value::Nil => Err(LambdustError::runtime_error(
+                "Cannot take cdr of empty list".to_string(),
+            )),
             _ => Err(LambdustError::type_error("Expected pair".to_string())),
         }
     }
@@ -935,9 +1086,13 @@ impl ExpressionAnalyzer {
             Value::Pair(_) => {
                 // For now, we can't easily constant fold list length without more complex logic
                 // This would require walking the list structure at analysis time
-                Err(LambdustError::runtime_error("Cannot constant fold list length".to_string()))
+                Err(LambdustError::runtime_error(
+                    "Cannot constant fold list length".to_string(),
+                ))
             }
-            _ => Err(LambdustError::type_error("Expected list, vector, or string".to_string())),
+            _ => Err(LambdustError::type_error(
+                "Expected list, vector, or string".to_string(),
+            )),
         }
     }
 
@@ -945,19 +1100,41 @@ impl ExpressionAnalyzer {
     fn is_special_form(&self, name: &str) -> bool {
         matches!(
             name,
-            "lambda" | "if" | "set!" | "quote" | "define" | "begin" | "and" | "or" | "cond" | "case" | "do"
-            | "delay" | "lazy" | "force" | "promise?" | "call/cc" | "call-with-current-continuation"
-            | "values" | "call-with-values" | "dynamic-wind" | "raise" | "with-exception-handler" | "guard"
+            "lambda"
+                | "if"
+                | "set!"
+                | "quote"
+                | "define"
+                | "begin"
+                | "and"
+                | "or"
+                | "cond"
+                | "case"
+                | "do"
+                | "delay"
+                | "lazy"
+                | "force"
+                | "promise?"
+                | "call/cc"
+                | "call-with-current-continuation"
+                | "values"
+                | "call-with-values"
+                | "dynamic-wind"
+                | "raise"
+                | "with-exception-handler"
+                | "guard"
         )
     }
 
     /// Infer return type of function
     fn infer_function_return_type(&self, func_name: &str, arg_types: &[TypeHint]) -> TypeHint {
         match func_name {
-            "+" | "-" | "*" | "/" | "abs" | "floor" | "ceiling" | "sqrt" | "expt" | "length" => TypeHint::Number,
-            "=" | "<" | ">" | "<=" | ">=" | "not" | "eq?" | "eqv?" | "equal?" 
-            | "number?" | "string?" | "symbol?" | "pair?" | "null?" | "boolean?" 
-            | "char?" | "vector?" | "procedure?" => TypeHint::Boolean,
+            "+" | "-" | "*" | "/" | "abs" | "floor" | "ceiling" | "sqrt" | "expt" | "length" => {
+                TypeHint::Number
+            }
+            "=" | "<" | ">" | "<=" | ">=" | "not" | "eq?" | "eqv?" | "equal?" | "number?"
+            | "string?" | "symbol?" | "pair?" | "null?" | "boolean?" | "char?" | "vector?"
+            | "procedure?" => TypeHint::Boolean,
             "string-ref" | "char-upcase" | "char-downcase" => TypeHint::Character,
             "cons" => TypeHint::List,
             "car" | "cdr" => {
@@ -991,8 +1168,12 @@ impl ExpressionAnalyzer {
     fn is_constant_value(&self, value: &Value) -> bool {
         matches!(
             value,
-            Value::Boolean(_) | Value::Number(_) | Value::String(_) 
-            | Value::Character(_) | Value::Symbol(_) | Value::Nil
+            Value::Boolean(_)
+                | Value::Number(_)
+                | Value::String(_)
+                | Value::Character(_)
+                | Value::Symbol(_)
+                | Value::Nil
         )
     }
 
@@ -1000,15 +1181,13 @@ impl ExpressionAnalyzer {
     #[allow(clippy::only_used_in_recursion)]
     fn expr_to_value(&self, expr: &Expr) -> Result<Value> {
         match expr {
-            Expr::Literal(lit) => {
-                match lit {
-                    Literal::Boolean(b) => Ok(Value::Boolean(*b)),
-                    Literal::Number(n) => Ok(Value::Number(n.clone())),
-                    Literal::String(s) => Ok(Value::String(s.clone())),
-                    Literal::Character(c) => Ok(Value::Character(*c)),
-                    Literal::Nil => Ok(Value::Nil),
-                }
-            }
+            Expr::Literal(lit) => match lit {
+                Literal::Boolean(b) => Ok(Value::Boolean(*b)),
+                Literal::Number(n) => Ok(Value::Number(n.clone())),
+                Literal::String(s) => Ok(Value::String(s.clone())),
+                Literal::Character(c) => Ok(Value::Character(*c)),
+                Literal::Nil => Ok(Value::Nil),
+            },
             Expr::Variable(name) => Ok(Value::Symbol(name.clone())),
             Expr::List(exprs) => {
                 // Convert to list structure
@@ -1026,7 +1205,9 @@ impl ExpressionAnalyzer {
                 }
                 Ok(Value::Vector(values))
             }
-            _ => Err(LambdustError::runtime_error("Cannot convert expression to value".to_string())),
+            _ => Err(LambdustError::runtime_error(
+                "Cannot convert expression to value".to_string(),
+            )),
         }
     }
 
@@ -1090,8 +1271,8 @@ impl OptimizationStats {
         if self.total_analyses == 0 {
             0.0
         } else {
-            (self.constant_folds + self.dead_code_eliminations + self.specializations) as f64 
-            / self.total_analyses as f64
+            (self.constant_folds + self.dead_code_eliminations + self.specializations) as f64
+                / self.total_analyses as f64
         }
     }
 }

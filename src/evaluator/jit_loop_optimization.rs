@@ -12,8 +12,8 @@
 use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
-use crate::evaluator::{Continuation, Evaluator};
 use crate::evaluator::expression_analyzer::EvaluationComplexity;
+use crate::evaluator::{Continuation, Evaluator};
 use crate::value::Value;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -32,7 +32,7 @@ pub enum LoopPattern {
         /// Step increment
         step: i64,
     },
-    
+
     /// List iteration loop (for-each pattern)
     ListIteration {
         /// Iterator variable name
@@ -40,15 +40,15 @@ pub enum LoopPattern {
         /// List expression to iterate over
         list_expr: Expr,
     },
-    
-    /// Vector iteration loop 
+
+    /// Vector iteration loop
     VectorIteration {
         /// Iterator variable name
         variable: String,
         /// Vector expression to iterate over
         vector_expr: Expr,
     },
-    
+
     /// Conditional accumulation loop
     AccumulationLoop {
         /// Accumulator variable name
@@ -58,7 +58,7 @@ pub enum LoopPattern {
         /// Accumulator update expression
         update_expr: Expr,
     },
-    
+
     /// Complex loop requiring fallback to CPS
     ComplexLoop,
 }
@@ -88,19 +88,19 @@ pub enum IterationStrategy {
         /// Step increment
         step: i64,
     },
-    
+
     /// Iterator-based iteration
     IteratorBased {
         /// Type of iterator to use
         iterator_type: IteratorType,
     },
-    
+
     /// Manual loop with exit conditions
     ManualLoop {
         /// Maximum allowed iterations
         max_iterations: usize,
     },
-    
+
     /// Fallback to CPS continuation
     CpsFallback,
 }
@@ -160,18 +160,21 @@ impl JitHotPathDetector {
             compiled_patterns: HashMap::new(),
         }
     }
-    
+
     /// Record loop execution and return JIT hint
     pub fn record_execution(&mut self, pattern_id: &str) -> JitHint {
-        let count = self.execution_counts.entry(pattern_id.to_string()).or_insert(0);
+        let count = self
+            .execution_counts
+            .entry(pattern_id.to_string())
+            .or_insert(0);
         *count += 1;
         self.total_executions += 1;
-        
+
         // Check if already compiled
         if self.compiled_patterns.contains_key(pattern_id) {
             return JitHint::CompileImmediate; // Use existing compilation
         }
-        
+
         // Decide compilation strategy based on execution frequency
         if *count >= self.compilation_threshold {
             JitHint::CompileImmediate
@@ -183,17 +186,17 @@ impl JitHotPathDetector {
             JitHint::NoCompile
         }
     }
-    
+
     /// Register compiled loop
     pub fn register_compiled_loop(&mut self, pattern_id: String, compiled: CompiledLoop) {
         self.compiled_patterns.insert(pattern_id, compiled);
     }
-    
+
     /// Get compiled loop if available
     pub fn get_compiled_loop(&self, pattern_id: &str) -> Option<&CompiledLoop> {
         self.compiled_patterns.get(pattern_id)
     }
-    
+
     /// Get compilation statistics
     pub fn compilation_statistics(&self) -> (usize, usize, f64) {
         let total_patterns = self.execution_counts.len();
@@ -205,7 +208,7 @@ impl JitHotPathDetector {
         };
         (compiled_count, total_patterns, compilation_rate)
     }
-    
+
     /// Clear compilation cache
     pub fn clear_cache(&mut self) {
         self.compiled_patterns.clear();
@@ -237,82 +240,85 @@ impl LoopPatternAnalyzer {
             pattern_cache: HashMap::new(),
         }
     }
-    
+
     /// Analyze do-loop for pattern detection
     pub fn analyze_do_loop(&mut self, operands: &[Expr]) -> Result<LoopPattern> {
         if operands.len() < 2 {
             return Ok(LoopPattern::ComplexLoop);
         }
-        
+
         // Parse variable bindings
         let bindings = match &operands[0] {
-            Expr::List(var_clauses) => {
-                self.parse_variable_bindings(var_clauses)?
-            }
+            Expr::List(var_clauses) => self.parse_variable_bindings(var_clauses)?,
             _ => return Ok(LoopPattern::ComplexLoop),
         };
-        
+
         // Parse test clause
         let test_expr = match &operands[1] {
-            Expr::List(test_clause) if !test_clause.is_empty() => {
-                &test_clause[0]
-            }
+            Expr::List(test_clause) if !test_clause.is_empty() => &test_clause[0],
             _ => return Ok(LoopPattern::ComplexLoop),
         };
-        
+
         // Detect specific patterns
         if let Some(pattern) = self.detect_counting_loop(&bindings, test_expr)? {
             self.record_pattern_detection("counting_loop");
             return Ok(pattern);
         }
-        
+
         if let Some(pattern) = self.detect_list_iteration(&bindings, test_expr)? {
             self.record_pattern_detection("list_iteration");
             return Ok(pattern);
         }
-        
+
         if let Some(pattern) = self.detect_accumulation_loop(&bindings, test_expr)? {
             self.record_pattern_detection("accumulation_loop");
             return Ok(pattern);
         }
-        
+
         // Default to complex loop
         self.record_pattern_detection("complex_loop");
         Ok(LoopPattern::ComplexLoop)
     }
-    
+
     /// Parse variable bindings from do-loop
-    fn parse_variable_bindings(&self, var_clauses: &[Expr]) -> Result<Vec<(String, Expr, Option<Expr>)>> {
+    fn parse_variable_bindings(
+        &self,
+        var_clauses: &[Expr],
+    ) -> Result<Vec<(String, Expr, Option<Expr>)>> {
         let mut bindings = Vec::new();
-        
+
         for clause in var_clauses {
             match clause {
                 Expr::List(parts) if parts.len() >= 2 => {
                     let var_name = match &parts[0] {
                         Expr::Variable(name) => name.clone(),
-                        _ => return Err(LambdustError::syntax_error(
-                            "do binding variable must be identifier".to_string(),
-                        )),
+                        _ => {
+                            return Err(LambdustError::syntax_error(
+                                "do binding variable must be identifier".to_string(),
+                            ));
+                        }
                     };
-                    
+
                     let init_expr = parts[1].clone();
                     let step_expr = if parts.len() > 2 {
                         Some(parts[2].clone())
                     } else {
                         None
                     };
-                    
+
                     bindings.push((var_name, init_expr, step_expr));
                 }
-                _ => return Err(LambdustError::syntax_error(
-                    "invalid do binding format".to_string(),
-                )),
+                _ => {
+                    return Err(LambdustError::syntax_error(
+                        "invalid do binding format".to_string(),
+                    ));
+                }
             }
         }
-        
+
         Ok(bindings)
     }
-    
+
     /// Detect counting loop pattern: (do ((i 0 (+ i 1))) ((>= i n)) ...)
     fn detect_counting_loop(
         &self,
@@ -323,9 +329,9 @@ impl LoopPatternAnalyzer {
         if bindings.len() != 1 {
             return Ok(None);
         }
-        
+
         let (var_name, init_expr, step_expr) = &bindings[0];
-        
+
         // Check initial value is integer literal
         let start = match init_expr {
             Expr::Literal(crate::ast::Literal::Number(n)) => {
@@ -337,7 +343,7 @@ impl LoopPatternAnalyzer {
             }
             _ => return Ok(None),
         };
-        
+
         // Check step expression is simple increment
         let step = match step_expr {
             Some(Expr::List(parts)) if parts.len() == 3 => {
@@ -359,28 +365,26 @@ impl LoopPatternAnalyzer {
             None => 1, // Default step
             _ => return Ok(None),
         };
-        
+
         // Check test condition is simple comparison
         let end = match test_expr {
-            Expr::List(parts) if parts.len() == 3 => {
-                match (&parts[0], &parts[1], &parts[2]) {
-                    (
-                        Expr::Variable(op),
-                        Expr::Variable(var),
-                        Expr::Literal(crate::ast::Literal::Number(end_val)),
-                    ) if (op == ">=" || op == "<") && var == var_name => {
-                        if let Ok(e) = end_val.to_string().parse::<i64>() {
-                            e
-                        } else {
-                            return Ok(None);
-                        }
+            Expr::List(parts) if parts.len() == 3 => match (&parts[0], &parts[1], &parts[2]) {
+                (
+                    Expr::Variable(op),
+                    Expr::Variable(var),
+                    Expr::Literal(crate::ast::Literal::Number(end_val)),
+                ) if (op == ">=" || op == "<") && var == var_name => {
+                    if let Ok(e) = end_val.to_string().parse::<i64>() {
+                        e
+                    } else {
+                        return Ok(None);
                     }
-                    _ => return Ok(None),
                 }
-            }
+                _ => return Ok(None),
+            },
             _ => return Ok(None),
         };
-        
+
         Ok(Some(LoopPattern::CountingLoop {
             variable: var_name.clone(),
             start,
@@ -388,7 +392,7 @@ impl LoopPatternAnalyzer {
             step,
         }))
     }
-    
+
     /// Detect list iteration pattern
     fn detect_list_iteration(
         &self,
@@ -409,7 +413,7 @@ impl LoopPatternAnalyzer {
         }
         Ok(None)
     }
-    
+
     /// Detect accumulation loop pattern
     fn detect_accumulation_loop(
         &self,
@@ -431,30 +435,37 @@ impl LoopPatternAnalyzer {
         }
         Ok(None)
     }
-    
+
     /// Check if expression references a specific variable
     #[allow(clippy::only_used_in_recursion)]
     fn expression_references_variable(&self, expr: &Expr, var_name: &str) -> bool {
         match expr {
             Expr::Variable(name) => name == var_name,
-            Expr::List(exprs) => exprs.iter().any(|e| self.expression_references_variable(e, var_name)),
-            Expr::Vector(exprs) => exprs.iter().any(|e| self.expression_references_variable(e, var_name)),
+            Expr::List(exprs) => exprs
+                .iter()
+                .any(|e| self.expression_references_variable(e, var_name)),
+            Expr::Vector(exprs) => exprs
+                .iter()
+                .any(|e| self.expression_references_variable(e, var_name)),
             Expr::Quote(inner) => self.expression_references_variable(inner, var_name),
             Expr::Quasiquote(inner) => self.expression_references_variable(inner, var_name),
             _ => false,
         }
     }
-    
+
     /// Record pattern detection for statistics
     fn record_pattern_detection(&mut self, pattern_type: &str) {
-        *self.detection_stats.entry(pattern_type.to_string()).or_insert(0) += 1;
+        *self
+            .detection_stats
+            .entry(pattern_type.to_string())
+            .or_insert(0) += 1;
     }
-    
+
     /// Get pattern detection statistics
     pub fn detection_statistics(&self) -> &HashMap<String, usize> {
         &self.detection_stats
     }
-    
+
     /// Clear pattern cache
     pub fn clear_cache(&mut self) {
         self.pattern_cache.clear();
@@ -507,74 +518,71 @@ impl NativeCodeGenerator {
             generation_stats: HashMap::new(),
         }
     }
-    
+
     /// Generate native iteration code for pattern
     pub fn generate_native_code(&mut self, pattern: &LoopPattern) -> Result<GeneratedCode> {
         let strategy = self.select_iteration_strategy(pattern)?;
         let characteristics = self.estimate_performance_characteristics(&strategy);
-        
+
         let code = GeneratedCode {
             strategy,
             characteristics,
             generated_at: std::time::Instant::now(),
         };
-        
+
         // Cache generated code
         let pattern_id = self.pattern_to_id(pattern);
         self.code_cache.insert(pattern_id.clone(), code.clone());
-        
+
         // Update generation statistics
         *self.generation_stats.entry(pattern_id).or_insert(0) += 1;
-        
+
         Ok(code)
     }
-    
+
     /// Select optimal iteration strategy for pattern
     fn select_iteration_strategy(&self, pattern: &LoopPattern) -> Result<IterationStrategy> {
         match pattern {
-            LoopPattern::CountingLoop { start, end, step, .. } => {
-                Ok(IterationStrategy::NativeForLoop {
-                    start: *start,
-                    end: *end,
-                    step: *step,
-                })
-            }
-            
-            LoopPattern::ListIteration { .. } => {
-                Ok(IterationStrategy::IteratorBased {
-                    iterator_type: IteratorType::List,
-                })
-            }
-            
-            LoopPattern::VectorIteration { .. } => {
-                Ok(IterationStrategy::IteratorBased {
-                    iterator_type: IteratorType::Vector,
-                })
-            }
-            
+            LoopPattern::CountingLoop {
+                start, end, step, ..
+            } => Ok(IterationStrategy::NativeForLoop {
+                start: *start,
+                end: *end,
+                step: *step,
+            }),
+
+            LoopPattern::ListIteration { .. } => Ok(IterationStrategy::IteratorBased {
+                iterator_type: IteratorType::List,
+            }),
+
+            LoopPattern::VectorIteration { .. } => Ok(IterationStrategy::IteratorBased {
+                iterator_type: IteratorType::Vector,
+            }),
+
             LoopPattern::AccumulationLoop { .. } => {
                 Ok(IterationStrategy::ManualLoop {
                     max_iterations: 100_000, // Safety limit
                 })
             }
-            
-            LoopPattern::ComplexLoop => {
-                Ok(IterationStrategy::CpsFallback)
-            }
+
+            LoopPattern::ComplexLoop => Ok(IterationStrategy::CpsFallback),
         }
     }
-    
+
     /// Estimate performance characteristics of strategy
-    pub fn estimate_performance_characteristics(&self, strategy: &IterationStrategy) -> CodeCharacteristics {
+    pub fn estimate_performance_characteristics(
+        &self,
+        strategy: &IterationStrategy,
+    ) -> CodeCharacteristics {
         match strategy {
             IterationStrategy::NativeForLoop { .. } => {
                 CodeCharacteristics {
                     iterations_per_second: 10_000_000.0, // Very fast
-                    memory_overhead: 16, // Minimal overhead
-                    cache_friendliness: 0.95, // Excellent cache locality
+                    memory_overhead: 16,                 // Minimal overhead
+                    cache_friendliness: 0.95,            // Excellent cache locality
                 }
             }
-            
+
             IterationStrategy::IteratorBased { iterator_type } => {
                 let (ips, overhead, cache) = match iterator_type {
                     IteratorType::Range => (8_000_000.0, 24, 0.90),
@@ -582,36 +590,41 @@ impl NativeCodeGenerator {
                     IteratorType::Vector => (5_000_000.0, 32, 0.85),
                     IteratorType::Custom => (1_000_000.0, 128, 0.60),
                 };
-                
+
                 CodeCharacteristics {
                     iterations_per_second: ips,
                     memory_overhead: overhead,
                     cache_friendliness: cache,
                 }
             }
-            
+
             IterationStrategy::ManualLoop { .. } => {
                 CodeCharacteristics {
                     iterations_per_second: 500_000.0, // Moderate speed
-                    memory_overhead: 96, // Higher overhead
-                    cache_friendliness: 0.50, // Poor cache locality
+                    memory_overhead: 96,              // Higher overhead
+                    cache_friendliness: 0.50,         // Poor cache locality
                 }
             }
-            
+
             IterationStrategy::CpsFallback => {
                 CodeCharacteristics {
                     iterations_per_second: 100_000.0, // Slow CPS
-                    memory_overhead: 256, // High overhead
-                    cache_friendliness: 0.20, // Poor cache locality
+                    memory_overhead: 256,             // High overhead
+                    cache_friendliness: 0.20,         // Poor cache locality
                 }
             }
         }
     }
-    
+
     /// Convert pattern to cache ID
     fn pattern_to_id(&self, pattern: &LoopPattern) -> String {
         match pattern {
-            LoopPattern::CountingLoop { variable, start, end, step } => {
+            LoopPattern::CountingLoop {
+                variable,
+                start,
+                end,
+                step,
+            } => {
                 format!("counting_{}_{}_{}_{}", variable, start, end, step)
             }
             LoopPattern::ListIteration { variable, .. } => {
@@ -626,12 +639,12 @@ impl NativeCodeGenerator {
             LoopPattern::ComplexLoop => "complex".to_string(),
         }
     }
-    
+
     /// Get generation statistics
     pub fn generation_statistics(&self) -> &HashMap<String, usize> {
         &self.generation_stats
     }
-    
+
     /// Clear code cache
     pub fn clear_cache(&mut self) {
         self.code_cache.clear();
@@ -668,7 +681,7 @@ impl JitLoopOptimizer {
             optimization_enabled: true,
         }
     }
-    
+
     /// Create with custom compilation threshold
     pub fn with_threshold(threshold: usize) -> Self {
         JitLoopOptimizer {
@@ -678,7 +691,7 @@ impl JitLoopOptimizer {
             optimization_enabled: true,
         }
     }
-    
+
     /// Attempt JIT optimization of do-loop
     pub fn try_optimize_do_loop(
         &mut self,
@@ -690,23 +703,23 @@ impl JitLoopOptimizer {
         if !self.optimization_enabled {
             return Ok(None);
         }
-        
+
         // Phase 6-C: Enhanced analysis using ExpressionAnalyzer
         let loop_complexity = self.analyze_loop_complexity(evaluator, operands, &env)?;
-        
+
         // Skip optimization for very complex loops
         if matches!(loop_complexity, EvaluationComplexity::High) {
             return Ok(None);
         }
-        
+
         // Analyze loop pattern
         let pattern = self.pattern_analyzer.analyze_do_loop(operands)?;
         let pattern_id = self.code_generator.pattern_to_id(&pattern);
-        
+
         // Record execution and get JIT hint (influenced by complexity analysis)
         let base_hint = self.hot_path_detector.record_execution(&pattern_id);
         let jit_hint = self.adjust_hint_by_complexity(base_hint, loop_complexity);
-        
+
         match jit_hint {
             JitHint::CompileImmediate => {
                 // Check if already compiled
@@ -722,25 +735,26 @@ impl JitLoopOptimizer {
                         execution_count: 0,
                         average_execution_time: std::time::Duration::from_nanos(0),
                     };
-                    
-                    self.hot_path_detector.register_compiled_loop(pattern_id, compiled.clone());
+
+                    self.hot_path_detector
+                        .register_compiled_loop(pattern_id, compiled.clone());
                     self.execute_compiled_loop(evaluator, &compiled, operands, env, cont)
                 }
             }
-            
+
             JitHint::CompileDeferred | JitHint::ProfileAndDecide => {
                 // For now, defer to CPS evaluation
                 // In a full implementation, we would queue for background compilation
                 Ok(None)
             }
-            
+
             JitHint::NoCompile => {
                 // Use regular CPS evaluation
                 Ok(None)
             }
         }
     }
-    
+
     /// Execute compiled native loop
     fn execute_compiled_loop(
         &self,
@@ -754,22 +768,22 @@ impl JitLoopOptimizer {
             IterationStrategy::NativeForLoop { start, end, step } => {
                 self.execute_native_for_loop(evaluator, *start, *end, *step, operands, env, cont)
             }
-            
+
             IterationStrategy::IteratorBased { iterator_type } => {
                 self.execute_iterator_based_loop(evaluator, iterator_type, operands, env, cont)
             }
-            
+
             IterationStrategy::ManualLoop { max_iterations } => {
                 self.execute_manual_loop(evaluator, *max_iterations, operands, env, cont)
             }
-            
+
             IterationStrategy::CpsFallback => {
                 // Fall back to CPS evaluation
                 Ok(None)
             }
         }
     }
-    
+
     /// Execute native for-loop iteration
     #[allow(clippy::too_many_arguments)]
     fn execute_native_for_loop(
@@ -784,25 +798,25 @@ impl JitLoopOptimizer {
     ) -> Result<Option<Value>> {
         // Parse loop structure
         let (var_name, body_exprs, result_exprs) = self.parse_loop_structure(operands)?;
-        
+
         // Create loop environment
         let loop_env = Environment::new();
         let loop_env_rc = Rc::new(loop_env.extend());
-        
+
         // Native Rust for-loop - zero CPS overhead!
         let mut current = start;
         while (step > 0 && current < end) || (step < 0 && current > end) {
             // Set loop variable
             loop_env_rc.define(var_name.clone(), Value::from(current));
-            
+
             // Execute body expressions
             for expr in &body_exprs {
                 evaluator.eval(expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
             }
-            
+
             current += step;
         }
-        
+
         // Evaluate result expressions
         let result = if result_exprs.is_empty() {
             Value::Undefined
@@ -814,18 +828,22 @@ impl JitLoopOptimizer {
             let mut final_result = Value::Undefined;
             for (i, expr) in result_exprs.iter().enumerate() {
                 if i == last_idx {
-                    final_result = evaluator.eval(expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+                    final_result = evaluator.eval(
+                        expr.clone(),
+                        loop_env_rc.clone(),
+                        Continuation::Identity,
+                    )?;
                 } else {
                     evaluator.eval(expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
                 }
             }
             final_result
         };
-        
+
         // Apply continuation with result
         Ok(Some(evaluator.apply_continuation(cont, result)?))
     }
-    
+
     /// Execute iterator-based loop
     fn execute_iterator_based_loop(
         &self,
@@ -839,7 +857,7 @@ impl JitLoopOptimizer {
         // In a full implementation, this would handle list/vector iteration
         Ok(None)
     }
-    
+
     /// Execute manual loop with safety limits
     fn execute_manual_loop(
         &self,
@@ -853,7 +871,7 @@ impl JitLoopOptimizer {
         // In a full implementation, this would handle complex accumulation patterns
         Ok(None)
     }
-    
+
     /// Parse do-loop structure for execution
     fn parse_loop_structure(&self, operands: &[Expr]) -> Result<(String, Vec<Expr>, Vec<Expr>)> {
         if operands.len() < 2 {
@@ -861,51 +879,49 @@ impl JitLoopOptimizer {
                 "invalid do-loop structure".to_string(),
             ));
         }
-        
+
         // Extract variable name (simplified - assumes single variable)
         let var_name = match &operands[0] {
-            Expr::List(bindings) if !bindings.is_empty() => {
-                match &bindings[0] {
-                    Expr::List(binding) if !binding.is_empty() => {
-                        match &binding[0] {
-                            Expr::Variable(name) => name.clone(),
-                            _ => return Err(LambdustError::syntax_error(
-                                "invalid variable binding".to_string(),
-                            )),
-                        }
+            Expr::List(bindings) if !bindings.is_empty() => match &bindings[0] {
+                Expr::List(binding) if !binding.is_empty() => match &binding[0] {
+                    Expr::Variable(name) => name.clone(),
+                    _ => {
+                        return Err(LambdustError::syntax_error(
+                            "invalid variable binding".to_string(),
+                        ));
                     }
-                    _ => return Err(LambdustError::syntax_error(
+                },
+                _ => {
+                    return Err(LambdustError::syntax_error(
                         "invalid binding format".to_string(),
-                    )),
+                    ));
                 }
-            }
-            _ => return Err(LambdustError::syntax_error(
-                "invalid bindings".to_string(),
-            )),
+            },
+            _ => return Err(LambdustError::syntax_error("invalid bindings".to_string())),
         };
-        
+
         // Extract result expressions
         let result_exprs = match &operands[1] {
             Expr::List(test_clause) => test_clause[1..].to_vec(),
             _ => Vec::new(),
         };
-        
+
         // Body expressions
         let body_exprs = operands[2..].to_vec();
-        
+
         Ok((var_name, body_exprs, result_exprs))
     }
-    
+
     /// Enable/disable JIT optimization
     pub fn set_optimization_enabled(&mut self, enabled: bool) {
         self.optimization_enabled = enabled;
     }
-    
+
     /// Get comprehensive optimization statistics
     pub fn optimization_statistics(&self) -> JitOptimizationStats {
-        let (compiled_count, total_patterns, compilation_rate) = 
+        let (compiled_count, total_patterns, compilation_rate) =
             self.hot_path_detector.compilation_statistics();
-        
+
         JitOptimizationStats {
             total_patterns,
             compiled_patterns: compiled_count,
@@ -914,14 +930,14 @@ impl JitLoopOptimizer {
             code_generations: self.code_generator.generation_statistics().clone(),
         }
     }
-    
+
     /// Clear all optimization caches
     pub fn clear_caches(&mut self) {
         self.pattern_analyzer.clear_cache();
         self.code_generator.clear_cache();
         self.hot_path_detector.clear_cache();
     }
-    
+
     /// Phase 6-C: Analyze loop complexity using ExpressionAnalyzer
     pub fn analyze_loop_complexity(
         &self,
@@ -931,7 +947,7 @@ impl JitLoopOptimizer {
     ) -> Result<EvaluationComplexity> {
         let _analyzer = _evaluator.expression_analyzer();
         let mut max_complexity = EvaluationComplexity::Constant;
-        
+
         // Analyze all operands for complexity (need mutable access)
         // For now, return simple heuristic based on operand structure
         for operand in operands {
@@ -942,15 +958,15 @@ impl JitLoopOptimizer {
                 Expr::List(exprs) if exprs.len() <= 10 => EvaluationComplexity::Moderate,
                 _ => EvaluationComplexity::High,
             };
-            
+
             if operand_complexity > max_complexity {
                 max_complexity = operand_complexity;
             }
         }
-        
+
         Ok(max_complexity)
     }
-    
+
     /// Adjust JIT hint based on expression complexity analysis
     pub fn adjust_hint_by_complexity(
         &self,
@@ -959,16 +975,20 @@ impl JitLoopOptimizer {
     ) -> JitHint {
         match (base_hint, complexity) {
             // Simple expressions can be compiled more aggressively
-            (JitHint::ProfileAndDecide, EvaluationComplexity::Constant) => JitHint::CompileImmediate,
-            (JitHint::ProfileAndDecide, EvaluationComplexity::Variable) => JitHint::CompileImmediate,
-            
+            (JitHint::ProfileAndDecide, EvaluationComplexity::Constant) => {
+                JitHint::CompileImmediate
+            }
+            (JitHint::ProfileAndDecide, EvaluationComplexity::Variable) => {
+                JitHint::CompileImmediate
+            }
+
             // Moderate complexity requires more conservative approach
             (JitHint::CompileImmediate, EvaluationComplexity::Moderate) => JitHint::CompileDeferred,
             (JitHint::CompileDeferred, EvaluationComplexity::Moderate) => JitHint::ProfileAndDecide,
-            
+
             // High complexity should not be compiled
             (_, EvaluationComplexity::High) => JitHint::NoCompile,
-            
+
             // Keep original hint for other cases
             _ => base_hint,
         }
@@ -1005,33 +1025,34 @@ mod tests {
     #[test]
     fn test_counting_loop_pattern_detection() {
         let mut analyzer = LoopPatternAnalyzer::new();
-        
+
         // (do ((i 0 (+ i 1))) ((>= i 10)) body)
-        let bindings = Expr::List(vec![
+        let bindings = Expr::List(vec![Expr::List(vec![
+            Expr::Variable("i".to_string()),
+            Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(0))),
             Expr::List(vec![
+                Expr::Variable("+".to_string()),
                 Expr::Variable("i".to_string()),
-                Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(0))),
-                Expr::List(vec![
-                    Expr::Variable("+".to_string()),
-                    Expr::Variable("i".to_string()),
-                    Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(1))),
-                ]),
+                Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(1))),
             ]),
-        ]);
-        
-        let test_clause = Expr::List(vec![
-            Expr::List(vec![
-                Expr::Variable(">=".to_string()),
-                Expr::Variable("i".to_string()),
-                Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(10))),
-            ]),
-        ]);
-        
+        ])]);
+
+        let test_clause = Expr::List(vec![Expr::List(vec![
+            Expr::Variable(">=".to_string()),
+            Expr::Variable("i".to_string()),
+            Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(10))),
+        ])]);
+
         let operands = &[bindings, test_clause];
         let pattern = analyzer.analyze_do_loop(operands).unwrap();
-        
+
         match pattern {
-            LoopPattern::CountingLoop { variable, start, end, step } => {
+            LoopPattern::CountingLoop {
+                variable,
+                start,
+                end,
+                step,
+            } => {
                 assert_eq!(variable, "i");
                 assert_eq!(start, 0);
                 assert_eq!(end, 10);
@@ -1044,15 +1065,27 @@ mod tests {
     #[test]
     fn test_jit_hot_path_detector() {
         let mut detector = JitHotPathDetector::new(3);
-        
+
         // Based on threshold=3: compilation_threshold/2 = 1, compilation_threshold = 3
-        assert_eq!(detector.record_execution("pattern1"), JitHint::CompileDeferred); // count=1 >= threshold/2=1
-        assert_eq!(detector.record_execution("pattern1"), JitHint::CompileDeferred); // count=2 >= threshold/2=1
-        assert_eq!(detector.record_execution("pattern1"), JitHint::CompileImmediate); // count=3 >= threshold=3
-        
+        assert_eq!(
+            detector.record_execution("pattern1"),
+            JitHint::CompileDeferred
+        ); // count=1 >= threshold/2=1
+        assert_eq!(
+            detector.record_execution("pattern1"),
+            JitHint::CompileDeferred
+        ); // count=2 >= threshold/2=1
+        assert_eq!(
+            detector.record_execution("pattern1"),
+            JitHint::CompileImmediate
+        ); // count=3 >= threshold=3
+
         // Subsequent executions should compile immediately
-        assert_eq!(detector.record_execution("pattern1"), JitHint::CompileImmediate);
-        
+        assert_eq!(
+            detector.record_execution("pattern1"),
+            JitHint::CompileImmediate
+        );
+
         let (compiled, total, rate) = detector.compilation_statistics();
         assert_eq!(total, 1);
         assert_eq!(compiled, 0); // No loops actually compiled yet
@@ -1062,16 +1095,16 @@ mod tests {
     #[test]
     fn test_native_code_generation() {
         let mut generator = NativeCodeGenerator::new();
-        
+
         let pattern = LoopPattern::CountingLoop {
             variable: "i".to_string(),
             start: 0,
             end: 100,
             step: 1,
         };
-        
+
         let code = generator.generate_native_code(&pattern).unwrap();
-        
+
         match code.strategy {
             IterationStrategy::NativeForLoop { start, end, step } => {
                 assert_eq!(start, 0);
@@ -1080,7 +1113,7 @@ mod tests {
             }
             _ => panic!("Expected native for-loop strategy"),
         }
-        
+
         // Check performance characteristics
         assert!(code.characteristics.iterations_per_second > 1_000_000.0);
         assert!(code.characteristics.cache_friendliness > 0.8);
@@ -1092,20 +1125,18 @@ mod tests {
         let mut evaluator = Evaluator::new();
         let env = Rc::new(Environment::new());
         let cont = Continuation::Identity;
-        
+
         // Simple counting loop
         let operands = &[
-            Expr::List(vec![
+            Expr::List(vec![Expr::List(vec![
+                Expr::Variable("i".to_string()),
+                Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(0))),
                 Expr::List(vec![
+                    Expr::Variable("+".to_string()),
                     Expr::Variable("i".to_string()),
-                    Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(0))),
-                    Expr::List(vec![
-                        Expr::Variable("+".to_string()),
-                        Expr::Variable("i".to_string()),
-                        Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(1))),
-                    ]),
+                    Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(1))),
                 ]),
-            ]),
+            ])]),
             Expr::List(vec![
                 Expr::List(vec![
                     Expr::Variable(">=".to_string()),
@@ -1115,17 +1146,19 @@ mod tests {
                 Expr::Variable("i".to_string()),
             ]),
         ];
-        
+
         // First execution - should not optimize
-        let result1 = optimizer.try_optimize_do_loop(&mut evaluator, operands, env.clone(), cont.clone());
+        let result1 =
+            optimizer.try_optimize_do_loop(&mut evaluator, operands, env.clone(), cont.clone());
         assert!(result1.is_ok());
         assert!(result1.unwrap().is_none()); // No optimization yet
-        
+
         // Second execution - should trigger compilation
-        let result2 = optimizer.try_optimize_do_loop(&mut evaluator, operands, env.clone(), cont.clone());
+        let result2 =
+            optimizer.try_optimize_do_loop(&mut evaluator, operands, env.clone(), cont.clone());
         assert!(result2.is_ok());
         // May return Some(value) if compilation succeeded
-        
+
         let stats = optimizer.optimization_statistics();
         assert!(stats.total_patterns >= 1);
     }
@@ -1133,7 +1166,7 @@ mod tests {
     #[test]
     fn test_pattern_analyzer_statistics() {
         let mut analyzer = LoopPatternAnalyzer::new();
-        
+
         // Analyze multiple patterns
         let operands1 = &[
             Expr::List(vec![Expr::List(vec![
@@ -1142,10 +1175,10 @@ mod tests {
             ])]),
             Expr::List(vec![Expr::Literal(Literal::Boolean(false))]),
         ];
-        
+
         analyzer.analyze_do_loop(operands1).unwrap();
         analyzer.analyze_do_loop(operands1).unwrap();
-        
+
         let stats = analyzer.detection_statistics();
         assert!(stats.contains_key("complex_loop"));
         assert_eq!(stats["complex_loop"], 2);

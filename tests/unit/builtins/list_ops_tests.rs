@@ -323,13 +323,11 @@ mod basic_list_operations_tests {
 
         // Type errors (non-lists in non-final positions)
         assert!(call_builtin("append", vec![int(42), list(vec![int(1)])]).is_err());
-        assert!(
-            call_builtin(
-                "append",
-                vec![list(vec![int(1)]), int(42), list(vec![int(3)])]
-            )
-            .is_err()
-        );
+        assert!(call_builtin(
+            "append",
+            vec![list(vec![int(1)]), int(42), list(vec![int(3)])]
+        )
+        .is_err());
     }
 
     #[test]

@@ -778,7 +778,7 @@ impl Repl {
                 }
 
                 // Don't print undefined values (common for definitions)
-                if !matches!(value, lambdust::value::Value::Undefined) {
+                if !matches!(value, lambdust::Value::Undefined) {
                     println!("{}", value);
                 }
             }

@@ -89,11 +89,9 @@ mod srfi_97_integration_tests {
         if let Value::Vector(parts) = result {
             assert!(!parts.is_empty());
             // Should contain parts like "records", "types"
-            assert!(
-                parts
-                    .iter()
-                    .any(|p| matches!(p, Value::String(s) if s == "records"))
-            );
+            assert!(parts
+                .iter()
+                .any(|p| matches!(p, Value::String(s) if s == "records")));
         }
 
         // Test SRFI 97 parts
@@ -103,11 +101,9 @@ mod srfi_97_integration_tests {
         if let Value::Vector(parts) = result {
             assert!(!parts.is_empty());
             // Should contain parts like "inquiry", "available"
-            assert!(
-                parts
-                    .iter()
-                    .any(|p| matches!(p, Value::String(s) if s == "inquiry"))
-            );
+            assert!(parts
+                .iter()
+                .any(|p| matches!(p, Value::String(s) if s == "inquiry")));
         }
 
         // Test error case

@@ -2,8 +2,8 @@
 //!
 //! These tests were extracted from src/srfi/srfi_46.rs
 
-use lambdust::srfi::SrfiModule;
 use lambdust::srfi::srfi_46::Srfi46;
+use lambdust::srfi::SrfiModule;
 
 #[test]
 fn test_srfi_46_info() {

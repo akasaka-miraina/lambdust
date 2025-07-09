@@ -278,9 +278,42 @@ impl Evaluator {
         env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
+        use crate::debug::{DebugTracer, TraceLevel};
+
+        #[cfg(debug_assertions)]
+        DebugTracer::trace(
+            "evaluator::special_forms",
+            "eval_begin",
+            line!(),
+            TraceLevel::ENTRY,
+            format!("Begin with {} operands", operands.len()),
+        );
+
         if operands.is_empty() {
+            #[cfg(debug_assertions)]
+            DebugTracer::trace(
+                "evaluator::special_forms",
+                "eval_begin",
+                line!(),
+                TraceLevel::INFO,
+                "Empty begin, returning Undefined".to_string(),
+            );
+
             return self.apply_continuation(cont, Value::Undefined);
         }
+
+        #[cfg(debug_assertions)]
+        for (i, expr) in operands.iter().enumerate() {
+            DebugTracer::trace_expr(
+                "evaluator::special_forms",
+                "eval_begin",
+                line!(),
+                TraceLevel::INFO,
+                format!("Begin expr[{}]", i),
+                expr,
+            );
+        }
+
         self.eval_sequence(operands.to_vec(), env, cont)
     }
 
@@ -405,22 +438,122 @@ impl Evaluator {
         env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
+        use crate::debug::{DebugTracer, TraceLevel};
+
+        #[cfg(debug_assertions)]
+        DebugTracer::trace(
+            "evaluator::special_forms",
+            "eval_sequence",
+            line!(),
+            TraceLevel::ENTRY,
+            format!("Evaluating sequence of {} expressions", exprs.len()),
+        );
+
         if exprs.is_empty() {
+            #[cfg(debug_assertions)]
+            DebugTracer::trace(
+                "evaluator::special_forms",
+                "eval_sequence",
+                line!(),
+                TraceLevel::INFO,
+                "Empty sequence, returning Undefined".to_string(),
+            );
+
             return self.apply_continuation(cont, Value::Undefined);
         }
 
         if exprs.len() == 1 {
             let (first_expr, _) = exprs.split_first().unwrap();
-            return self.eval(first_expr.clone(), env, cont);
+
+            #[cfg(debug_assertions)]
+            DebugTracer::trace_expr(
+                "evaluator::special_forms",
+                "eval_sequence",
+                line!(),
+                TraceLevel::INFO,
+                "Single expression in sequence".to_string(),
+                first_expr,
+            );
+
+            #[cfg(debug_assertions)]
+            DebugTracer::trace(
+                "evaluator::special_forms",
+                "eval_sequence",
+                line!(),
+                TraceLevel::INFO,
+                format!("Calling eval with continuation: {:?}", cont),
+            );
+
+            #[cfg(debug_assertions)]
+            {
+                use crate::debug::{DebugTracer, TraceLevel};
+                DebugTracer::trace_expr(
+                    "evaluator::special_forms",
+                    "eval_sequence",
+                    line!(),
+                    TraceLevel::INFO,
+                    "BEFORE eval() call - expression".to_string(),
+                    first_expr,
+                );
+            }
+
+            let eval_result = self.eval(first_expr.clone(), env, cont);
+
+            #[cfg(debug_assertions)]
+            {
+                use crate::debug::{DebugTracer, TraceLevel};
+                DebugTracer::trace(
+                    "evaluator::special_forms",
+                    "eval_sequence",
+                    line!(),
+                    TraceLevel::INFO,
+                    "AFTER eval() call - about to check result".to_string(),
+                );
+            }
+
+            #[cfg(debug_assertions)]
+            {
+                use crate::debug::{DebugTracer, TraceLevel};
+                DebugTracer::trace(
+                    "evaluator::special_forms",
+                    "eval_sequence",
+                    line!(),
+                    TraceLevel::INFO,
+                    format!("eval() returned: {:?}", eval_result),
+                );
+            }
+
+            return eval_result;
         }
 
         let (first, remaining) = exprs.split_first().unwrap();
+
+        #[cfg(debug_assertions)]
+        DebugTracer::trace_expr(
+            "evaluator::special_forms",
+            "eval_sequence",
+            line!(),
+            TraceLevel::INFO,
+            format!("First expr (remaining: {})", remaining.len()),
+            first,
+        );
 
         let begin_cont = Continuation::Begin {
             remaining: remaining.to_vec(),
             env: Rc::clone(&env),
             parent: Box::new(cont),
         };
+
+        #[cfg(debug_assertions)]
+        DebugTracer::trace_continuation(
+            "evaluator::special_forms",
+            "eval_sequence",
+            line!(),
+            TraceLevel::INFO,
+            "Created Begin continuation".to_string(),
+            "Begin",
+            Some(env.depth()),
+        );
 
         self.eval(first.clone(), env, begin_cont)
     }
@@ -586,22 +719,110 @@ impl Evaluator {
         env: Rc<Environment>,
         parent: Continuation,
     ) -> Result<Value> {
-        env.define(variable, value);
-        self.apply_continuation(parent, Value::Undefined)
+        use crate::debug::{DebugTracer, TraceLevel};
+
+        #[cfg(debug_assertions)]
+        DebugTracer::trace_value(
+            "evaluator::special_forms",
+            "apply_define_continuation",
+            line!(),
+            TraceLevel::ENTRY,
+            format!("Defining variable: {}", variable),
+            &value,
+        );
+
+        env.define(variable.clone(), value);
+
+        #[cfg(debug_assertions)]
+        DebugTracer::trace(
+            "evaluator::special_forms",
+            "apply_define_continuation",
+            line!(),
+            TraceLevel::INFO,
+            format!("Variable '{}' defined, returning Undefined", variable),
+        );
+
+        let result = self.apply_continuation(parent, Value::Undefined)?;
+
+        #[cfg(debug_assertions)]
+        DebugTracer::trace_value(
+            "evaluator::special_forms",
+            "apply_define_continuation",
+            line!(),
+            TraceLevel::EXIT,
+            "Define continuation result".to_string(),
+            &result,
+        );
+
+        Ok(result)
     }
 
     /// Apply begin continuation
     fn apply_begin_continuation(
         &mut self,
-        _value: Value,
+        value: Value,
         remaining: Vec<Expr>,
         env: Rc<Environment>,
         parent: Continuation,
     ) -> Result<Value> {
+        use crate::debug::{DebugTracer, TraceLevel};
+
+        #[cfg(debug_assertions)]
+        DebugTracer::trace_value(
+            "evaluator::special_forms",
+            "apply_begin_continuation",
+            line!(),
+            TraceLevel::ENTRY,
+            format!("Begin continuation, remaining: {}", remaining.len()),
+            &value,
+        );
+
         if remaining.is_empty() {
-            self.apply_continuation(parent, Value::Undefined)
+            #[cfg(debug_assertions)]
+            DebugTracer::trace(
+                "evaluator::special_forms",
+                "apply_begin_continuation",
+                line!(),
+                TraceLevel::INFO,
+                "No remaining expressions, returning value".to_string(),
+            );
+
+            let result = self.apply_continuation(parent, value)?;
+
+            #[cfg(debug_assertions)]
+            DebugTracer::trace_value(
+                "evaluator::special_forms",
+                "apply_begin_continuation",
+                line!(),
+                TraceLevel::EXIT,
+                "Final result".to_string(),
+                &result,
+            );
+
+            Ok(result)
         } else {
-            self.eval_sequence(remaining, env, parent)
+            #[cfg(debug_assertions)]
+            DebugTracer::trace(
+                "evaluator::special_forms",
+                "apply_begin_continuation",
+                line!(),
+                TraceLevel::INFO,
+                format!("Evaluating remaining {} expressions", remaining.len()),
+            );
+
+            let result = self.eval_sequence(remaining, env, parent)?;
+
+            #[cfg(debug_assertions)]
+            DebugTracer::trace_value(
+                "evaluator::special_forms",
+                "apply_begin_continuation",
+                line!(),
+                TraceLevel::EXIT,
+                "Sequence result".to_string(),
+                &result,
+            );
+
+            Ok(result)
         }
     }
 

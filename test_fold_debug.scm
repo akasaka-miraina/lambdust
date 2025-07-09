@@ -1,0 +1,6 @@
+(import (srfi 69))
+(define ht (make-hash-table))
+(hash-table-set! ht "a" 1)
+(hash-table-set! ht "b" 2)
+(hash-table-size ht)
+(hash-table-fold ht (lambda (k v acc) (+ v acc)) 0)
