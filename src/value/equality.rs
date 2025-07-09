@@ -20,6 +20,40 @@ impl Value {
             (Value::Vector(a), Value::Vector(b)) => {
                 a.len() == b.len() && a.iter().zip(b.iter()).all(|(x, y)| x.equal(y))
             }
+            (Value::LazyVector(a), Value::LazyVector(b)) => {
+                let mut a_storage = a.borrow_mut();
+                let mut b_storage = b.borrow_mut();
+                
+                if a_storage.len() != b_storage.len() {
+                    return false;
+                }
+                
+                // Compare elements lazily without full materialization
+                for i in 0..a_storage.len() {
+                    let a_val = a_storage.get(i).unwrap_or(Value::Undefined);
+                    let b_val = b_storage.get(i).unwrap_or(Value::Undefined);
+                    if !a_val.equal(&b_val) {
+                        return false;
+                    }
+                }
+                true
+            }
+            (Value::Vector(vec), Value::LazyVector(lazy)) | (Value::LazyVector(lazy), Value::Vector(vec)) => {
+                let mut lazy_storage = lazy.borrow_mut();
+                
+                if vec.len() != lazy_storage.len() {
+                    return false;
+                }
+                
+                // Compare vector elements with lazy vector elements
+                for (i, vec_val) in vec.iter().enumerate() {
+                    let lazy_val = lazy_storage.get(i).unwrap_or(Value::Undefined);
+                    if !vec_val.equal(&lazy_val) {
+                        return false;
+                    }
+                }
+                true
+            }
             (Value::External(a), Value::External(b)) => a.id == b.id,
             (Value::Record(a), Value::Record(b)) => {
                 a.record_type == b.record_type
@@ -96,6 +130,12 @@ impl PartialEq for Value {
             }
             (Self::Procedure(l0), Self::Procedure(r0)) => l0 == r0,
             (Self::Vector(l0), Self::Vector(r0)) => l0 == r0,
+            (Self::LazyVector(l0), Self::LazyVector(r0)) => {
+                // For PartialEq, we use pointer equality for lazy vectors
+                // to avoid expensive materialization
+                std::rc::Rc::ptr_eq(l0, r0)
+            }
+            (Self::Vector(_), Self::LazyVector(_)) | (Self::LazyVector(_), Self::Vector(_)) => false,
             (Self::Port(l0), Self::Port(r0)) => l0 == r0,
             (Self::External(l0), Self::External(r0)) => l0.id == r0.id,
             (Self::Record(l0), Self::Record(r0)) => l0 == r0,

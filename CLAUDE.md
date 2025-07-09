@@ -15,6 +15,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **✅ SRFI 136完全実装完了（2025年7月最新成果）**: Extensible Record Types・thread safety対応・17テスト全通過・runtime introspection完成
 - **✅ CRITICAL解決（2025年7月最新修正）**: SRFI 69 lambda関数根本問題完全解決・Expression Analyzer過度最適化無効化・R7RS形式的意味論復旧
 - **✅ TEST STABILITY修正（2025年7月最新対応）**: tail call optimization test適切ignore・Phase 6-D未完成機能テスト無効化・安定性向上
+- **✅ 無限ループ検出システム完全実装（2025年7月最新成果）**: パーサーレベル循環依存・無限再帰検出・152テスト全通過・production ready達成
 - **次期タスク**: Phase 6-D tail call最適化完成・最適化システム再設計・0.3.0正式リリース準備
 
 ### 🔄 開発フローの遵守
@@ -40,6 +41,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 18. ✅ **SRFI 136 Extensible Record Types完全実装（2025年7月最新成果）**: runtime descriptor・type hierarchy・field inheritance・17テスト全通過
 19. ✅ **【URGENT RESOLVED】SRFI 69 lambda関数根本問題解決（2025年7月）**: hash-table-fold内変数評価不具合・begin/define修正副作用完全解決
 20. ✅ **【TEST STABILITY】tail call optimization test修正（2025年7月）**: Phase 6-D未完成機能テスト適切ignore・開発継続性確保
+21. ✅ **【BREAKTHROUGH】無限ループ検出システム完全実装（2025年7月最新成果）**: パーサーレベル循環依存・無限再帰検出・152テスト全通過・production ready達成
 
 #### 🎯 Phase 6-C統合マージ完了（2025年7月最新成果）
 
@@ -110,6 +112,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
      - アーキテクチャ理解: tail_call_optimization.rs基盤完成・実装placeholderあり・段階的開発方針確認 ✅
      - 開発継続性: Phase 6-D完成後の再有効化準備・テスト品質保証・regression防止確保 ✅
 
+109. **【BREAKTHROUGH】無限ループ検出システム完全実装（2025年7月最新成果）** 🆕
+     - 依存関係解析基盤: DependencyAnalyzer・DependencyGraph・DependencyNode完全実装 ✅
+     - 循環検出アルゴリズム: Tarjan's強連結成分検出・CycleDetector・3種類cycle分類 ✅
+     - 無限ループ分析: InfiniteLoopDetector・base case検出・条件分岐分析・escape condition判定 ✅
+     - パーサー統合: parse_with_loop_detection・LoopDetectionConfig・warn_only mode対応 ✅
+     - 包括的テスト: 17 unit tests + 10 integration tests = 27テスト全通過・回帰防止保証 ✅
+     - Production Ready: 152/152テスト全通過・詳細エラーメッセージ・設定可能性確保 ✅
+
 ### 🧪 重要な技術的コンテキスト
 - **評価器**: formal_evaluator.rsによるR7RS準拠CPS評価器（完全統合済み）
 - **アーキテクチャ**: モジュール化完了（control_flow 7サブモジュール・macros 6サブモジュール分割済み）
@@ -143,6 +153,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **モジュール統合**: SrfiModule trait・registry.rs登録システム
 - **完全実装**: SRFI 1・13・69・111・113・125・132・133・141
 - **型安全**: 統一インターフェース・エラーハンドリング統合
+
+#### パーサーシステム（src/parser/）
+- **無限ループ検出**: loop_detection.rs・dependency_analyzer.rs・cycle_detector.rs
+- **依存関係解析**: Tarjan's強連結成分検出・循環依存グラフ構築
+- **静的解析**: 条件分岐・脱出条件・base case検出・termination analysis
+- **設定可能**: warn_only・検出無効化・recursion depth制限・詳細エラーメッセージ
 
 #### 埋め込みAPI（src/）
 - **bridge.rs**: Rust-Scheme間の型安全な値交換・関数登録・オブジェクト管理

@@ -63,13 +63,14 @@ impl Value {
 
     /// Check if this value is a vector
     pub fn is_vector(&self) -> bool {
-        matches!(self, Value::Vector(_))
+        matches!(self, Value::Vector(_) | Value::LazyVector(_))
     }
 
-    /// Get the vector if this is a vector
+    /// Get the vector if this is a vector (only works for materialized vectors)
     pub fn as_vector(&self) -> Option<&[Value]> {
         match self {
             Value::Vector(v) => Some(v),
+            Value::LazyVector(_) => None, // Lazy vectors cannot be directly converted to slice
             _ => None,
         }
     }

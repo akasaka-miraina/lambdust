@@ -345,7 +345,7 @@ mod list_operations_tests {
     }
 
     #[test]
-    #[ignore = "Circular reference handling not fully implemented - causes infinite loops"]
+    #[ignore = "Runtime circular reference handling not implemented - causes infinite loops in display/equality"]
     fn test_circular_reference_safety() {
         // Test that we don't get into infinite loops with circular references
         let test_pair = pair(int(1), int(2));

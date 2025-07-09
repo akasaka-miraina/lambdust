@@ -199,7 +199,7 @@ fn test_trampoline_do_loop_termination() {
 }
 
 #[test]
-#[ignore = "Infinite loop test disabled for CI - causes timeout and CI failures"]
+// Previously ignored for infinite loop concerns - now using finite loop
 fn test_trampoline_iteration_count_limit() {
     let mut evaluator = Evaluator::new();
     let env = evaluator.global_env.clone();

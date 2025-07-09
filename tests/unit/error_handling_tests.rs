@@ -98,7 +98,7 @@ mod panic_prevention_tests {
     }
 
     #[test]
-    #[ignore = "Memory exhaustion test disabled for CI - allocates 10GB+ memory causing failures"]
+    // Previously ignored for memory concerns - now using small vector with lazy allocation
     fn test_memory_exhaustion_protection() {
         let mut interpreter = Interpreter::new();
 

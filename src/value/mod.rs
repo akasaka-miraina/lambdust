@@ -5,6 +5,7 @@ pub mod continuation;
 pub mod conversions;
 pub mod display;
 pub mod equality;
+pub mod lazy_vector;
 pub mod list;
 pub mod optimized;
 pub mod pair;
@@ -16,6 +17,7 @@ pub mod record;
 
 // Re-export key types
 pub use continuation::{Continuation, StackFrame};
+pub use lazy_vector::{MemoryStats, VectorStorage};
 pub use optimized::{OptimizationStats, OptimizedValue, ShortStringData, ValueOptimizer};
 pub use pair::PairData;
 pub use port::Port;
@@ -46,8 +48,10 @@ pub enum Value {
     Nil,
     /// Procedure values (both user-defined and built-in)
     Procedure(Procedure),
-    /// Vector values
+    /// Vector values (traditional immediate allocation)
     Vector(Vec<Value>),
+    /// Lazy vector values (memory-efficient for large vectors)
+    LazyVector(std::rc::Rc<std::cell::RefCell<lazy_vector::VectorStorage>>),
     /// Port values (for I/O)
     Port(Port),
     /// External object values
