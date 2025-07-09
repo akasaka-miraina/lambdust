@@ -108,6 +108,10 @@ pub mod value;
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod bridge;
 
+#[cfg(test)]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
+pub mod bridge_tests;
+
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod builtins;
 

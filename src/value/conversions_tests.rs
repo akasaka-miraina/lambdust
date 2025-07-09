@@ -67,7 +67,7 @@ mod from_implementations {
 
     #[test]
     fn test_from_u64_max_safe() {
-        let value = Value::from(u64::MAX as u64);
+        let value = Value::from(u64::MAX);
         assert_eq!(value, Value::Number(SchemeNumber::Integer(u64::MAX as i64)));
     }
 
@@ -272,8 +272,11 @@ mod value_constructors {
 
     #[test]
     fn test_new_real() {
-        let value = Value::new_real(2.718);
-        assert_eq!(value, Value::Number(SchemeNumber::Real(2.718)));
+        let value = Value::new_real(std::f64::consts::E);
+        assert_eq!(
+            value,
+            Value::Number(SchemeNumber::Real(std::f64::consts::E))
+        );
     }
 
     #[test]
@@ -596,7 +599,7 @@ mod memory_efficiency_tests {
         let value = Value::from(true);
         // Booleans should not allocate extra memory beyond the enum variant
         if let Value::Boolean(b) = value {
-            assert_eq!(b, true);
+            assert!(b);
         } else {
             panic!("Expected Boolean");
         }

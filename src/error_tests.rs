@@ -163,7 +163,10 @@ mod stack_frame_tests {
             location: SourceSpan::point(SourcePosition::new(10, 5, 100)),
             frame_type: FrameType::Function,
         };
-        assert_eq!(format!("{}", frame), "  at test-function (line 10, column 5)");
+        assert_eq!(
+            format!("{}", frame),
+            "  at test-function (line 10, column 5)"
+        );
     }
 
     #[test]
@@ -228,7 +231,7 @@ mod stack_frame_tests {
         };
         let frame3 = StackFrame {
             name: "test".to_string(),
-            location: location,
+            location,
             frame_type: FrameType::Builtin,
         };
         assert_eq!(frame1, frame2);
@@ -811,7 +814,7 @@ mod result_type_tests {
     #[test]
     fn test_result_ok() {
         let result: Result<i32> = Ok(42);
-        assert_eq!(result.unwrap(), 42);
+        assert_eq!(result, Ok(42));
     }
 
     #[test]
@@ -838,15 +841,15 @@ mod result_type_tests {
     #[test]
     fn test_result_and_then() {
         let result: Result<i32> = Ok(42);
-        let chained = result.and_then(|x| Ok(x * 2));
-        assert_eq!(chained.unwrap(), 84);
+        let chained = result.map(|x| x * 2);
+        assert_eq!(chained, Ok(84));
     }
 
     #[test]
     fn test_result_or_else() {
         let result: Result<i32> = Err(LambdustError::runtime_error("test"));
-        let alternative: Result<i32> = result.or_else(|_| Ok(42));
-        assert_eq!(alternative.unwrap(), 42);
+        let alternative: Result<i32> = result.or(Ok(42));
+        assert_eq!(alternative, Ok(42));
     }
 }
 

@@ -20,9 +20,9 @@ mod expand_macro_tests {
             ])]),
             Expr::Variable("x".to_string()),
         ];
-        
+
         let result = expand_let(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
@@ -42,7 +42,10 @@ mod expand_macro_tests {
                     }
                     _ => panic!("Expected lambda expression"),
                 }
-                assert_eq!(exprs[1], Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
+                assert_eq!(
+                    exprs[1],
+                    Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))
+                );
             }
             _ => panic!("Expected list expression"),
         }
@@ -67,9 +70,9 @@ mod expand_macro_tests {
                 Expr::Variable("y".to_string()),
             ]),
         ];
-        
+
         let result = expand_let(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3); // lambda + 2 values
@@ -87,8 +90,14 @@ mod expand_macro_tests {
                     }
                     _ => panic!("Expected lambda expression"),
                 }
-                assert_eq!(exprs[1], Expr::Literal(Literal::Number(SchemeNumber::Integer(1))));
-                assert_eq!(exprs[2], Expr::Literal(Literal::Number(SchemeNumber::Integer(2))));
+                assert_eq!(
+                    exprs[1],
+                    Expr::Literal(Literal::Number(SchemeNumber::Integer(1)))
+                );
+                assert_eq!(
+                    exprs[2],
+                    Expr::Literal(Literal::Number(SchemeNumber::Integer(2)))
+                );
             }
             _ => panic!("Expected list expression"),
         }
@@ -100,9 +109,9 @@ mod expand_macro_tests {
             Expr::List(vec![]), // Empty bindings
             Expr::Variable("x".to_string()),
         ];
-        
+
         let result = expand_let(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 1);
@@ -128,7 +137,10 @@ mod expand_macro_tests {
         let args = vec![Expr::List(vec![])];
         let result = expand_let(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("too few arguments"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("too few arguments"));
     }
 
     #[test]
@@ -139,7 +151,10 @@ mod expand_macro_tests {
         ];
         let result = expand_let(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("bindings must be a list"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("bindings must be a list"));
     }
 
     #[test]
@@ -150,7 +165,10 @@ mod expand_macro_tests {
         ];
         let result = expand_let(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("each binding must be"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("each binding must be"));
     }
 
     #[test]
@@ -164,7 +182,10 @@ mod expand_macro_tests {
         ];
         let result = expand_let(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("binding variable must be a symbol"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("binding variable must be a symbol"));
     }
 }
 
@@ -181,9 +202,9 @@ mod expand_let_star_tests {
             ])]),
             Expr::Variable("x".to_string()),
         ];
-        
+
         let result = expand_let_star(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
@@ -195,7 +216,10 @@ mod expand_let_star_tests {
                             Expr::List(binding) => {
                                 assert_eq!(binding.len(), 2);
                                 assert_eq!(binding[0], Expr::Variable("x".to_string()));
-                                assert_eq!(binding[1], Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
+                                assert_eq!(
+                                    binding[1],
+                                    Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))
+                                );
                             }
                             _ => panic!("Expected binding list"),
                         }
@@ -229,9 +253,9 @@ mod expand_let_star_tests {
             ]),
             Expr::Variable("y".to_string()),
         ];
-        
+
         let result = expand_let_star(&args).unwrap();
-        
+
         // Should generate nested let expressions
         match result {
             Expr::List(exprs) => {
@@ -251,13 +275,10 @@ mod expand_let_star_tests {
 
     #[test]
     fn test_expand_let_star_empty_bindings() {
-        let args = vec![
-            Expr::List(vec![]),
-            Expr::Variable("x".to_string()),
-        ];
-        
+        let args = vec![Expr::List(vec![]), Expr::Variable("x".to_string())];
+
         let result = expand_let_star(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs[0], Expr::Variable("begin".to_string()));
@@ -272,7 +293,10 @@ mod expand_let_star_tests {
         let args = vec![Expr::List(vec![])];
         let result = expand_let_star(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("too few arguments"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("too few arguments"));
     }
 
     #[test]
@@ -283,7 +307,10 @@ mod expand_let_star_tests {
         ];
         let result = expand_let_star(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("bindings must be a list"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("bindings must be a list"));
     }
 }
 
@@ -300,9 +327,9 @@ mod expand_letrec_tests {
             ])]),
             Expr::Variable("x".to_string()),
         ];
-        
+
         let result = expand_letrec(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
@@ -324,7 +351,10 @@ mod expand_letrec_tests {
                                 assert_eq!(set_parts.len(), 3);
                                 assert_eq!(set_parts[0], Expr::Variable("set!".to_string()));
                                 assert_eq!(set_parts[1], Expr::Variable("x".to_string()));
-                                assert_eq!(set_parts[2], Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
+                                assert_eq!(
+                                    set_parts[2],
+                                    Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))
+                                );
                             }
                             _ => panic!("Expected set! expression"),
                         }
@@ -357,9 +387,9 @@ mod expand_letrec_tests {
                 Expr::Variable("y".to_string()),
             ]),
         ];
-        
+
         let result = expand_letrec(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3); // lambda + 2 #f values
@@ -391,7 +421,10 @@ mod expand_letrec_tests {
         let args = vec![Expr::List(vec![])];
         let result = expand_letrec(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("too few arguments"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("too few arguments"));
     }
 
     #[test]
@@ -402,7 +435,10 @@ mod expand_letrec_tests {
         ];
         let result = expand_letrec(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("bindings must be a list"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("bindings must be a list"));
     }
 
     #[test]
@@ -413,7 +449,10 @@ mod expand_letrec_tests {
         ];
         let result = expand_letrec(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("each binding must be"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("each binding must be"));
     }
 
     #[test]
@@ -427,7 +466,10 @@ mod expand_letrec_tests {
         ];
         let result = expand_letrec(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("binding variable must be a symbol"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("binding variable must be a symbol"));
     }
 }
 
@@ -442,9 +484,9 @@ mod expand_when_tests {
             Expr::Variable("action1".to_string()),
             Expr::Variable("action2".to_string()),
         ];
-        
+
         let result = expand_when(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
@@ -466,9 +508,9 @@ mod expand_when_tests {
     #[test]
     fn test_expand_when_empty_body() {
         let args = vec![Expr::Variable("condition".to_string())];
-        
+
         let result = expand_when(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
@@ -485,7 +527,10 @@ mod expand_when_tests {
         let args = vec![];
         let result = expand_when(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("too few arguments"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("too few arguments"));
     }
 }
 
@@ -500,9 +545,9 @@ mod expand_unless_tests {
             Expr::Variable("action1".to_string()),
             Expr::Variable("action2".to_string()),
         ];
-        
+
         let result = expand_unless(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
@@ -531,9 +576,9 @@ mod expand_unless_tests {
     #[test]
     fn test_expand_unless_empty_body() {
         let args = vec![Expr::Variable("condition".to_string())];
-        
+
         let result = expand_unless(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
@@ -557,7 +602,10 @@ mod expand_unless_tests {
         let args = vec![];
         let result = expand_unless(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("too few arguments"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("too few arguments"));
     }
 }
 
@@ -581,9 +629,9 @@ mod expand_case_tests {
                 Expr::Variable("default".to_string()),
             ]),
         ];
-        
+
         let result = expand_case(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs[0], Expr::Variable("let".to_string()));
@@ -630,9 +678,9 @@ mod expand_case_tests {
                 Expr::Variable("first".to_string()),
             ]),
         ];
-        
+
         let result = expand_case(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs[0], Expr::Variable("let".to_string()));
@@ -659,7 +707,10 @@ mod expand_case_tests {
         let args = vec![Expr::Variable("x".to_string())];
         let result = expand_case(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("too few arguments"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("too few arguments"));
     }
 }
 
@@ -687,15 +738,15 @@ mod expand_define_record_type_tests {
                 Expr::Variable("point-y".to_string()),
             ]),
         ];
-        
+
         let result = expand_define_record_type(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs[0], Expr::Variable("begin".to_string()));
                 // Should have constructor, predicate, and accessor definitions
                 assert!(exprs.len() >= 4); // begin + constructor + predicate + 2 accessors + 1 modifier
-                
+
                 // Check constructor definition
                 match &exprs[1] {
                     Expr::List(def_parts) => {
@@ -718,7 +769,7 @@ mod expand_define_record_type_tests {
                     }
                     _ => panic!("Expected define expression"),
                 }
-                
+
                 // Check predicate definition
                 match &exprs[2] {
                     Expr::List(def_parts) => {
@@ -740,7 +791,10 @@ mod expand_define_record_type_tests {
         ];
         let result = expand_define_record_type(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("expected at least 3 arguments"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("expected at least 3 arguments"));
     }
 
     #[test]
@@ -752,7 +806,10 @@ mod expand_define_record_type_tests {
         ];
         let result = expand_define_record_type(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("type name must be an identifier"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("type name must be an identifier"));
     }
 
     #[test]
@@ -764,7 +821,10 @@ mod expand_define_record_type_tests {
         ];
         let result = expand_define_record_type(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("constructor specification must be a list"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("constructor specification must be a list"));
     }
 
     #[test]
@@ -776,7 +836,10 @@ mod expand_define_record_type_tests {
         ];
         let result = expand_define_record_type(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("predicate name must be an identifier"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("predicate name must be an identifier"));
     }
 
     #[test]
@@ -792,7 +855,10 @@ mod expand_define_record_type_tests {
         ];
         let result = expand_define_record_type(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("field specification must be a list"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("field specification must be a list"));
     }
 
     #[test]
@@ -811,7 +877,10 @@ mod expand_define_record_type_tests {
         ];
         let result = expand_define_record_type(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("field name must be an identifier"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("field name must be an identifier"));
     }
 
     #[test]
@@ -830,7 +899,10 @@ mod expand_define_record_type_tests {
         ];
         let result = expand_define_record_type(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("accessor name must be an identifier"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("accessor name must be an identifier"));
     }
 
     #[test]
@@ -850,7 +922,10 @@ mod expand_define_record_type_tests {
         ];
         let result = expand_define_record_type(&args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("modifier name must be an identifier"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("modifier name must be an identifier"));
     }
 }
 
@@ -867,9 +942,9 @@ mod expand_macro_integration_tests {
             ])]),
             Expr::Variable("x".to_string()),
         ];
-        
+
         let result = expand_macro("let", &args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
@@ -880,7 +955,10 @@ mod expand_macro_integration_tests {
                     }
                     _ => panic!("Expected lambda expression"),
                 }
-                assert_eq!(exprs[1], Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
+                assert_eq!(
+                    exprs[1],
+                    Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))
+                );
             }
             _ => panic!("Expected list expression"),
         }
@@ -895,9 +973,9 @@ mod expand_macro_integration_tests {
             ])]),
             Expr::Variable("x".to_string()),
         ];
-        
+
         let result = expand_macro("let*", &args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs[0], Expr::Variable("let".to_string()));
@@ -915,9 +993,9 @@ mod expand_macro_integration_tests {
             ])]),
             Expr::Variable("x".to_string()),
         ];
-        
+
         let result = expand_macro("letrec", &args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
@@ -940,9 +1018,9 @@ mod expand_macro_integration_tests {
             Expr::Variable("condition".to_string()),
             Expr::Variable("action".to_string()),
         ];
-        
+
         let result = expand_macro("when", &args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
@@ -959,9 +1037,9 @@ mod expand_macro_integration_tests {
             Expr::Variable("condition".to_string()),
             Expr::Variable("action".to_string()),
         ];
-        
+
         let result = expand_macro("unless", &args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 3);
@@ -987,9 +1065,9 @@ mod expand_macro_integration_tests {
                 Expr::Variable("first".to_string()),
             ]),
         ];
-        
+
         let result = expand_macro("case", &args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs[0], Expr::Variable("let".to_string()));
@@ -1011,7 +1089,10 @@ mod expand_macro_integration_tests {
         let args = vec![];
         let result = expand_macro("let", &args);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("too few arguments"));
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("too few arguments"));
     }
 }
 
@@ -1051,7 +1132,7 @@ mod edge_cases_tests {
             ])]),
             Expr::Variable("y".to_string()),
         ]);
-        
+
         let args = vec![
             Expr::List(vec![Expr::List(vec![
                 Expr::Variable("x".to_string()),
@@ -1059,9 +1140,9 @@ mod edge_cases_tests {
             ])]),
             inner_let,
         ];
-        
+
         let result = expand_let(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
@@ -1103,9 +1184,9 @@ mod edge_cases_tests {
                 Expr::Literal(Literal::Number(SchemeNumber::Integer(5))),
             ]),
         ];
-        
+
         let result = expand_let(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
@@ -1137,9 +1218,9 @@ mod edge_cases_tests {
             ])]),
             Expr::Variable("λ".to_string()),
         ];
-        
+
         let result = expand_let(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
@@ -1170,9 +1251,9 @@ mod edge_cases_tests {
             // Add at least one body expression - empty body is invalid for let
             Expr::Variable("x".to_string()),
         ];
-        
+
         let result = expand_let(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
@@ -1198,14 +1279,11 @@ mod edge_cases_tests {
                 Expr::Literal(Literal::Number(SchemeNumber::Integer(i))),
             ]));
         }
-        
-        let args = vec![
-            Expr::List(bindings),
-            Expr::Variable("var0".to_string()),
-        ];
-        
+
+        let args = vec![Expr::List(bindings), Expr::Variable("var0".to_string())];
+
         let result = expand_let(&args).unwrap();
-        
+
         match result {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 101); // lambda + 100 values
