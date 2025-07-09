@@ -328,45 +328,58 @@ fn make_record_type_descriptor_proc(args: &[Value]) -> Result<Value> {
         }
     };
 
-    let fields = match &args[1] {
-        Value::Vector(field_specs) => {
-            let mut fields = Vec::new();
-            for spec in field_specs {
-                match spec {
-                    Value::Symbol(field_name) => {
-                        fields.push(FieldSpec {
-                            name: field_name.clone(),
-                            mutable: true,
-                            default: None,
-                        });
-                    }
-                    Value::Vector(field_spec_vec) if !field_spec_vec.is_empty() => {
-                        if let Value::Symbol(field_name) = &field_spec_vec[0] {
-                            fields.push(FieldSpec {
-                                name: field_name.clone(),
-                                mutable: true, // Simplified for now
-                                default: None,
-                            });
-                        } else {
-                            return Err(LambdustError::type_error(
-                                "Expected symbol for field name".to_string(),
-                            ));
-                        }
-                    }
-                    _ => {
-                        return Err(LambdustError::type_error(
-                            "Invalid field specification".to_string(),
-                        ));
-                    }
-                }
+    // Convert field specifications to vector if needed
+    let field_specs = match &args[1] {
+        Value::Vector(specs) => specs.clone(),
+        // Handle quoted vectors that become lists
+        Value::Pair(_) => {
+            if let Some(vec) = args[1].to_vector() {
+                vec
+            } else {
+                return Err(LambdustError::type_error(
+                    "Expected vector for field specifications".to_string(),
+                ));
             }
-            fields
         }
         _ => {
             return Err(LambdustError::type_error(
                 "Expected vector for field specifications".to_string(),
             ));
         }
+    };
+
+    let fields = {
+        let mut fields = Vec::new();
+        for spec in &field_specs {
+            match spec {
+                Value::Symbol(field_name) => {
+                    fields.push(FieldSpec {
+                        name: field_name.clone(),
+                        mutable: true,
+                        default: None,
+                    });
+                }
+                Value::Vector(field_spec_vec) if !field_spec_vec.is_empty() => {
+                    if let Value::Symbol(field_name) = &field_spec_vec[0] {
+                        fields.push(FieldSpec {
+                            name: field_name.clone(),
+                            mutable: true, // Simplified for now
+                            default: None,
+                        });
+                    } else {
+                        return Err(LambdustError::type_error(
+                            "Expected symbol for field name".to_string(),
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(LambdustError::type_error(
+                        "Invalid field specification".to_string(),
+                    ));
+                }
+            }
+        }
+        fields
     };
 
     let parent = if args.len() > 2 {
@@ -419,8 +432,19 @@ fn make_record_from_descriptor(rtd_value: &Value, fields_value: &Value) -> Resul
         }
     };
 
+    // Convert field values to vector if needed
     let fields = match fields_value {
         Value::Vector(field_values) => field_values.clone(),
+        // Handle quoted vectors that become lists
+        Value::Pair(_) => {
+            if let Some(vec) = fields_value.to_vector() {
+                vec
+            } else {
+                return Err(LambdustError::type_error(
+                    "Expected vector for field values".to_string(),
+                ));
+            }
+        }
         _ => {
             return Err(LambdustError::type_error(
                 "Expected vector for field values".to_string(),

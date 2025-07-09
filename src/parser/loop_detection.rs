@@ -2,8 +2,8 @@
 
 use crate::ast::Expr;
 use crate::error::{LambdustError, Result, SourceSpan};
-use crate::parser::dependency_analyzer::DependencyAnalyzer;
 use crate::parser::cycle_detector::{CycleDetector, CycleType};
+use crate::parser::dependency_analyzer::DependencyAnalyzer;
 // use std::collections::HashMap;
 
 /// Configuration for loop detection
@@ -187,7 +187,7 @@ impl InfiniteLoopDetector {
     /// Check if functions in the cycle have base cases
     fn has_base_case(&self, nodes: &[String]) -> bool {
         let graph = self.dependency_analyzer.get_graph();
-        
+
         for node_name in nodes {
             if let Some(node) = graph.get_nodes().get(node_name) {
                 if matches!(
@@ -452,10 +452,13 @@ mod tests {
 
         let result = check_for_infinite_loops_with_config(&[expr], config);
         assert!(result.is_ok());
-        
+
         let loops = result.unwrap();
         assert!(!loops.is_empty());
-        assert_eq!(loops[0].loop_type, InfiniteLoopType::VariableCircularDependency);
+        assert_eq!(
+            loops[0].loop_type,
+            InfiniteLoopType::VariableCircularDependency
+        );
     }
 
     #[test]
@@ -474,7 +477,7 @@ mod tests {
 
         let result = check_for_infinite_loops_with_config(&[expr], config);
         assert!(result.is_ok());
-        
+
         let loops = result.unwrap();
         assert!(loops.is_empty());
     }

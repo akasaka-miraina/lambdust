@@ -57,10 +57,10 @@ impl DependencyGraph {
     pub fn add_node(&mut self, node: DependencyNode) {
         let name = node.name.clone();
         let dependencies = node.depends_on.clone();
-        
+
         self.nodes.insert(name.clone(), node);
         self.edges.insert(name.clone(), dependencies.clone());
-        
+
         // Ensure all dependency targets exist in edges (even if empty)
         for dep in dependencies {
             self.edges.entry(dep).or_default();
@@ -323,16 +323,16 @@ mod tests {
     #[test]
     fn test_simple_variable_dependency() {
         let mut analyzer = DependencyAnalyzer::new();
-        
+
         // (define x y)
         let define_expr = Expr::List(vec![
             Expr::Variable("define".to_string()),
             Expr::Variable("x".to_string()),
             Expr::Variable("y".to_string()),
         ]);
-        
+
         let graph = analyzer.analyze_expressions(&[define_expr]);
-        
+
         assert!(graph.nodes.contains_key("x"));
         let node = &graph.nodes["x"];
         assert_eq!(node.depends_on, vec!["y".to_string()]);
@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn test_function_dependency() {
         let mut analyzer = DependencyAnalyzer::new();
-        
+
         // (define (foo x) (+ x y))
         let define_expr = Expr::List(vec![
             Expr::Variable("define".to_string()),
@@ -356,9 +356,9 @@ mod tests {
                 Expr::Variable("y".to_string()),
             ]),
         ]);
-        
+
         let graph = analyzer.analyze_expressions(&[define_expr]);
-        
+
         assert!(graph.nodes.contains_key("foo"));
         let node = &graph.nodes["foo"];
         assert!(node.depends_on.contains(&"+".to_string()));
@@ -370,16 +370,16 @@ mod tests {
     #[test]
     fn test_no_dependency_on_literals() {
         let mut analyzer = DependencyAnalyzer::new();
-        
+
         // (define x 42)
         let define_expr = Expr::List(vec![
             Expr::Variable("define".to_string()),
             Expr::Variable("x".to_string()),
             Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(42))),
         ]);
-        
+
         let graph = analyzer.analyze_expressions(&[define_expr]);
-        
+
         assert!(graph.nodes.contains_key("x"));
         let node = &graph.nodes["x"];
         assert!(node.depends_on.is_empty());
@@ -388,7 +388,7 @@ mod tests {
     #[test]
     fn test_complex_dependency() {
         let mut analyzer = DependencyAnalyzer::new();
-        
+
         // (define a (+ b c))
         // (define b (+ c 1))
         let expressions = vec![
@@ -411,16 +411,16 @@ mod tests {
                 ]),
             ]),
         ];
-        
+
         let graph = analyzer.analyze_expressions(&expressions);
-        
+
         // Check node 'a'
         assert!(graph.nodes.contains_key("a"));
         let node_a = &graph.nodes["a"];
         assert!(node_a.depends_on.contains(&"+".to_string()));
         assert!(node_a.depends_on.contains(&"b".to_string()));
         assert!(node_a.depends_on.contains(&"c".to_string()));
-        
+
         // Check node 'b'
         assert!(graph.nodes.contains_key("b"));
         let node_b = &graph.nodes["b"];

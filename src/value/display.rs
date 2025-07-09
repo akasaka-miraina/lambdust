@@ -121,7 +121,12 @@ impl fmt::Display for Value {
             Value::LazyVector(lazy_vec) => {
                 let storage = lazy_vec.borrow();
                 let stats = storage.memory_stats();
-                write!(f, "#<lazy-vector:{}:{:.1}%>", stats.logical_size, stats.materialization_ratio() * 100.0)
+                write!(
+                    f,
+                    "#<lazy-vector:{}:{:.1}%>",
+                    stats.logical_size,
+                    stats.materialization_ratio() * 100.0
+                )
             }
             Value::Port(_) => write!(f, "#<port>"),
             Value::External(obj) => write!(f, "#<external:{}>", obj.type_name),
@@ -202,7 +207,11 @@ impl std::fmt::Debug for Value {
                 let storage = arg0.borrow();
                 let stats = storage.memory_stats();
                 f.debug_tuple("LazyVector")
-                    .field(&format!("size:{}, materialized:{:.1}%", stats.logical_size, stats.materialization_ratio() * 100.0))
+                    .field(&format!(
+                        "size:{}, materialized:{:.1}%",
+                        stats.logical_size,
+                        stats.materialization_ratio() * 100.0
+                    ))
                     .finish()
             }
             Self::Port(arg0) => f.debug_tuple("Port").field(arg0).finish(),

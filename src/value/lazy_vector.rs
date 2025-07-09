@@ -36,7 +36,7 @@ impl VectorStorage {
     pub fn new(size: usize, fill_value: Value) -> Result<Self> {
         // Estimate memory usage (assuming 8 bytes per Value on average)
         let estimated_bytes = size * std::mem::size_of::<Value>();
-        
+
         if estimated_bytes <= IMMEDIATE_ALLOCATION_THRESHOLD {
             // Small vector - allocate immediately
             Ok(VectorStorage::Materialized(vec![fill_value; size]))
@@ -120,9 +120,9 @@ impl VectorStorage {
                 let element_index = index % *segment_size;
 
                 // Materialize segment if it doesn't exist
-                materialized_segments.entry(segment_index).or_insert_with(|| {
-                    vec![fill_value.clone(); *segment_size]
-                });
+                materialized_segments
+                    .entry(segment_index)
+                    .or_insert_with(|| vec![fill_value.clone(); *segment_size]);
 
                 // Set the value in the materialized segment
                 if let Some(segment) = materialized_segments.get_mut(&segment_index) {
@@ -158,7 +158,7 @@ impl VectorStorage {
                 }
 
                 let mut result = Vec::with_capacity(*size);
-                
+
                 for i in 0..*size {
                     let segment_index = i / segment_size;
                     let element_index = i % segment_size;
@@ -221,9 +221,9 @@ impl VectorStorage {
                 let end_segment = (end - 1) / *segment_size;
 
                 for segment_index in start_segment..=end_segment {
-                    materialized_segments.entry(segment_index).or_insert_with(|| {
-                        vec![fill_value.clone(); *segment_size]
-                    });
+                    materialized_segments
+                        .entry(segment_index)
+                        .or_insert_with(|| vec![fill_value.clone(); *segment_size]);
                 }
 
                 Ok(())
@@ -280,9 +280,12 @@ mod tests {
 
     #[test]
     fn test_large_vector_lazy_allocation() {
-        let storage = VectorStorage::new(10_000_000, Value::Number(SchemeNumber::Integer(42))).unwrap();
+        let storage =
+            VectorStorage::new(10_000_000, Value::Number(SchemeNumber::Integer(42))).unwrap();
         match storage {
-            VectorStorage::Lazy { size, fill_value, .. } => {
+            VectorStorage::Lazy {
+                size, fill_value, ..
+            } => {
                 assert_eq!(size, 10_000_000);
                 assert_eq!(fill_value, Value::Number(SchemeNumber::Integer(42)));
             }
@@ -292,8 +295,9 @@ mod tests {
 
     #[test]
     fn test_lazy_vector_access() {
-        let mut storage = VectorStorage::new(10_000, Value::Number(SchemeNumber::Integer(0))).unwrap();
-        
+        let mut storage =
+            VectorStorage::new(10_000, Value::Number(SchemeNumber::Integer(0))).unwrap();
+
         // Access without materialization
         let value = storage.get(5000).unwrap();
         assert_eq!(value, Value::Number(SchemeNumber::Integer(0)));
@@ -306,10 +310,13 @@ mod tests {
 
     #[test]
     fn test_lazy_vector_modification() {
-        let mut storage = VectorStorage::new(10_000, Value::Number(SchemeNumber::Integer(0))).unwrap();
-        
+        let mut storage =
+            VectorStorage::new(10_000, Value::Number(SchemeNumber::Integer(0))).unwrap();
+
         // Modify an element (should materialize segment)
-        storage.set(5000, Value::Number(SchemeNumber::Integer(99))).unwrap();
+        storage
+            .set(5000, Value::Number(SchemeNumber::Integer(99)))
+            .unwrap();
 
         // Check that the value was set
         let value = storage.get(5000).unwrap();
@@ -324,7 +331,7 @@ mod tests {
     #[test]
     fn test_memory_stats() {
         let mut storage = VectorStorage::new(5000, Value::Boolean(false)).unwrap();
-        
+
         // Initially no materialization
         let initial_stats = storage.memory_stats();
         assert_eq!(initial_stats.materialization_ratio(), 0.0);
@@ -332,7 +339,7 @@ mod tests {
 
         // Materialize a range
         storage.materialize_range(1000, 2000).unwrap();
-        
+
         let stats_after = storage.memory_stats();
         assert!(stats_after.materialization_ratio() > 0.0);
         assert!(stats_after.materialization_ratio() < 1.0);
@@ -341,7 +348,7 @@ mod tests {
     #[test]
     fn test_bounds_checking() {
         let mut storage = VectorStorage::new(100, Value::Boolean(true)).unwrap();
-        
+
         // Valid access
         assert!(storage.get(50).is_ok());
         assert!(storage.set(99, Value::Boolean(false)).is_ok());
@@ -355,11 +362,11 @@ mod tests {
     fn test_materialization_failure_protection() {
         // Create a very large vector
         let storage = VectorStorage::new(100_000_000, Value::Boolean(false)).unwrap();
-        
+
         // Attempt to materialize should fail gracefully
         let result = storage.to_materialized();
         assert!(result.is_err());
-        
+
         if let Err(e) = result {
             assert!(format!("{:?}", e).contains("too large"));
         }

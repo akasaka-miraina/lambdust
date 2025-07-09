@@ -94,7 +94,7 @@ fn vector_set() -> Value {
                 // Traditional vectors are immutable in our implementation
                 // This is a design choice - we could make them mutable if needed
                 Err(LambdustError::runtime_error(
-                    "vector-set!: traditional vectors are immutable, use lazy vectors for mutation"
+                    "vector-set!: traditional vectors are immutable, use lazy vectors for mutation",
                 ))
             }
             Value::LazyVector(lazy_vec) => {
@@ -140,7 +140,9 @@ fn vector_make() -> Value {
             }
             Ok(storage) => {
                 // Large vector - use LazyVector
-                Ok(Value::LazyVector(std::rc::Rc::new(std::cell::RefCell::new(storage))))
+                Ok(Value::LazyVector(std::rc::Rc::new(
+                    std::cell::RefCell::new(storage),
+                )))
             }
             Err(e) => Err(e),
         }

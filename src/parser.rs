@@ -3,8 +3,10 @@
 use crate::ast::{Expr, Literal};
 use crate::error::{LambdustError, Result};
 use crate::lexer::Token;
-use crate::parser::loop_detection::{check_for_infinite_loops, check_for_infinite_loops_with_config};
 pub use crate::parser::loop_detection::LoopDetectionConfig;
+use crate::parser::loop_detection::{
+    check_for_infinite_loops, check_for_infinite_loops_with_config,
+};
 
 /// Parser for Scheme tokens
 pub struct Parser {
@@ -243,12 +245,15 @@ pub fn parse_with_loop_detection(tokens: Vec<Token>, config: LoopDetectionConfig
         return Err(LambdustError::parse_error("Unexpected end of input"));
     }
 
-    let mut parser = Parser::with_loop_detection_config(tokens, LoopDetectionConfig {
-        enable_cycle_detection: false,
-        ..Default::default()
-    });
+    let mut parser = Parser::with_loop_detection_config(
+        tokens,
+        LoopDetectionConfig {
+            enable_cycle_detection: false,
+            ..Default::default()
+        },
+    );
     let expressions = parser.parse_all()?;
-    
+
     // Check for infinite loops with the given configuration
     if config.enable_cycle_detection {
         if config.warn_only {
@@ -274,6 +279,6 @@ pub fn parse_with_loop_detection(tokens: Vec<Token>, config: LoopDetectionConfig
 }
 
 // Include the infinite loop detection modules
-pub mod loop_detection;
-pub mod dependency_analyzer;
 pub mod cycle_detector;
+pub mod dependency_analyzer;
+pub mod loop_detection;

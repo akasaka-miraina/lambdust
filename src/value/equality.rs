@@ -23,11 +23,11 @@ impl Value {
             (Value::LazyVector(a), Value::LazyVector(b)) => {
                 let mut a_storage = a.borrow_mut();
                 let mut b_storage = b.borrow_mut();
-                
+
                 if a_storage.len() != b_storage.len() {
                     return false;
                 }
-                
+
                 // Compare elements lazily without full materialization
                 for i in 0..a_storage.len() {
                     let a_val = a_storage.get(i).unwrap_or(Value::Undefined);
@@ -38,13 +38,14 @@ impl Value {
                 }
                 true
             }
-            (Value::Vector(vec), Value::LazyVector(lazy)) | (Value::LazyVector(lazy), Value::Vector(vec)) => {
+            (Value::Vector(vec), Value::LazyVector(lazy))
+            | (Value::LazyVector(lazy), Value::Vector(vec)) => {
                 let mut lazy_storage = lazy.borrow_mut();
-                
+
                 if vec.len() != lazy_storage.len() {
                     return false;
                 }
-                
+
                 // Compare vector elements with lazy vector elements
                 for (i, vec_val) in vec.iter().enumerate() {
                     let lazy_val = lazy_storage.get(i).unwrap_or(Value::Undefined);
@@ -135,7 +136,9 @@ impl PartialEq for Value {
                 // to avoid expensive materialization
                 std::rc::Rc::ptr_eq(l0, r0)
             }
-            (Self::Vector(_), Self::LazyVector(_)) | (Self::LazyVector(_), Self::Vector(_)) => false,
+            (Self::Vector(_), Self::LazyVector(_)) | (Self::LazyVector(_), Self::Vector(_)) => {
+                false
+            }
             (Self::Port(l0), Self::Port(r0)) => l0 == r0,
             (Self::External(l0), Self::External(r0)) => l0.id == r0.id,
             (Self::Record(l0), Self::Record(r0)) => l0 == r0,

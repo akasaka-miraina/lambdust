@@ -107,7 +107,7 @@ impl CycleDetector {
     pub fn find_shortest_cycle(&self, start_node: &str) -> Option<Vec<String>> {
         let mut visited = HashSet::new();
         let mut path = Vec::new();
-        
+
         self.dfs_find_cycle(start_node, start_node, &mut visited, &mut path)
     }
 
@@ -173,7 +173,7 @@ impl<'a> TarjanSCC<'a> {
 
     fn find_sccs(&mut self) -> Vec<Vec<String>> {
         let nodes: Vec<String> = self.graph.get_nodes().keys().cloned().collect();
-        
+
         for node in nodes {
             if !self.indices.contains_key(&node) {
                 self.strongconnect(&node);
@@ -199,18 +199,14 @@ impl<'a> TarjanSCC<'a> {
                     self.strongconnect(successor);
                     let successor_lowlink = self.lowlinks[successor];
                     let current_lowlink = self.lowlinks[node];
-                    self.lowlinks.insert(
-                        node.to_string(),
-                        current_lowlink.min(successor_lowlink),
-                    );
+                    self.lowlinks
+                        .insert(node.to_string(), current_lowlink.min(successor_lowlink));
                 } else if self.on_stack.contains(successor) {
                     // Successor is in stack and hence in the current SCC
                     let successor_index = self.indices[successor];
                     let current_lowlink = self.lowlinks[node];
-                    self.lowlinks.insert(
-                        node.to_string(),
-                        current_lowlink.min(successor_index),
-                    );
+                    self.lowlinks
+                        .insert(node.to_string(), current_lowlink.min(successor_index));
                 }
             }
         }
@@ -288,13 +284,13 @@ impl Cycle {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::parser::dependency_analyzer::{DependencyGraph, DependencyNode, DependencyType};
     use crate::ast::{Expr, Literal};
+    use crate::parser::dependency_analyzer::{DependencyGraph, DependencyNode, DependencyType};
 
     #[test]
     fn test_self_reference_cycle() {
         let mut graph = DependencyGraph::new();
-        
+
         // Create a self-referencing node: (define x x)
         let node = DependencyNode {
             name: "x".to_string(),
@@ -303,13 +299,13 @@ mod tests {
             dependency_type: DependencyType::Variable,
         };
         graph.add_node(node);
-        
+
         let detector = CycleDetector::new(graph);
         let result = detector.detect_cycles();
-        
+
         assert!(result.has_cycles());
         assert_eq!(result.cycle_count(), 1);
-        
+
         let cycle = &result.cycles[0];
         assert_eq!(cycle.cycle_type, CycleType::SelfReference);
         assert_eq!(cycle.nodes, vec!["x".to_string()]);
@@ -318,7 +314,7 @@ mod tests {
     #[test]
     fn test_direct_cycle() {
         let mut graph = DependencyGraph::new();
-        
+
         // Create a direct cycle: x → y → x
         let node_x = DependencyNode {
             name: "x".to_string(),
@@ -332,20 +328,20 @@ mod tests {
             depends_on: vec!["x".to_string()],
             dependency_type: DependencyType::Variable,
         };
-        
+
         graph.add_node(node_x);
         graph.add_node(node_y);
-        
+
         let detector = CycleDetector::new(graph);
         let result = detector.detect_cycles();
-        
+
         assert!(result.has_cycles());
         assert_eq!(result.cycle_count(), 1);
-        
+
         let cycle = &result.cycles[0];
         assert_eq!(cycle.cycle_type, CycleType::Direct);
         assert_eq!(cycle.length(), 2);
-        
+
         let cyclic_nodes = result.get_cyclic_nodes();
         assert!(cyclic_nodes.contains("x"));
         assert!(cyclic_nodes.contains("y"));
@@ -354,7 +350,7 @@ mod tests {
     #[test]
     fn test_indirect_cycle() {
         let mut graph = DependencyGraph::new();
-        
+
         // Create an indirect cycle: a → b → c → a
         let node_a = DependencyNode {
             name: "a".to_string(),
@@ -374,21 +370,21 @@ mod tests {
             depends_on: vec!["a".to_string()],
             dependency_type: DependencyType::Variable,
         };
-        
+
         graph.add_node(node_a);
         graph.add_node(node_b);
         graph.add_node(node_c);
-        
+
         let detector = CycleDetector::new(graph);
         let result = detector.detect_cycles();
-        
+
         assert!(result.has_cycles());
         assert_eq!(result.cycle_count(), 1);
-        
+
         let cycle = &result.cycles[0];
         assert_eq!(cycle.cycle_type, CycleType::Indirect);
         assert_eq!(cycle.length(), 3);
-        
+
         let cyclic_nodes = result.get_cyclic_nodes();
         assert!(cyclic_nodes.contains("a"));
         assert!(cyclic_nodes.contains("b"));
@@ -398,7 +394,7 @@ mod tests {
     #[test]
     fn test_no_cycles() {
         let mut graph = DependencyGraph::new();
-        
+
         // Create a non-cyclic dependency: a → b → c
         let node_a = DependencyNode {
             name: "a".to_string(),
@@ -418,14 +414,14 @@ mod tests {
             depends_on: vec![],
             dependency_type: DependencyType::Variable,
         };
-        
+
         graph.add_node(node_a);
         graph.add_node(node_b);
         graph.add_node(node_c);
-        
+
         let detector = CycleDetector::new(graph);
         let result = detector.detect_cycles();
-        
+
         assert!(!result.has_cycles());
         assert_eq!(result.cycle_count(), 0);
     }
@@ -433,7 +429,7 @@ mod tests {
     #[test]
     fn test_multiple_cycles() {
         let mut graph = DependencyGraph::new();
-        
+
         // Create multiple cycles
         // Cycle 1: a → a (self-reference)
         let node_a = DependencyNode {
@@ -442,7 +438,7 @@ mod tests {
             depends_on: vec!["a".to_string()],
             dependency_type: DependencyType::Variable,
         };
-        
+
         // Cycle 2: b → c → b (direct)
         let node_b = DependencyNode {
             name: "b".to_string(),
@@ -456,20 +452,20 @@ mod tests {
             depends_on: vec!["b".to_string()],
             dependency_type: DependencyType::Variable,
         };
-        
+
         graph.add_node(node_a);
         graph.add_node(node_b);
         graph.add_node(node_c);
-        
+
         let detector = CycleDetector::new(graph);
         let result = detector.detect_cycles();
-        
+
         assert!(result.has_cycles());
         assert_eq!(result.cycle_count(), 2);
-        
+
         let self_refs = result.get_cycles_of_type(CycleType::SelfReference);
         let direct_cycles = result.get_cycles_of_type(CycleType::Direct);
-        
+
         assert_eq!(self_refs.len(), 1);
         assert_eq!(direct_cycles.len(), 1);
     }
@@ -477,7 +473,7 @@ mod tests {
     #[test]
     fn test_shortest_cycle_finding() {
         let mut graph = DependencyGraph::new();
-        
+
         // Create a cycle: a → b → c → a
         let node_a = DependencyNode {
             name: "a".to_string(),
@@ -497,14 +493,14 @@ mod tests {
             depends_on: vec!["a".to_string()],
             dependency_type: DependencyType::Variable,
         };
-        
+
         graph.add_node(node_a);
         graph.add_node(node_b);
         graph.add_node(node_c);
-        
+
         let detector = CycleDetector::new(graph);
         let cycle = detector.find_shortest_cycle("a");
-        
+
         assert!(cycle.is_some());
         let cycle_path = cycle.unwrap();
         assert_eq!(cycle_path.len(), 4); // a → b → c → a

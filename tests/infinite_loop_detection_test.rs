@@ -1,15 +1,15 @@
+use lambdust::error::LambdustError;
 use lambdust::lexer::tokenize;
 use lambdust::parser::{parse_with_loop_detection, LoopDetectionConfig};
-use lambdust::error::LambdustError;
 
 #[test]
 fn test_parser_integration_simple_circular_dependency() {
     let source = "(define x x)";
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig::default();
     let result = parse_with_loop_detection(tokens, config);
-    
+
     assert!(result.is_err());
     match result.unwrap_err() {
         LambdustError::ParseError { message, .. } => {
@@ -27,10 +27,10 @@ fn test_parser_integration_mutual_circular_dependency() {
         (define y x)
     "#;
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig::default();
     let result = parse_with_loop_detection(tokens, config);
-    
+
     assert!(result.is_err());
     match result.unwrap_err() {
         LambdustError::ParseError { message, .. } => {
@@ -44,10 +44,10 @@ fn test_parser_integration_mutual_circular_dependency() {
 fn test_parser_integration_infinite_recursion() {
     let source = "(define (loop x) (loop x))";
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig::default();
     let result = parse_with_loop_detection(tokens, config);
-    
+
     assert!(result.is_err());
     match result.unwrap_err() {
         LambdustError::ParseError { message, .. } => {
@@ -66,10 +66,10 @@ fn test_parser_integration_valid_recursive_function() {
               (* n (factorial (- n 1)))))
     "#;
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig::default();
     let result = parse_with_loop_detection(tokens, config);
-    
+
     assert!(result.is_ok());
 }
 
@@ -81,10 +81,10 @@ fn test_parser_integration_valid_non_recursive_code() {
         (define z (* y 2))
     "#;
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig::default();
     let result = parse_with_loop_detection(tokens, config);
-    
+
     assert!(result.is_ok());
 }
 
@@ -92,13 +92,13 @@ fn test_parser_integration_valid_non_recursive_code() {
 fn test_parser_integration_disabled_detection() {
     let source = "(define x x)";
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig {
         enable_cycle_detection: false,
         ..Default::default()
     };
     let result = parse_with_loop_detection(tokens, config);
-    
+
     // Should succeed when detection is disabled
     assert!(result.is_ok());
 }
@@ -107,13 +107,13 @@ fn test_parser_integration_disabled_detection() {
 fn test_parser_integration_warn_only_mode() {
     let source = "(define x x)";
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig {
         warn_only: true,
         ..Default::default()
     };
     let result = parse_with_loop_detection(tokens, config);
-    
+
     // Should succeed in warn-only mode
     if let Err(e) = result {
         panic!("Expected success in warn-only mode, but got error: {:?}", e);
@@ -128,10 +128,10 @@ fn test_parser_integration_complex_circular_dependency() {
         (define c (+ a 1))
     "#;
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig::default();
     let result = parse_with_loop_detection(tokens, config);
-    
+
     assert!(result.is_err());
     match result.unwrap_err() {
         LambdustError::ParseError { message, .. } => {
@@ -148,10 +148,10 @@ fn test_parser_integration_valid_forward_reference() {
         (define (g x) (+ x 1))
     "#;
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig::default();
     let result = parse_with_loop_detection(tokens, config);
-    
+
     // Forward reference should be OK
     assert!(result.is_ok());
 }
@@ -169,10 +169,10 @@ fn test_parser_integration_mutual_recursion_with_base_case() {
               (even? (- n 1))))
     "#;
     let tokens = tokenize(source).unwrap();
-    
+
     let config = LoopDetectionConfig::default();
     let result = parse_with_loop_detection(tokens, config);
-    
+
     // Mutual recursion with base case should be OK
     assert!(result.is_ok());
 }
