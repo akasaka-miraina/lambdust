@@ -27,7 +27,10 @@ fn test_literal_to_value_conversion() {
 
     let real_expr = Expr::Literal(Literal::Number(SchemeNumber::Real(std::f64::consts::PI)));
     let result = AstConverter::expr_to_value(real_expr).unwrap();
-    assert_eq!(result, Value::Number(SchemeNumber::Real(std::f64::consts::PI)));
+    assert_eq!(
+        result,
+        Value::Number(SchemeNumber::Real(std::f64::consts::PI))
+    );
 
     // Test string literals
     let str_expr = Expr::Literal(Literal::String("hello".to_string()));
@@ -71,9 +74,11 @@ fn test_list_to_value_conversion() {
     assert_eq!(result, Value::Nil);
 
     // Test single element list
-    let single_list = Expr::List(vec![Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))]);
+    let single_list = Expr::List(vec![Expr::Literal(Literal::Number(SchemeNumber::Integer(
+        42,
+    )))]);
     let result = AstConverter::expr_to_value(single_list).unwrap();
-    
+
     // Should be cons(42, nil)
     if let Some((car, cdr)) = result.as_pair() {
         assert_eq!(car, Value::Number(SchemeNumber::Integer(42)));
@@ -89,7 +94,7 @@ fn test_list_to_value_conversion() {
         Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
     ]);
     let result = AstConverter::expr_to_value(multi_list).unwrap();
-    
+
     // Should be cons(1, cons(2, cons(3, nil)))
     if let Some((car1, cdr1)) = result.as_pair() {
         assert_eq!(car1, Value::Number(SchemeNumber::Integer(1)));
@@ -121,7 +126,9 @@ fn test_vector_to_value_conversion() {
     }
 
     // Test single element vector
-    let single_vec = Expr::Vector(vec![Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))]);
+    let single_vec = Expr::Vector(vec![Expr::Literal(Literal::Number(SchemeNumber::Integer(
+        42,
+    )))]);
     let result = AstConverter::expr_to_value(single_vec).unwrap();
     if let Value::Vector(vec) = result {
         assert_eq!(vec.len(), 1);
@@ -152,10 +159,10 @@ fn test_dotted_list_conversion() {
     // Test simple dotted list: (a . b)
     let dotted = Expr::DottedList(
         vec![Expr::Variable("a".to_string())],
-        Box::new(Expr::Variable("b".to_string()))
+        Box::new(Expr::Variable("b".to_string())),
     );
     let result = AstConverter::expr_to_value(dotted).unwrap();
-    
+
     if let Some((car, cdr)) = result.as_pair() {
         assert_eq!(car, Value::Symbol("a".to_string()));
         assert_eq!(cdr, Value::Symbol("b".to_string()));
@@ -170,10 +177,10 @@ fn test_dotted_list_conversion() {
             Expr::Variable("b".to_string()),
             Expr::Variable("c".to_string()),
         ],
-        Box::new(Expr::Variable("d".to_string()))
+        Box::new(Expr::Variable("d".to_string())),
     );
     let result = AstConverter::expr_to_value(dotted).unwrap();
-    
+
     // Should be cons(a, cons(b, cons(c, d)))
     if let Some((car1, cdr1)) = result.as_pair() {
         assert_eq!(car1, Value::Symbol("a".to_string()));
@@ -196,9 +203,11 @@ fn test_dotted_list_conversion() {
 #[test]
 fn test_nested_quote_conversion() {
     // Test nested quote: (quote (quote x))
-    let nested_quote = Expr::Quote(Box::new(Expr::Quote(Box::new(Expr::Variable("x".to_string())))));
+    let nested_quote = Expr::Quote(Box::new(Expr::Quote(Box::new(Expr::Variable(
+        "x".to_string(),
+    )))));
     let result = AstConverter::expr_to_value(nested_quote).unwrap();
-    
+
     // Should convert to the symbol x (quote is stripped)
     assert_eq!(result, Value::Symbol("x".to_string()));
 
@@ -209,7 +218,7 @@ fn test_nested_quote_conversion() {
         Expr::Variable("c".to_string()),
     ])));
     let result = AstConverter::expr_to_value(quote_list).unwrap();
-    
+
     // Should be cons(a, cons(b, cons(c, nil)))
     if let Some((car1, cdr1)) = result.as_pair() {
         assert_eq!(car1, Value::Symbol("a".to_string()));
@@ -240,7 +249,7 @@ fn test_mixed_data_types_conversion() {
         Expr::Literal(Literal::Character('x')),
     ]);
     let result = AstConverter::expr_to_value(mixed_list).unwrap();
-    
+
     // Verify structure and contents
     if let Some((car1, cdr1)) = result.as_pair() {
         assert_eq!(car1, Value::Number(SchemeNumber::Integer(42)));
@@ -317,7 +326,7 @@ fn test_recursive_structure_conversion() {
         ]),
     ]);
     let result = AstConverter::expr_to_value(nested_list).unwrap();
-    
+
     // Should be cons(cons(a, cons(b, nil)), cons(cons(c, cons(d, nil)), nil))
     if let Some((outer_car1, outer_cdr1)) = result.as_pair() {
         // First element: (a b)
@@ -372,12 +381,9 @@ fn test_empty_structures_conversion() {
     }
 
     // Test list containing empty structures
-    let list_with_empty = Expr::List(vec![
-        Expr::List(vec![]),
-        Expr::Vector(vec![]),
-    ]);
+    let list_with_empty = Expr::List(vec![Expr::List(vec![]), Expr::Vector(vec![])]);
     let result = AstConverter::expr_to_value(list_with_empty).unwrap();
-    
+
     if let Some((car1, cdr1)) = result.as_pair() {
         assert_eq!(car1, Value::Nil);
         if let Some((car2, cdr2)) = cdr1.as_pair() {
@@ -399,7 +405,7 @@ fn test_empty_structures_conversion() {
 fn test_error_propagation() {
     // Since literal and variable conversions don't have error cases in the current implementation,
     // we focus on testing that the recursive structure properly propagates any future errors
-    
+
     // Test that nested structures would propagate errors if they occurred
     let nested_expr = Expr::List(vec![
         Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
@@ -408,7 +414,7 @@ fn test_error_propagation() {
             Expr::Variable("nested".to_string()),
         ]),
     ]);
-    
+
     // This should succeed with current implementation
     let result = AstConverter::expr_to_value(nested_expr);
     assert!(result.is_ok());
@@ -420,14 +426,14 @@ fn test_large_structure_conversion() {
     let large_list: Vec<Expr> = (0..100)
         .map(|i| Expr::Literal(Literal::Number(SchemeNumber::Integer(i))))
         .collect();
-    
+
     let large_expr = Expr::List(large_list);
     let result = AstConverter::expr_to_value(large_expr).unwrap();
-    
+
     // Verify the structure is properly converted
     let mut current = result;
     let mut count = 0;
-    
+
     while let Some((car, cdr)) = current.as_pair() {
         if let Value::Number(SchemeNumber::Integer(n)) = &car {
             assert_eq!(*n, count);
@@ -437,7 +443,7 @@ fn test_large_structure_conversion() {
         }
         current = cdr;
     }
-    
+
     assert_eq!(current, Value::Nil);
     assert_eq!(count, 100);
 }

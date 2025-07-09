@@ -5,8 +5,8 @@
 
 use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
-use crate::evaluator::types::{Location, StoreStatisticsWrapper};
-use crate::value::{Procedure, Value};
+use crate::evaluator::types::StoreStatisticsWrapper;
+use crate::value::Value;
 use std::collections::HashMap;
 
 /// Register store management functions into the builtins map
@@ -24,7 +24,7 @@ pub fn register_store_functions(builtins: &mut HashMap<String, Value>) {
 
 /// Create memory-usage function
 fn memory_usage_function() -> Value {
-    make_builtin_procedure("memory-usage", Some(0), |args| {
+    make_builtin_procedure("memory-usage", Some(0), |args| -> Result<Value> {
         check_arity(args, 0)?;
         // This would need evaluator context to get actual memory usage
         // For now, return a placeholder
@@ -105,7 +105,7 @@ fn location_equal_function() -> Value {
 
 /// Store management utilities that require evaluator integration
 /// These functions are meant to be called from special forms or evaluator methods
-
+///
 /// Get memory usage from evaluator
 pub fn get_memory_usage_from_evaluator(evaluator: &crate::evaluator::types::Evaluator) -> usize {
     evaluator.memory_usage()

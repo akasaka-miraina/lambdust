@@ -15,3 +15,11 @@ pub mod string_char_tests;
 pub mod io_tests;
 // Error handling tests
 pub mod error_handling_tests;
+// Store management tests
+pub mod store_tests;
+// Higher-order function tests
+pub mod higher_order_tests;
+// Predicate function tests
+pub mod predicates_tests;
+// Miscellaneous function tests
+pub mod misc_tests;

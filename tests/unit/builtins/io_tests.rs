@@ -12,7 +12,7 @@ use std::collections::HashMap;
 fn test_io_functions_registration() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     // Check that all I/O functions are registered
     assert!(builtins.contains_key("display"));
     assert!(builtins.contains_key("newline"));
@@ -21,7 +21,7 @@ fn test_io_functions_registration() {
     assert!(builtins.contains_key("read-char"));
     assert!(builtins.contains_key("peek-char"));
     assert!(builtins.contains_key("write-char"));
-    
+
     // Check that they are all procedures
     for (name, value) in &builtins {
         assert!(value.is_procedure(), "{} should be a procedure", name);
@@ -32,9 +32,9 @@ fn test_io_functions_registration() {
 fn test_display_function() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let display_proc = builtins.get("display").unwrap();
-    
+
     // Test display with string
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -47,7 +47,7 @@ fn test_display_function() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test display with number
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -60,7 +60,7 @@ fn test_display_function() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test display with boolean
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -73,7 +73,7 @@ fn test_display_function() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test display with symbol
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -92,9 +92,9 @@ fn test_display_function() {
 fn test_display_arity_errors() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let display_proc = builtins.get("display").unwrap();
-    
+
     // Test display with no arguments - should fail
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -109,7 +109,7 @@ fn test_display_arity_errors() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test display with too many arguments - should fail
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -133,9 +133,9 @@ fn test_display_arity_errors() {
 fn test_newline_function() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let newline_proc = builtins.get("newline").unwrap();
-    
+
     // Test newline with no arguments (correct usage)
     if let Value::Procedure(proc) = newline_proc {
         match proc {
@@ -154,9 +154,9 @@ fn test_newline_function() {
 fn test_newline_arity_errors() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let newline_proc = builtins.get("newline").unwrap();
-    
+
     // Test newline with arguments - should fail
     if let Value::Procedure(proc) = newline_proc {
         match proc {
@@ -177,9 +177,9 @@ fn test_newline_arity_errors() {
 fn test_write_function() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let write_proc = builtins.get("write").unwrap();
-    
+
     // Test write with string
     if let Value::Procedure(proc) = write_proc {
         match proc {
@@ -192,7 +192,7 @@ fn test_write_function() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write with number
     if let Value::Procedure(proc) = write_proc {
         match proc {
@@ -205,7 +205,7 @@ fn test_write_function() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write with complex structure (list)
     if let Value::Procedure(proc) = write_proc {
         match proc {
@@ -214,8 +214,8 @@ fn test_write_function() {
                     Value::Number(lambdust::lexer::SchemeNumber::Integer(1)),
                     Value::cons(
                         Value::Number(lambdust::lexer::SchemeNumber::Integer(2)),
-                        Value::Nil
-                    )
+                        Value::Nil,
+                    ),
                 );
                 let args = vec![list_value];
                 let result = func(&args);
@@ -231,9 +231,9 @@ fn test_write_function() {
 fn test_write_arity_errors() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let write_proc = builtins.get("write").unwrap();
-    
+
     // Test write with no arguments - should fail
     if let Value::Procedure(proc) = write_proc {
         match proc {
@@ -248,7 +248,7 @@ fn test_write_arity_errors() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write with too many arguments - should fail
     if let Value::Procedure(proc) = write_proc {
         match proc {
@@ -272,9 +272,9 @@ fn test_write_arity_errors() {
 fn test_write_char_function() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let write_char_proc = builtins.get("write-char").unwrap();
-    
+
     // Test write-char with character
     if let Value::Procedure(proc) = write_char_proc {
         match proc {
@@ -287,7 +287,7 @@ fn test_write_char_function() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write-char with various characters
     if let Value::Procedure(proc) = write_char_proc {
         match proc {
@@ -309,9 +309,9 @@ fn test_write_char_function() {
 fn test_write_char_type_errors() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let write_char_proc = builtins.get("write-char").unwrap();
-    
+
     // Test write-char with non-character types - should fail
     if let Value::Procedure(proc) = write_char_proc {
         match proc {
@@ -322,7 +322,7 @@ fn test_write_char_type_errors() {
                     Value::Boolean(true),
                     Value::Symbol("symbol".to_string()),
                 ];
-                
+
                 for arg in invalid_args {
                     let args = vec![arg];
                     let result = func(&args);
@@ -342,9 +342,9 @@ fn test_write_char_type_errors() {
 fn test_write_char_arity_errors() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let write_char_proc = builtins.get("write-char").unwrap();
-    
+
     // Test write-char with no arguments - should fail
     if let Value::Procedure(proc) = write_char_proc {
         match proc {
@@ -359,15 +359,12 @@ fn test_write_char_arity_errors() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write-char with too many arguments - should fail
     if let Value::Procedure(proc) = write_char_proc {
         match proc {
             lambdust::value::Procedure::Builtin { func, .. } => {
-                let args = vec![
-                    Value::Character('A'),
-                    Value::Character('B'),
-                ];
+                let args = vec![Value::Character('A'), Value::Character('B')];
                 let result = func(&args);
                 assert!(result.is_err());
                 if let Err(LambdustError::ArityError { function, .. }) = result {
@@ -383,9 +380,9 @@ fn test_write_char_arity_errors() {
 fn test_read_placeholder_implementation() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let read_proc = builtins.get("read").unwrap();
-    
+
     // Test read returns "not yet implemented" error
     if let Value::Procedure(proc) = read_proc {
         match proc {
@@ -407,9 +404,9 @@ fn test_read_placeholder_implementation() {
 fn test_read_char_placeholder_implementation() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let read_char_proc = builtins.get("read-char").unwrap();
-    
+
     // Test read-char returns "not yet implemented" error
     if let Value::Procedure(proc) = read_char_proc {
         match proc {
@@ -431,9 +428,9 @@ fn test_read_char_placeholder_implementation() {
 fn test_peek_char_placeholder_implementation() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let peek_char_proc = builtins.get("peek-char").unwrap();
-    
+
     // Test peek-char returns "not yet implemented" error
     if let Value::Procedure(proc) = peek_char_proc {
         match proc {
@@ -455,13 +452,13 @@ fn test_peek_char_placeholder_implementation() {
 fn test_io_functions_isolation() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     // Test that each I/O function works independently
     let display_proc = builtins.get("display").unwrap();
     let newline_proc = builtins.get("newline").unwrap();
     let write_proc = builtins.get("write").unwrap();
     let write_char_proc = builtins.get("write-char").unwrap();
-    
+
     // Test display
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -473,7 +470,7 @@ fn test_io_functions_isolation() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test newline
     if let Value::Procedure(proc) = newline_proc {
         match proc {
@@ -485,7 +482,7 @@ fn test_io_functions_isolation() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write
     if let Value::Procedure(proc) = write_proc {
         match proc {
@@ -497,7 +494,7 @@ fn test_io_functions_isolation() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write-char
     if let Value::Procedure(proc) = write_char_proc {
         match proc {
@@ -515,10 +512,10 @@ fn test_io_functions_isolation() {
 fn test_io_functions_with_complex_data() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let display_proc = builtins.get("display").unwrap();
     let write_proc = builtins.get("write").unwrap();
-    
+
     // Test display with complex nested structure
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -530,8 +527,8 @@ fn test_io_functions_with_complex_data() {
                             Value::Number(lambdust::lexer::SchemeNumber::Integer(1)),
                             Value::Number(lambdust::lexer::SchemeNumber::Integer(2)),
                         ]),
-                        Value::Nil
-                    )
+                        Value::Nil,
+                    ),
                 );
                 let args = vec![nested_list];
                 let result = func(&args);
@@ -541,7 +538,7 @@ fn test_io_functions_with_complex_data() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write with complex nested structure
     if let Value::Procedure(proc) = write_proc {
         match proc {
@@ -553,11 +550,11 @@ fn test_io_functions_with_complex_data() {
                             Value::Number(lambdust::lexer::SchemeNumber::Integer(1)),
                             Value::cons(
                                 Value::Number(lambdust::lexer::SchemeNumber::Integer(2)),
-                                Value::Nil
-                            )
+                                Value::Nil,
+                            ),
                         ),
-                        Value::Nil
-                    )
+                        Value::Nil,
+                    ),
                 );
                 let args = vec![nested_structure];
                 let result = func(&args);
@@ -573,10 +570,10 @@ fn test_io_functions_with_complex_data() {
 fn test_io_functions_edge_cases() {
     let mut builtins = HashMap::new();
     register_io_functions(&mut builtins);
-    
+
     let display_proc = builtins.get("display").unwrap();
     let write_proc = builtins.get("write").unwrap();
-    
+
     // Test display with empty string
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -589,7 +586,7 @@ fn test_io_functions_edge_cases() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test display with Nil
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -602,7 +599,7 @@ fn test_io_functions_edge_cases() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test display with Undefined
     if let Value::Procedure(proc) = display_proc {
         match proc {
@@ -615,7 +612,7 @@ fn test_io_functions_edge_cases() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write with zero
     if let Value::Procedure(proc) = write_proc {
         match proc {
@@ -628,7 +625,7 @@ fn test_io_functions_edge_cases() {
             _ => panic!("Expected builtin procedure"),
         }
     }
-    
+
     // Test write with negative number
     if let Value::Procedure(proc) = write_proc {
         match proc {
