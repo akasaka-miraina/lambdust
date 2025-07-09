@@ -333,20 +333,23 @@ fn test_function_application_analysis_failsafe() {
         Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
     ]);
     let result = analyzer.analyze(&unknown_function, None);
-    
+
     // Should succeed but provide conservative analysis
     assert!(result.is_ok());
     let analysis = result.unwrap();
     assert!(!analysis.is_constant); // Conservative: unknown function is not constant
     assert_eq!(analysis.type_hint, TypeHint::Unknown); // Conservative type
-    // Complexity could be Simple or High depending on implementation
-    assert!(matches!(analysis.complexity, EvaluationComplexity::Simple | EvaluationComplexity::High));
-    
+                                                       // Complexity could be Simple or High depending on implementation
+    assert!(matches!(
+        analysis.complexity,
+        EvaluationComplexity::Simple | EvaluationComplexity::High
+    ));
+
     // Test that analyzer handles malformed expressions safely
     let empty_list = Expr::List(vec![]);
     let result = analyzer.analyze(&empty_list, None);
     assert!(result.is_ok()); // Should not panic
-    
+
     // Test that analyzer handles deeply nested expressions
     let deeply_nested = Expr::List(vec![
         Expr::Variable("+".to_string()),
@@ -363,7 +366,7 @@ fn test_function_application_analysis_failsafe() {
     ]);
     let result = analyzer.analyze(&deeply_nested, None);
     assert!(result.is_ok()); // Should handle complexity gracefully
-    
+
     // If optimization is available, it should work
     // If not, it should provide safe fallback analysis
     let _analysis = result.unwrap();
@@ -381,7 +384,7 @@ fn test_constant_folding_arithmetic_failsafe() {
         Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
     ]);
     let result = analyzer.analyze(&div_by_zero, None);
-    
+
     // Should handle division by zero gracefully
     match result {
         Ok(analysis) => {
@@ -400,7 +403,7 @@ fn test_constant_folding_arithmetic_failsafe() {
             // Analysis error is acceptable for division by zero
         }
     }
-    
+
     // Test arithmetic with mixed types that might cause issues
     let mixed_types = Expr::List(vec![
         Expr::Variable("+".to_string()),
@@ -408,7 +411,7 @@ fn test_constant_folding_arithmetic_failsafe() {
         Expr::Literal(Literal::String("not-a-number".to_string())),
     ]);
     let result = analyzer.analyze(&mixed_types, None);
-    
+
     // Should handle type mismatches gracefully
     match result {
         Ok(analysis) => {
@@ -419,7 +422,7 @@ fn test_constant_folding_arithmetic_failsafe() {
             // Analysis error is acceptable for type mismatches
         }
     }
-    
+
     // Test arithmetic with very large numbers
     let large_numbers = Expr::List(vec![
         Expr::Variable("*".to_string()),
@@ -427,7 +430,7 @@ fn test_constant_folding_arithmetic_failsafe() {
         Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
     ]);
     let result = analyzer.analyze(&large_numbers, None);
-    
+
     // Should handle potential overflow gracefully
     match result {
         Ok(analysis) => {
@@ -444,14 +447,14 @@ fn test_constant_folding_arithmetic_failsafe() {
             // Analysis error is acceptable for potential overflow
         }
     }
-    
+
     // Test unary minus edge cases with a safer value
     let unary_minus = Expr::List(vec![
         Expr::Variable("-".to_string()),
         Expr::Literal(Literal::Number(SchemeNumber::Integer(i64::MAX))),
     ]);
     let result = analyzer.analyze(&unary_minus, None);
-    
+
     // Should handle negation safely
     match result {
         Ok(analysis) => {

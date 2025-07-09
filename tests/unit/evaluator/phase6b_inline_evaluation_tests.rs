@@ -297,12 +297,12 @@ fn test_inline_evaluation_performance_tracking_failsafe() {
         env: Rc::new(Environment::new()),
         parent: Box::new(Continuation::Identity),
     };
-    
+
     let result = evaluator.apply_continuation(complex_cont, Value::from(100i64));
     // Should handle gracefully, whether inlined or not
     // Should handle gracefully, whether inlined or not
     let _result = result; // May succeed or fail - both acceptable
-    
+
     // Test inline evaluator statistics are accessible and safe
     // Direct call instead of catch_unwind to avoid RefUnwindSafe issues
     let stats = evaluator.inline_evaluator().statistics();
@@ -320,7 +320,7 @@ fn test_inline_evaluation_statistics_integration_failsafe() {
     for i in 0..5 {
         let identity = Continuation::Identity;
         let value = Value::from(i as i64);
-        
+
         let result = evaluator.apply_continuation(identity, value);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Value::from(i as i64));
@@ -328,24 +328,24 @@ fn test_inline_evaluation_statistics_integration_failsafe() {
 
     // Test that statistics methods work correctly
     let (inlined, total, rate, _cache_hits) = evaluator.inline_evaluator().statistics();
-    
+
     // Statistics should be consistent
     assert!(inlined <= total);
     assert!((0.0..=1.0).contains(&rate));
-    
+
     // If we have total > 0, rate should be consistent
     if total > 0 {
         let expected_rate = inlined as f64 / total as f64;
         assert!((rate - expected_rate).abs() < f64::EPSILON);
     }
-    
+
     // Test hot path statistics consistency
     let (hot_paths, total_paths, hot_ratio) = evaluator.inline_evaluator().hot_path_statistics();
-    
+
     // Basic consistency checks
     assert!(hot_paths <= total_paths);
     assert!((0.0..=1.0).contains(&hot_ratio));
-    
+
     // If we have total_paths > 0, ratio should be consistent
     if total_paths > 0 {
         let expected_ratio = hot_paths as f64 / total_paths as f64;

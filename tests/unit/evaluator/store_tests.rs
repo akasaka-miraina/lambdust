@@ -52,37 +52,37 @@ fn test_memory_statistics_failsafe() {
             // memory-statistics is not implemented - this is acceptable
         }
     }
-    
+
     // Test memory-usage - should also fail gracefully if not implemented
     let usage_expr = Expr::List(vec![Expr::Variable("memory-usage".to_string())]);
-    
+
     let usage_result = evaluator.eval(
         usage_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     // Should return error or provide basic memory info if available
     // Either way, should not panic
     match usage_result {
-        Ok(Value::Number(_)) => {}, // Basic memory info available
-        Err(_) => {}, // Not implemented - acceptable
+        Ok(Value::Number(_)) => {} // Basic memory info available
+        Err(_) => {}               // Not implemented - acceptable
         _ => panic!("Unexpected memory-usage return type"),
     }
-    
+
     // Test collect-garbage - should be safe to call even if not fully implemented
     let gc_expr = Expr::List(vec![Expr::Variable("collect-garbage".to_string())]);
-    
+
     let gc_result = evaluator.eval(
         gc_expr,
         evaluator.global_env.clone(),
         Continuation::Identity,
     );
-    
+
     // Should either work (return undefined) or return appropriate error
     match gc_result {
-        Ok(Value::Undefined) => {}, // GC worked
-        Err(_) => {}, // GC not implemented - acceptable
+        Ok(Value::Undefined) => {} // GC worked
+        Err(_) => {}               // GC not implemented - acceptable
         _ => panic!("Unexpected collect-garbage return type"),
     }
 }
@@ -160,7 +160,7 @@ fn test_location_allocation_failsafe() {
         }
         _ => panic!("allocate-location should return integer ID or error"),
     }
-    
+
     // Test location-ref with invalid ID
     let invalid_ref = Expr::List(vec![
         Expr::Variable("location-ref".to_string()),
@@ -175,7 +175,7 @@ fn test_location_allocation_failsafe() {
 
     // Should return an error for invalid location reference
     assert!(ref_result.is_err());
-    
+
     // Test location-ref with non-integer ID
     let non_int_ref = Expr::List(vec![
         Expr::Variable("location-ref".to_string()),
@@ -211,7 +211,7 @@ fn test_location_modification_failsafe() {
 
     // Should return appropriate error for unimplemented operation
     assert!(set_result.is_err());
-    
+
     // Test with invalid arguments
     let invalid_set = Expr::List(vec![
         Expr::Variable("location-set!".to_string()),
@@ -227,7 +227,7 @@ fn test_location_modification_failsafe() {
 
     // Should return type error for invalid location ID
     assert!(invalid_result.is_err());
-    
+
     // Test with missing arguments
     let missing_args = Expr::List(vec![
         Expr::Variable("location-set!".to_string()),
@@ -269,14 +269,14 @@ fn test_memory_operations_integration_failsafe() {
 
     // Test that memory operations are safe even when not fully implemented
     let initial_stats = evaluator.store_statistics();
-    
+
     // Basic sanity check on statistics - they should be accessible
     let _total_allocs = initial_stats.total_allocations();
     let _total_deallocs = initial_stats.total_deallocations();
-    
+
     // Test memory usage reporting
     let _memory_usage = evaluator.memory_usage();
-    
+
     // Test that allocate-location operations fail gracefully
     let alloc_expr = Expr::List(vec![
         Expr::Variable("allocate-location".to_string()),
@@ -300,7 +300,7 @@ fn test_memory_operations_integration_failsafe() {
         }
         _ => panic!("allocate-location should return integer ID or error"),
     }
-    
+
     // Test garbage collection is safe to call
     let gc_expr = Expr::List(vec![Expr::Variable("collect-garbage".to_string())]);
 
@@ -312,11 +312,11 @@ fn test_memory_operations_integration_failsafe() {
 
     // Should either work or return appropriate error
     match gc_result {
-        Ok(Value::Undefined) => {}, // GC worked
-        Err(_) => {}, // GC not implemented - acceptable
+        Ok(Value::Undefined) => {} // GC worked
+        Err(_) => {}               // GC not implemented - acceptable
         _ => panic!("Unexpected collect-garbage return type"),
     }
-    
+
     // Verify statistics remain consistent
     let final_stats = evaluator.store_statistics();
     assert!(final_stats.total_allocations() >= initial_stats.total_allocations());

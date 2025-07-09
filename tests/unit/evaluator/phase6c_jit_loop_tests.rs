@@ -515,20 +515,22 @@ fn test_jit_loop_optimization_failsafe() {
     let mut evaluator = Evaluator::new();
 
     // Test that JIT optimization gracefully handles unsupported operations
-    evaluator.jit_loop_optimizer_mut().set_optimization_enabled(true);
-    
+    evaluator
+        .jit_loop_optimizer_mut()
+        .set_optimization_enabled(true);
+
     // Test that malformed do-loops are handled gracefully
     let malformed_do = Expr::List(vec![
         Expr::Variable("do".to_string()),
         // Missing variable bindings - should be handled gracefully
     ]);
-    
+
     let env = Rc::new(Environment::with_builtins());
     let result = evaluator.eval(malformed_do, env, Continuation::Identity);
-    
+
     // Should return appropriate error, not crash
     assert!(result.is_err());
-    
+
     // Test basic do-loop still works (with or without JIT)
     let simple_do = Expr::List(vec![
         Expr::Variable("do".to_string()),
@@ -550,19 +552,18 @@ fn test_jit_loop_optimization_failsafe() {
             Expr::Variable("i".to_string()),
         ]),
     ]);
-    
+
     let env = Rc::new(Environment::with_builtins());
     let result = evaluator.eval(simple_do, env, Continuation::Identity);
-    
+
     // Should work with CPS fallback
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), Value::Number(SchemeNumber::Integer(2)));
-    
-    
+
     // Test that optimizer handles invalid loop patterns gracefully
     let optimizer = evaluator.jit_loop_optimizer();
     let stats = optimizer.optimization_statistics();
-    
+
     // Should not crash when getting statistics
     assert!((0.0..=1.0).contains(&stats.compilation_rate));
 }
