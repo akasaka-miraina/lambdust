@@ -84,6 +84,8 @@
 // ===== Core Modules (Always Included) =====
 pub mod ast;
 pub mod error;
+#[cfg(test)]
+pub mod error_tests;
 pub mod lexer;
 pub mod parser;
 

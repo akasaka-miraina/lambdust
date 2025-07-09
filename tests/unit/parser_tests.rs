@@ -4,9 +4,9 @@
 //! including edge cases, error conditions, and complex nested structures.
 
 use lambdust::ast::{Expr, Literal};
-use lambdust::lexer::{tokenize, SchemeNumber};
-use lambdust::parser::{parse, parse_multiple, Parser, LoopDetectionConfig};
 use lambdust::error::LambdustError;
+use lambdust::lexer::{tokenize, SchemeNumber};
+use lambdust::parser::{parse, parse_multiple, LoopDetectionConfig, Parser};
 
 #[test]
 fn test_parse_atoms() {
@@ -344,7 +344,7 @@ mod list_parsing_tests {
         match expr {
             Expr::List(exprs) => {
                 assert_eq!(exprs.len(), 2);
-                
+
                 // Check first nested structure
                 match &exprs[0] {
                     Expr::List(inner) => {
@@ -733,7 +733,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for empty input"),
         }
     }
@@ -744,7 +744,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for unmatched left paren"),
         }
     }
@@ -755,7 +755,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for unmatched right paren"),
         }
     }
@@ -766,7 +766,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for dot at beginning"),
         }
     }
@@ -777,7 +777,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for multiple dots"),
         }
     }
@@ -788,7 +788,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for missing tail after dot"),
         }
     }
@@ -799,7 +799,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for multiple expressions after dot"),
         }
     }
@@ -810,7 +810,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for unterminated vector"),
         }
     }
@@ -821,7 +821,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for incomplete quote"),
         }
     }
@@ -832,7 +832,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for incomplete quasiquote"),
         }
     }
@@ -843,7 +843,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for incomplete unquote"),
         }
     }
@@ -854,7 +854,7 @@ mod error_handling_tests {
         let result = parse(tokens);
         assert!(result.is_err());
         match result {
-            Err(LambdustError::ParseError { .. }) => {},
+            Err(LambdustError::ParseError { .. }) => {}
             _ => panic!("Expected ParseError for incomplete unquote splicing"),
         }
     }
@@ -988,7 +988,8 @@ mod complex_parsing_tests {
 
     #[test]
     fn test_parse_cond_expression() {
-        let tokens = tokenize("(cond ((< x 0) 'negative) ((> x 0) 'positive) (else 'zero))").unwrap();
+        let tokens =
+            tokenize("(cond ((< x 0) 'negative) ((> x 0) 'positive) (else 'zero))").unwrap();
         let expr = parse(tokens).unwrap();
 
         match expr {

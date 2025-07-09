@@ -3,8 +3,8 @@
 //! These tests verify the complete tokenization functionality of the Scheme lexer,
 //! including edge cases, error conditions, and complex scenarios.
 
-use lambdust::lexer::{tokenize, Lexer, SchemeNumber, Token};
 use lambdust::error::LambdustError;
+use lambdust::lexer::{tokenize, Lexer, SchemeNumber, Token};
 
 #[test]
 fn test_basic_tokens() {
@@ -182,12 +182,12 @@ mod number_parsing_tests {
     fn test_real_with_leading_dot() {
         let tokens = tokenize(".5").unwrap();
         assert_eq!(tokens, vec![Token::Number(SchemeNumber::Real(0.5))]);
-        
+
         // Note: -.75 and +.25 are parsed as symbols, not numbers
         // This is because the lexer treats +/- as symbols when not followed by digits
         let tokens = tokenize("-.75").unwrap();
         assert_eq!(tokens, vec![Token::Symbol("-.75".to_string())]);
-        
+
         let tokens = tokenize("+.25").unwrap();
         assert_eq!(tokens, vec![Token::Symbol("+.25".to_string())]);
     }
@@ -225,7 +225,7 @@ mod number_parsing_tests {
         let result = tokenize("3/0");
         assert!(result.is_err());
         match result {
-            Err(LambdustError::LexerError { .. }) => {},
+            Err(LambdustError::LexerError { .. }) => {}
             _ => panic!("Expected LexerError for division by zero"),
         }
     }
@@ -301,7 +301,7 @@ mod string_parsing_tests {
         let result = tokenize("\"hello world");
         assert!(result.is_err());
         match result {
-            Err(LambdustError::LexerError { .. }) => {},
+            Err(LambdustError::LexerError { .. }) => {}
             _ => panic!("Expected LexerError for unterminated string"),
         }
     }
@@ -311,7 +311,7 @@ mod string_parsing_tests {
         let result = tokenize("\"hello\\");
         assert!(result.is_err());
         match result {
-            Err(LambdustError::LexerError { .. }) => {},
+            Err(LambdustError::LexerError { .. }) => {}
             _ => panic!("Expected LexerError for unterminated escape"),
         }
     }
@@ -366,7 +366,7 @@ mod character_parsing_tests {
         let result = tokenize("#\\");
         assert!(result.is_err());
         match result {
-            Err(LambdustError::LexerError { .. }) => {},
+            Err(LambdustError::LexerError { .. }) => {}
             _ => panic!("Expected LexerError for incomplete character"),
         }
     }
@@ -825,7 +825,7 @@ mod scheme_number_conversion_tests {
     fn test_negative_conversions() {
         let int_num = SchemeNumber::Integer(-42);
         let real_num = SchemeNumber::Real(-3.14159);
-        
+
         assert_eq!(int_num.to_f64(), -42.0);
         assert_eq!(int_num.to_i64(), -42);
         assert_eq!(real_num.to_f64(), -3.14159);
@@ -849,7 +849,10 @@ mod token_display_tests {
         assert_eq!(format!("{}", Token::Dot), ".");
         assert_eq!(format!("{}", Token::Boolean(true)), "#t");
         assert_eq!(format!("{}", Token::Boolean(false)), "#f");
-        assert_eq!(format!("{}", Token::String("hello".to_string())), "\"hello\"");
+        assert_eq!(
+            format!("{}", Token::String("hello".to_string())),
+            "\"hello\""
+        );
         assert_eq!(format!("{}", Token::Character('a')), "#\\a");
         assert_eq!(format!("{}", Token::Symbol("test".to_string())), "test");
     }
@@ -884,7 +887,7 @@ mod lexer_direct_tests {
         let mut lexer = Lexer::new("42");
         let token = lexer.next_token().unwrap();
         assert_eq!(token, Some(Token::Number(SchemeNumber::Integer(42))));
-        
+
         let token = lexer.next_token().unwrap();
         assert_eq!(token, None);
     }
@@ -892,11 +895,20 @@ mod lexer_direct_tests {
     #[test]
     fn test_lexer_multiple_tokens() {
         let mut lexer = Lexer::new("(+ 1 2)");
-        
+
         assert_eq!(lexer.next_token().unwrap(), Some(Token::LeftParen));
-        assert_eq!(lexer.next_token().unwrap(), Some(Token::Symbol("+".to_string())));
-        assert_eq!(lexer.next_token().unwrap(), Some(Token::Number(SchemeNumber::Integer(1))));
-        assert_eq!(lexer.next_token().unwrap(), Some(Token::Number(SchemeNumber::Integer(2))));
+        assert_eq!(
+            lexer.next_token().unwrap(),
+            Some(Token::Symbol("+".to_string()))
+        );
+        assert_eq!(
+            lexer.next_token().unwrap(),
+            Some(Token::Number(SchemeNumber::Integer(1)))
+        );
+        assert_eq!(
+            lexer.next_token().unwrap(),
+            Some(Token::Number(SchemeNumber::Integer(2)))
+        );
         assert_eq!(lexer.next_token().unwrap(), Some(Token::RightParen));
         assert_eq!(lexer.next_token().unwrap(), None);
     }

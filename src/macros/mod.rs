@@ -3,6 +3,8 @@
 // Module declarations
 pub mod builtin;
 pub mod expander;
+#[cfg(test)]
+pub mod mod_tests;
 pub mod pattern_matching;
 pub mod syntax_rules;
 pub mod types;

@@ -3,6 +3,8 @@
 // Re-export all submodules
 pub mod continuation;
 pub mod conversions;
+#[cfg(test)]
+pub mod conversions_tests;
 pub mod display;
 pub mod equality;
 pub mod lazy_vector;

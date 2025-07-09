@@ -17,6 +17,8 @@ pub mod inline_evaluation;
 // Phase 6-C: JIT loop optimization system
 pub mod jit_loop_optimization;
 pub mod memory;
+#[cfg(test)]
+pub mod memory_tests;
 // Phase 6-D: Tail call optimization system
 pub mod tail_call_optimization;
 // Phase 6-D: LLVM backend for advanced tail call optimization
