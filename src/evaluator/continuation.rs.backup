@@ -745,21 +745,6 @@ pub enum Continuation {
         /// Parent continuation
         parent: Box<Continuation>,
     },
-    /// Let binding continuation (for sequential binding evaluation)
-    LetBinding {
-        /// Variable name for this binding
-        variable: String,
-        /// Remaining bindings to process
-        remaining_bindings: Vec<(String, Expr)>,
-        /// Bindings that have been evaluated so far
-        evaluated_bindings: Vec<(String, Value)>,
-        /// Body expressions to evaluate after all bindings
-        body: Vec<Expr>,
-        /// Environment for evaluation
-        env: Rc<Environment>,
-        /// Parent continuation
-        parent: Box<Continuation>,
-    },
     /// Phase 6-B-Step1: DoLoop specialized continuation for iteration optimization
     DoLoop {
         /// Current iteration state
@@ -795,7 +780,6 @@ impl Continuation {
             Continuation::Or { parent, .. } => parent.depth() + 1,
             Continuation::CallWithValuesStep1 { parent, .. } => parent.depth() + 1,
             Continuation::CallWithValuesStep2 { parent, .. } => parent.depth() + 1,
-            Continuation::LetBinding { parent, .. } => parent.depth() + 1,
             Continuation::DoLoop { parent, .. } => parent.depth() + 1,
             Continuation::Captured { .. } => 0, // Captured continuations don't have parents
         }
@@ -825,7 +809,6 @@ impl Continuation {
             Continuation::Or { parent, .. } => parent.find_root_continuation(),
             Continuation::CallWithValuesStep1 { parent, .. } => parent.find_root_continuation(),
             Continuation::CallWithValuesStep2 { parent, .. } => parent.find_root_continuation(),
-            Continuation::LetBinding { parent, .. } => parent.find_root_continuation(),
             Continuation::DoLoop { parent, .. } => parent.find_root_continuation(),
             Continuation::Captured { cont } => cont.find_root_continuation(),
         }
@@ -867,7 +850,6 @@ impl Continuation {
             Continuation::Or { parent, .. } => Some(parent),
             Continuation::CallWithValuesStep1 { parent, .. } => Some(parent),
             Continuation::CallWithValuesStep2 { parent, .. } => Some(parent),
-            Continuation::LetBinding { parent, .. } => Some(parent),
             Continuation::DoLoop { parent, .. } => Some(parent),
             Continuation::Captured { .. } => None, // Captured continuations don't have logical parents
         }

@@ -4,6 +4,8 @@
 //! that strictly follows the R7RS formal semantics definition.
 
 pub mod ast_converter;
+// Phase II: Combinatory logic system
+pub mod combinators;
 pub mod continuation;
 // Phase 6-B-Step2: Unified continuation pooling system
 pub mod continuation_pooling;
@@ -27,7 +29,31 @@ pub mod llvm_backend;
 pub mod raii_store;
 // Phase II: Pure R7RS semantic evaluator
 pub mod semantic;
+// Phase II: Semantic evaluator correctness proofs
+pub mod semantic_correctness;
+// Phase II: Runtime executor for optimized evaluation
+pub mod runtime_executor;
 pub mod special_forms;
+// Phase II: Theorem proving support system
+pub mod theorem_proving;
+// Phase II: External prover integration
+pub mod external_provers;
+// Phase III: Unified evaluator interface
+pub mod evaluator_interface;
+// Phase III: Advanced evaluation mode selection
+pub mod evaluation_mode_selector;
+// Phase III: Comprehensive verification system
+pub mod verification_system;
+// Phase III: Backward compatibility system
+pub mod backward_compatibility;
+// Phase III: Migration strategy system
+pub mod migration_strategy;
+// Phase IV: Formal verification foundation
+pub mod formal_verification;
+// Phase IV: Church-Rosser property and confluence formal proofs
+pub mod church_rosser_proof;
+// Phase IV: Runtime optimization integration system
+pub mod runtime_optimization_integration;
 // Phase 6-A: Trampoline evaluator for stack overflow prevention
 pub mod trampoline;
 pub mod types;
@@ -74,8 +100,36 @@ pub use jit_loop_optimization::{
     GeneratedCode, IterationStrategy, IteratorType, JitHint, JitLoopOptimizer,
     JitOptimizationStats, LoopPattern, NativeCodeGenerator,
 };
+// Phase II: Combinatory logic system exports
+pub use combinators::{BracketAbstraction, CombinatorExpr, CombinatorStats};
 // Phase II: Pure semantic evaluator exports
 pub use semantic::SemanticEvaluator;
+// Phase II: Semantic correctness exports
+pub use semantic_correctness::{SemanticCorrectnessProver, CorrectnessProperty, CorrectnessProof};
+// Phase II: Runtime executor exports
+pub use runtime_executor::{RuntimeExecutor, RuntimeStats, RuntimeOptimizationLevel};
+// Phase II: Theorem proving support exports
+pub use theorem_proving::{TheoremProvingSupport, ProofState, ProofGoal, Statement, GoalType, ProofTactic, VerificationResult as TheoremVerificationResult};
+// Phase II: External prover integration exports
+pub use external_provers::{ExternalProver, ExternalProverManager, ExternalVerificationResult, ProverConfig};
+// Phase III: Unified evaluator interface exports
+pub use evaluator_interface::{EvaluatorInterface, EvaluationMode, EvaluationConfig, EvaluationResult, PerformanceMetrics, VerificationResult as InterfaceVerificationResult};
+// Phase III: Advanced evaluation mode selection exports
+pub use evaluation_mode_selector::{EvaluationModeSelector, ExpressionType, PerformanceStats, SelectionCriteria, PerformanceRequirements, EvaluationContext};
+// Phase III: Comprehensive verification system exports
+pub use verification_system::{VerificationSystem, VerificationConfig, VerificationResult as SystemVerificationResult, VerificationStatus, VerificationAnalysis, VerificationStatistics};
+// Phase III: Backward compatibility system exports
+pub use backward_compatibility::{LegacyEvaluatorAdapter, CompatibilityMode, MigrationStatistics, MigrationRecommendation, CompatibilityResult, migration_helpers};
+// Phase III: Migration strategy system exports  
+pub use migration_strategy::{MigrationStrategy, MigrationPhase, MigrationStatusReport, RiskLevel, PhaseConfiguration, MigrationProgressTracker};
+// Phase IV: Formal verification foundation exports
+pub use formal_verification::{FormalVerificationEngine, FormalVerificationResult, FormalVerificationStatus, VerificationConfiguration, VerificationDepth, FormalProof, CorrectnessGuarantee};
+// Phase IV: Church-Rosser property and confluence formal proofs exports
+pub use church_rosser_proof::{ChurchRosserProofEngine, ChurchRosserProof, ConfluenceProof, TerminationProof, NormalizationProof, ConfluenceVerifier, TerminationVerifier, NormalizationVerifier};
+// Phase IV: Runtime optimization integration system exports
+pub use runtime_optimization_integration::{IntegratedOptimizationManager, OptimizationStrategy, OptimizationResult, OptimizationCache, CorrectnessGuarantor};
+#[cfg(test)]
+pub mod theorem_proving_tests;
 // Phase 6-A: Trampoline evaluator exports
 pub use trampoline::{Bounce, ContinuationThunk, TrampolineEvaluation, TrampolineEvaluator};
 pub use types::*;

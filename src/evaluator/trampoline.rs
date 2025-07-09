@@ -403,6 +403,12 @@ impl TrampolineEvaluator {
                 Continuation::Identity => {
                     return Ok(Bounce::Done(current_value));
                 }
+                Continuation::LetBinding { .. } => {
+                    // LetBinding continuation not implemented in trampoline yet
+                    return Err(LambdustError::runtime_error(
+                        "LetBinding continuation not implemented in trampoline evaluator".to_string()
+                    ));
+                },
 
                 // Simple continuations that can be unwound iteratively
                 Continuation::Values { mut values, parent } => {
