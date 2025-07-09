@@ -5,6 +5,7 @@
 //! of individual functions and components in isolation.
 
 // Core functionality unit tests
+pub mod adaptive_memory_tests;
 pub mod ast_tests;
 pub mod bridge_tests;
 pub mod environment;
@@ -23,6 +24,7 @@ pub mod memory_pool_tests;
 pub mod parser_tests;
 pub mod performance_optimization_tests;
 pub mod phase_3c_optimization_tests;
+pub mod stack_monitor_tests;
 pub mod value;
 pub mod value_tests;
 
