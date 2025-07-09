@@ -7,8 +7,8 @@ use std::ffi::CString;
 use lambdust::error::LambdustError;
 use lambdust::lexer::SchemeNumber;
 use lambdust::marshal::{
-    Marshallable, TypeSafeMarshaller, c_int_to_scheme, c_string_to_scheme, free_c_string,
-    scheme_string_to_c, scheme_to_c_int,
+    c_int_to_scheme, c_string_to_scheme, free_c_string, scheme_string_to_c, scheme_to_c_int,
+    Marshallable, TypeSafeMarshaller,
 };
 use lambdust::value::Value;
 

@@ -3,9 +3,9 @@
 //! Tests for panic prevention, boundary value handling, and robust error recovery.
 //! Ensures the interpreter never crashes with panic and handles all edge cases gracefully.
 
-use lambdust::Interpreter;
 use lambdust::error::LambdustError;
 use lambdust::value::Value;
+use lambdust::Interpreter;
 
 // Helper functions removed to eliminate unused code warnings
 // Use Value constructors directly in tests instead

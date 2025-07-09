@@ -205,7 +205,7 @@ where
 
     // Debug logging for troubleshooting (disabled for performance)
     // if std::env::var("LAMBDUST_DEBUG").is_ok() {
-    //     eprintln!("apply_numeric_operation: op={}, a={:?}, b={:?}, result={}", 
+    //     eprintln!("apply_numeric_operation: op={}, a={:?}, b={:?}, result={}",
     //               op_name, a, b, result);
     // }
 
@@ -213,7 +213,11 @@ where
     match (a, b) {
         (SchemeNumber::Integer(_), SchemeNumber::Integer(_)) => {
             // Both integers: prefer integer result for basic operations
-            if op_name == "add" || op_name == "subtract" || op_name == "mul" || op_name == "multiply" {
+            if op_name == "add"
+                || op_name == "subtract"
+                || op_name == "mul"
+                || op_name == "multiply"
+            {
                 // Basic arithmetic operations: always keep as integer for integer inputs
                 Ok(SchemeNumber::Integer(result as i64))
             } else if result.fract() == 0.0 && result.is_finite() {

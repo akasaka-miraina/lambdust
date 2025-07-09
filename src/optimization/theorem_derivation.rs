@@ -6,7 +6,7 @@
 
 use crate::ast::Expr;
 use crate::error::{LambdustError, Result};
-use crate::value::Value;
+// use crate::value::Value; // Currently unused but may be needed for future theorem verification
 use std::collections::HashMap;
 
 /// Inference rules for deriving new theorems
@@ -185,12 +185,12 @@ impl TheoremDerivationEngine {
     pub fn extract_rule_from_pattern(&self, pattern: &LearnedPattern) -> Option<InferenceRule> {
         match (&pattern.original, &pattern.transformed) {
             // Pattern: (a + b) + c -> a + (b + c)
-            (Expr::List(orig), Expr::List(trans)) if self.is_nested_addition(orig) => {
+            (Expr::List(orig), Expr::List(_trans)) if self.is_nested_addition(orig) => {
                 Some(InferenceRule::Associativity)
             }
 
             // Pattern: a + b -> b + a
-            (Expr::List(orig), Expr::List(trans)) if self.is_simple_addition(orig) => {
+            (Expr::List(orig), Expr::List(_trans)) if self.is_simple_addition(orig) => {
                 Some(InferenceRule::Commutativity)
             }
 

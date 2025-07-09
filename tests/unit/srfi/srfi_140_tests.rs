@@ -13,16 +13,16 @@ fn eval_str_with_srfi_140(input: &str) -> Result<Value> {
     let tokens = tokenize(input)?;
     let ast = parse(tokens)?;
     let env = Rc::new(Environment::with_builtins());
-    
+
     // Import SRFI 140
     let registry = SrfiRegistry::with_standard_srfis();
     let import = SrfiImport::new(140);
     let exports = registry.import_srfi(&import)?;
-    
+
     for (name, value) in exports {
         env.define(name, value);
     }
-    
+
     eval_with_formal_semantics(ast, env)
 }
 
@@ -31,7 +31,7 @@ fn test_string_predicates() {
     // Test string? predicate - should work for both istrings and mstrings
     let result = eval_str_with_srfi_140("(string? \"hello\")").unwrap();
     assert_eq!(result, Value::Boolean(true));
-    
+
     let result = eval_str_with_srfi_140("(string? 42)").unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
@@ -76,19 +76,26 @@ fn test_make_string() {
 fn test_string_length() {
     // Test string-length with istring
     let result = eval_str_with_srfi_140("(string-length (string #\\h #\\i))").unwrap();
-    assert_eq!(result, Value::Number(lambdust::lexer::SchemeNumber::Integer(2)));
-    
+    assert_eq!(
+        result,
+        Value::Number(lambdust::lexer::SchemeNumber::Integer(2))
+    );
+
     // Test string-length with mstring
     let result = eval_str_with_srfi_140("(string-length (make-string 5))").unwrap();
-    assert_eq!(result, Value::Number(lambdust::lexer::SchemeNumber::Integer(5)));
+    assert_eq!(
+        result,
+        Value::Number(lambdust::lexer::SchemeNumber::Integer(5))
+    );
 }
 
 #[test]
 fn test_string_ref() {
     // Test string-ref with istring
-    let result = eval_str_with_srfi_140("(string-ref (string #\\h #\\e #\\l #\\l #\\o) 1)").unwrap();
+    let result =
+        eval_str_with_srfi_140("(string-ref (string #\\h #\\e #\\l #\\l #\\o) 1)").unwrap();
     assert_eq!(result, Value::Character('e'));
-    
+
     // Test string-ref with mstring
     let result = eval_str_with_srfi_140("(string-ref (make-string 3 #\\x) 1)").unwrap();
     assert_eq!(result, Value::Character('x'));
@@ -108,7 +115,8 @@ fn test_string_copy() {
 #[test]
 fn test_substring() {
     // Test substring - should return immutable string
-    let result = eval_str_with_srfi_140("(substring (string #\\h #\\e #\\l #\\l #\\o) 1 4)").unwrap();
+    let result =
+        eval_str_with_srfi_140("(substring (string #\\h #\\e #\\l #\\l #\\o) 1 4)").unwrap();
     if let Value::IString(istr) = result {
         assert_eq!(istr.to_string(), "ell");
     } else {
@@ -119,7 +127,10 @@ fn test_substring() {
 #[test]
 fn test_string_append() {
     // Test string-append - should return immutable string
-    let result = eval_str_with_srfi_140("(string-append (string #\\h #\\i) (string #\\  #\\t #\\h #\\e #\\r #\\e))").unwrap();
+    let result = eval_str_with_srfi_140(
+        "(string-append (string #\\h #\\i) (string #\\  #\\t #\\h #\\e #\\r #\\e))",
+    )
+    .unwrap();
     if let Value::IString(istr) = result {
         assert_eq!(istr.to_string(), "hi there");
     } else {

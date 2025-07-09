@@ -124,10 +124,16 @@ pub mod marshal;
 // ===== Feature-Gated Modules =====
 
 // SRFI Support (Not available in embedded mode)
-#[cfg(all(feature = "srfi-support", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "srfi-support",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod srfi;
 
-#[cfg(all(not(feature = "srfi-support"), any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    not(feature = "srfi-support"),
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod srfi {
     //! Stub SRFI module for minimal builds
     #[derive(Debug)]
@@ -301,31 +307,55 @@ pub mod srfi {
 }
 
 // Basic Optimization (Not available in embedded mode)
-#[cfg(all(feature = "basic-optimization", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "basic-optimization",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod cps_inlining;
 
-#[cfg(all(feature = "basic-optimization", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "basic-optimization",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod optimized_collections;
 
 // Memory Management (Not available in embedded mode)
-#[cfg(all(feature = "memory-pooling", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "memory-pooling",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod adaptive_memory;
 
-#[cfg(all(feature = "memory-pooling", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "memory-pooling",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod memory_pool;
 
 // Advanced Features (Not available in embedded mode)
-#[cfg(all(feature = "theorem-derivation", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "theorem-derivation",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod optimization;
 
-#[cfg(all(feature = "runtime-verification", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "runtime-verification",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod module_system;
 
 // Development Tools (Not available in embedded mode)
-#[cfg(all(feature = "debug-tracing", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "debug-tracing",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod debug;
 
-#[cfg(all(not(feature = "debug-tracing"), any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    not(feature = "debug-tracing"),
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod debug {
     //! Stub debug module for minimal builds
     /// Stub debug tracer for non-debug builds
@@ -387,7 +417,10 @@ pub mod debug {
     }
 }
 
-#[cfg(all(feature = "debug-tracing", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
+#[cfg(all(
+    feature = "debug-tracing",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub mod stack_monitor;
 
 // Platform-Specific
@@ -426,29 +459,50 @@ pub use embedded_evaluator::{EmbeddedEnvironment, EmbeddedEvaluator, EmbeddedVal
 // ===== Feature-Gated Exports =====
 
 // Memory Management (Not available in embedded mode)
-#[cfg(all(feature = "memory-pooling", not(feature = "embedded")))]
+#[cfg(all(
+    feature = "memory-pooling",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub use adaptive_memory::{AdaptiveMemoryManager, AllocationStrategy, MemoryPressure};
 
-#[cfg(all(feature = "memory-pooling", not(feature = "embedded")))]
+#[cfg(all(
+    feature = "memory-pooling",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub use memory_pool::{ContinuationPool, ContinuationPoolStats, PoolStats, ValuePool};
 
 // Basic Optimization (Not available in embedded mode)
-#[cfg(all(feature = "basic-optimization", not(feature = "embedded")))]
+#[cfg(all(
+    feature = "basic-optimization",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub use cps_inlining::{ChainStrategy, CpsInliner, InliningDecision};
 
-#[cfg(all(feature = "basic-optimization", not(feature = "embedded")))]
+#[cfg(all(
+    feature = "basic-optimization",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub use optimized_collections::{ArgVec, CowVec, ExprVec, SliceRef};
 
 // SRFI Support (Not available in embedded mode)
-#[cfg(all(feature = "srfi-support", not(feature = "embedded")))]
+#[cfg(all(
+    feature = "srfi-support",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub use srfi::SrfiRegistry;
 
 // Advanced Features (Not available in embedded mode)
-#[cfg(all(feature = "runtime-verification", not(feature = "embedded")))]
+#[cfg(all(
+    feature = "runtime-verification",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub use module_system::ModuleSystem;
 
 // Development Tools (Not available in embedded mode)
-#[cfg(all(feature = "debug-tracing", not(feature = "embedded")))]
+#[cfg(all(
+    feature = "debug-tracing",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
 pub use stack_monitor::{OptimizationRecommendation, StackFrameType, StackMonitor};
 
 /// The main interpreter struct that provides the public API

@@ -13,16 +13,16 @@ fn eval_str_with_srfi_136(input: &str) -> Result<Value> {
     let tokens = tokenize(input)?;
     let ast = parse(tokens)?;
     let env = Rc::new(Environment::with_builtins());
-    
+
     // Import SRFI 136
     let registry = SrfiRegistry::with_standard_srfis();
     let import = SrfiImport::new(136);
     let exports = registry.import_srfi(&import)?;
-    
+
     for (name, value) in exports {
         env.define(name, value);
     }
-    
+
     eval_with_formal_semantics(ast, env)
 }
 
@@ -31,35 +31,38 @@ fn test_basic_predicates() {
     // Test record? predicate
     let result = eval_str_with_srfi_136("(record? 42)").unwrap();
     assert_eq!(result, Value::Boolean(false));
-    
+
     // Test record-type-descriptor? predicate
     let result = eval_str_with_srfi_136("(record-type-descriptor? #t)").unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 
-#[test] 
+#[test]
 fn test_record_type_descriptor_creation() {
     // Create a simple record type descriptor and test it directly
     let result = eval_str_with_srfi_136(
-        "(record-type-descriptor? (make-record-type-descriptor 'point '#(x y)))"
-    ).unwrap();
+        "(record-type-descriptor? (make-record-type-descriptor 'point '#(x y)))",
+    )
+    .unwrap();
     assert_eq!(result, Value::Boolean(true));
 }
 
 #[test]
 fn test_record_type_name() {
     let result = eval_str_with_srfi_136(
-        "(record-type-name (make-record-type-descriptor 'person '#(name age)))"
-    ).unwrap();
+        "(record-type-name (make-record-type-descriptor 'person '#(name age)))",
+    )
+    .unwrap();
     assert_eq!(result, Value::Symbol("person".to_string()));
 }
 
 #[test]
 fn test_record_type_fields() {
     let result = eval_str_with_srfi_136(
-        "(record-type-fields (make-record-type-descriptor 'car '#(make model year)))"
-    ).unwrap();
-    
+        "(record-type-fields (make-record-type-descriptor 'car '#(make model year)))",
+    )
+    .unwrap();
+
     if let Value::Vector(fields) = result {
         assert_eq!(fields.len(), 3);
         assert_eq!(fields[0], Value::Symbol("make".to_string()));
@@ -79,8 +82,9 @@ fn test_record_type_parent() {
           (define simple-rtd 
             (make-record-type-descriptor 'simple '#(field)))
           (record-type-parent simple-rtd))
-        "#
-    ).unwrap();
+        "#,
+    )
+    .unwrap();
     assert_eq!(result, Value::Boolean(false));
 }
 
@@ -93,8 +97,9 @@ fn test_record_creation() {
             (make-record-type-descriptor 'point '#(x y)))
           (define p (make-record point-rtd '#(10 20)))
           (record? p))
-        "#
-    ).unwrap();
+        "#,
+    )
+    .unwrap();
     assert_eq!(result, Value::Boolean(true));
 }
 
@@ -106,7 +111,7 @@ fn test_record_field_count_mismatch() {
           (define point-rtd 
             (make-record-type-descriptor 'point '#(x y)))
           (make-record point-rtd '#(10)))
-        "#
+        "#,
     );
     assert!(result.is_err());
 }
@@ -114,15 +119,11 @@ fn test_record_field_count_mismatch() {
 #[test]
 fn test_invalid_arguments() {
     // Test invalid name type
-    let result = eval_str_with_srfi_136(
-        "(make-record-type-descriptor 42 '#(field))"
-    );
+    let result = eval_str_with_srfi_136("(make-record-type-descriptor 42 '#(field))");
     assert!(result.is_err());
-    
+
     // Test invalid field specification
-    let result = eval_str_with_srfi_136(
-        "(make-record-type-descriptor 'test 42)"
-    );
+    let result = eval_str_with_srfi_136("(make-record-type-descriptor 'test 42)");
     assert!(result.is_err());
 }
 
@@ -136,8 +137,9 @@ fn test_inheritance_with_parent() {
           (define circle-rtd 
             (make-record-type-descriptor 'circle '#(radius) shape-rtd))
           (record-type-descriptor? circle-rtd))
-        "#
-    ).unwrap();
+        "#,
+    )
+    .unwrap();
     assert_eq!(result, Value::Boolean(true));
 }
 
@@ -152,8 +154,9 @@ fn test_inheritance_field_count() {
             (make-record-type-descriptor 'circle '#(radius) shape-rtd))
           (define c (make-record circle-rtd '#(red 5)))
           (record? c))
-        "#
-    ).unwrap();
+        "#,
+    )
+    .unwrap();
     assert_eq!(result, Value::Boolean(true));
 }
 
@@ -168,8 +171,9 @@ fn test_record_type_parent_with_inheritance() {
             (make-record-type-descriptor 'derived '#(value) base-rtd))
           (define parent (record-type-parent derived-rtd))
           (record-type-descriptor? parent))
-        "#
-    ).unwrap();
+        "#,
+    )
+    .unwrap();
     assert_eq!(result, Value::Boolean(true));
 }
 
@@ -189,8 +193,9 @@ fn test_complex_inheritance() {
           ; Create a sports car instance (should have all fields: year, doors, top-speed)
           (define my-car (make-record sports-car-rtd '#(2024 2 200)))
           (record? my-car))
-        "#
-    ).unwrap();
+        "#,
+    )
+    .unwrap();
     assert_eq!(result, Value::Boolean(true));
 }
 

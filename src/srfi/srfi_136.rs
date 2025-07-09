@@ -60,15 +60,15 @@ impl RecordTypeDescriptor {
     /// Get all fields including inherited ones
     pub fn all_fields(&self) -> Vec<FieldSpec> {
         let mut all_fields = Vec::new();
-        
+
         // Add parent fields first
         if let Some(parent) = &self.parent {
             all_fields.extend(parent.all_fields());
         }
-        
+
         // Add own fields
         all_fields.extend(self.fields.clone());
-        
+
         all_fields
     }
 
@@ -77,7 +77,7 @@ impl RecordTypeDescriptor {
         if self.type_id == other.type_id {
             return true;
         }
-        
+
         if let Some(parent) = &self.parent {
             parent.is_subtype_of(other)
         } else {
@@ -226,7 +226,10 @@ fn get_record_type_descriptor(value: &Value) -> Result<Value> {
             // Convert legacy record type to descriptor
             let descriptor = Arc::new(RecordTypeDescriptor::new(
                 record.record_type.name.clone(),
-                record.record_type.field_names.iter()
+                record
+                    .record_type
+                    .field_names
+                    .iter()
                     .map(|name| FieldSpec {
                         name: name.clone(),
                         mutable: true, // Legacy records are mutable by default
@@ -253,10 +256,14 @@ fn get_record_type_name(value: &Value) -> Result<Value> {
             if let Some(descriptor) = ext.data.downcast_ref::<RecordTypeDescriptor>() {
                 Ok(Value::Symbol(descriptor.name.clone()))
             } else {
-                Err(LambdustError::type_error("Invalid record type descriptor".to_string()))
+                Err(LambdustError::type_error(
+                    "Invalid record type descriptor".to_string(),
+                ))
             }
         }
-        _ => Err(LambdustError::type_error("Expected record type descriptor".to_string())),
+        _ => Err(LambdustError::type_error(
+            "Expected record type descriptor".to_string(),
+        )),
     }
 }
 
@@ -275,10 +282,14 @@ fn get_record_type_parent(value: &Value) -> Result<Value> {
                     Ok(Value::Boolean(false))
                 }
             } else {
-                Err(LambdustError::type_error("Invalid record type descriptor".to_string()))
+                Err(LambdustError::type_error(
+                    "Invalid record type descriptor".to_string(),
+                ))
             }
         }
-        _ => Err(LambdustError::type_error("Expected record type descriptor".to_string())),
+        _ => Err(LambdustError::type_error(
+            "Expected record type descriptor".to_string(),
+        )),
     }
 }
 
@@ -287,15 +298,21 @@ fn get_record_type_fields(value: &Value) -> Result<Value> {
     match value {
         Value::External(ext) if ext.type_name == "RecordTypeDescriptor" => {
             if let Some(descriptor) = ext.data.downcast_ref::<RecordTypeDescriptor>() {
-                let fields: Vec<Value> = descriptor.fields.iter()
+                let fields: Vec<Value> = descriptor
+                    .fields
+                    .iter()
                     .map(|field| Value::Symbol(field.name.clone()))
                     .collect();
                 Ok(Value::Vector(fields))
             } else {
-                Err(LambdustError::type_error("Invalid record type descriptor".to_string()))
+                Err(LambdustError::type_error(
+                    "Invalid record type descriptor".to_string(),
+                ))
             }
         }
-        _ => Err(LambdustError::type_error("Expected record type descriptor".to_string())),
+        _ => Err(LambdustError::type_error(
+            "Expected record type descriptor".to_string(),
+        )),
     }
 }
 
@@ -304,7 +321,11 @@ fn make_record_type_descriptor_proc(args: &[Value]) -> Result<Value> {
     let name = match &args[0] {
         Value::Symbol(s) => s.clone(),
         Value::String(s) => s.clone(),
-        _ => return Err(LambdustError::type_error("Expected symbol or string for name".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Expected symbol or string for name".to_string(),
+            ));
+        }
     };
 
     let fields = match &args[1] {
@@ -327,15 +348,25 @@ fn make_record_type_descriptor_proc(args: &[Value]) -> Result<Value> {
                                 default: None,
                             });
                         } else {
-                            return Err(LambdustError::type_error("Expected symbol for field name".to_string()));
+                            return Err(LambdustError::type_error(
+                                "Expected symbol for field name".to_string(),
+                            ));
                         }
                     }
-                    _ => return Err(LambdustError::type_error("Invalid field specification".to_string())),
+                    _ => {
+                        return Err(LambdustError::type_error(
+                            "Invalid field specification".to_string(),
+                        ));
+                    }
                 }
             }
             fields
         }
-        _ => return Err(LambdustError::type_error("Expected vector for field specifications".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Expected vector for field specifications".to_string(),
+            ));
+        }
     };
 
     let parent = if args.len() > 2 {
@@ -344,11 +375,17 @@ fn make_record_type_descriptor_proc(args: &[Value]) -> Result<Value> {
                 if let Some(parent_desc) = ext.data.downcast_ref::<RecordTypeDescriptor>() {
                     Some(Arc::new(parent_desc.clone()))
                 } else {
-                    return Err(LambdustError::type_error("Invalid parent record type descriptor".to_string()));
+                    return Err(LambdustError::type_error(
+                        "Invalid parent record type descriptor".to_string(),
+                    ));
                 }
             }
             Value::Boolean(false) => None,
-            _ => return Err(LambdustError::type_error("Expected record type descriptor or #f for parent".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Expected record type descriptor or #f for parent".to_string(),
+                ));
+            }
         }
     } else {
         None
@@ -370,15 +407,25 @@ fn make_record_from_descriptor(rtd_value: &Value, fields_value: &Value) -> Resul
             if let Some(desc) = ext.data.downcast_ref::<RecordTypeDescriptor>() {
                 Arc::new(desc.clone())
             } else {
-                return Err(LambdustError::type_error("Invalid record type descriptor".to_string()));
+                return Err(LambdustError::type_error(
+                    "Invalid record type descriptor".to_string(),
+                ));
             }
         }
-        _ => return Err(LambdustError::type_error("Expected record type descriptor".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Expected record type descriptor".to_string(),
+            ));
+        }
     };
 
     let fields = match fields_value {
         Value::Vector(field_values) => field_values.clone(),
-        _ => return Err(LambdustError::type_error("Expected vector for field values".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Expected vector for field values".to_string(),
+            ));
+        }
     };
 
     let all_fields = descriptor.all_fields();
@@ -422,7 +469,7 @@ mod tests {
                 Value::Symbol("name".to_string()),
                 Value::Symbol("age".to_string()),
             ]);
-            
+
             let result = func(&[name, fields]).unwrap();
             assert!(is_record_type_descriptor(&result));
         }
@@ -457,23 +504,31 @@ mod tests {
 
         // Create record type descriptor
         let make_rtd = exports.get("make-record-type-descriptor").unwrap();
-        if let Value::Procedure(crate::value::Procedure::Builtin { func: make_rtd_func, .. }) = make_rtd {
+        if let Value::Procedure(crate::value::Procedure::Builtin {
+            func: make_rtd_func,
+            ..
+        }) = make_rtd
+        {
             let name = Value::Symbol("point".to_string());
             let fields = Value::Vector(vec![
                 Value::Symbol("x".to_string()),
                 Value::Symbol("y".to_string()),
             ]);
-            
+
             let rtd = make_rtd_func(&[name, fields]).unwrap();
 
             // Create record instance
             let make_record = exports.get("make-record").unwrap();
-            if let Value::Procedure(crate::value::Procedure::Builtin { func: make_record_func, .. }) = make_record {
+            if let Value::Procedure(crate::value::Procedure::Builtin {
+                func: make_record_func,
+                ..
+            }) = make_record
+            {
                 let field_values = Value::Vector(vec![
                     Value::Number(crate::lexer::SchemeNumber::Integer(10)),
                     Value::Number(crate::lexer::SchemeNumber::Integer(20)),
                 ]);
-                
+
                 let record = make_record_func(&[rtd, field_values]).unwrap();
                 assert!(matches!(record, Value::Record(_)));
             }
@@ -487,29 +542,45 @@ mod tests {
 
         // Create record type descriptor
         let make_rtd = exports.get("make-record-type-descriptor").unwrap();
-        if let Value::Procedure(crate::value::Procedure::Builtin { func: make_rtd_func, .. }) = make_rtd {
+        if let Value::Procedure(crate::value::Procedure::Builtin {
+            func: make_rtd_func,
+            ..
+        }) = make_rtd
+        {
             let name = Value::Symbol("test-type".to_string());
             let fields = Value::Vector(vec![Value::Symbol("field1".to_string())]);
-            
+
             let rtd = make_rtd_func(&[name, fields]).unwrap();
 
             // Test record-type-name
             let get_name = exports.get("record-type-name").unwrap();
-            if let Value::Procedure(crate::value::Procedure::Builtin { func: get_name_func, .. }) = get_name {
+            if let Value::Procedure(crate::value::Procedure::Builtin {
+                func: get_name_func,
+                ..
+            }) = get_name
+            {
                 let result = get_name_func(&[rtd.clone()]).unwrap();
                 assert_eq!(result, Value::Symbol("test-type".to_string()));
             }
 
             // Test record-type-parent
             let get_parent = exports.get("record-type-parent").unwrap();
-            if let Value::Procedure(crate::value::Procedure::Builtin { func: get_parent_func, .. }) = get_parent {
+            if let Value::Procedure(crate::value::Procedure::Builtin {
+                func: get_parent_func,
+                ..
+            }) = get_parent
+            {
                 let result = get_parent_func(&[rtd.clone()]).unwrap();
                 assert_eq!(result, Value::Boolean(false)); // No parent
             }
 
             // Test record-type-fields
             let get_fields = exports.get("record-type-fields").unwrap();
-            if let Value::Procedure(crate::value::Procedure::Builtin { func: get_fields_func, .. }) = get_fields {
+            if let Value::Procedure(crate::value::Procedure::Builtin {
+                func: get_fields_func,
+                ..
+            }) = get_fields
+            {
                 let result = get_fields_func(&[rtd]).unwrap();
                 if let Value::Vector(field_names) = result {
                     assert_eq!(field_names.len(), 1);

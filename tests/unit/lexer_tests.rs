@@ -2,7 +2,7 @@
 //!
 //! These tests verify the basic tokenization functionality of the Scheme lexer.
 
-use lambdust::lexer::{SchemeNumber, Token, tokenize};
+use lambdust::lexer::{tokenize, SchemeNumber, Token};
 
 #[test]
 fn test_basic_tokens() {

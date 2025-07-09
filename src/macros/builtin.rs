@@ -150,7 +150,8 @@ pub fn expand_letrec(args: &[Expr]) -> Result<Expr> {
                             Expr::Variable(var.clone()),
                             parts[1].clone(),
                         ]));
-                        undefined_values.push(Expr::Variable("#f".to_string())); // Use #f as undefined
+                        undefined_values.push(Expr::Variable("#f".to_string()));
+                        // Use #f as undefined
                     }
                     _ => {
                         return Err(LambdustError::syntax_error(

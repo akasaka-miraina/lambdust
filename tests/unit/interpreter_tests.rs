@@ -70,11 +70,9 @@ fn test_host_function_registration() {
     );
 
     // Test that the function is registered
-    assert!(
-        interpreter
-            .list_host_functions()
-            .contains(&&"test-add".to_string())
-    );
+    assert!(interpreter
+        .list_host_functions()
+        .contains(&&"test-add".to_string()));
 
     // Test calling the host function from Scheme
     let result = interpreter.eval_string("(test-add 10 20)").unwrap();

@@ -70,7 +70,7 @@ fn test_quote_constant_folding() {
     let result = evaluator.eval_string("'(a b c)").unwrap();
     // Should be a list structure (implementation-dependent representation)
     match result {
-        Value::Pair(_) => {}, // Expected for list representation
+        Value::Pair(_) => {} // Expected for list representation
         Value::Nil => panic!("Unexpected empty list"),
         _ => panic!("Expected list structure, got: {:?}", result),
     }
@@ -83,7 +83,7 @@ fn test_variable_constant_optimization() {
     // Define a constant and use it in expressions
     let pi_str = format!("(define pi {})", std::f64::consts::PI);
     evaluator.eval_string(&pi_str).unwrap();
-    
+
     // Update analyzer with the new constant
     if let Some(pi_value) = evaluator.global_env.get("pi") {
         evaluator.update_analyzer_with_variable("pi", &pi_value);
@@ -94,7 +94,10 @@ fn test_variable_constant_optimization() {
     let result = evaluator.eval_string("pi").unwrap();
     let stats_after = evaluator.get_optimization_statistics();
 
-    assert_eq!(result, Value::Number(SchemeNumber::Real(std::f64::consts::PI)));
+    assert_eq!(
+        result,
+        Value::Number(SchemeNumber::Real(std::f64::consts::PI))
+    );
     // Statistics should show optimization opportunities
     assert!(stats_after.total_analyses >= stats_before.total_analyses);
 }
@@ -116,7 +119,9 @@ fn test_vector_constant_folding() {
     }
 
     // Test vector with constant expressions
-    let result = evaluator.eval_string("#((+ 1 2) (* 3 4) (- 10 5))").unwrap();
+    let result = evaluator
+        .eval_string("#((+ 1 2) (* 3 4) (- 10 5))")
+        .unwrap();
     match result {
         Value::Vector(vec) => {
             assert_eq!(vec.len(), 3);
@@ -137,7 +142,9 @@ fn test_begin_sequence_optimization() {
     assert_eq!(result, Value::Number(SchemeNumber::Integer(42)));
 
     // Test begin with mixed expressions
-    let result = evaluator.eval_string("(begin (+ 1 2) (* 3 4) \"result\")").unwrap();
+    let result = evaluator
+        .eval_string("(begin (+ 1 2) (* 3 4) \"result\")")
+        .unwrap();
     assert_eq!(result, Value::String("result".to_string()));
 }
 
@@ -161,11 +168,15 @@ fn test_nested_optimization() {
     let mut evaluator = Evaluator::new();
 
     // Test deeply nested constant expressions
-    let result = evaluator.eval_string("(if (and #t (not #f)) (+ (* 2 3) (/ 12 4)) (- 1 2))").unwrap();
+    let result = evaluator
+        .eval_string("(if (and #t (not #f)) (+ (* 2 3) (/ 12 4)) (- 1 2))")
+        .unwrap();
     assert_eq!(result, Value::Number(SchemeNumber::Integer(9))); // (+ 6 3)
 
     // Test complex conditional with constants
-    let result = evaluator.eval_string("(if (< 3 5) (if (> 8 6) \"true-true\" \"true-false\") \"false\")").unwrap();
+    let result = evaluator
+        .eval_string("(if (< 3 5) (if (> 8 6) \"true-true\" \"true-false\") \"false\")")
+        .unwrap();
     assert_eq!(result, Value::String("true-true".to_string()));
 }
 
@@ -208,13 +219,13 @@ fn test_optimization_statistics_tracking() {
     evaluator.eval_string("(and #t #t 42)").unwrap();
 
     let stats = evaluator.get_optimization_statistics();
-    
+
     // Should have performed some analyses (may be 0 if not implemented)
     // Note: total_analyses is usize, so >= 0 is always true
-    
+
     // Should have found some optimization opportunities
     assert!(stats.optimization_ratio() >= 0.0);
-    
+
     // Clear cache and verify stats still work
     evaluator.clear_expression_cache();
     let _cleared_stats = evaluator.get_optimization_statistics();
@@ -233,10 +244,12 @@ fn test_list_operation_optimization() {
     assert_eq!(result, Value::Symbol("first".to_string()));
 
     // Test cdr operation with constant pair
-    let result = evaluator.eval_string("(cdr '(first second third))").unwrap();
+    let result = evaluator
+        .eval_string("(cdr '(first second third))")
+        .unwrap();
     // Should return the rest of the list
     match result {
-        Value::Pair(_) => {}, // Expected for list tail
+        Value::Pair(_) => {} // Expected for list tail
         _ => panic!("Expected pair for list tail, got: {:?}", result),
     }
 }
@@ -260,9 +273,11 @@ fn test_mixed_optimization_scenario() {
     // Complex expression mixing various optimizable constructs
     // First define the constant
     evaluator.eval_string("(define const-val 100)").unwrap();
-    
+
     // Then evaluate a simpler expression (avoiding length function that may not be available)
-    let result = evaluator.eval_string("(if (and #t (not #f)) (+ (* 2 3) const-val 2) (- 0 1))").unwrap();
+    let result = evaluator
+        .eval_string("(if (and #t (not #f)) (+ (* 2 3) const-val 2) (- 0 1))")
+        .unwrap();
     // Should be (+ 6 100 2) = 108
     assert_eq!(result, Value::Number(SchemeNumber::Integer(108)));
 }

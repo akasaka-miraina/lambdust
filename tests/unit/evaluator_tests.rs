@@ -1,8 +1,8 @@
 use lambdust::ast::{Expr, Literal};
 use lambdust::environment::Environment;
 use lambdust::error::Result;
-use lambdust::evaluator::{Continuation, EvalOrder, Evaluator, eval_with_formal_semantics};
-use lambdust::lexer::{SchemeNumber, tokenize};
+use lambdust::evaluator::{eval_with_formal_semantics, Continuation, EvalOrder, Evaluator};
+use lambdust::lexer::{tokenize, SchemeNumber};
 use lambdust::parser::parse;
 use lambdust::value::Value;
 use std::rc::Rc;

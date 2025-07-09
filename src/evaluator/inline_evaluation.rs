@@ -50,7 +50,7 @@ impl ContinuationWeight {
         match cont {
             // Identity is the lightest possible continuation
             Continuation::Identity => ContinuationWeight::VeryLight,
-            
+
             // Simple value operations
             Continuation::Values { values, .. } => {
                 if values.len() <= 3 {
@@ -59,12 +59,12 @@ impl ContinuationWeight {
                     ContinuationWeight::Light
                 }
             }
-            
+
             // Variable operations
             Continuation::Assignment { .. } | Continuation::Define { .. } => {
                 ContinuationWeight::Light
             }
-            
+
             // Single expression continuations
             Continuation::Begin { remaining, .. } => {
                 if remaining.len() == 1 {
@@ -75,11 +75,13 @@ impl ContinuationWeight {
                     ContinuationWeight::Heavy
                 }
             }
-            
+
             // Control flow that can be optimized
-            Continuation::IfTest { alternate: None, .. } => ContinuationWeight::Light,
+            Continuation::IfTest {
+                alternate: None, ..
+            } => ContinuationWeight::Light,
             Continuation::IfTest { .. } => ContinuationWeight::Medium,
-            
+
             // Application continuations - weight depends on complexity
             Continuation::Application { remaining_args, .. } => {
                 if remaining_args.is_empty() {
@@ -90,7 +92,7 @@ impl ContinuationWeight {
                     ContinuationWeight::Heavy
                 }
             }
-            
+
             // Heavy operations that should not be inlined
             Continuation::CallCc { .. }
             | Continuation::DynamicWind { .. }
@@ -98,12 +100,12 @@ impl ContinuationWeight {
             | Continuation::GuardClause { .. }
             | Continuation::DoLoop { .. }
             | Continuation::Do { .. } => ContinuationWeight::Heavy,
-            
+
             // Other continuations default to medium weight
             _ => ContinuationWeight::Medium,
         }
     }
-    
+
     /// Check if continuation should be inlined based on weight and hint
     pub fn should_inline(&self, hint: InlineHint) -> bool {
         match (self, hint) {
@@ -136,13 +138,16 @@ impl HotPathDetector {
             total_executions: 0,
         }
     }
-    
+
     /// Record continuation execution
     pub fn record_execution(&mut self, cont_type: &str) {
-        *self.frequency_counters.entry(cont_type.to_string()).or_insert(0) += 1;
+        *self
+            .frequency_counters
+            .entry(cont_type.to_string())
+            .or_insert(0) += 1;
         self.total_executions += 1;
     }
-    
+
     /// Get inline hint based on execution frequency
     pub fn get_inline_hint(&self, cont_type: &str) -> InlineHint {
         if let Some(&count) = self.frequency_counters.get(cont_type) {
@@ -157,10 +162,12 @@ impl HotPathDetector {
             InlineHint::Neutral
         }
     }
-    
+
     /// Get execution statistics
     pub fn statistics(&self) -> (usize, usize, f64) {
-        let hot_paths = self.frequency_counters.values()
+        let hot_paths = self
+            .frequency_counters
+            .values()
             .filter(|&&count| count >= self.hot_threshold)
             .count();
         let total_paths = self.frequency_counters.len();
@@ -171,7 +178,7 @@ impl HotPathDetector {
         };
         (hot_paths, total_paths, hot_ratio)
     }
-    
+
     /// Clear statistics
     pub fn clear(&mut self) {
         self.frequency_counters.clear();
@@ -208,7 +215,7 @@ impl InlineEvaluator {
             cache_hits: 0,
         }
     }
-    
+
     /// Attempt to evaluate continuation inline
     /// Returns InlineResult indicating whether inline evaluation succeeded
     pub fn try_inline_evaluation(
@@ -218,20 +225,20 @@ impl InlineEvaluator {
         value: Value,
     ) -> Result<InlineResult> {
         self.total_attempts += 1;
-        
+
         // Determine continuation type for tracking
         let cont_type = self.continuation_type_name(&cont);
         self.hot_path_detector.record_execution(&cont_type);
-        
+
         // Get inline hint and continuation weight
         let hint = self.hot_path_detector.get_inline_hint(&cont_type);
         let weight = ContinuationWeight::from_continuation(&cont);
-        
+
         // Check if continuation should be inlined
         if !weight.should_inline(hint) {
             return Ok(InlineResult::RequiresEvaluation(cont, value));
         }
-        
+
         // Attempt inline evaluation with branch prediction hints
         match self.inline_continuation_with_hints(evaluator, cont.clone(), value.clone(), hint) {
             Ok(Some(result)) => {
@@ -248,7 +255,7 @@ impl InlineEvaluator {
             Err(e) => Err(e),
         }
     }
-    
+
     /// Inline continuation evaluation with branch prediction hints
     #[inline]
     fn inline_continuation_with_hints(
@@ -273,7 +280,7 @@ impl InlineEvaluator {
                 // No specific branch prediction hint
             }
         }
-        
+
         // Inline evaluation based on continuation type
         match cont {
             // Most common case - identity continuation
@@ -281,46 +288,61 @@ impl InlineEvaluator {
                 // Identity is the most frequent case - optimize for it
                 Ok(Some(value))
             }
-            
+
             // Simple value accumulation
-            Continuation::Values { mut values, parent: _ } => {
+            Continuation::Values {
+                mut values,
+                parent: _,
+            } => {
                 values.push(value);
                 let result = Value::Values(values);
-                
+
                 // Return the Values result with parent for caller to handle
                 // This avoids infinite recursion in inline evaluation
                 Ok(Some(result))
             }
-            
+
             // Variable assignment - fast path for environments
-            Continuation::Assignment { variable, env, parent: _ } => {
+            Continuation::Assignment {
+                variable,
+                env,
+                parent: _,
+            } => {
                 env.set(&variable, value)?;
                 let result = Value::Undefined;
-                
+
                 // For inline evaluation, don't recurse - return result and let caller handle parent
                 Ok(Some(result))
             }
-            
+
             // Variable definition - fast path
-            Continuation::Define { variable, env, parent: _ } => {
+            Continuation::Define {
+                variable,
+                env,
+                parent: _,
+            } => {
                 env.define(variable, value);
                 let result = Value::Undefined;
-                
+
                 // For inline evaluation, don't recurse - return result and let caller handle parent
                 Ok(Some(result))
             }
-            
+
             // Single expression begin - inline if simple
-            Continuation::Begin { remaining, env: _, parent: _ } if remaining.len() == 1 => {
+            Continuation::Begin {
+                remaining,
+                env: _,
+                parent: _,
+            } if remaining.len() == 1 => {
                 // For inline evaluation, defer complex expressions to regular evaluation
                 Ok(None)
             }
-            
+
             // For other continuations, defer to full evaluation
             _ => Ok(None),
         }
     }
-    
+
     /// Get continuation type name for tracking
     fn continuation_type_name(&self, cont: &Continuation) -> String {
         match cont {
@@ -341,7 +363,7 @@ impl InlineEvaluator {
             _ => "Other".to_string(),
         }
     }
-    
+
     /// Get inline evaluation statistics
     pub fn statistics(&self) -> (usize, usize, f64, usize) {
         let inline_rate = if self.total_attempts > 0 {
@@ -356,12 +378,12 @@ impl InlineEvaluator {
             self.cache_hits,
         )
     }
-    
+
     /// Get hot path statistics
     pub fn hot_path_statistics(&self) -> (usize, usize, f64) {
         self.hot_path_detector.statistics()
     }
-    
+
     /// Clear all statistics
     pub fn clear_statistics(&mut self) {
         self.hot_path_detector.clear();
@@ -401,24 +423,24 @@ impl CacheFriendlyPatterns {
         // to improve cache hit rates
         cont
     }
-    
+
     /// Check if continuation pattern is cache-friendly
     pub fn is_cache_friendly(cont: &Continuation) -> bool {
         match cont {
             // Simple continuations are cache-friendly
-            Continuation::Identity 
+            Continuation::Identity
             | Continuation::Values { .. }
             | Continuation::Assignment { .. }
             | Continuation::Define { .. } => true,
-            
+
             // Short begin chains are cache-friendly
             Continuation::Begin { remaining, .. } => remaining.len() <= 2,
-            
+
             // Other patterns depend on complexity
             _ => false,
         }
     }
-    
+
     /// Estimate memory footprint for cache analysis
     pub fn estimate_memory_footprint(cont: &Continuation) -> usize {
         match cont {
@@ -429,12 +451,10 @@ impl CacheFriendlyPatterns {
             Continuation::Assignment { variable, .. } => {
                 std::mem::size_of::<String>() + variable.len()
             }
-            Continuation::Define { variable, .. } => {
-                std::mem::size_of::<String>() + variable.len()
-            }
+            Continuation::Define { variable, .. } => std::mem::size_of::<String>() + variable.len(),
             Continuation::Begin { remaining, .. } => {
-                std::mem::size_of::<Vec<crate::ast::Expr>>() + 
-                remaining.len() * std::mem::size_of::<crate::ast::Expr>()
+                std::mem::size_of::<Vec<crate::ast::Expr>>()
+                    + remaining.len() * std::mem::size_of::<crate::ast::Expr>()
             }
             _ => 1024, // Conservative estimate for complex continuations
         }
@@ -451,27 +471,39 @@ mod tests {
     #[test]
     fn test_continuation_weight_classification() {
         let identity = Continuation::Identity;
-        assert_eq!(ContinuationWeight::from_continuation(&identity), ContinuationWeight::VeryLight);
+        assert_eq!(
+            ContinuationWeight::from_continuation(&identity),
+            ContinuationWeight::VeryLight
+        );
 
         let values = Continuation::Values {
             values: vec![Value::from(42i64)],
             parent: Box::new(Continuation::Identity),
         };
-        assert_eq!(ContinuationWeight::from_continuation(&values), ContinuationWeight::VeryLight);
+        assert_eq!(
+            ContinuationWeight::from_continuation(&values),
+            ContinuationWeight::VeryLight
+        );
 
         let assignment = Continuation::Assignment {
             variable: "x".to_string(),
             env: Rc::new(Environment::new()),
             parent: Box::new(Continuation::Identity),
         };
-        assert_eq!(ContinuationWeight::from_continuation(&assignment), ContinuationWeight::Light);
+        assert_eq!(
+            ContinuationWeight::from_continuation(&assignment),
+            ContinuationWeight::Light
+        );
 
         let call_cc = Continuation::CallCc {
             captured_cont: Value::from(1i64),
             env: Rc::new(Environment::new()),
             parent: Box::new(Continuation::Identity),
         };
-        assert_eq!(ContinuationWeight::from_continuation(&call_cc), ContinuationWeight::Heavy);
+        assert_eq!(
+            ContinuationWeight::from_continuation(&call_cc),
+            ContinuationWeight::Heavy
+        );
     }
 
     #[test]
@@ -485,18 +517,18 @@ mod tests {
     #[test]
     fn test_hot_path_detector() {
         let mut detector = HotPathDetector::new(3);
-        
+
         // Record executions
         detector.record_execution("Identity");
         detector.record_execution("Identity");
         detector.record_execution("Values");
         detector.record_execution("Identity");
-        
+
         // Check hints
         assert_eq!(detector.get_inline_hint("Identity"), InlineHint::Likely);
         assert_eq!(detector.get_inline_hint("Values"), InlineHint::Neutral); // 1 * 10 = 10, but total is only 4, so not unlikely
         assert_eq!(detector.get_inline_hint("Unknown"), InlineHint::Neutral);
-        
+
         // Check statistics
         let (hot_paths, total_paths, hot_ratio) = detector.statistics();
         assert_eq!(hot_paths, 1); // Only "Identity" is hot
@@ -508,17 +540,19 @@ mod tests {
     fn test_inline_evaluator_identity() {
         let mut evaluator = Evaluator::new();
         let mut inline_eval = InlineEvaluator::new();
-        
+
         let cont = Continuation::Identity;
         let value = Value::from(42i64);
-        
-        let result = inline_eval.try_inline_evaluation(&mut evaluator, cont, value).unwrap();
-        
+
+        let result = inline_eval
+            .try_inline_evaluation(&mut evaluator, cont, value)
+            .unwrap();
+
         match result {
             InlineResult::Handled(v) => assert_eq!(v, Value::from(42i64)),
             InlineResult::RequiresEvaluation(_, _) => panic!("Identity should be inlined"),
         }
-        
+
         let (inlined, total, rate, _) = inline_eval.statistics();
         assert_eq!(inlined, 1);
         assert_eq!(total, 1);
@@ -529,15 +563,17 @@ mod tests {
     fn test_inline_evaluator_values() {
         let mut evaluator = Evaluator::new();
         let mut inline_eval = InlineEvaluator::new();
-        
+
         let cont = Continuation::Values {
             values: vec![Value::from(1i64), Value::from(2i64)],
             parent: Box::new(Continuation::Identity),
         };
         let value = Value::from(3i64);
-        
-        let result = inline_eval.try_inline_evaluation(&mut evaluator, cont, value).unwrap();
-        
+
+        let result = inline_eval
+            .try_inline_evaluation(&mut evaluator, cont, value)
+            .unwrap();
+
         match result {
             InlineResult::Handled(Value::Values(values)) => {
                 assert_eq!(values.len(), 3);
@@ -553,7 +589,7 @@ mod tests {
     fn test_inline_evaluator_assignment() {
         let mut evaluator = Evaluator::new();
         let mut inline_eval = InlineEvaluator::new();
-        
+
         let env = Rc::new(Environment::new());
         env.define("x".to_string(), Value::from(0i64)); // Pre-define variable for assignment
         let cont = Continuation::Assignment {
@@ -562,9 +598,11 @@ mod tests {
             parent: Box::new(Continuation::Identity),
         };
         let value = Value::from(42i64);
-        
-        let result = inline_eval.try_inline_evaluation(&mut evaluator, cont, value).unwrap();
-        
+
+        let result = inline_eval
+            .try_inline_evaluation(&mut evaluator, cont, value)
+            .unwrap();
+
         match result {
             InlineResult::Handled(Value::Undefined) => {
                 // Check that variable was set
@@ -578,13 +616,13 @@ mod tests {
     fn test_cache_friendly_patterns() {
         let identity = Continuation::Identity;
         assert!(CacheFriendlyPatterns::is_cache_friendly(&identity));
-        
+
         let values = Continuation::Values {
             values: vec![Value::from(42i64)],
             parent: Box::new(Continuation::Identity),
         };
         assert!(CacheFriendlyPatterns::is_cache_friendly(&values));
-        
+
         let call_cc = Continuation::CallCc {
             captured_cont: Value::from(1i64),
             env: Rc::new(Environment::new()),
@@ -598,14 +636,14 @@ mod tests {
         let identity = Continuation::Identity;
         let identity_size = CacheFriendlyPatterns::estimate_memory_footprint(&identity);
         assert!(identity_size > 0);
-        
+
         let values = Continuation::Values {
             values: vec![Value::from(42i64); 10],
             parent: Box::new(Continuation::Identity),
         };
         let values_size = CacheFriendlyPatterns::estimate_memory_footprint(&values);
         assert!(values_size > identity_size);
-        
+
         let call_cc = Continuation::CallCc {
             captured_cont: Value::from(1i64),
             env: Rc::new(Environment::new()),

@@ -369,11 +369,12 @@ impl Evaluator {
                     }
 
                     // Evaluate body and return result directly (not through continuation)
-                    let result = self.eval_sequence(body, Rc::new(lambda_env), Continuation::Identity)?;
-                    
+                    let result =
+                        self.eval_sequence(body, Rc::new(lambda_env), Continuation::Identity)?;
+
                     #[cfg(debug_assertions)]
                     eprintln!("DEBUG: lambda eval_sequence result: {:?}", result);
-                    
+
                     self.apply_continuation(cont, result)
                 }
                 Procedure::Continuation {
@@ -516,14 +517,20 @@ impl Evaluator {
 
         // Fold over each key-value pair
         let ht = hash_table.borrow();
-        
+
         #[cfg(debug_assertions)]
-        eprintln!("DEBUG: hash-table-fold starting with {} entries", ht.table.len());
-        
+        eprintln!(
+            "DEBUG: hash-table-fold starting with {} entries",
+            ht.table.len()
+        );
+
         for (i, (key, value)) in ht.table.iter().enumerate() {
             #[cfg(debug_assertions)]
-            eprintln!("DEBUG: fold iteration {}: key={:?}, value={:?}, acc={:?}", i, key, value, accumulator);
-            
+            eprintln!(
+                "DEBUG: fold iteration {}: key={:?}, value={:?}, acc={:?}",
+                i, key, value, accumulator
+            );
+
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone(), accumulator];
 
@@ -537,12 +544,15 @@ impl Evaluator {
                 env.clone(),
                 Continuation::Identity,
             )?;
-            
+
             #[cfg(debug_assertions)]
-            eprintln!("DEBUG: apply_procedure_with_evaluator returned: {:?}", lambda_result);
-            
+            eprintln!(
+                "DEBUG: apply_procedure_with_evaluator returned: {:?}",
+                lambda_result
+            );
+
             accumulator = lambda_result;
-            
+
             #[cfg(debug_assertions)]
             eprintln!("DEBUG: fold result {}: new_acc={:?}", i, accumulator);
         }
@@ -729,7 +739,7 @@ impl Evaluator {
         // Phase 5-Step2: location-ref placeholder - RAII locations are managed automatically
         // TODO: Implement location registry for stable location references
         Err(LambdustError::runtime_error(
-            "location-ref not yet implemented for RAII store".to_string()
+            "location-ref not yet implemented for RAII store".to_string(),
         ))
     }
 
@@ -762,7 +772,7 @@ impl Evaluator {
         // Phase 5-Step2: location-set! placeholder - RAII locations are managed automatically
         // TODO: Implement location registry for stable location references
         Err(LambdustError::runtime_error(
-            "location-set! not yet implemented for RAII store".to_string()
+            "location-set! not yet implemented for RAII store".to_string(),
         ))
     }
 }

@@ -20,7 +20,7 @@ use std::rc::Rc;
 pub enum ContinuationThunk {
     /// Immediate value - computation complete
     Done(Value),
-    
+
     /// Bounce to next computation - continue evaluation
     Bounce {
         /// Expression to evaluate
@@ -30,7 +30,7 @@ pub enum ContinuationThunk {
         /// Continuation to apply
         cont: Continuation,
     },
-    
+
     /// Apply continuation with value
     ApplyCont {
         /// Continuation to apply
@@ -38,7 +38,7 @@ pub enum ContinuationThunk {
         /// Value to pass to continuation
         value: Value,
     },
-    
+
     /// Special handling for do-loop iteration to prevent deep recursion
     DoLoopIteration {
         /// Current variable values
@@ -83,7 +83,7 @@ impl TrampolineEvaluator {
         let mut current_thunk = initial_thunk;
         let mut iteration_count = 0;
         const MAX_ITERATIONS: usize = 10_000_000; // Prevent infinite loops - increased for complex computations
-        
+
         loop {
             iteration_count += 1;
             if iteration_count > MAX_ITERATIONS {
@@ -91,7 +91,7 @@ impl TrampolineEvaluator {
                     "Trampoline evaluation exceeded maximum iterations".to_string(),
                 ));
             }
-            
+
             match Self::bounce_thunk(evaluator, current_thunk)? {
                 Bounce::Continue(next_thunk) => {
                     current_thunk = *next_thunk;
@@ -105,25 +105,22 @@ impl TrampolineEvaluator {
             }
         }
     }
-    
+
     /// Process a single thunk and return the next bounce
-    fn bounce_thunk(
-        evaluator: &mut Evaluator,
-        thunk: ContinuationThunk,
-    ) -> Result<Bounce> {
+    fn bounce_thunk(evaluator: &mut Evaluator, thunk: ContinuationThunk) -> Result<Bounce> {
         match thunk {
             ContinuationThunk::Done(value) => Ok(Bounce::Done(value)),
-            
+
             ContinuationThunk::Bounce { expr, env, cont } => {
                 // Convert regular evaluation to trampoline-safe form
                 Self::eval_to_thunk(evaluator, expr, env, cont)
             }
-            
+
             ContinuationThunk::ApplyCont { cont, value } => {
                 // Apply continuation and convert result to thunk
                 Self::apply_continuation_to_thunk(evaluator, cont, value)
             }
-            
+
             ContinuationThunk::DoLoopIteration {
                 variables,
                 step_exprs,
@@ -135,12 +132,19 @@ impl TrampolineEvaluator {
             } => {
                 // Special handling for do-loop to prevent stack overflow
                 Self::eval_do_loop_iteration(
-                    evaluator, variables, step_exprs, test_expr, result_exprs, body_exprs, env, cont,
+                    evaluator,
+                    variables,
+                    step_exprs,
+                    test_expr,
+                    result_exprs,
+                    body_exprs,
+                    env,
+                    cont,
                 )
             }
         }
     }
-    
+
     /// Convert expression evaluation to trampoline thunk
     /// Phase 6-A-Step2: Enhanced expression unwinding for heap-based evaluation
     fn eval_to_thunk(
@@ -155,30 +159,28 @@ impl TrampolineEvaluator {
                 let value = evaluator.literal_to_value(lit)?;
                 Self::apply_continuation_to_thunk(evaluator, cont, value)
             }
-            
+
             // Variables need environment lookup
-            Expr::Variable(name) => {
-                match env.get(&name) {
-                    Some(value) => Self::apply_continuation_to_thunk(evaluator, cont, value),
-                    None => Ok(Bounce::Error(LambdustError::undefined_variable(name))),
-                }
-            }
-            
+            Expr::Variable(name) => match env.get(&name) {
+                Some(value) => Self::apply_continuation_to_thunk(evaluator, cont, value),
+                None => Ok(Bounce::Error(LambdustError::undefined_variable(name))),
+            },
+
             // Lists require special handling based on the first element
             Expr::List(exprs) if !exprs.is_empty() => {
                 if let Expr::Variable(op) = &exprs[0] {
                     match op.as_str() {
                         // Special handling for iterative constructs
                         "do" => Self::eval_do_special_form(evaluator, &exprs[1..], env, cont),
-                        
+
                         // Simple special forms can be unwound on heap
                         "begin" => Self::eval_begin_to_thunk(&exprs[1..], env, cont),
                         "if" => Self::eval_if_to_thunk(evaluator, &exprs[1..], env, cont),
                         "define" => Self::eval_define_to_thunk(&exprs[1..], env, cont),
                         "set!" => Self::eval_assignment_to_thunk(&exprs[1..], env, cont),
                         "quote" => Self::eval_quote_to_thunk(&exprs[1..], cont),
-                        
-                        // Complex special forms bounce back to regular evaluator  
+
+                        // Complex special forms bounce back to regular evaluator
                         _ => Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
                             expr: Expr::List(exprs),
                             env,
@@ -194,18 +196,17 @@ impl TrampolineEvaluator {
                     })))
                 }
             }
-            
+
             // Empty list evaluates to nil
-            Expr::List(_) => {
-                Self::apply_continuation_to_thunk(evaluator, cont, Value::Nil)
-            }
-            
+            Expr::List(_) => Self::apply_continuation_to_thunk(evaluator, cont, Value::Nil),
+
             // Quote expressions
             Expr::Quote(quoted_expr) => {
-                let value = crate::evaluator::ast_converter::AstConverter::expr_to_value(*quoted_expr)?;
+                let value =
+                    crate::evaluator::ast_converter::AstConverter::expr_to_value(*quoted_expr)?;
                 Self::apply_continuation_to_thunk(evaluator, cont, value)
             }
-            
+
             // Other expressions bounce to regular evaluator
             _ => Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
                 expr,
@@ -214,7 +215,7 @@ impl TrampolineEvaluator {
             }))),
         }
     }
-    
+
     /// Phase 6-A-Step2: Heap-based begin evaluation
     fn eval_begin_to_thunk(
         exprs: &[Expr],
@@ -227,7 +228,7 @@ impl TrampolineEvaluator {
                 value: Value::Undefined,
             })));
         }
-        
+
         if exprs.len() == 1 {
             // Single expression - evaluate directly
             return Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
@@ -236,29 +237,29 @@ impl TrampolineEvaluator {
                 cont,
             })));
         }
-        
+
         // Multiple expressions - use Begin continuation
         let first_expr = exprs[0].clone();
         let remaining = exprs[1..].to_vec();
-        
+
         let begin_cont = Continuation::Begin {
             remaining,
             env: env.clone(),
             parent: Box::new(cont),
         };
-        
+
         Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
             expr: first_expr,
             env,
             cont: begin_cont,
         })))
     }
-    
+
     /// Phase 6-A-Step2: Heap-based if evaluation  
     fn eval_if_to_thunk(
         _evaluator: &mut Evaluator,
         exprs: &[Expr],
-        env: Rc<Environment>, 
+        env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Bounce> {
         if exprs.is_empty() {
@@ -266,25 +267,25 @@ impl TrampolineEvaluator {
                 "if requires at least a condition".to_string(),
             )));
         }
-        
+
         let test_expr = exprs[0].clone();
         let consequent = exprs.get(1).cloned();
         let alternate = exprs.get(2).cloned();
-        
+
         let if_cont = Continuation::IfTest {
             consequent: consequent.unwrap_or(Expr::Literal(crate::ast::Literal::Nil)),
             alternate,
             env: env.clone(),
             parent: Box::new(cont),
         };
-        
+
         Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
             expr: test_expr,
             env,
             cont: if_cont,
         })))
     }
-    
+
     /// Phase 6-A-Step2: Heap-based define evaluation
     fn eval_define_to_thunk(
         exprs: &[Expr],
@@ -296,7 +297,7 @@ impl TrampolineEvaluator {
                 "define requires exactly 2 arguments".to_string(),
             )));
         }
-        
+
         match &exprs[0] {
             Expr::Variable(name) => {
                 let value_expr = exprs[1].clone();
@@ -305,7 +306,7 @@ impl TrampolineEvaluator {
                     env: env.clone(),
                     parent: Box::new(cont),
                 };
-                
+
                 Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
                     expr: value_expr,
                     env,
@@ -317,7 +318,7 @@ impl TrampolineEvaluator {
             ))),
         }
     }
-    
+
     /// Phase 6-A-Step2: Heap-based assignment evaluation  
     fn eval_assignment_to_thunk(
         exprs: &[Expr],
@@ -329,7 +330,7 @@ impl TrampolineEvaluator {
                 "set! requires exactly 2 arguments".to_string(),
             )));
         }
-        
+
         match &exprs[0] {
             Expr::Variable(name) => {
                 let value_expr = exprs[1].clone();
@@ -338,7 +339,7 @@ impl TrampolineEvaluator {
                     env: env.clone(),
                     parent: Box::new(cont),
                 };
-                
+
                 Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
                     expr: value_expr,
                     env,
@@ -350,25 +351,22 @@ impl TrampolineEvaluator {
             ))),
         }
     }
-    
+
     /// Phase 6-A-Step2: Heap-based quote evaluation
-    fn eval_quote_to_thunk(
-        exprs: &[Expr],
-        cont: Continuation,
-    ) -> Result<Bounce> {
+    fn eval_quote_to_thunk(exprs: &[Expr], cont: Continuation) -> Result<Bounce> {
         if exprs.len() != 1 {
             return Ok(Bounce::Error(LambdustError::syntax_error(
                 "quote requires exactly 1 argument".to_string(),
             )));
         }
-        
+
         let value = crate::evaluator::ast_converter::AstConverter::expr_to_value(exprs[0].clone())?;
         Ok(Bounce::Continue(Box::new(ContinuationThunk::ApplyCont {
             cont,
             value,
         })))
     }
-    
+
     /// Apply continuation in trampoline-safe manner
     /// Phase 6-A-Step2: Convert stack-based continuation to heap-based unwinding
     fn apply_continuation_to_thunk(
@@ -379,7 +377,7 @@ impl TrampolineEvaluator {
         // Phase 6-A-Step2: Heap-based continuation unwinding
         Self::unwind_continuation_chain(evaluator, cont, value)
     }
-    
+
     /// Phase 6-A-Step2: Unwind continuation chain on heap to prevent stack overflow
     /// Converts recursive continuation application to iterative processing
     fn unwind_continuation_chain(
@@ -389,7 +387,7 @@ impl TrampolineEvaluator {
     ) -> Result<Bounce> {
         let mut unwinding_depth = 0;
         const MAX_UNWINDING_DEPTH: usize = 100; // Bounded unwinding per trampoline cycle
-        
+
         loop {
             unwinding_depth += 1;
             if unwinding_depth > MAX_UNWINDING_DEPTH {
@@ -399,13 +397,13 @@ impl TrampolineEvaluator {
                     value: current_value,
                 })));
             }
-            
+
             match current_cont {
                 // Terminal continuations - can be applied directly
                 Continuation::Identity => {
                     return Ok(Bounce::Done(current_value));
                 }
-                
+
                 // Simple continuations that can be unwound iteratively
                 Continuation::Values { mut values, parent } => {
                     values.push(current_value);
@@ -413,32 +411,38 @@ impl TrampolineEvaluator {
                     current_cont = *parent;
                     continue; // Iterative unwinding
                 }
-                
+
                 // Assignment continuation - can be handled inline
-                Continuation::Assignment { variable, env, parent } => {
-                    match env.set(&variable, current_value) {
-                        Ok(_) => {
-                            current_value = Value::Undefined;
-                            current_cont = *parent;
-                            continue;
-                        }
-                        Err(e) => return Ok(Bounce::Error(e)),
+                Continuation::Assignment {
+                    variable,
+                    env,
+                    parent,
+                } => match env.set(&variable, current_value) {
+                    Ok(_) => {
+                        current_value = Value::Undefined;
+                        current_cont = *parent;
+                        continue;
                     }
-                }
-                
+                    Err(e) => return Ok(Bounce::Error(e)),
+                },
+
                 // Define continuation - can be handled inline
-                Continuation::Define { variable, env, parent } => {
+                Continuation::Define {
+                    variable,
+                    env,
+                    parent,
+                } => {
                     env.define(variable, current_value);
                     current_value = Value::Undefined;
                     current_cont = *parent;
                     continue;
                 }
-                
+
                 // Begin continuation with single expression
-                Continuation::Begin { 
-                    remaining: exprs, 
-                    env, 
-                    parent 
+                Continuation::Begin {
+                    remaining: exprs,
+                    env,
+                    parent,
                 } if exprs.len() == 1 => {
                     // Single expression can be converted to bounce
                     return Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
@@ -447,7 +451,7 @@ impl TrampolineEvaluator {
                         cont: *parent,
                     })));
                 }
-                
+
                 // Complex continuations - delegate to evaluator but return early to prevent deep recursion
                 Continuation::Operator { .. }
                 | Continuation::Application { .. }
@@ -476,7 +480,7 @@ impl TrampolineEvaluator {
             }
         }
     }
-    
+
     /// Parse and create do-loop thunk for iterative evaluation
     /// Phase 6-A-Step3: Enhanced do-loop parsing with proper init expression evaluation
     fn eval_do_special_form(
@@ -490,13 +494,13 @@ impl TrampolineEvaluator {
                 "do requires at least variable bindings and test clause".to_string(),
             )));
         }
-        
+
         // Parse do-loop structure: (do ((var init step) ...) (test result ...) body ...)
         let (variables, step_exprs) = match &operands[0] {
             Expr::List(var_clauses) => {
                 let mut vars = Vec::new();
                 let mut steps = Vec::new();
-                
+
                 for clause in var_clauses {
                     match clause {
                         Expr::List(clause_exprs) if clause_exprs.len() >= 2 => {
@@ -505,20 +509,24 @@ impl TrampolineEvaluator {
                                 let init_expr = &clause_exprs[1];
                                 let init_value = match init_expr {
                                     // Direct literal evaluation
-                                    Expr::Literal(lit) => evaluator.literal_to_value(lit.clone())?,
-                                    // Variable lookup
-                                    Expr::Variable(var) => {
-                                        env.get(var).unwrap_or(Value::Undefined)
+                                    Expr::Literal(lit) => {
+                                        evaluator.literal_to_value(lit.clone())?
                                     }
+                                    // Variable lookup
+                                    Expr::Variable(var) => env.get(var).unwrap_or(Value::Undefined),
                                     // For complex expressions, evaluate them
                                     _ => {
                                         // Simple evaluation for now - delegate complex cases
-                                        evaluator.eval(init_expr.clone(), env.clone(), Continuation::Identity)?
+                                        evaluator.eval(
+                                            init_expr.clone(),
+                                            env.clone(),
+                                            Continuation::Identity,
+                                        )?
                                     }
                                 };
-                                
+
                                 vars.push((var_name.clone(), init_value));
-                                
+
                                 // Step expression (if present)
                                 let step = if clause_exprs.len() >= 3 {
                                     Some(clause_exprs[2].clone())
@@ -547,7 +555,7 @@ impl TrampolineEvaluator {
                 )));
             }
         };
-        
+
         // Parse test clause: (test result ...)
         let (test_expr, result_exprs) = match &operands[1] {
             Expr::List(test_clause) if !test_clause.is_empty() => {
@@ -561,22 +569,24 @@ impl TrampolineEvaluator {
                 )));
             }
         };
-        
+
         // Body expressions
         let body_exprs = operands[2..].to_vec();
-        
+
         // Create do-loop iteration thunk
-        Ok(Bounce::Continue(Box::new(ContinuationThunk::DoLoopIteration {
-            variables,
-            step_exprs,
-            test_expr,
-            result_exprs,
-            body_exprs,
-            env,
-            cont,
-        })))
+        Ok(Bounce::Continue(Box::new(
+            ContinuationThunk::DoLoopIteration {
+                variables,
+                step_exprs,
+                test_expr,
+                result_exprs,
+                body_exprs,
+                env,
+                cont,
+            },
+        )))
     }
-    
+
     /// Evaluate one iteration of do-loop in stack-safe manner
     /// Phase 6-A-Step3: Enhanced iteration with proper step expression evaluation
     #[allow(clippy::too_many_arguments)]
@@ -596,22 +606,29 @@ impl TrampolineEvaluator {
             loop_env.define(name.clone(), value.clone());
         }
         let loop_env = Rc::new(loop_env.extend());
-        
+
         // Phase 6-A-Step3: Enhanced test condition evaluation
         let test_result = Self::eval_test_condition(evaluator, &test_expr, &loop_env, &variables)?;
-        
+
         if test_result {
             // Test passed - evaluate result expressions and return
             Self::eval_result_expressions(evaluator, result_exprs, &loop_env, cont)
         } else {
             // Test failed - execute body and prepare next iteration
             Self::execute_body_and_continue_iteration(
-                evaluator, variables, step_exprs, test_expr, result_exprs, 
-                body_exprs, env, loop_env, cont
+                evaluator,
+                variables,
+                step_exprs,
+                test_expr,
+                result_exprs,
+                body_exprs,
+                env,
+                loop_env,
+                cont,
             )
         }
     }
-    
+
     /// Phase 6-A-Step3: Enhanced test condition evaluation
     fn eval_test_condition(
         evaluator: &mut Evaluator,
@@ -622,26 +639,28 @@ impl TrampolineEvaluator {
         match test_expr {
             // Handle literal boolean tests
             Expr::Literal(crate::ast::Literal::Boolean(b)) => Ok(*b),
-            
+
             // Handle variable references
-            Expr::Variable(var_name) => {
-                match loop_env.get(var_name) {
-                    Some(Value::Boolean(b)) => Ok(b),
-                    Some(value) => Ok(value.is_truthy()),
-                    None => Ok(false),
-                }
-            }
-            
+            Expr::Variable(var_name) => match loop_env.get(var_name) {
+                Some(Value::Boolean(b)) => Ok(b),
+                Some(value) => Ok(value.is_truthy()),
+                None => Ok(false),
+            },
+
             // Handle simple comparisons
             Expr::List(exprs) if exprs.len() == 3 => {
                 if let Expr::Variable(op) = &exprs[0] {
                     match op.as_str() {
-                        ">=" | ">" | "<=" | "<" | "=" => {
-                            Self::eval_simple_comparison(evaluator, op, &exprs[1], &exprs[2], loop_env)
-                        }
+                        ">=" | ">" | "<=" | "<" | "=" => Self::eval_simple_comparison(
+                            evaluator, op, &exprs[1], &exprs[2], loop_env,
+                        ),
                         _ => {
                             // Complex expression - evaluate with evaluator
-                            match evaluator.eval(test_expr.clone(), loop_env.clone(), Continuation::Identity) {
+                            match evaluator.eval(
+                                test_expr.clone(),
+                                loop_env.clone(),
+                                Continuation::Identity,
+                            ) {
                                 Ok(value) => Ok(value.is_truthy()),
                                 Err(_) => {
                                     // Fallback to variable-based heuristics for complex expressions
@@ -652,13 +671,17 @@ impl TrampolineEvaluator {
                     }
                 } else {
                     // Complex expression
-                    match evaluator.eval(test_expr.clone(), loop_env.clone(), Continuation::Identity) {
+                    match evaluator.eval(
+                        test_expr.clone(),
+                        loop_env.clone(),
+                        Continuation::Identity,
+                    ) {
                         Ok(value) => Ok(value.is_truthy()),
                         Err(_) => Self::fallback_test_heuristics(variables),
                     }
                 }
             }
-            
+
             // Other complex expressions
             _ => {
                 match evaluator.eval(test_expr.clone(), loop_env.clone(), Continuation::Identity) {
@@ -668,7 +691,7 @@ impl TrampolineEvaluator {
             }
         }
     }
-    
+
     /// Simple comparison evaluation for do-loop tests
     fn eval_simple_comparison(
         evaluator: &mut Evaluator,
@@ -679,11 +702,11 @@ impl TrampolineEvaluator {
     ) -> Result<bool> {
         let left_val = evaluator.eval(left_expr.clone(), env.clone(), Continuation::Identity)?;
         let right_val = evaluator.eval(right_expr.clone(), env.clone(), Continuation::Identity)?;
-        
+
         if let (Value::Number(left_num), Value::Number(right_num)) = (&left_val, &right_val) {
             let left_f = left_num.to_f64();
             let right_f = right_num.to_f64();
-            
+
             match op {
                 ">=" => Ok(left_f >= right_f),
                 ">" => Ok(left_f > right_f),
@@ -696,23 +719,23 @@ impl TrampolineEvaluator {
             Ok(false)
         }
     }
-    
+
     /// Fallback heuristics for test evaluation when other methods fail
     fn fallback_test_heuristics(variables: &[(String, Value)]) -> Result<bool> {
         match variables.first() {
             Some((name, Value::Number(n))) => {
                 // Simple test based on variable name and common termination patterns
                 match name.as_str() {
-                    "i" => Ok(n.to_f64() >= 3.0),        // if i >= 3, terminate
-                    "counter" => Ok(n.to_f64() >= 2.0),  // if counter >= 2, terminate
-                    "x" => Ok(false),                     // Variable x in infinite loop test
-                    _ => Ok(n.to_f64() >= 5.0),          // default: if var >= 5, terminate
+                    "i" => Ok(n.to_f64() >= 3.0),       // if i >= 3, terminate
+                    "counter" => Ok(n.to_f64() >= 2.0), // if counter >= 2, terminate
+                    "x" => Ok(false),                   // Variable x in infinite loop test
+                    _ => Ok(n.to_f64() >= 5.0),         // default: if var >= 5, terminate
                 }
             }
             _ => Ok(false), // Continue loop for non-numeric cases
         }
     }
-    
+
     /// Evaluate result expressions when do-loop terminates
     fn eval_result_expressions(
         _evaluator: &mut Evaluator,
@@ -750,14 +773,14 @@ impl TrampolineEvaluator {
             } else {
                 Value::from(42i64) // Placeholder for multiple results
             };
-            
+
             Ok(Bounce::Continue(Box::new(ContinuationThunk::ApplyCont {
                 cont,
                 value: result_value,
             })))
         }
     }
-    
+
     /// Execute body expressions and continue to next iteration
     #[allow(clippy::too_many_arguments)]
     fn execute_body_and_continue_iteration(
@@ -792,39 +815,61 @@ impl TrampolineEvaluator {
             };
             next_variables.push((name, next_value));
         }
-        
+
         // Continue to next iteration
-        Ok(Bounce::Continue(Box::new(ContinuationThunk::DoLoopIteration {
-            variables: next_variables,
-            step_exprs,
-            test_expr,
-            result_exprs,
-            body_exprs: _body_exprs,
-            env,
-            cont,
-        })))
+        Ok(Bounce::Continue(Box::new(
+            ContinuationThunk::DoLoopIteration {
+                variables: next_variables,
+                step_exprs,
+                test_expr,
+                result_exprs,
+                body_exprs: _body_exprs,
+                env,
+                cont,
+            },
+        )))
     }
 }
 
 /// Extension trait to add trampoline evaluation to the main evaluator
 pub trait TrampolineEvaluation {
     /// Evaluate expression using trampoline to prevent stack overflow
-    fn eval_trampoline(&mut self, expr: Expr, env: Rc<Environment>, cont: Continuation) -> Result<Value>;
-    
+    fn eval_trampoline(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value>;
+
     /// Evaluate do-loop using trampoline to prevent stack overflow (Phase 6-A integration)
-    fn evaluate_do_loop_trampoline(&mut self, operands: &[Expr], env: Rc<Environment>, cont: Continuation) -> Result<Value>;
+    fn evaluate_do_loop_trampoline(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value>;
 }
 
 impl TrampolineEvaluation for Evaluator {
-    fn eval_trampoline(&mut self, expr: Expr, env: Rc<Environment>, cont: Continuation) -> Result<Value> {
+    fn eval_trampoline(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
         let initial_thunk = ContinuationThunk::Bounce { expr, env, cont };
         TrampolineEvaluator::eval_trampoline(self, initial_thunk)
     }
-    
-    fn evaluate_do_loop_trampoline(&mut self, operands: &[Expr], env: Rc<Environment>, cont: Continuation) -> Result<Value> {
+
+    fn evaluate_do_loop_trampoline(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
         // Use existing do-loop trampoline implementation from TrampolineEvaluator
         let do_bounce = TrampolineEvaluator::eval_do_special_form(self, operands, env, cont)?;
-        
+
         // Execute the bounce using the trampoline mechanism
         match do_bounce {
             Bounce::Done(value) => Ok(value),
@@ -839,46 +884,54 @@ mod tests {
     use super::*;
     use crate::evaluator::types::Evaluator;
     use crate::evaluator::Continuation;
-    
+
     #[test]
     fn test_trampoline_basic_evaluation() {
         let mut evaluator = Evaluator::new();
         let env = evaluator.global_env.clone();
-        
+
         // Test simple constant evaluation
-        let expr = Expr::Literal(crate::ast::Literal::Number(crate::lexer::SchemeNumber::Integer(42)));
-        let result = evaluator.eval_trampoline(expr, env, Continuation::Identity).unwrap();
-        
+        let expr = Expr::Literal(crate::ast::Literal::Number(
+            crate::lexer::SchemeNumber::Integer(42),
+        ));
+        let result = evaluator
+            .eval_trampoline(expr, env, Continuation::Identity)
+            .unwrap();
+
         assert_eq!(result, Value::from(42i64));
     }
-    
+
     #[test]
     fn test_trampoline_variable_lookup() {
         let mut evaluator = Evaluator::new();
-        
+
         // Define a variable
         let test_env = Environment::new();
         test_env.define("x".to_string(), Value::from(100i64));
         let env = Rc::new(test_env.extend());
-        
+
         // Test variable lookup
         let expr = Expr::Variable("x".to_string());
-        let result = evaluator.eval_trampoline(expr, env, Continuation::Identity).unwrap();
-        
+        let result = evaluator
+            .eval_trampoline(expr, env, Continuation::Identity)
+            .unwrap();
+
         assert_eq!(result, Value::from(100i64));
     }
-    
+
     #[test]
     fn test_trampoline_simple_expression() {
         let mut evaluator = Evaluator::new();
         let env = evaluator.global_env.clone();
-        
+
         // Test basic trampoline mechanism with literal value
-        let expr = Expr::Literal(crate::ast::Literal::Number(crate::lexer::SchemeNumber::Integer(42)));
-        
+        let expr = Expr::Literal(crate::ast::Literal::Number(
+            crate::lexer::SchemeNumber::Integer(42),
+        ));
+
         // This should evaluate successfully
         let result = evaluator.eval_trampoline(expr, env, Continuation::Identity);
-        
+
         match result {
             Ok(value) => {
                 // Should get result 42

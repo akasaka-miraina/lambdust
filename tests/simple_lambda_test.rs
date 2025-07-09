@@ -1,15 +1,15 @@
 //! Simple lambda function test
 
-use lambdust::Interpreter;
 use lambdust::value::Value;
+use lambdust::Interpreter;
 
 #[test]
 fn test_simple_lambda_addition() {
     let mut interpreter = Interpreter::new();
-    
+
     // Test simple lambda: ((lambda (a b) (+ a b)) 2 1)
     let result = interpreter.eval("((lambda (a b) (+ a b)) 2 1)").unwrap();
-    
+
     // Should be 3
     match result {
         Value::Number(n) => {
@@ -22,10 +22,12 @@ fn test_simple_lambda_addition() {
 #[test]
 fn test_lambda_with_three_args() {
     let mut interpreter = Interpreter::new();
-    
+
     // Test lambda with 3 args: ((lambda (k v acc) (+ v acc)) "key" 2 1)
-    let result = interpreter.eval("((lambda (k v acc) (+ v acc)) \"key\" 2 1)").unwrap();
-    
+    let result = interpreter
+        .eval("((lambda (k v acc) (+ v acc)) \"key\" 2 1)")
+        .unwrap();
+
     // Should be 3
     match result {
         Value::Number(n) => {

@@ -1,8 +1,8 @@
 //! Unit tests for SRFI 130: Cursor-based String Library
 
 use lambdust::lexer::SchemeNumber;
-use lambdust::srfi::SrfiModule;
 use lambdust::srfi::srfi_130::{Srfi130, StringCursor};
+use lambdust::srfi::SrfiModule;
 use lambdust::value::{Procedure, Value};
 use std::rc::Rc;
 
@@ -79,7 +79,7 @@ fn test_unicode_support() {
     assert_eq!(cursor.current_char().unwrap(), 'ん');
 
     cursor.advance().unwrap();
-    assert_eq!(cursor.position(), 6); // Second character boundary  
+    assert_eq!(cursor.position(), 6); // Second character boundary
     assert_eq!(cursor.current_char().unwrap(), 'に');
 
     // Test retreat

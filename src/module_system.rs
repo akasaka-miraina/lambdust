@@ -3,7 +3,7 @@
 //! This module implements the `(import ...)` special form and module management.
 
 use crate::error::{LambdustError, Result};
-use crate::srfi::{SrfiRegistry, parse_srfi_import};
+use crate::srfi::{parse_srfi_import, SrfiRegistry};
 use crate::value::Value;
 use std::collections::HashMap;
 

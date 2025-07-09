@@ -16,7 +16,7 @@ mod stub_types {
         ForceGarbageCollection,
         TailCallOptimization,
     }
-    
+
     #[derive(Debug, Clone)]
     pub struct StackStatistics {
         pub stack_depth: usize,
@@ -31,13 +31,13 @@ mod stub_types {
         pub average_frame_time: std::time::Duration,
         pub optimizable_frames: usize,
     }
-    
+
     impl Default for StackStatistics {
         fn default() -> Self {
             Self::new()
         }
     }
-    
+
     impl StackStatistics {
         pub fn new() -> Self {
             Self {

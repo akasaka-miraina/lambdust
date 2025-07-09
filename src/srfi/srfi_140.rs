@@ -86,10 +86,12 @@ impl IString {
     /// Get a character at the specified index (O(1) for Small/Medium, O(log n) for Rope)
     pub fn char_at(&self, index: usize) -> Option<char> {
         match self {
-            IString::Small { .. } => {
-                self.to_string().chars().nth(index)
-            }
-            IString::Medium { data, start, length } => {
+            IString::Small { .. } => self.to_string().chars().nth(index),
+            IString::Medium {
+                data,
+                start,
+                length,
+            } => {
                 if index >= *length {
                     None
                 } else {
@@ -114,9 +116,11 @@ impl IString {
                 let bytes = &data[..*len as usize];
                 std::str::from_utf8(bytes).unwrap().to_string()
             }
-            IString::Medium { data, start, length } => {
-                data.chars().skip(*start).take(*length).collect()
-            }
+            IString::Medium {
+                data,
+                start,
+                length,
+            } => data.chars().skip(*start).take(*length).collect(),
             IString::Rope { left, right, .. } => {
                 let mut result = String::new();
                 result.push_str(&left.to_string());
@@ -154,13 +158,15 @@ impl IString {
                 let substring: String = full_string.chars().skip(start).take(sub_len).collect();
                 Ok(IString::from_string(substring))
             }
-            IString::Medium { data, start: orig_start, .. } => {
-                Ok(IString::Medium {
-                    data: data.clone(),
-                    start: orig_start + start,
-                    length: sub_len,
-                })
-            }
+            IString::Medium {
+                data,
+                start: orig_start,
+                ..
+            } => Ok(IString::Medium {
+                data: data.clone(),
+                start: orig_start + start,
+                length: sub_len,
+            }),
             IString::Rope { .. } => {
                 // For simplicity, convert to string and create new IString
                 let full_string = self.to_string();
@@ -234,7 +240,11 @@ fn string_ref_proc(args: &[Value]) -> Result<Value> {
     check_arity(args, 2)?;
     let index = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
-        _ => return Err(LambdustError::type_error("Expected integer index".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Expected integer index".to_string(),
+            ));
+        }
     };
 
     match &args[0] {
@@ -242,14 +252,18 @@ fn string_ref_proc(args: &[Value]) -> Result<Value> {
             if let Some(ch) = istr.char_at(index) {
                 Ok(Value::Character(ch))
             } else {
-                Err(LambdustError::runtime_error("String index out of bounds".to_string()))
+                Err(LambdustError::runtime_error(
+                    "String index out of bounds".to_string(),
+                ))
             }
         }
         Value::String(s) => {
             if let Some(ch) = s.chars().nth(index) {
                 Ok(Value::Character(ch))
             } else {
-                Err(LambdustError::runtime_error("String index out of bounds".to_string()))
+                Err(LambdustError::runtime_error(
+                    "String index out of bounds".to_string(),
+                ))
             }
         }
         _ => Err(LambdustError::type_error("Expected string".to_string())),
@@ -276,7 +290,11 @@ fn make_string_proc(args: &[Value]) -> Result<Value> {
 
     let length = match &args[0] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
-        _ => return Err(LambdustError::type_error("Expected integer length".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Expected integer length".to_string(),
+            ));
+        }
     };
 
     let fill_char = if args.len() == 2 {
@@ -309,13 +327,21 @@ fn substring_proc(args: &[Value]) -> Result<Value> {
 
     let start = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
-        _ => return Err(LambdustError::type_error("Expected integer start".to_string())),
+        _ => {
+            return Err(LambdustError::type_error(
+                "Expected integer start".to_string(),
+            ));
+        }
     };
 
     let end = if args.len() == 3 {
         match &args[2] {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
-            _ => return Err(LambdustError::type_error("Expected integer end".to_string())),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Expected integer end".to_string(),
+                ));
+            }
         }
     } else {
         match &args[0] {
@@ -464,21 +490,24 @@ mod tests {
         // Test medium string
         let medium = IString::from_str("This is a longer string that should be stored as medium");
         assert!(medium.length() > 23);
-        assert_eq!(medium.to_string(), "This is a longer string that should be stored as medium");
+        assert_eq!(
+            medium.to_string(),
+            "This is a longer string that should be stored as medium"
+        );
     }
 
     #[test]
     fn test_string_operations() {
         let istr = IString::from_str("hello world");
-        
+
         // Test length
         assert_eq!(istr.length(), 11);
-        
+
         // Test character access
         assert_eq!(istr.char_at(0), Some('h'));
         assert_eq!(istr.char_at(6), Some('w'));
         assert_eq!(istr.char_at(11), None);
-        
+
         // Test substring
         let sub = istr.substring(6, 11).unwrap();
         assert_eq!(sub.to_string(), "world");
@@ -489,7 +518,7 @@ mod tests {
         let istr1 = IString::from_str("hello");
         let istr2 = IString::from_str(" world");
         let result = istr1.append(&istr2);
-        
+
         assert_eq!(result.to_string(), "hello world");
         assert_eq!(result.length(), 11);
     }
@@ -514,11 +543,8 @@ mod tests {
         // Test string construction
         let string_cons = exports.get("string").unwrap();
         if let Value::Procedure(crate::value::Procedure::Builtin { func, .. }) = string_cons {
-            let result = func(&[
-                Value::Character('h'),
-                Value::Character('i'),
-            ]).unwrap();
-            
+            let result = func(&[Value::Character('h'), Value::Character('i')]).unwrap();
+
             if let Value::IString(istr) = result {
                 assert_eq!(istr.to_string(), "hi");
             } else {
@@ -535,8 +561,14 @@ mod tests {
         let result1 = string_length_proc(&[istr]).unwrap();
         let result2 = string_length_proc(&[mstr]).unwrap();
 
-        assert_eq!(result1, Value::Number(crate::lexer::SchemeNumber::Integer(5)));
-        assert_eq!(result2, Value::Number(crate::lexer::SchemeNumber::Integer(5)));
+        assert_eq!(
+            result1,
+            Value::Number(crate::lexer::SchemeNumber::Integer(5))
+        );
+        assert_eq!(
+            result2,
+            Value::Number(crate::lexer::SchemeNumber::Integer(5))
+        );
     }
 
     #[test]

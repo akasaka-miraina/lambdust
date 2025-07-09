@@ -3,7 +3,7 @@
 //! These tests verify the parsing functionality for converting tokens into AST expressions.
 
 use lambdust::ast::{Expr, Literal};
-use lambdust::lexer::{SchemeNumber, tokenize};
+use lambdust::lexer::{tokenize, SchemeNumber};
 use lambdust::parser::{parse, parse_multiple};
 
 #[test]

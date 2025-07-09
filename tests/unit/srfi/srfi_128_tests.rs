@@ -1,7 +1,7 @@
 //! Unit tests for SRFI 128: Comparators
 
+use lambdust::srfi::srfi_128::{default_number_comparator, default_string_comparator, Srfi128};
 use lambdust::srfi::SrfiModule;
-use lambdust::srfi::srfi_128::{Srfi128, default_number_comparator, default_string_comparator};
 use lambdust::value::{Procedure, Value};
 use std::rc::Rc;
 

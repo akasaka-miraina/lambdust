@@ -131,12 +131,17 @@ fn test_compact_continuation_single_begin() {
 
     let compact = CompactContinuation::from_continuation(cont);
     // Note: SingleBegin optimization is disabled (see continuation.rs:240-253)
-    // to ensure proper continuation evaluation in begin blocks where variable 
+    // to ensure proper continuation evaluation in begin blocks where variable
     // bindings may be established in previous expressions.
     assert!(!compact.is_inline()); // Should be boxed due to disabled optimization
 
     if let CompactContinuation::Boxed(boxed_cont) = compact {
-        if let Continuation::Begin { remaining, env, parent } = *boxed_cont {
+        if let Continuation::Begin {
+            remaining,
+            env,
+            parent,
+        } = *boxed_cont
+        {
             assert_eq!(remaining.len(), 1);
             assert_eq!(remaining[0], expr);
             assert!(Rc::ptr_eq(&env, &env));

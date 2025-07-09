@@ -4,9 +4,7 @@
 //! type hints, complexity estimation, and optimization suggestions.
 
 use lambdust::ast::{Expr, Literal};
-use lambdust::evaluator::{
-    EvaluationComplexity, ExpressionAnalyzer, OptimizationHint, TypeHint,
-};
+use lambdust::evaluator::{EvaluationComplexity, ExpressionAnalyzer, OptimizationHint, TypeHint};
 use lambdust::lexer::SchemeNumber;
 use lambdust::value::Value;
 
@@ -19,13 +17,19 @@ fn test_literal_analysis() {
     let result = analyzer.analyze(&number_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Integer(42))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Integer(42)))
+    );
     assert_eq!(result.type_hint, TypeHint::Number);
     assert_eq!(result.complexity, EvaluationComplexity::Constant);
     assert!(!result.has_side_effects);
     assert!(result.dependencies.is_empty());
     assert_eq!(result.optimizations.len(), 1);
-    assert!(matches!(result.optimizations[0], OptimizationHint::ConstantFold(_)));
+    assert!(matches!(
+        result.optimizations[0],
+        OptimizationHint::ConstantFold(_)
+    ));
 
     // Test boolean literal
     let bool_expr = Expr::Literal(Literal::Boolean(true));
@@ -41,7 +45,10 @@ fn test_literal_analysis() {
     let result = analyzer.analyze(&string_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::String("hello".to_string())));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::String("hello".to_string()))
+    );
     assert_eq!(result.type_hint, TypeHint::String);
     assert_eq!(result.complexity, EvaluationComplexity::Constant);
 }
@@ -62,16 +69,25 @@ fn test_variable_analysis() {
     assert_eq!(result.dependencies, vec!["x".to_string()]);
 
     // Test known constant variable
-    analyzer.add_constant("pi".to_string(), Value::Number(SchemeNumber::Real(std::f64::consts::PI)));
+    analyzer.add_constant(
+        "pi".to_string(),
+        Value::Number(SchemeNumber::Real(std::f64::consts::PI)),
+    );
     let pi_expr = Expr::Variable("pi".to_string());
     let result = analyzer.analyze(&pi_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Real(std::f64::consts::PI))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Real(std::f64::consts::PI)))
+    );
     assert_eq!(result.type_hint, TypeHint::Number); // Updated after adding type hint
     assert_eq!(result.complexity, EvaluationComplexity::Constant);
     assert_eq!(result.optimizations.len(), 1);
-    assert!(matches!(result.optimizations[0], OptimizationHint::InlineVariable(_, _)));
+    assert!(matches!(
+        result.optimizations[0],
+        OptimizationHint::InlineVariable(_, _)
+    ));
 }
 
 #[test]
@@ -83,7 +99,10 @@ fn test_quote_analysis() {
     let result = analyzer.analyze(&quote_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Symbol("symbol".to_string())));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Symbol("symbol".to_string()))
+    );
     assert_eq!(result.type_hint, TypeHint::Symbol);
     assert_eq!(result.complexity, EvaluationComplexity::Constant);
     assert!(!result.has_side_effects);
@@ -152,10 +171,16 @@ fn test_if_analysis() {
     let result = analyzer.analyze(&if_true_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Integer(1))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Integer(1)))
+    );
     assert_eq!(result.type_hint, TypeHint::Number);
     assert_eq!(result.complexity, EvaluationComplexity::Constant);
-    assert!(result.optimizations.iter().any(|opt| matches!(opt, OptimizationHint::ConstantFold(_))));
+    assert!(result
+        .optimizations
+        .iter()
+        .any(|opt| matches!(opt, OptimizationHint::ConstantFold(_))));
 
     // Test if with constant condition (false)
     let if_false_expr = Expr::List(vec![
@@ -167,9 +192,15 @@ fn test_if_analysis() {
     let result = analyzer.analyze(&if_false_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Integer(2))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Integer(2)))
+    );
     assert_eq!(result.type_hint, TypeHint::Number);
-    assert!(result.optimizations.iter().any(|opt| matches!(opt, OptimizationHint::ConstantFold(_))));
+    assert!(result
+        .optimizations
+        .iter()
+        .any(|opt| matches!(opt, OptimizationHint::ConstantFold(_))));
 
     // Test if with variable condition
     let if_var_expr = Expr::List(vec![
@@ -210,7 +241,10 @@ fn test_and_analysis() {
     assert!(result.is_constant);
     assert_eq!(result.constant_value, Some(Value::Boolean(false)));
     assert_eq!(result.type_hint, TypeHint::Boolean);
-    assert!(result.optimizations.iter().any(|opt| matches!(opt, OptimizationHint::ConstantFold(_))));
+    assert!(result
+        .optimizations
+        .iter()
+        .any(|opt| matches!(opt, OptimizationHint::ConstantFold(_))));
 
     // Test and with all true constants
     let and_true = Expr::List(vec![
@@ -221,7 +255,10 @@ fn test_and_analysis() {
     let result = analyzer.analyze(&and_true, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Integer(42))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Integer(42)))
+    );
 }
 
 #[test]
@@ -247,8 +284,14 @@ fn test_or_analysis() {
     let result = analyzer.analyze(&or_true, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Integer(42))));
-    assert!(result.optimizations.iter().any(|opt| matches!(opt, OptimizationHint::ConstantFold(_))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Integer(42)))
+    );
+    assert!(result
+        .optimizations
+        .iter()
+        .any(|opt| matches!(opt, OptimizationHint::ConstantFold(_))));
 }
 
 #[test]
@@ -273,7 +316,10 @@ fn test_begin_analysis() {
     let result = analyzer.analyze(&const_begin, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::String("result".to_string())));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::String("result".to_string()))
+    );
     assert_eq!(result.type_hint, TypeHint::String);
 }
 
@@ -290,7 +336,10 @@ fn test_function_application_analysis() {
     let result = analyzer.analyze(&add_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Real(3.0))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Real(3.0)))
+    );
     assert_eq!(result.type_hint, TypeHint::Number);
     assert_eq!(result.complexity, EvaluationComplexity::Simple);
     assert!(!result.has_side_effects);
@@ -336,7 +385,10 @@ fn test_constant_folding_arithmetic() {
     let result = analyzer.analyze(&sub_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Real(7.0))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Real(7.0)))
+    );
 
     // Test multiplication
     let mul_expr = Expr::List(vec![
@@ -347,7 +399,10 @@ fn test_constant_folding_arithmetic() {
     let result = analyzer.analyze(&mul_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Real(20.0))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Real(20.0)))
+    );
 
     // Test division
     let div_expr = Expr::List(vec![
@@ -358,7 +413,10 @@ fn test_constant_folding_arithmetic() {
     let result = analyzer.analyze(&div_expr, None).unwrap();
 
     assert!(result.is_constant);
-    assert_eq!(result.constant_value, Some(Value::Number(SchemeNumber::Real(5.0))));
+    assert_eq!(
+        result.constant_value,
+        Some(Value::Number(SchemeNumber::Real(5.0)))
+    );
 }
 
 #[test]
@@ -485,16 +543,25 @@ fn test_optimization_statistics() {
     let mut analyzer = ExpressionAnalyzer::new();
 
     // Analyze several expressions to generate optimizations
-    let _result1 = analyzer.analyze(&Expr::Literal(Literal::Number(SchemeNumber::Integer(42))), None);
-    let _result2 = analyzer.analyze(&Expr::Quote(Box::new(Expr::Variable("symbol".to_string()))), None);
-    let _result3 = analyzer.analyze(&Expr::List(vec![
-        Expr::Variable("if".to_string()),
-        Expr::Literal(Literal::Boolean(true)),
-        Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-    ]), None);
+    let _result1 = analyzer.analyze(
+        &Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
+        None,
+    );
+    let _result2 = analyzer.analyze(
+        &Expr::Quote(Box::new(Expr::Variable("symbol".to_string()))),
+        None,
+    );
+    let _result3 = analyzer.analyze(
+        &Expr::List(vec![
+            Expr::Variable("if".to_string()),
+            Expr::Literal(Literal::Boolean(true)),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+        ]),
+        None,
+    );
 
     let stats = analyzer.optimization_stats();
-    
+
     assert!(stats.total_analyses > 0);
     assert!(stats.constant_folds > 0);
     assert!(stats.optimization_ratio() > 0.0);
@@ -505,22 +572,28 @@ fn test_cache_functionality() {
     let mut analyzer = ExpressionAnalyzer::new();
 
     let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-    
+
     // First analysis should cache the result
     let _result1 = analyzer.analyze(&expr, None).unwrap();
-    
+
     // Second analysis should use cached result (test by checking it doesn't fail)
     let result2 = analyzer.analyze(&expr, None).unwrap();
-    
+
     assert!(result2.is_constant);
-    assert_eq!(result2.constant_value, Some(Value::Number(SchemeNumber::Integer(42))));
+    assert_eq!(
+        result2.constant_value,
+        Some(Value::Number(SchemeNumber::Integer(42)))
+    );
 
     // Clear cache and verify it still works
     analyzer.clear_cache();
     let result3 = analyzer.analyze(&expr, None).unwrap();
-    
+
     assert!(result3.is_constant);
-    assert_eq!(result3.constant_value, Some(Value::Number(SchemeNumber::Integer(42))));
+    assert_eq!(
+        result3.constant_value,
+        Some(Value::Number(SchemeNumber::Integer(42)))
+    );
 }
 
 #[test]

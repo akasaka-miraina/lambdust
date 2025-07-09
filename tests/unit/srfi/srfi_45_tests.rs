@@ -3,8 +3,8 @@
 //! These tests were extracted from src/srfi/srfi_45.rs
 
 use lambdust::lexer::SchemeNumber;
-use lambdust::srfi::SrfiModule;
 use lambdust::srfi::srfi_45::Srfi45;
+use lambdust::srfi::SrfiModule;
 use lambdust::value::{Procedure, Value};
 
 #[test]

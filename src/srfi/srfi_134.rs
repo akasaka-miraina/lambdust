@@ -399,26 +399,26 @@ mod tests {
     #[test]
     fn test_ideque_front_back_operations() {
         let mut ideque = Ideque::new();
-        
+
         // Test empty ideque errors
         assert!(ideque.front().is_err());
         assert!(ideque.back().is_err());
-        
+
         // Add elements
         ideque = ideque.add_front(Value::from(2i64));
         ideque = ideque.add_front(Value::from(1i64));
         ideque = ideque.add_back(Value::from(3i64));
-        
+
         // Test front/back access
         assert_eq!(ideque.front().unwrap(), Value::from(1i64));
         assert_eq!(ideque.back().unwrap(), Value::from(3i64));
         assert_eq!(ideque.len(), 3);
-        
+
         // Test removal
         ideque = ideque.remove_front().unwrap();
         assert_eq!(ideque.front().unwrap(), Value::from(2i64));
         assert_eq!(ideque.len(), 2);
-        
+
         ideque = ideque.remove_back().unwrap();
         assert_eq!(ideque.back().unwrap(), Value::from(2i64));
         assert_eq!(ideque.len(), 1);
@@ -429,7 +429,7 @@ mod tests {
         let elements = vec![Value::from(1i64), Value::from(2i64), Value::from(3i64)];
         let ideque = Ideque::from_elements(elements.clone());
         let list = ideque.to_list();
-        
+
         assert_eq!(list.len(), 3);
         assert_eq!(list[0], Value::from(1i64));
         assert_eq!(list[1], Value::from(2i64));
@@ -459,7 +459,7 @@ mod tests {
     #[test]
     fn test_ideque_procedures() {
         use crate::value::Procedure;
-        
+
         let srfi = Srfi134;
         let exports = srfi.exports();
 
@@ -476,7 +476,7 @@ mod tests {
             let empty_ideque = Value::Ideque(std::rc::Rc::new(Ideque::new()));
             let result = func(&[empty_ideque]).unwrap();
             assert_eq!(result, Value::Boolean(true));
-            
+
             let not_ideque = Value::from(42i64);
             let result = func(&[not_ideque]).unwrap();
             assert_eq!(result, Value::Boolean(false));
@@ -486,9 +486,9 @@ mod tests {
     #[test]
     fn test_list_ideque_conversion() {
         use crate::value::PairData;
-        use std::rc::Rc;
         use std::cell::RefCell;
-        
+        use std::rc::Rc;
+
         let srfi = Srfi134;
         let exports = srfi.exports();
 

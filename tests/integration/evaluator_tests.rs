@@ -20,7 +20,7 @@ mod formal_evaluator_tests {
             Value::Number(n) => {
                 let val = n.to_f64();
                 assert!((val - 3.0).abs() < f64::EPSILON);
-            },
+            }
             _ => panic!("Expected numeric result"),
         }
 
@@ -44,21 +44,21 @@ mod formal_evaluator_tests {
         let mut interpreter = Interpreter::new();
 
         // Note: Our CPS evaluator has architectural stack limitations with iterative constructs
-        // This is a known limitation due to continuation-passing style implementation 
+        // This is a known limitation due to continuation-passing style implementation
         // which creates deep recursion for loops. In a production system, this would
         // be addressed with:
         // - Trampoline-style evaluation
-        // - Tail call optimization at the Rust level  
+        // - Tail call optimization at the Rust level
         // - Iterative continuation unwinding
-        
+
         // These tests are ignored because they cause stack overflow:
-        
+
         // Simple counting loop - causes stack overflow
         let _result = interpreter
             .eval("(do ((i 0 (+ i 1))) ((>= i 5) i))")
             .unwrap();
 
-        // Loop with accumulator - causes stack overflow  
+        // Loop with accumulator - causes stack overflow
         let _result = interpreter
             .eval("(do ((i 0 (+ i 1)) (sum 0 (+ sum i))) ((>= i 5) sum))")
             .unwrap();
@@ -70,14 +70,14 @@ mod formal_evaluator_tests {
 
         // Note: Current do-loop implementation has issues with:
         // 1. Variable binding and scoping in loop context
-        // 2. Condition evaluation semantics  
+        // 2. Condition evaluation semantics
         // 3. Proper R7RS do-loop behavior
-        
+
         // These tests are ignored until do-loop implementation is improved
-        
+
         // Test very simple do-loop that terminates immediately
         let _result = interpreter.eval("(do ((x 42)) ((> x 40) x))").unwrap();
-        
+
         // Test do-loop with immediate termination condition
         let _result = interpreter.eval("(do ((x 1)) (#t x))").unwrap();
     }
@@ -89,10 +89,10 @@ mod formal_evaluator_tests {
         // Test basic if expressions
         let result = interpreter.eval("(if #t 42 0)").unwrap();
         assert_eq!(result, Value::from(42i64));
-        
+
         let result = interpreter.eval("(if #f 42 0)").unwrap();
         assert_eq!(result, Value::from(0i64));
-        
+
         // Test basic cond expressions
         let result = interpreter.eval("(cond (#t 42))").unwrap();
         assert_eq!(result, Value::from(42i64));
@@ -194,12 +194,12 @@ mod formal_evaluator_tests {
             Value::Number(n) => {
                 let val = n.to_f64();
                 assert!((val - 10.0).abs() < f64::EPSILON);
-            },
+            }
             _ => panic!("Expected numeric result"),
         }
-        
+
         // TODO: Function calls with side effects and set! need implementation improvements
-        // The current CPS evaluator has limitations with variable assignment and 
+        // The current CPS evaluator has limitations with variable assignment and
         // user-defined function state management that need to be addressed.
     }
 
@@ -213,7 +213,7 @@ mod formal_evaluator_tests {
             Value::Number(n) => {
                 let val = n.to_f64();
                 assert!((val - 10.0).abs() < f64::EPSILON);
-            },
+            }
             _ => panic!("Expected numeric result"),
         }
 
@@ -223,7 +223,7 @@ mod formal_evaluator_tests {
             Value::Number(n) => {
                 let val = n.to_f64();
                 assert!((val - 24.0).abs() < f64::EPSILON);
-            },
+            }
             _ => panic!("Expected numeric result"),
         }
     }

@@ -39,8 +39,8 @@ use ast_converter::AstConverter;
 
 // Re-export main types
 pub use continuation::{
-    CompactContinuation, Continuation, DoLoopState, DynamicPoint, EnvironmentRef, InlineContinuation,
-    LightContinuation,
+    CompactContinuation, Continuation, DoLoopState, DynamicPoint, EnvironmentRef,
+    InlineContinuation, LightContinuation,
 };
 // Phase 6-B-Step2: Continuation pooling system exports
 pub use continuation_pooling::{
@@ -59,18 +59,18 @@ pub use inline_evaluation::{
 };
 // Phase 6-D: Tail call optimization exports
 pub use tail_call_optimization::{
-    TailCallAnalyzer, TailCallContext, TailCallOptimizer, TailCallStats, OptimizedTailCall,
-    OptimizationLevel, ArgEvaluationStrategy,
+    ArgEvaluationStrategy, OptimizationLevel, OptimizedTailCall, TailCallAnalyzer, TailCallContext,
+    TailCallOptimizer, TailCallStats,
 };
 // Phase 6-D: LLVM backend exports
 pub use llvm_backend::{
-    LLVMCodeGenerator, LLVMCompilerIntegration, LLVMOptimizationLevel, LLVMTailCallIntrinsic,
-    LLVMFunction, LLVMInstruction, LLVMOptimizationStats,
+    LLVMCodeGenerator, LLVMCompilerIntegration, LLVMFunction, LLVMInstruction,
+    LLVMOptimizationLevel, LLVMOptimizationStats, LLVMTailCallIntrinsic,
 };
 // Phase 6-C: JIT loop optimization exports
 pub use jit_loop_optimization::{
-    GeneratedCode, IterationStrategy, IteratorType, JitHint, JitLoopOptimizer, JitOptimizationStats,
-    LoopPattern, NativeCodeGenerator,
+    GeneratedCode, IterationStrategy, IteratorType, JitHint, JitLoopOptimizer,
+    JitOptimizationStats, LoopPattern, NativeCodeGenerator,
 };
 // Phase II: Pure semantic evaluator exports
 pub use semantic::SemanticEvaluator;
@@ -99,7 +99,7 @@ impl Evaluator {
         }
 
         self.increment_recursion_depth()?;
-        
+
         #[cfg(debug_assertions)]
         {
             use crate::debug::{DebugTracer, TraceLevel};
@@ -112,7 +112,7 @@ impl Evaluator {
                 &expr,
             );
         }
-        
+
         let result = match expr {
             // Constants: E[K]ρκσ = κ(K[K])
             Expr::Literal(lit) => self.eval_literal(lit, cont),
@@ -130,9 +130,9 @@ impl Evaluator {
                         format!("Processing Variable: {}", name),
                     );
                 }
-                
+
                 self.eval_variable(name, env, cont)
-            },
+            }
 
             // Function application: E[(E0 E1 ...)]ρκσ
             Expr::List(exprs) if !exprs.is_empty() => {
@@ -147,7 +147,7 @@ impl Evaluator {
                         format!("Handling List with {} elements", exprs.len()),
                     );
                 }
-                
+
                 {
                     #[cfg(debug_assertions)]
                     {
@@ -160,10 +160,10 @@ impl Evaluator {
                             format!("About to call eval_application with exprs: {:?}", exprs),
                         );
                     }
-                    
+
                     self.eval_application(exprs, env, cont)
                 }
-            },
+            }
 
             // Empty list
             Expr::List(exprs) if exprs.is_empty() => self.eval_literal(Literal::Nil, cont),
@@ -197,7 +197,7 @@ impl Evaluator {
         let value = self.literal_to_value(lit)?;
         self.apply_continuation(cont, value)
     }
-    
+
     /// Convert literal to value (helper for trampoline evaluator)
     pub fn literal_to_value(&self, lit: Literal) -> Result<Value> {
         let value = match lit {
@@ -218,7 +218,7 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         use crate::debug::{DebugTracer, TraceLevel};
-        
+
         #[cfg(debug_assertions)]
         DebugTracer::trace(
             "evaluator::mod",
@@ -227,7 +227,7 @@ impl Evaluator {
             TraceLevel::ENTRY,
             format!("Looking up variable: {}", name),
         );
-        
+
         match env.get(&name) {
             Some(value) => {
                 #[cfg(debug_assertions)]
@@ -239,10 +239,9 @@ impl Evaluator {
                     format!("Variable '{}' found", name),
                     &value,
                 );
-                
-                
+
                 self.apply_continuation(cont, value)
-            },
+            }
             None => {
                 #[cfg(debug_assertions)]
                 DebugTracer::trace(
@@ -252,8 +251,7 @@ impl Evaluator {
                     TraceLevel::ERROR,
                     format!("Variable '{}' not found", name),
                 );
-                
-                
+
                 Err(LambdustError::undefined_variable(name))
             }
         }
@@ -266,7 +264,6 @@ impl Evaluator {
         env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-        
         if exprs.is_empty() {
             return Err(LambdustError::syntax_error("Empty application".to_string()));
         }
@@ -288,7 +285,6 @@ impl Evaluator {
 
         // Regular function application: evaluate operator first
         let (operator_expr, args) = exprs.split_first().unwrap();
-        
 
         let operator_cont = Continuation::Operator {
             args: args.to_vec(),
@@ -407,21 +403,21 @@ impl Evaluator {
     /// Apply continuation: κ(v)
     pub fn apply_continuation(&mut self, cont: Continuation, value: Value) -> Result<Value> {
         use crate::debug::{DebugTracer, TraceLevel};
-        
+
         #[cfg(debug_assertions)]
         DebugTracer::trace_continuation(
             "evaluator::mod",
             "apply_continuation",
             line!(),
             TraceLevel::ENTRY,
-"Applying continuation with value".to_string(),
+            "Applying continuation with value".to_string(),
             &format!("{:?}", std::mem::discriminant(&cont)),
             None,
         );
-        
+
         #[cfg(debug_assertions)]
         DebugTracer::trace_value(
-            "evaluator::mod", 
+            "evaluator::mod",
             "apply_continuation",
             line!(),
             TraceLevel::INFO,
@@ -436,16 +432,16 @@ impl Evaluator {
             #[cfg(debug_assertions)]
             DebugTracer::trace(
                 "evaluator::mod",
-                "apply_continuation", 
+                "apply_continuation",
                 line!(),
                 TraceLevel::INFO,
                 "Attempting inline continuation".to_string(),
             );
-            
+
             if let Some(result) = self.try_inline_continuation_impl(&cont, &value)? {
                 // Update inline evaluator statistics
                 self.inline_evaluator_mut().record_successful_inline(&cont);
-                
+
                 #[cfg(debug_assertions)]
                 DebugTracer::trace_value(
                     "evaluator::mod",
@@ -455,11 +451,11 @@ impl Evaluator {
                     "Inline continuation success".to_string(),
                     &result,
                 );
-                
+
                 return Ok(result);
             }
         }
-        
+
         #[cfg(debug_assertions)]
         DebugTracer::trace(
             "evaluator::mod",
@@ -468,10 +464,10 @@ impl Evaluator {
             TraceLevel::INFO,
             "Falling back to regular continuation".to_string(),
         );
-        
+
         // Fallback to regular continuation evaluation
         let result = self.apply_continuation_regular(cont, value)?;
-        
+
         #[cfg(debug_assertions)]
         DebugTracer::trace_value(
             "evaluator::mod",
@@ -481,12 +477,16 @@ impl Evaluator {
             "Regular continuation result".to_string(),
             &result,
         );
-        
+
         Ok(result)
     }
 
     /// Apply continuation using regular (non-inline) evaluation
-    pub fn apply_continuation_regular(&mut self, cont: Continuation, value: Value) -> Result<Value> {
+    pub fn apply_continuation_regular(
+        &mut self,
+        cont: Continuation,
+        value: Value,
+    ) -> Result<Value> {
         // Performance optimization: Try compact continuation first (Phase 4 optimization)
         let compact_cont = CompactContinuation::from_continuation(cont.clone());
         if compact_cont.is_inline() {
@@ -806,11 +806,11 @@ impl Evaluator {
     #[allow(dead_code)]
     fn should_inline_continuation_impl(&self, cont: &Continuation) -> bool {
         use crate::evaluator::inline_evaluation::ContinuationWeight;
-        
+
         let weight = ContinuationWeight::from_continuation(cont);
         let cont_type = self.get_continuation_type_name_impl(cont);
         let hint = self.inline_evaluator().get_inline_hint(&cont_type);
-        
+
         weight.should_inline(hint)
     }
 
@@ -821,30 +821,34 @@ impl Evaluator {
     }
 
     /// Phase 6-B-Step3: Try to evaluate continuation inline
-    fn try_inline_continuation_impl(&mut self, cont: &Continuation, value: &Value) -> Result<Option<Value>> {
+    fn try_inline_continuation_impl(
+        &mut self,
+        cont: &Continuation,
+        value: &Value,
+    ) -> Result<Option<Value>> {
         match cont {
             // Identity continuation - most common case
             Continuation::Identity => Ok(Some(value.clone())),
-            
+
             // Simple value accumulation
             Continuation::Values { values, .. } => {
                 let mut new_values = values.clone();
                 new_values.push(value.clone());
                 Ok(Some(Value::Values(new_values)))
             }
-            
+
             // Variable assignment
             Continuation::Assignment { variable, env, .. } => {
                 env.set(variable, value.clone())?;
                 Ok(Some(Value::Undefined))
             }
-            
+
             // Variable definition
             Continuation::Define { variable, env, .. } => {
                 env.define(variable.clone(), value.clone());
                 Ok(Some(Value::Undefined))
             }
-            
+
             // Other continuations require full evaluation
             _ => Ok(None),
         }
@@ -852,7 +856,11 @@ impl Evaluator {
 
     /// Phase 6-B-Step3: Try to evaluate continuation inline (public test version)
     #[cfg(test)]
-    pub fn try_inline_continuation(&mut self, cont: &Continuation, value: &Value) -> Result<Option<Value>> {
+    pub fn try_inline_continuation(
+        &mut self,
+        cont: &Continuation,
+        value: &Value,
+    ) -> Result<Option<Value>> {
         self.try_inline_continuation_impl(cont, value)
     }
 
@@ -1209,13 +1217,21 @@ impl Evaluator {
 
     /// Analyze expression for optimization opportunities (Phase 5-Step1)
     #[allow(dead_code)]
-    fn analyze_expression_for_optimization(&mut self, expr: &Expr, env: &Environment) -> Result<AnalysisResult> {
+    fn analyze_expression_for_optimization(
+        &mut self,
+        expr: &Expr,
+        env: &Environment,
+    ) -> Result<AnalysisResult> {
         self.expression_analyzer_mut().analyze(expr, Some(env))
     }
 
     /// Try to apply optimizations based on analysis result
     #[allow(dead_code)]
-    fn try_apply_optimizations(&mut self, analysis: &AnalysisResult, cont: &Continuation) -> Result<Option<Value>> {
+    fn try_apply_optimizations(
+        &mut self,
+        analysis: &AnalysisResult,
+        cont: &Continuation,
+    ) -> Result<Option<Value>> {
         for optimization in &analysis.optimizations {
             match optimization {
                 OptimizationHint::ConstantFold(value) => {
@@ -1225,7 +1241,8 @@ impl Evaluator {
                 }
                 OptimizationHint::InlineVariable(var_name, value) => {
                     // Variable inlining optimization
-                    self.expression_analyzer_mut().add_constant(var_name.clone(), value.clone());
+                    self.expression_analyzer_mut()
+                        .add_constant(var_name.clone(), value.clone());
                     let result = self.apply_continuation(cont.clone(), value.clone())?;
                     return Ok(Some(result));
                 }
@@ -1246,11 +1263,13 @@ impl Evaluator {
     /// Update expression analyzer with specific variable information
     pub fn update_analyzer_with_variable(&mut self, name: &str, value: &Value) {
         if self.is_analyzable_constant(value) {
-            self.expression_analyzer_mut().add_constant(name.to_string(), value.clone());
-            
+            self.expression_analyzer_mut()
+                .add_constant(name.to_string(), value.clone());
+
             // Add type hint based on value
             let type_hint = self.value_to_type_hint(value);
-            self.expression_analyzer_mut().add_type_hint(name.to_string(), type_hint);
+            self.expression_analyzer_mut()
+                .add_type_hint(name.to_string(), type_hint);
         }
     }
 
@@ -1258,8 +1277,12 @@ impl Evaluator {
     fn is_analyzable_constant(&self, value: &Value) -> bool {
         matches!(
             value,
-            Value::Boolean(_) | Value::Number(_) | Value::String(_) 
-            | Value::Character(_) | Value::Symbol(_) | Value::Nil
+            Value::Boolean(_)
+                | Value::Number(_)
+                | Value::String(_)
+                | Value::Character(_)
+                | Value::Symbol(_)
+                | Value::Nil
         )
     }
 
@@ -1289,7 +1312,12 @@ impl Evaluator {
     }
 
     /// Phase 6-D: Get tail call optimization statistics
-    pub fn get_tail_call_stats(&self) -> (crate::evaluator::TailCallStats, crate::evaluator::tail_call_optimization::TailCallOptimizerStats) {
+    pub fn get_tail_call_stats(
+        &self,
+    ) -> (
+        crate::evaluator::TailCallStats,
+        crate::evaluator::tail_call_optimization::TailCallOptimizerStats,
+    ) {
         (
             self.tail_call_optimizer().get_analyzer_stats().clone(),
             self.tail_call_optimizer().get_stats().clone(),
@@ -1346,12 +1374,20 @@ impl Evaluator {
                             // Evaluate arguments
                             let mut evaluated_args = Vec::new();
                             for arg_expr in &exprs[1..] {
-                                let arg_value = self.eval(arg_expr.clone(), env.clone(), Continuation::Identity)?;
+                                let arg_value = self.eval(
+                                    arg_expr.clone(),
+                                    env.clone(),
+                                    Continuation::Identity,
+                                )?;
                                 evaluated_args.push(arg_value);
                             }
 
                             // Apply procedure directly without creating new stack frame
-                            return Ok(Some(self.apply_procedure_direct(&procedure, evaluated_args, env.clone())?));
+                            return Ok(Some(self.apply_procedure_direct(
+                                &procedure,
+                                evaluated_args,
+                                env.clone(),
+                            )?));
                         }
                     }
                 }
@@ -1362,11 +1398,12 @@ impl Evaluator {
         let _expr = Expr::List(exprs.to_vec());
         // Note: Full optimizer integration requires refactoring to avoid borrow checker issues
         // For now, we'll use the basic optimization detection and statistics collection
-        
+
         // Record the tail call opportunity for future optimization
         if let Expr::Variable(func_name) = &exprs[0] {
             // Register function for analysis
-            self.tail_call_optimizer_mut().register_function(func_name.clone(), exprs.len() as i32 - 1);
+            self.tail_call_optimizer_mut()
+                .register_function(func_name.clone(), exprs.len() as i32 - 1);
         }
 
         Ok(None)
@@ -1384,7 +1421,6 @@ impl Evaluator {
             None
         }
     }
-
 }
 
 /// Public API for evaluation

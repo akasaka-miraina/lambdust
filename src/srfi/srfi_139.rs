@@ -12,7 +12,6 @@ use crate::error::{LambdustError, Result};
 use crate::value::Value;
 use std::collections::HashMap;
 
-
 /// Define a syntax parameter (placeholder implementation)
 fn define_syntax_parameter_proc(_args: &[Value]) -> Result<Value> {
     // For now, just return success to indicate the parameter was "defined"
@@ -23,7 +22,7 @@ fn define_syntax_parameter_proc(_args: &[Value]) -> Result<Value> {
 /// Check if a syntax parameter is defined (placeholder)
 fn syntax_parameter_defined_proc(args: &[Value]) -> Result<Value> {
     check_arity(args, 1)?;
-    
+
     match &args[0] {
         Value::Symbol(_) => {
             // For demonstration, return true for any symbol
@@ -37,7 +36,7 @@ fn syntax_parameter_defined_proc(args: &[Value]) -> Result<Value> {
 /// Get syntax parameter value (placeholder)
 fn syntax_parameter_value_proc(args: &[Value]) -> Result<Value> {
     check_arity(args, 1)?;
-    
+
     match &args[0] {
         Value::Symbol(name) => {
             // Return a placeholder value
@@ -67,7 +66,7 @@ fn syntax_parameter_list_proc(_args: &[Value]) -> Result<Value> {
 /// Create a syntax parameter transformer (placeholder)
 fn make_syntax_parameter_transformer_proc(args: &[Value]) -> Result<Value> {
     check_arity(args, 1)?;
-    
+
     // Return the input value as a simple transformer
     Ok(args[0].clone())
 }
@@ -94,17 +93,29 @@ impl super::SrfiModule for Srfi139 {
         // Core syntax parameter procedures (placeholder implementations)
         exports.insert(
             "define-syntax-parameter".to_string(),
-            make_builtin_procedure("define-syntax-parameter", Some(2), define_syntax_parameter_proc),
+            make_builtin_procedure(
+                "define-syntax-parameter",
+                Some(2),
+                define_syntax_parameter_proc,
+            ),
         );
 
         exports.insert(
             "syntax-parameter-value".to_string(),
-            make_builtin_procedure("syntax-parameter-value", Some(1), syntax_parameter_value_proc),
+            make_builtin_procedure(
+                "syntax-parameter-value",
+                Some(1),
+                syntax_parameter_value_proc,
+            ),
         );
 
         exports.insert(
             "syntax-parameter-defined?".to_string(),
-            make_builtin_procedure("syntax-parameter-defined?", Some(1), syntax_parameter_defined_proc),
+            make_builtin_procedure(
+                "syntax-parameter-defined?",
+                Some(1),
+                syntax_parameter_defined_proc,
+            ),
         );
 
         exports.insert(
@@ -119,7 +130,11 @@ impl super::SrfiModule for Srfi139 {
 
         exports.insert(
             "make-syntax-parameter-transformer".to_string(),
-            make_builtin_procedure("make-syntax-parameter-transformer", Some(1), make_syntax_parameter_transformer_proc),
+            make_builtin_procedure(
+                "make-syntax-parameter-transformer",
+                Some(1),
+                make_syntax_parameter_transformer_proc,
+            ),
         );
 
         exports
@@ -151,7 +166,10 @@ mod tests {
         let default_val = Value::Number(crate::lexer::SchemeNumber::Integer(42));
 
         let result = define_syntax_parameter_proc(&[name, default_val]).unwrap();
-        assert_eq!(result, Value::Symbol("syntax-parameter-defined".to_string()));
+        assert_eq!(
+            result,
+            Value::Symbol("syntax-parameter-defined".to_string())
+        );
     }
 
     #[test]
@@ -165,17 +183,18 @@ mod tests {
     fn test_syntax_parameter_value_proc() {
         let name = Value::Symbol("test-param".to_string());
         let result = syntax_parameter_value_proc(&[name]).unwrap();
-        assert_eq!(result, Value::String("placeholder-value-for-test-param".to_string()));
+        assert_eq!(
+            result,
+            Value::String("placeholder-value-for-test-param".to_string())
+        );
     }
 
     #[test]
     fn test_syntax_parameterize_proc() {
-        let bindings = Value::Vector(vec![
-            Value::Vector(vec![
-                Value::Symbol("param".to_string()),
-                Value::Number(crate::lexer::SchemeNumber::Integer(123))
-            ])
-        ]);
+        let bindings = Value::Vector(vec![Value::Vector(vec![
+            Value::Symbol("param".to_string()),
+            Value::Number(crate::lexer::SchemeNumber::Integer(123)),
+        ])]);
         let body = Value::String("body-result".to_string());
 
         let result = syntax_parameterize_proc(&[bindings, body.clone()]).unwrap();
@@ -211,7 +230,9 @@ mod tests {
     #[test]
     fn test_error_cases() {
         // Test invalid argument types
-        let result = syntax_parameter_defined_proc(&[Value::Number(crate::lexer::SchemeNumber::Integer(42))]);
+        let result = syntax_parameter_defined_proc(&[Value::Number(
+            crate::lexer::SchemeNumber::Integer(42),
+        )]);
         assert!(result.is_err());
 
         let result = syntax_parameter_value_proc(&[Value::Boolean(true)]);

@@ -352,7 +352,9 @@ impl Evaluator {
 
     /// Set memory limit for store
     pub fn set_memory_limit(&mut self, limit: usize) {
-        self.memory_strategy.raii_store_mut().set_memory_limit(limit);
+        self.memory_strategy
+            .raii_store_mut()
+            .set_memory_limit(limit);
     }
 
     /// Dynamic Points management methods

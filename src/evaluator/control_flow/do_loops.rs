@@ -19,22 +19,19 @@ fn evaluate_expression_directly(
 ) -> Result<Value> {
     match expr {
         // Handle literals directly
-        Expr::Literal(literal) => {
-            match literal {
-                Literal::Number(n) => Ok(Value::Number(n.clone())),
-                Literal::String(s) => Ok(Value::String(s.clone())),
-                Literal::Character(c) => Ok(Value::Character(*c)),
-                Literal::Boolean(b) => Ok(Value::Boolean(*b)),
-                Literal::Nil => Ok(Value::Nil),
-            }
-        }
-        
+        Expr::Literal(literal) => match literal {
+            Literal::Number(n) => Ok(Value::Number(n.clone())),
+            Literal::String(s) => Ok(Value::String(s.clone())),
+            Literal::Character(c) => Ok(Value::Character(*c)),
+            Literal::Boolean(b) => Ok(Value::Boolean(*b)),
+            Literal::Nil => Ok(Value::Nil),
+        },
+
         // Handle variables by looking them up in the environment
-        Expr::Variable(name) => {
-            env.get(name)
-                .ok_or_else(|| LambdustError::undefined_variable(name.clone()))
-        }
-        
+        Expr::Variable(name) => env
+            .get(name)
+            .ok_or_else(|| LambdustError::undefined_variable(name.clone())),
+
         // Handle simple function calls (builtin functions only to avoid recursion)
         Expr::List(exprs) if !exprs.is_empty() => {
             if let Expr::Variable(func_name) = &exprs[0] {
@@ -44,13 +41,15 @@ fn evaluate_expression_directly(
                     let arg_value = evaluate_expression_directly(evaluator, arg_expr, env.clone())?;
                     args.push(arg_value);
                 }
-                
+
                 // Call builtin function if available
-                if let Some(Value::Procedure(crate::value::Procedure::Builtin { func, .. })) = env.get(func_name) {
+                if let Some(Value::Procedure(crate::value::Procedure::Builtin { func, .. })) =
+                    env.get(func_name)
+                {
                     // Apply the builtin function directly
                     return func(&args);
                 }
-                
+
                 // If it's not a builtin, fall back to regular evaluation
                 // This might still cause trampoline issues, but it's our best option
                 evaluator.eval(expr.clone(), env, Continuation::Identity)
@@ -59,7 +58,7 @@ fn evaluate_expression_directly(
                 evaluator.eval(expr.clone(), env, Continuation::Identity)
             }
         }
-        
+
         // For other expressions, fall back to regular evaluation
         _ => evaluator.eval(expr.clone(), env, Continuation::Identity),
     }
@@ -75,7 +74,7 @@ pub fn eval_do(
 ) -> Result<Value> {
     // Phase 6-A: Use trampoline evaluator to prevent stack overflow
     // This delegates to the heap-based continuation unwinding system
-    
+
     // Phase 6-A: Use iterative implementation to prevent stack overflow
     // Direct iterative loop without recursive continuation chains
     eval_do_iterative(evaluator, operands, env, cont)
@@ -97,7 +96,7 @@ fn eval_do_iterative(
 
     // Parse variable bindings
     let bindings = parse_do_bindings(&operands[0])?;
-    
+
     // Parse test clause: (test result ...)
     let (test_expr, result_exprs) = match &operands[1] {
         Expr::List(test_clause) if !test_clause.is_empty() => {
@@ -117,29 +116,29 @@ fn eval_do_iterative(
 
     // Create loop environment extending the parent environment
     let loop_env = env.extend();
-    
+
     // Initialize variables using direct evaluation to avoid trampoline loops
     for (var, init_expr, _) in &bindings {
         let init_value = evaluate_expression_directly(evaluator, init_expr, env.clone())?;
         loop_env.define(var.clone(), init_value);
     }
-    
+
     let loop_env_rc = Rc::new(loop_env);
 
     // Iterative loop implementation with larger iteration limit (Phase 6-A)
     const MAX_ITERATIONS: usize = 10000; // Increased from 1000 to 10000
-    
+
     for _iteration in 0..MAX_ITERATIONS {
-        
         // Evaluate test condition using direct evaluation to avoid trampoline loops
         let test_result = evaluate_expression_directly(evaluator, &test_expr, loop_env_rc.clone())?;
-        
+
         if test_result.is_truthy() {
             // Test passed - evaluate result expressions
             if result_exprs.is_empty() {
                 return evaluator.apply_continuation(cont, Value::Undefined);
             } else if result_exprs.len() == 1 {
-                let result = evaluate_expression_directly(evaluator, &result_exprs[0], loop_env_rc)?;
+                let result =
+                    evaluate_expression_directly(evaluator, &result_exprs[0], loop_env_rc)?;
                 return evaluator.apply_continuation(cont, result);
             } else {
                 // Multiple result expressions - evaluate in sequence
@@ -186,9 +185,10 @@ fn eval_do_iterative(
     }
 
     // If we reach here, the loop didn't terminate within the limit
-    Err(LambdustError::runtime_error(
-        format!("do loop exceeded maximum iterations ({})", MAX_ITERATIONS),
-    ))
+    Err(LambdustError::runtime_error(format!(
+        "do loop exceeded maximum iterations ({})",
+        MAX_ITERATIONS
+    )))
 }
 
 /// Fallback do-loop implementation with limited iterations (legacy CPS approach)
@@ -207,7 +207,7 @@ fn eval_do_fallback(
 
     // Parse variable bindings
     let bindings = parse_do_bindings(&operands[0])?;
-    
+
     // Parse test clause: (test result ...)
     let (test_expr, result_exprs) = match &operands[1] {
         Expr::List(test_clause) if !test_clause.is_empty() => {
@@ -227,22 +227,26 @@ fn eval_do_fallback(
 
     // Create loop environment
     let loop_env = Environment::new();
-    
+
     // Initialize variables
     for (var, init_expr, _) in &bindings {
         let init_value = evaluator.eval(init_expr.clone(), env.clone(), Continuation::Identity)?;
         loop_env.define(var.clone(), init_value);
     }
-    
+
     let loop_env_rc = Rc::new(loop_env.extend());
 
     // Simple loop implementation (limited iterations to prevent infinite loops)
     const MAX_ITERATIONS: usize = 1000;
-    
+
     for _ in 0..MAX_ITERATIONS {
         // Evaluate test condition
-        let test_result = evaluator.eval(test_expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
-        
+        let test_result = evaluator.eval(
+            test_expr.clone(),
+            loop_env_rc.clone(),
+            Continuation::Identity,
+        )?;
+
         if test_result.is_truthy() {
             // Test passed - evaluate result expressions
             if result_exprs.is_empty() {
@@ -258,7 +262,11 @@ fn eval_do_fallback(
                         return evaluator.eval(expr.clone(), loop_env_rc, cont);
                     } else {
                         // Intermediate expressions use Identity continuation
-                        evaluator.eval(expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+                        evaluator.eval(
+                            expr.clone(),
+                            loop_env_rc.clone(),
+                            Continuation::Identity,
+                        )?;
                     }
                 }
             }
@@ -272,7 +280,8 @@ fn eval_do_fallback(
         // Update variables with step expressions
         for (var, _, step_expr) in &bindings {
             if let Some(step) = step_expr {
-                let new_value = evaluator.eval(step.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+                let new_value =
+                    evaluator.eval(step.clone(), loop_env_rc.clone(), Continuation::Identity)?;
                 loop_env_rc.set(var, new_value)?;
             }
         }

@@ -1,6 +1,6 @@
 //! Debug tracing system for lambdust interpreter
 //!
-//! This module provides comprehensive tracing of evaluator steps, 
+//! This module provides comprehensive tracing of evaluator steps,
 //! including class/method/line information, Rust values, and S-expressions.
 //! Only active in debug builds.
 
@@ -46,7 +46,7 @@ pub enum TraceLevel {
     /// Function/method entry
     ENTRY,
     /// Function/method exit with result
-    EXIT, 
+    EXIT,
     /// General information
     INFO,
     /// Warning condition
@@ -60,7 +60,7 @@ impl TraceLevel {
     pub fn as_str(&self) -> &'static str {
         match self {
             TraceLevel::ENTRY => "ENTRY",
-            TraceLevel::EXIT => "EXIT", 
+            TraceLevel::EXIT => "EXIT",
             TraceLevel::INFO => "INFO",
             TraceLevel::WARN => "WARN",
             TraceLevel::ERROR => "ERROR",
@@ -97,10 +97,17 @@ impl DebugTracer {
 
         if let Ok(mut log) = TRACE_LOG.lock() {
             log.push(entry.clone());
-            
+
             // Print to stderr for immediate visibility
-            eprintln!("[TRACE:{}] {}::{}:{} [{}] {}", 
-                step_id, module, method, line, level.as_str(), message);
+            eprintln!(
+                "[TRACE:{}] {}::{}:{} [{}] {}",
+                step_id,
+                module,
+                method,
+                line,
+                level.as_str(),
+                message
+            );
         }
     }
 
@@ -130,10 +137,18 @@ impl DebugTracer {
 
         if let Ok(mut log) = TRACE_LOG.lock() {
             log.push(entry.clone());
-            
-            eprintln!("[TRACE:{}] {}::{}:{} [{}] {} | Rust: {:?} | S-expr: {}", 
-                step_id, module, method, line, level.as_str(), message, 
-                value, Self::value_to_sexpr(value));
+
+            eprintln!(
+                "[TRACE:{}] {}::{}:{} [{}] {} | Rust: {:?} | S-expr: {}",
+                step_id,
+                module,
+                method,
+                line,
+                level.as_str(),
+                message,
+                value,
+                Self::value_to_sexpr(value)
+            );
         }
     }
 
@@ -163,10 +178,17 @@ impl DebugTracer {
 
         if let Ok(mut log) = TRACE_LOG.lock() {
             log.push(entry.clone());
-            
-            eprintln!("[TRACE:{}] {}::{}:{} [{}] {} | Expr: {}", 
-                step_id, module, method, line, level.as_str(), message,
-                Self::expr_to_sexpr(expr));
+
+            eprintln!(
+                "[TRACE:{}] {}::{}:{} [{}] {} | Expr: {}",
+                step_id,
+                module,
+                method,
+                line,
+                level.as_str(),
+                message,
+                Self::expr_to_sexpr(expr)
+            );
         }
     }
 
@@ -197,31 +219,77 @@ impl DebugTracer {
 
         if let Ok(mut log) = TRACE_LOG.lock() {
             log.push(entry.clone());
-            
-            eprintln!("[TRACE:{}] {}::{}:{} [{}] {} | Cont: {} | Depth: {:?}", 
-                step_id, module, method, line, level.as_str(), message, 
-                cont_type, env_depth);
+
+            eprintln!(
+                "[TRACE:{}] {}::{}:{} [{}] {} | Cont: {} | Depth: {:?}",
+                step_id,
+                module,
+                method,
+                line,
+                level.as_str(),
+                message,
+                cont_type,
+                env_depth
+            );
         }
     }
 
     /// No-op for release builds
     #[cfg(not(debug_assertions))]
-    pub fn trace(_module: &'static str, _method: &'static str, _line: u32, _level: TraceLevel, _message: String) {}
+    pub fn trace(
+        _module: &'static str,
+        _method: &'static str,
+        _line: u32,
+        _level: TraceLevel,
+        _message: String,
+    ) {
+    }
 
     #[cfg(not(debug_assertions))]
-    pub fn trace_value(_module: &'static str, _method: &'static str, _line: u32, _level: TraceLevel, _message: String, _value: &Value) {}
+    pub fn trace_value(
+        _module: &'static str,
+        _method: &'static str,
+        _line: u32,
+        _level: TraceLevel,
+        _message: String,
+        _value: &Value,
+    ) {
+    }
 
     #[cfg(not(debug_assertions))]
-    pub fn trace_expr(_module: &'static str, _method: &'static str, _line: u32, _level: TraceLevel, _message: String, _expr: &Expr) {}
+    pub fn trace_expr(
+        _module: &'static str,
+        _method: &'static str,
+        _line: u32,
+        _level: TraceLevel,
+        _message: String,
+        _expr: &Expr,
+    ) {
+    }
 
     #[cfg(not(debug_assertions))]
-    pub fn trace_continuation(_module: &'static str, _method: &'static str, _line: u32, _level: TraceLevel, _message: String, _cont_type: &str, _env_depth: Option<usize>) {}
+    pub fn trace_continuation(
+        _module: &'static str,
+        _method: &'static str,
+        _line: u32,
+        _level: TraceLevel,
+        _message: String,
+        _cont_type: &str,
+        _env_depth: Option<usize>,
+    ) {
+    }
 
     /// Convert Value to readable S-expression
     fn value_to_sexpr(value: &Value) -> String {
         match value {
             Value::Undefined => "#<undefined>".to_string(),
-            Value::Boolean(b) => if *b { "#t".to_string() } else { "#f".to_string() },
+            Value::Boolean(b) => {
+                if *b {
+                    "#t".to_string()
+                } else {
+                    "#f".to_string()
+                }
+            }
             Value::Number(n) => format!("{}", n),
             Value::String(s) => format!("\"{}\"", s),
             Value::Character(c) => format!("#\\{}", c),
@@ -230,13 +298,13 @@ impl DebugTracer {
             Value::Vector(v) => {
                 let items: Vec<String> = v.iter().map(Self::value_to_sexpr).collect();
                 format!("#({})", items.join(" "))
-            },
+            }
             Value::Procedure(_) => "#<procedure>".to_string(),
             Value::Continuation(_) => "#<continuation>".to_string(),
             Value::Values(vals) => {
                 let items: Vec<String> = vals.iter().map(Self::value_to_sexpr).collect();
                 format!("#<values {}>", items.join(" "))
-            },
+            }
             _ => format!("#<{}>", std::any::type_name::<Value>()),
         }
     }
@@ -248,18 +316,24 @@ impl DebugTracer {
                 crate::ast::Literal::Number(n) => format!("{}", n),
                 crate::ast::Literal::String(s) => format!("\"{}\"", s),
                 crate::ast::Literal::Character(c) => format!("#\\{}", c),
-                crate::ast::Literal::Boolean(b) => if *b { "#t".to_string() } else { "#f".to_string() },
+                crate::ast::Literal::Boolean(b) => {
+                    if *b {
+                        "#t".to_string()
+                    } else {
+                        "#f".to_string()
+                    }
+                }
                 crate::ast::Literal::Nil => "()".to_string(),
             },
             Expr::Variable(v) => v.clone(),
             Expr::List(exprs) => {
                 let items: Vec<String> = exprs.iter().map(Self::expr_to_sexpr).collect();
                 format!("({})", items.join(" "))
-            },
+            }
             Expr::Vector(exprs) => {
                 let items: Vec<String> = exprs.iter().map(Self::expr_to_sexpr).collect();
                 format!("#({})", items.join(" "))
-            },
+            }
             Expr::Quote(expr) => format!("'{}", Self::expr_to_sexpr(expr)),
             Expr::Quasiquote(expr) => format!("`{}", Self::expr_to_sexpr(expr)),
             Expr::Unquote(expr) => format!(",{}", Self::expr_to_sexpr(expr)),
@@ -267,7 +341,7 @@ impl DebugTracer {
             Expr::DottedList(exprs, tail) => {
                 let items: Vec<String> = exprs.iter().map(Self::expr_to_sexpr).collect();
                 format!("({} . {})", items.join(" "), Self::expr_to_sexpr(tail))
-            },
+            }
         }
     }
 
@@ -292,35 +366,42 @@ impl DebugTracer {
 
         let log = TRACE_LOG.lock().unwrap();
         let mut file = File::create(filename)?;
-        
+
         writeln!(file, "=== Lambdust Debug Trace Log ===")?;
         writeln!(file, "Total steps: {}", log.len())?;
         writeln!(file, "")?;
 
         for entry in log.iter() {
-            writeln!(file, "[{}] {}::{}:{} [{}] {}",
-                entry.step_id, entry.module, entry.method, entry.line,
-                entry.level.as_str(), entry.message)?;
-            
+            writeln!(
+                file,
+                "[{}] {}::{}:{} [{}] {}",
+                entry.step_id,
+                entry.module,
+                entry.method,
+                entry.line,
+                entry.level.as_str(),
+                entry.message
+            )?;
+
             if let Some(ref rust_val) = entry.rust_value {
                 writeln!(file, "    Rust: {}", rust_val)?;
             }
-            
+
             if let Some(ref sexpr) = entry.s_expr {
                 writeln!(file, "    S-expr: {}", sexpr)?;
             }
-            
+
             if let Some(ref cont_type) = entry.continuation_type {
                 writeln!(file, "    Continuation: {}", cont_type)?;
             }
-            
+
             if let Some(depth) = entry.env_depth {
                 writeln!(file, "    Env depth: {}", depth)?;
             }
-            
+
             writeln!(file, "")?;
         }
-        
+
         Ok(())
     }
 }
@@ -338,7 +419,7 @@ macro_rules! debug_trace {
             $msg.to_string(),
         );
     };
-    
+
     ($level:expr, $msg:expr, $value:expr) => {
         #[cfg(debug_assertions)]
         crate::debug::DebugTracer::trace_value(
@@ -383,7 +464,7 @@ macro_rules! debug_trace_continuation {
             None,
         );
     };
-    
+
     ($level:expr, $msg:expr, $cont_type:expr, $env_depth:expr) => {
         #[cfg(debug_assertions)]
         crate::debug::DebugTracer::trace_continuation(

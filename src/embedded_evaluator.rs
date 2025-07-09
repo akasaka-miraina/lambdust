@@ -7,10 +7,7 @@
 //! - Minimal built-in functions
 //! - Simple AST walking instead of CPS
 
-use std::{
-    collections::HashMap,
-    rc::Rc,
-};
+use std::{collections::HashMap, rc::Rc};
 
 use crate::ast::Expr;
 use crate::error::{LambdustError, Result};
@@ -105,7 +102,7 @@ impl EmbeddedEvaluator {
     /// Create new embedded evaluator with minimal built-ins
     pub fn new() -> Self {
         let mut global_env = EmbeddedEnvironment::new();
-        
+
         // Only essential built-ins for embedded use
         global_env.define("+".to_string(), EmbeddedValue::Builtin("+"));
         global_env.define("-".to_string(), EmbeddedValue::Builtin("-"));
@@ -134,14 +131,16 @@ impl EmbeddedEvaluator {
     }
 
     /// Evaluate expression in given environment
-    fn eval_with_env(&mut self, expr: &Expr, env: Rc<EmbeddedEnvironment>) -> Result<EmbeddedValue> {
+    fn eval_with_env(
+        &mut self,
+        expr: &Expr,
+        env: Rc<EmbeddedEnvironment>,
+    ) -> Result<EmbeddedValue> {
         match expr {
             Expr::Literal(literal) => self.eval_literal(literal),
-            Expr::Variable(name) => {
-                env.lookup(name).ok_or_else(|| {
-                    LambdustError::runtime_error(format!("Undefined variable: {}", name))
-                })
-            }
+            Expr::Variable(name) => env.lookup(name).ok_or_else(|| {
+                LambdustError::runtime_error(format!("Undefined variable: {}", name))
+            }),
             Expr::List(exprs) => {
                 if exprs.is_empty() {
                     Ok(EmbeddedValue::Nil)
@@ -163,10 +162,18 @@ impl EmbeddedEvaluator {
                 Ok(result)
             }
             // Advanced features not supported in embedded mode
-            Expr::Quasiquote(_) => Err(LambdustError::runtime_error("Quasiquote not supported in embedded mode".to_string())),
-            Expr::Unquote(_) => Err(LambdustError::runtime_error("Unquote not supported in embedded mode".to_string())),
-            Expr::UnquoteSplicing(_) => Err(LambdustError::runtime_error("Unquote-splicing not supported in embedded mode".to_string())),
-            Expr::DottedList(_, _) => Err(LambdustError::runtime_error("Dotted lists not supported in embedded mode".to_string())),
+            Expr::Quasiquote(_) => Err(LambdustError::runtime_error(
+                "Quasiquote not supported in embedded mode".to_string(),
+            )),
+            Expr::Unquote(_) => Err(LambdustError::runtime_error(
+                "Unquote not supported in embedded mode".to_string(),
+            )),
+            Expr::UnquoteSplicing(_) => Err(LambdustError::runtime_error(
+                "Unquote-splicing not supported in embedded mode".to_string(),
+            )),
+            Expr::DottedList(_, _) => Err(LambdustError::runtime_error(
+                "Dotted lists not supported in embedded mode".to_string(),
+            )),
         }
     }
 
@@ -190,7 +197,11 @@ impl EmbeddedEvaluator {
     }
 
     /// Evaluate function application
-    fn eval_application(&mut self, exprs: &[Expr], env: Rc<EmbeddedEnvironment>) -> Result<EmbeddedValue> {
+    fn eval_application(
+        &mut self,
+        exprs: &[Expr],
+        env: Rc<EmbeddedEnvironment>,
+    ) -> Result<EmbeddedValue> {
         let operator = &exprs[0];
         let operands = &exprs[1..];
 
@@ -219,7 +230,12 @@ impl EmbeddedEvaluator {
     }
 
     /// Apply procedure to arguments
-    fn apply_procedure(&mut self, procedure: EmbeddedValue, args: Vec<EmbeddedValue>, _env: Rc<EmbeddedEnvironment>) -> Result<EmbeddedValue> {
+    fn apply_procedure(
+        &mut self,
+        procedure: EmbeddedValue,
+        args: Vec<EmbeddedValue>,
+        _env: Rc<EmbeddedEnvironment>,
+    ) -> Result<EmbeddedValue> {
         match procedure {
             EmbeddedValue::Builtin(name) => self.apply_builtin(name, args),
             EmbeddedValue::Lambda { params, body, env } => {
@@ -252,14 +268,18 @@ impl EmbeddedEvaluator {
                     if let EmbeddedValue::Integer(n) = arg {
                         sum += n;
                     } else {
-                        return Err(LambdustError::runtime_error("+ requires integers".to_string()));
+                        return Err(LambdustError::runtime_error(
+                            "+ requires integers".to_string(),
+                        ));
                     }
                 }
                 Ok(EmbeddedValue::Integer(sum))
             }
             "-" => {
                 if args.is_empty() {
-                    return Err(LambdustError::runtime_error("- requires at least one argument".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "- requires at least one argument".to_string(),
+                    ));
                 }
                 if let EmbeddedValue::Integer(first) = &args[0] {
                     let mut result = *first;
@@ -270,13 +290,17 @@ impl EmbeddedEvaluator {
                             if let EmbeddedValue::Integer(n) = arg {
                                 result -= n;
                             } else {
-                                return Err(LambdustError::runtime_error("- requires integers".to_string()));
+                                return Err(LambdustError::runtime_error(
+                                    "- requires integers".to_string(),
+                                ));
                             }
                         }
                     }
                     Ok(EmbeddedValue::Integer(result))
                 } else {
-                    Err(LambdustError::runtime_error("- requires integers".to_string()))
+                    Err(LambdustError::runtime_error(
+                        "- requires integers".to_string(),
+                    ))
                 }
             }
             "*" => {
@@ -285,107 +309,170 @@ impl EmbeddedEvaluator {
                     if let EmbeddedValue::Integer(n) = arg {
                         product *= n;
                     } else {
-                        return Err(LambdustError::runtime_error("* requires integers".to_string()));
+                        return Err(LambdustError::runtime_error(
+                            "* requires integers".to_string(),
+                        ));
                     }
                 }
                 Ok(EmbeddedValue::Integer(product))
             }
             "/" => {
                 if args.len() < 2 {
-                    return Err(LambdustError::runtime_error("/ requires at least two arguments".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "/ requires at least two arguments".to_string(),
+                    ));
                 }
-                if let (EmbeddedValue::Integer(first), EmbeddedValue::Integer(second)) = (&args[0], &args[1]) {
+                if let (EmbeddedValue::Integer(first), EmbeddedValue::Integer(second)) =
+                    (&args[0], &args[1])
+                {
                     if *second == 0 {
                         return Err(LambdustError::runtime_error("Division by zero".to_string()));
                     }
                     Ok(EmbeddedValue::Integer(first / second))
                 } else {
-                    Err(LambdustError::runtime_error("/ requires integers".to_string()))
+                    Err(LambdustError::runtime_error(
+                        "/ requires integers".to_string(),
+                    ))
                 }
             }
             "=" => {
                 if args.len() != 2 {
-                    return Err(LambdustError::runtime_error("= requires exactly two arguments".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "= requires exactly two arguments".to_string(),
+                    ));
                 }
-                Ok(EmbeddedValue::Boolean(self.values_equal(&args[0], &args[1])))
+                Ok(EmbeddedValue::Boolean(
+                    self.values_equal(&args[0], &args[1]),
+                ))
             }
             "<" => {
                 if args.len() != 2 {
-                    return Err(LambdustError::runtime_error("< requires exactly two arguments".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "< requires exactly two arguments".to_string(),
+                    ));
                 }
-                if let (EmbeddedValue::Integer(a), EmbeddedValue::Integer(b)) = (&args[0], &args[1]) {
+                if let (EmbeddedValue::Integer(a), EmbeddedValue::Integer(b)) = (&args[0], &args[1])
+                {
                     Ok(EmbeddedValue::Boolean(a < b))
                 } else {
-                    Err(LambdustError::runtime_error("< requires integers".to_string()))
+                    Err(LambdustError::runtime_error(
+                        "< requires integers".to_string(),
+                    ))
                 }
             }
             ">" => {
                 if args.len() != 2 {
-                    return Err(LambdustError::runtime_error("> requires exactly two arguments".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "> requires exactly two arguments".to_string(),
+                    ));
                 }
-                if let (EmbeddedValue::Integer(a), EmbeddedValue::Integer(b)) = (&args[0], &args[1]) {
+                if let (EmbeddedValue::Integer(a), EmbeddedValue::Integer(b)) = (&args[0], &args[1])
+                {
                     Ok(EmbeddedValue::Boolean(a > b))
                 } else {
-                    Err(LambdustError::runtime_error("> requires integers".to_string()))
+                    Err(LambdustError::runtime_error(
+                        "> requires integers".to_string(),
+                    ))
                 }
             }
             "cons" => {
                 if args.len() != 2 {
-                    return Err(LambdustError::runtime_error("cons requires exactly two arguments".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "cons requires exactly two arguments".to_string(),
+                    ));
                 }
-                Ok(EmbeddedValue::Pair(Rc::new((args[0].clone(), args[1].clone()))))
+                Ok(EmbeddedValue::Pair(Rc::new((
+                    args[0].clone(),
+                    args[1].clone(),
+                ))))
             }
             "car" => {
                 if args.len() != 1 {
-                    return Err(LambdustError::runtime_error("car requires exactly one argument".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "car requires exactly one argument".to_string(),
+                    ));
                 }
                 if let EmbeddedValue::Pair(pair) = &args[0] {
                     Ok(pair.0.clone())
                 } else {
-                    Err(LambdustError::runtime_error("car requires a pair".to_string()))
+                    Err(LambdustError::runtime_error(
+                        "car requires a pair".to_string(),
+                    ))
                 }
             }
             "cdr" => {
                 if args.len() != 1 {
-                    return Err(LambdustError::runtime_error("cdr requires exactly one argument".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "cdr requires exactly one argument".to_string(),
+                    ));
                 }
                 if let EmbeddedValue::Pair(pair) = &args[0] {
                     Ok(pair.1.clone())
                 } else {
-                    Err(LambdustError::runtime_error("cdr requires a pair".to_string()))
+                    Err(LambdustError::runtime_error(
+                        "cdr requires a pair".to_string(),
+                    ))
                 }
             }
             "null?" => {
                 if args.len() != 1 {
-                    return Err(LambdustError::runtime_error("null? requires exactly one argument".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "null? requires exactly one argument".to_string(),
+                    ));
                 }
-                Ok(EmbeddedValue::Boolean(matches!(args[0], EmbeddedValue::Nil)))
+                Ok(EmbeddedValue::Boolean(matches!(
+                    args[0],
+                    EmbeddedValue::Nil
+                )))
             }
             "pair?" => {
                 if args.len() != 1 {
-                    return Err(LambdustError::runtime_error("pair? requires exactly one argument".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "pair? requires exactly one argument".to_string(),
+                    ));
                 }
-                Ok(EmbeddedValue::Boolean(matches!(args[0], EmbeddedValue::Pair(_))))
+                Ok(EmbeddedValue::Boolean(matches!(
+                    args[0],
+                    EmbeddedValue::Pair(_)
+                )))
             }
             "number?" => {
                 if args.len() != 1 {
-                    return Err(LambdustError::runtime_error("number? requires exactly one argument".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "number? requires exactly one argument".to_string(),
+                    ));
                 }
-                Ok(EmbeddedValue::Boolean(matches!(args[0], EmbeddedValue::Integer(_))))
+                Ok(EmbeddedValue::Boolean(matches!(
+                    args[0],
+                    EmbeddedValue::Integer(_)
+                )))
             }
             "string?" => {
                 if args.len() != 1 {
-                    return Err(LambdustError::runtime_error("string? requires exactly one argument".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "string? requires exactly one argument".to_string(),
+                    ));
                 }
-                Ok(EmbeddedValue::Boolean(matches!(args[0], EmbeddedValue::String(_))))
+                Ok(EmbeddedValue::Boolean(matches!(
+                    args[0],
+                    EmbeddedValue::String(_)
+                )))
             }
             "symbol?" => {
                 if args.len() != 1 {
-                    return Err(LambdustError::runtime_error("symbol? requires exactly one argument".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "symbol? requires exactly one argument".to_string(),
+                    ));
                 }
-                Ok(EmbeddedValue::Boolean(matches!(args[0], EmbeddedValue::Symbol(_))))
+                Ok(EmbeddedValue::Boolean(matches!(
+                    args[0],
+                    EmbeddedValue::Symbol(_)
+                )))
             }
-            _ => Err(LambdustError::runtime_error(format!("Unknown built-in: {}", name))),
+            _ => Err(LambdustError::runtime_error(format!(
+                "Unknown built-in: {}",
+                name
+            ))),
         }
     }
 
@@ -403,9 +490,15 @@ impl EmbeddedEvaluator {
     }
 
     /// Evaluate if expression
-    fn eval_if(&mut self, operands: &[Expr], env: Rc<EmbeddedEnvironment>) -> Result<EmbeddedValue> {
+    fn eval_if(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<EmbeddedEnvironment>,
+    ) -> Result<EmbeddedValue> {
         if operands.len() < 2 || operands.len() > 3 {
-            return Err(LambdustError::runtime_error("if requires 2 or 3 arguments".to_string()));
+            return Err(LambdustError::runtime_error(
+                "if requires 2 or 3 arguments".to_string(),
+            ));
         }
 
         let condition = self.eval_with_env(&operands[0], env.clone())?;
@@ -421,9 +514,15 @@ impl EmbeddedEvaluator {
     }
 
     /// Evaluate define expression
-    fn eval_define(&mut self, operands: &[Expr], env: Rc<EmbeddedEnvironment>) -> Result<EmbeddedValue> {
+    fn eval_define(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<EmbeddedEnvironment>,
+    ) -> Result<EmbeddedValue> {
         if operands.len() != 2 {
-            return Err(LambdustError::runtime_error("define requires exactly 2 arguments".to_string()));
+            return Err(LambdustError::runtime_error(
+                "define requires exactly 2 arguments".to_string(),
+            ));
         }
 
         if let Expr::Variable(_name) = &operands[0] {
@@ -432,14 +531,22 @@ impl EmbeddedEvaluator {
             // This is a simplification - in a full implementation we'd need proper scoping
             Ok(EmbeddedValue::Undefined)
         } else {
-            Err(LambdustError::runtime_error("define requires a variable name".to_string()))
+            Err(LambdustError::runtime_error(
+                "define requires a variable name".to_string(),
+            ))
         }
     }
 
     /// Evaluate lambda expression
-    fn eval_lambda(&mut self, operands: &[Expr], env: Rc<EmbeddedEnvironment>) -> Result<EmbeddedValue> {
+    fn eval_lambda(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<EmbeddedEnvironment>,
+    ) -> Result<EmbeddedValue> {
         if operands.len() != 2 {
-            return Err(LambdustError::runtime_error("lambda requires exactly 2 arguments".to_string()));
+            return Err(LambdustError::runtime_error(
+                "lambda requires exactly 2 arguments".to_string(),
+            ));
         }
 
         // Parse parameter list
@@ -449,11 +556,15 @@ impl EmbeddedEvaluator {
                 if let Expr::Variable(name) = param_expr {
                     params.push(name.clone());
                 } else {
-                    return Err(LambdustError::runtime_error("lambda parameters must be variables".to_string()));
+                    return Err(LambdustError::runtime_error(
+                        "lambda parameters must be variables".to_string(),
+                    ));
                 }
             }
         } else {
-            return Err(LambdustError::runtime_error("lambda parameters must be a list".to_string()));
+            return Err(LambdustError::runtime_error(
+                "lambda parameters must be a list".to_string(),
+            ));
         }
 
         Ok(EmbeddedValue::Lambda {
@@ -466,7 +577,9 @@ impl EmbeddedEvaluator {
     /// Evaluate quote expression
     fn eval_quote(&mut self, operands: &[Expr]) -> Result<EmbeddedValue> {
         if operands.len() != 1 {
-            return Err(LambdustError::runtime_error("quote requires exactly one argument".to_string()));
+            return Err(LambdustError::runtime_error(
+                "quote requires exactly one argument".to_string(),
+            ));
         }
 
         self.expr_to_value(&operands[0])
@@ -496,10 +609,18 @@ impl EmbeddedEvaluator {
                 Ok(result)
             }
             // Advanced features not supported in embedded mode
-            Expr::Quasiquote(_) => Err(LambdustError::runtime_error("Quasiquote not supported in embedded mode".to_string())),
-            Expr::Unquote(_) => Err(LambdustError::runtime_error("Unquote not supported in embedded mode".to_string())),
-            Expr::UnquoteSplicing(_) => Err(LambdustError::runtime_error("Unquote-splicing not supported in embedded mode".to_string())),
-            Expr::DottedList(_, _) => Err(LambdustError::runtime_error("Dotted lists not supported in embedded mode".to_string())),
+            Expr::Quasiquote(_) => Err(LambdustError::runtime_error(
+                "Quasiquote not supported in embedded mode".to_string(),
+            )),
+            Expr::Unquote(_) => Err(LambdustError::runtime_error(
+                "Unquote not supported in embedded mode".to_string(),
+            )),
+            Expr::UnquoteSplicing(_) => Err(LambdustError::runtime_error(
+                "Unquote-splicing not supported in embedded mode".to_string(),
+            )),
+            Expr::DottedList(_, _) => Err(LambdustError::runtime_error(
+                "Dotted lists not supported in embedded mode".to_string(),
+            )),
         }
     }
 }

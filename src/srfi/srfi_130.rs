@@ -532,7 +532,7 @@ mod tests {
         assert_eq!(cursor.current_char().unwrap(), 'ん');
 
         cursor.advance().unwrap();
-        assert_eq!(cursor.position(), 6); // Second character boundary  
+        assert_eq!(cursor.position(), 6); // Second character boundary
         assert_eq!(cursor.current_char().unwrap(), 'に');
     }
 }

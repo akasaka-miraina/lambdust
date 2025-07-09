@@ -1,4 +1,4 @@
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use lambdust::Interpreter;
 
 fn memory_pool_allocation_test(c: &mut Criterion) {

@@ -1,7 +1,7 @@
 //! SRFI 135: Immutable Texts
 //!
-//! This SRFI defines a new data type of immutable texts that are similar to strings 
-//! but cannot be mutated. Immutability enables space-efficient representations 
+//! This SRFI defines a new data type of immutable texts that are similar to strings
+//! but cannot be mutated. Immutability enables space-efficient representations
 //! and efficient sharing of substructures.
 
 use crate::builtins::utils::{check_arity, make_builtin_procedure};
@@ -169,7 +169,11 @@ impl Text {
     /// Convert text to a regular string
     pub fn text_to_string(&self) -> String {
         match self {
-            Text::Leaf { data, start, length } => {
+            Text::Leaf {
+                data,
+                start,
+                length,
+            } => {
                 let chars: Vec<char> = data.chars().skip(*start).take(*length).collect();
                 chars.into_iter().collect()
             }
@@ -199,7 +203,8 @@ impl Text {
         } else if n >= self.length() {
             Text::empty()
         } else {
-            self.subtext(n, self.length()).unwrap_or_else(|_| Text::empty())
+            self.subtext(n, self.length())
+                .unwrap_or_else(|_| Text::empty())
         }
     }
 
@@ -322,9 +327,7 @@ impl super::SrfiModule for Srfi135 {
                 let ch = match &args[1] {
                     Value::Character(c) => *c,
                     _ => {
-                        return Err(LambdustError::type_error(
-                            "Expected character".to_string(),
-                        ));
+                        return Err(LambdustError::type_error("Expected character".to_string()));
                     }
                 };
 
@@ -495,9 +498,9 @@ impl super::SrfiModule for Srfi135 {
             make_builtin_procedure("textual-take", Some(2), |args| {
                 check_arity(args, 2)?;
                 let text = textual_to_text(&args[0])?;
-                let n = args[1].as_number().ok_or_else(|| {
-                    LambdustError::type_error("Expected number".to_string())
-                })?;
+                let n = args[1]
+                    .as_number()
+                    .ok_or_else(|| LambdustError::type_error("Expected number".to_string()))?;
                 let count = match n {
                     crate::lexer::SchemeNumber::Integer(i) if *i >= 0 => *i as usize,
                     _ => {
@@ -516,9 +519,9 @@ impl super::SrfiModule for Srfi135 {
             make_builtin_procedure("textual-drop", Some(2), |args| {
                 check_arity(args, 2)?;
                 let text = textual_to_text(&args[0])?;
-                let n = args[1].as_number().ok_or_else(|| {
-                    LambdustError::type_error("Expected number".to_string())
-                })?;
+                let n = args[1]
+                    .as_number()
+                    .ok_or_else(|| LambdustError::type_error("Expected number".to_string()))?;
                 let count = match n {
                     crate::lexer::SchemeNumber::Integer(i) if *i >= 0 => *i as usize,
                     _ => {
@@ -579,28 +582,28 @@ mod tests {
     #[test]
     fn test_text_char_access() {
         let text = Text::from_string("hello".to_string());
-        
+
         assert_eq!(text.char_at(0).unwrap(), 'h');
         assert_eq!(text.char_at(1).unwrap(), 'e');
         assert_eq!(text.char_at(4).unwrap(), 'o');
-        
+
         assert!(text.char_at(5).is_err()); // Out of bounds
     }
 
     #[test]
     fn test_text_subtext() {
         let text = Text::from_string("hello world".to_string());
-        
+
         let sub = text.subtext(0, 5).unwrap();
         assert_eq!(sub.text_to_string(), "hello");
-        
+
         let sub2 = text.subtext(6, 11).unwrap();
         assert_eq!(sub2.text_to_string(), "world");
-        
+
         // Empty subtext
         let empty_sub = text.subtext(3, 3).unwrap();
         assert!(empty_sub.is_empty());
-        
+
         // Full text
         let full = text.subtext(0, text.length()).unwrap();
         assert_eq!(full.text_to_string(), "hello world");
@@ -610,7 +613,7 @@ mod tests {
     fn test_text_concat() {
         let left = Text::from_string("hello".to_string());
         let right = Text::from_string(" world".to_string());
-        
+
         let combined = Text::concat(left, right);
         assert_eq!(combined.length(), 11);
         assert_eq!(combined.text_to_string(), "hello world");
@@ -619,17 +622,17 @@ mod tests {
     #[test]
     fn test_text_take_drop() {
         let text = Text::from_string("hello world".to_string());
-        
+
         let taken = text.take(5);
         assert_eq!(taken.text_to_string(), "hello");
-        
+
         let dropped = text.drop(6);
         assert_eq!(dropped.text_to_string(), "world");
-        
+
         // Edge cases
         let take_all = text.take(100);
         assert_eq!(take_all.text_to_string(), "hello world");
-        
+
         let drop_all = text.drop(100);
         assert!(drop_all.is_empty());
     }
@@ -639,10 +642,10 @@ mod tests {
         let text1 = Text::from_string("hello".to_string());
         let text2 = Text::from_string("hello".to_string());
         let text3 = Text::from_string("world".to_string());
-        
+
         assert!(text1.text_equal(&text2));
         assert!(!text1.text_equal(&text3));
-        
+
         // Test with subtexts
         let full_text = Text::from_string("hello world".to_string());
         let sub_text = full_text.subtext(0, 5).unwrap();
@@ -653,11 +656,11 @@ mod tests {
     fn test_unicode_support() {
         let text = Text::from_string("こんにちは".to_string());
         assert_eq!(text.length(), 5); // 5 Japanese characters
-        
+
         assert_eq!(text.char_at(0).unwrap(), 'こ');
         assert_eq!(text.char_at(1).unwrap(), 'ん');
         assert_eq!(text.char_at(4).unwrap(), 'は');
-        
+
         let sub = text.subtext(0, 3).unwrap();
         assert_eq!(sub.text_to_string(), "こんに");
     }
@@ -667,14 +670,14 @@ mod tests {
         let text_value = Value::Text(Rc::new(Text::from_string("hello".to_string())));
         let string_value = Value::String("world".to_string());
         let number_value = Value::Number(crate::lexer::SchemeNumber::Integer(42));
-        
+
         assert!(is_textual(&text_value));
         assert!(is_textual(&string_value));
         assert!(!is_textual(&number_value));
-        
+
         let converted_text = textual_to_text(&string_value).unwrap();
         assert_eq!(converted_text.text_to_string(), "world");
-        
+
         let converted_string = textual_to_string(&text_value).unwrap();
         assert_eq!(converted_string, "hello");
     }
@@ -705,7 +708,7 @@ mod tests {
     #[test]
     fn test_text_procedures() {
         use crate::value::Procedure;
-        
+
         let srfi = Srfi135;
         let exports = srfi.exports();
 
@@ -715,7 +718,7 @@ mod tests {
             let text_value = Value::Text(Rc::new(Text::from_string("hello".to_string())));
             let result = func(&[text_value]).unwrap();
             assert_eq!(result, Value::Boolean(true));
-            
+
             let not_text = Value::String("hello".to_string());
             let result = func(&[not_text]).unwrap();
             assert_eq!(result, Value::Boolean(false));
@@ -727,11 +730,11 @@ mod tests {
             let text_value = Value::Text(Rc::new(Text::from_string("hello".to_string())));
             let result = func(&[text_value]).unwrap();
             assert_eq!(result, Value::Boolean(true));
-            
+
             let string_value = Value::String("hello".to_string());
             let result = func(&[string_value]).unwrap();
             assert_eq!(result, Value::Boolean(true));
-            
+
             let not_textual = Value::Number(crate::lexer::SchemeNumber::Integer(42));
             let result = func(&[not_textual]).unwrap();
             assert_eq!(result, Value::Boolean(false));
