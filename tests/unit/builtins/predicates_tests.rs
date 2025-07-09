@@ -16,15 +16,40 @@ fn test_predicate_functions_registration() {
 
     // Check that all predicate functions are registered
     let predicates = vec![
-        "number?", "string?", "symbol?", "boolean?", "procedure?", "char?",
-        "vector?", "pair?", "null?", "list?", "eq?", "eqv?", "equal?",
-        "not", "eof-object?", "exact?", "inexact?", "integer?", "rational?",
-        "real?", "complex?",
+        "number?",
+        "string?",
+        "symbol?",
+        "boolean?",
+        "procedure?",
+        "char?",
+        "vector?",
+        "pair?",
+        "null?",
+        "list?",
+        "eq?",
+        "eqv?",
+        "equal?",
+        "not",
+        "eof-object?",
+        "exact?",
+        "inexact?",
+        "integer?",
+        "rational?",
+        "real?",
+        "complex?",
     ];
 
     for pred_name in predicates {
-        assert!(builtins.contains_key(pred_name), "Missing predicate: {}", pred_name);
-        assert!(builtins.get(pred_name).unwrap().is_procedure(), "{} should be a procedure", pred_name);
+        assert!(
+            builtins.contains_key(pred_name),
+            "Missing predicate: {}",
+            pred_name
+        );
+        assert!(
+            builtins.get(pred_name).unwrap().is_procedure(),
+            "{} should be a procedure",
+            pred_name
+        );
     }
 }
 
@@ -411,19 +436,28 @@ fn test_equality_predicates() {
         match proc {
             Procedure::Builtin { func, .. } => {
                 // Test eq? with symbols (should be eq)
-                let args = vec![Value::Symbol("test".to_string()), Value::Symbol("test".to_string())];
+                let args = vec![
+                    Value::Symbol("test".to_string()),
+                    Value::Symbol("test".to_string()),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Boolean(true));
 
                 // Test eq? with different symbols
-                let args = vec![Value::Symbol("test".to_string()), Value::Symbol("other".to_string())];
+                let args = vec![
+                    Value::Symbol("test".to_string()),
+                    Value::Symbol("other".to_string()),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Boolean(false));
 
                 // Test eq? with numbers (implementation dependent)
-                let args = vec![Value::Number(SchemeNumber::Integer(42)), Value::Number(SchemeNumber::Integer(42))];
+                let args = vec![
+                    Value::Number(SchemeNumber::Integer(42)),
+                    Value::Number(SchemeNumber::Integer(42)),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 // Result depends on implementation
@@ -438,13 +472,19 @@ fn test_equality_predicates() {
         match proc {
             Procedure::Builtin { func, .. } => {
                 // Test eqv? with same numbers
-                let args = vec![Value::Number(SchemeNumber::Integer(42)), Value::Number(SchemeNumber::Integer(42))];
+                let args = vec![
+                    Value::Number(SchemeNumber::Integer(42)),
+                    Value::Number(SchemeNumber::Integer(42)),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Boolean(true));
 
                 // Test eqv? with different numbers
-                let args = vec![Value::Number(SchemeNumber::Integer(42)), Value::Number(SchemeNumber::Integer(43))];
+                let args = vec![
+                    Value::Number(SchemeNumber::Integer(42)),
+                    Value::Number(SchemeNumber::Integer(43)),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Boolean(false));
@@ -470,12 +510,18 @@ fn test_equality_predicates() {
         match proc {
             Procedure::Builtin { func, .. } => {
                 // Test equal? with strings
-                let args = vec![Value::String("hello".to_string()), Value::String("hello".to_string())];
+                let args = vec![
+                    Value::String("hello".to_string()),
+                    Value::String("hello".to_string()),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Boolean(true));
 
-                let args = vec![Value::String("hello".to_string()), Value::String("world".to_string())];
+                let args = vec![
+                    Value::String("hello".to_string()),
+                    Value::String("world".to_string()),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Boolean(false));
@@ -579,9 +625,24 @@ fn test_predicate_arity_errors() {
 
     // Test unary predicates with wrong arity
     let unary_predicates = vec![
-        "number?", "string?", "symbol?", "boolean?", "procedure?", "char?",
-        "vector?", "pair?", "null?", "list?", "not", "eof-object?", "exact?",
-        "inexact?", "integer?", "rational?", "real?", "complex?",
+        "number?",
+        "string?",
+        "symbol?",
+        "boolean?",
+        "procedure?",
+        "char?",
+        "vector?",
+        "pair?",
+        "null?",
+        "list?",
+        "not",
+        "eof-object?",
+        "exact?",
+        "inexact?",
+        "integer?",
+        "rational?",
+        "real?",
+        "complex?",
     ];
 
     for pred_name in unary_predicates {
@@ -592,15 +653,26 @@ fn test_predicate_arity_errors() {
                     // Test with no arguments
                     let args = vec![];
                     let result = func(&args);
-                    assert!(result.is_err(), "{} should fail with no arguments", pred_name);
+                    assert!(
+                        result.is_err(),
+                        "{} should fail with no arguments",
+                        pred_name
+                    );
                     if let Err(LambdustError::ArityError { expected, .. }) = result {
                         assert_eq!(expected, 1);
                     }
 
                     // Test with too many arguments
-                    let args = vec![Value::Number(SchemeNumber::Integer(1)), Value::Number(SchemeNumber::Integer(2))];
+                    let args = vec![
+                        Value::Number(SchemeNumber::Integer(1)),
+                        Value::Number(SchemeNumber::Integer(2)),
+                    ];
                     let result = func(&args);
-                    assert!(result.is_err(), "{} should fail with too many arguments", pred_name);
+                    assert!(
+                        result.is_err(),
+                        "{} should fail with too many arguments",
+                        pred_name
+                    );
                     if let Err(LambdustError::ArityError { expected, .. }) = result {
                         assert_eq!(expected, 1);
                     }
@@ -621,7 +693,11 @@ fn test_predicate_arity_errors() {
                     // Test with no arguments
                     let args = vec![];
                     let result = func(&args);
-                    assert!(result.is_err(), "{} should fail with no arguments", pred_name);
+                    assert!(
+                        result.is_err(),
+                        "{} should fail with no arguments",
+                        pred_name
+                    );
                     if let Err(LambdustError::ArityError { expected, .. }) = result {
                         assert_eq!(expected, 2);
                     }
@@ -629,7 +705,11 @@ fn test_predicate_arity_errors() {
                     // Test with one argument
                     let args = vec![Value::Number(SchemeNumber::Integer(1))];
                     let result = func(&args);
-                    assert!(result.is_err(), "{} should fail with one argument", pred_name);
+                    assert!(
+                        result.is_err(),
+                        "{} should fail with one argument",
+                        pred_name
+                    );
                     if let Err(LambdustError::ArityError { expected, .. }) = result {
                         assert_eq!(expected, 2);
                     }
@@ -641,7 +721,11 @@ fn test_predicate_arity_errors() {
                         Value::Number(SchemeNumber::Integer(3)),
                     ];
                     let result = func(&args);
-                    assert!(result.is_err(), "{} should fail with too many arguments", pred_name);
+                    assert!(
+                        result.is_err(),
+                        "{} should fail with too many arguments",
+                        pred_name
+                    );
                     if let Err(LambdustError::ArityError { expected, .. }) = result {
                         assert_eq!(expected, 2);
                     }
@@ -678,7 +762,11 @@ fn test_predicate_edge_cases() {
                 Procedure::Builtin { func, .. } => {
                     let args = vec![test_val];
                     let result = func(&args);
-                    assert!(result.is_ok(), "{} should handle undefined values", pred_name);
+                    assert!(
+                        result.is_ok(),
+                        "{} should handle undefined values",
+                        pred_name
+                    );
                     assert_eq!(result.unwrap(), Value::Boolean(false));
                 }
                 _ => panic!("Expected builtin procedure"),
@@ -694,10 +782,27 @@ fn test_predicates_isolation() {
 
     // Test that each predicate function works independently
     let predicates = vec![
-        "number?", "string?", "symbol?", "boolean?", "procedure?", "char?",
-        "vector?", "pair?", "null?", "list?", "eq?", "eqv?", "equal?",
-        "not", "eof-object?", "exact?", "inexact?", "integer?", "rational?",
-        "real?", "complex?",
+        "number?",
+        "string?",
+        "symbol?",
+        "boolean?",
+        "procedure?",
+        "char?",
+        "vector?",
+        "pair?",
+        "null?",
+        "list?",
+        "eq?",
+        "eqv?",
+        "equal?",
+        "not",
+        "eof-object?",
+        "exact?",
+        "inexact?",
+        "integer?",
+        "rational?",
+        "real?",
+        "complex?",
     ];
 
     for pred_name in predicates {

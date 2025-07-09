@@ -13,10 +13,13 @@ use std::collections::HashMap;
 pub fn register_store_functions(builtins: &mut HashMap<String, Value>) {
     // Memory monitoring functions
     builtins.insert("memory-usage".to_string(), memory_usage_function());
-    builtins.insert("memory-statistics".to_string(), memory_statistics_function());
+    builtins.insert(
+        "memory-statistics".to_string(),
+        memory_statistics_function(),
+    );
     builtins.insert("collect-garbage".to_string(), collect_garbage_function());
     builtins.insert("set-memory-limit!".to_string(), set_memory_limit_function());
-    
+
     // Location management functions
     builtins.insert("location?".to_string(), location_predicate_function());
     builtins.insert("location-equal?".to_string(), location_equal_function());
@@ -62,7 +65,7 @@ fn collect_garbage_function() -> Value {
 fn set_memory_limit_function() -> Value {
     make_builtin_procedure("set-memory-limit!", Some(1), |args| {
         check_arity(args, 1)?;
-        
+
         let _limit = match &args[0] {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
             Value::Number(crate::lexer::SchemeNumber::Real(f)) if f.fract() == 0.0 => *f as usize,
@@ -72,7 +75,7 @@ fn set_memory_limit_function() -> Value {
                 ));
             }
         };
-        
+
         // This would need evaluator context to set memory limit
         // For now, return a placeholder
         Err(LambdustError::runtime_error(
@@ -85,7 +88,7 @@ fn set_memory_limit_function() -> Value {
 fn location_predicate_function() -> Value {
     make_builtin_procedure("location?", Some(1), |args| {
         check_arity(args, 1)?;
-        
+
         // For now, we don't have a direct way to check if a value is a location
         // This would need to be integrated with the Value enum
         Ok(Value::Boolean(false))
@@ -96,7 +99,7 @@ fn location_predicate_function() -> Value {
 fn location_equal_function() -> Value {
     make_builtin_procedure("location-equal?", Some(2), |args| {
         check_arity(args, 2)?;
-        
+
         // This would compare location values if they were part of the Value enum
         // For now, just return false
         Ok(Value::Boolean(false))
@@ -137,15 +140,21 @@ pub fn statistics_to_scheme_value(stats: &StoreStatisticsWrapper) -> Value {
     let pairs = vec![
         Value::cons(
             Value::Symbol("total-allocations".to_string()),
-            Value::Number(crate::lexer::SchemeNumber::Integer(stats.total_allocations() as i64)),
+            Value::Number(crate::lexer::SchemeNumber::Integer(
+                stats.total_allocations() as i64,
+            )),
         ),
         Value::cons(
             Value::Symbol("total-deallocations".to_string()),
-            Value::Number(crate::lexer::SchemeNumber::Integer(stats.total_deallocations() as i64)),
+            Value::Number(crate::lexer::SchemeNumber::Integer(
+                stats.total_deallocations() as i64,
+            )),
         ),
         Value::cons(
             Value::Symbol("memory-usage".to_string()),
-            Value::Number(crate::lexer::SchemeNumber::Integer(stats.memory_usage() as i64)),
+            Value::Number(crate::lexer::SchemeNumber::Integer(
+                stats.memory_usage() as i64
+            )),
         ),
     ];
 

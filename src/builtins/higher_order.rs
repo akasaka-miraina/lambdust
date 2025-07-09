@@ -99,10 +99,11 @@ pub fn map_implementation(args: &[Value]) -> Result<Value> {
 
     // Validate that the first argument is a procedure
     match proc {
-        Value::Procedure(Procedure::Builtin { .. }) => {}, // Valid builtin procedure
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
         Value::Procedure(Procedure::Lambda { .. }) => {
             return Err(LambdustError::runtime_error(
-                "map: lambda functions require evaluator integration (not yet implemented)".to_string(),
+                "map: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
             ));
         }
         _ => {
@@ -177,10 +178,11 @@ pub fn for_each_implementation(args: &[Value]) -> Result<Value> {
 
     // Validate that the first argument is a procedure
     match proc {
-        Value::Procedure(Procedure::Builtin { .. }) => {}, // Valid builtin procedure
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
         Value::Procedure(Procedure::Lambda { .. }) => {
             return Err(LambdustError::runtime_error(
-                "for-each: lambda functions require evaluator integration (not yet implemented)".to_string(),
+                "for-each: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
             ));
         }
         _ => {
@@ -247,13 +249,14 @@ pub fn apply_implementation(args: &[Value]) -> Result<Value> {
     }
 
     let proc = &args[0];
-    
+
     // Validate that the first argument is a procedure
     match proc {
-        Value::Procedure(Procedure::Builtin { .. }) => {}, // Valid builtin procedure
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
         Value::Procedure(Procedure::Lambda { .. }) => {
             return Err(LambdustError::runtime_error(
-                "apply: lambda functions require evaluator integration (not yet implemented)".to_string(),
+                "apply: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
             ));
         }
         _ => {
@@ -321,10 +324,11 @@ pub fn filter_implementation(args: &[Value]) -> Result<Value> {
 
     // Validate that the first argument is a procedure
     match predicate {
-        Value::Procedure(Procedure::Builtin { .. }) => {}, // Valid builtin procedure
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
         Value::Procedure(Procedure::Lambda { .. }) => {
             return Err(LambdustError::runtime_error(
-                "filter: lambda functions require evaluator integration (not yet implemented)".to_string(),
+                "filter: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
             ));
         }
         _ => {
@@ -387,10 +391,11 @@ pub fn fold_implementation(args: &[Value]) -> Result<Value> {
 
     // Validate that the first argument is a procedure
     match kons {
-        Value::Procedure(Procedure::Builtin { .. }) => {}, // Valid builtin procedure
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
         Value::Procedure(Procedure::Lambda { .. }) => {
             return Err(LambdustError::runtime_error(
-                "fold: lambda functions require evaluator integration (not yet implemented)".to_string(),
+                "fold: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
             ));
         }
         _ => {
@@ -464,10 +469,11 @@ pub fn fold_right_implementation(args: &[Value]) -> Result<Value> {
 
     // Validate that the first argument is a procedure
     match kons {
-        Value::Procedure(Procedure::Builtin { .. }) => {}, // Valid builtin procedure
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
         Value::Procedure(Procedure::Lambda { .. }) => {
             return Err(LambdustError::runtime_error(
-                "fold-right: lambda functions require evaluator integration (not yet implemented)".to_string(),
+                "fold-right: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
             ));
         }
         _ => {

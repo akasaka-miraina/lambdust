@@ -150,10 +150,7 @@ fn test_map_type_errors() {
         match proc {
             Procedure::Builtin { func, .. } => {
                 // Test map with non-procedure first argument
-                let args = vec![
-                    Value::Number(SchemeNumber::Integer(42)),
-                    Value::Nil,
-                ];
+                let args = vec![Value::Number(SchemeNumber::Integer(42)), Value::Nil];
                 let result = func(&args);
                 assert!(result.is_err());
                 if let Err(LambdustError::TypeError { message, .. }) = result {
@@ -260,9 +257,10 @@ fn test_apply_with_builtin_function() {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
             match (&args[0], &args[1]) {
-                (Value::Number(SchemeNumber::Integer(a)), Value::Number(SchemeNumber::Integer(b))) => {
-                    Ok(Value::Number(SchemeNumber::Integer(a + b)))
-                }
+                (
+                    Value::Number(SchemeNumber::Integer(a)),
+                    Value::Number(SchemeNumber::Integer(b)),
+                ) => Ok(Value::Number(SchemeNumber::Integer(a + b))),
                 _ => Err(LambdustError::type_error("Expected integers".to_string())),
             }
         },
@@ -372,10 +370,7 @@ fn test_apply_type_errors() {
         match proc {
             Procedure::Builtin { func, .. } => {
                 // Test apply with non-procedure first argument
-                let args = vec![
-                    Value::Number(SchemeNumber::Integer(42)),
-                    Value::Nil,
-                ];
+                let args = vec![Value::Number(SchemeNumber::Integer(42)), Value::Nil];
                 let result = func(&args);
                 assert!(result.is_err());
                 if let Err(LambdustError::TypeError { message, .. }) = result {
@@ -509,9 +504,10 @@ fn test_fold_with_builtin_function() {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
             match (&args[0], &args[1]) {
-                (Value::Number(SchemeNumber::Integer(a)), Value::Number(SchemeNumber::Integer(b))) => {
-                    Ok(Value::Number(SchemeNumber::Integer(a + b)))
-                }
+                (
+                    Value::Number(SchemeNumber::Integer(a)),
+                    Value::Number(SchemeNumber::Integer(b)),
+                ) => Ok(Value::Number(SchemeNumber::Integer(a + b))),
                 _ => Err(LambdustError::type_error("Expected integers".to_string())),
             }
         },
@@ -577,9 +573,10 @@ fn test_fold_right_with_builtin_function() {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
             match (&args[0], &args[1]) {
-                (Value::Number(SchemeNumber::Integer(a)), Value::Number(SchemeNumber::Integer(b))) => {
-                    Ok(Value::Number(SchemeNumber::Integer(a - b)))
-                }
+                (
+                    Value::Number(SchemeNumber::Integer(a)),
+                    Value::Number(SchemeNumber::Integer(b)),
+                ) => Ok(Value::Number(SchemeNumber::Integer(a - b))),
                 _ => Err(LambdustError::type_error("Expected integers".to_string())),
             }
         },

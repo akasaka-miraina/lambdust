@@ -106,10 +106,10 @@ fn test_make_record_function() {
                 ];
                 let result = func(&args);
                 assert!(result.is_ok());
-                
+
                 let record_value = result.unwrap();
                 assert!(record_value.is_record_of_type("person"));
-                
+
                 if let Some(record) = record_value.as_record() {
                     assert_eq!(record.record_type.name, "person");
                     assert_eq!(record.fields.len(), 2);
@@ -132,10 +132,10 @@ fn test_make_record_function() {
                 ];
                 let result = func(&args);
                 assert!(result.is_ok());
-                
+
                 let record_value = result.unwrap();
                 assert!(record_value.is_record_of_type("book"));
-                
+
                 if let Some(record) = record_value.as_record() {
                     assert_eq!(record.record_type.name, "book");
                     assert_eq!(record.fields.len(), 2);
@@ -545,13 +545,19 @@ fn test_record_field_set() {
     if let Value::Procedure(proc) = record_field_proc {
         match proc {
             lambdust::value::Procedure::Builtin { func, .. } => {
-                let args = vec![updated_record.clone(), Value::Number(SchemeNumber::Integer(0))];
+                let args = vec![
+                    updated_record.clone(),
+                    Value::Number(SchemeNumber::Integer(0)),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::String("Jane".to_string()));
 
                 // Verify other fields remain unchanged
-                let args = vec![updated_record.clone(), Value::Number(SchemeNumber::Integer(1))];
+                let args = vec![
+                    updated_record.clone(),
+                    Value::Number(SchemeNumber::Integer(1)),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Number(SchemeNumber::Integer(30)));
@@ -839,12 +845,18 @@ fn test_record_operations_comprehensive() {
     if let Value::Procedure(proc) = record_of_type_proc {
         match proc {
             lambdust::value::Procedure::Builtin { func, .. } => {
-                let args = vec![large_record.clone(), Value::Symbol("many-fields".to_string())];
+                let args = vec![
+                    large_record.clone(),
+                    Value::Symbol("many-fields".to_string()),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Boolean(true));
 
-                let args = vec![large_record.clone(), Value::Symbol("different-type".to_string())];
+                let args = vec![
+                    large_record.clone(),
+                    Value::Symbol("different-type".to_string()),
+                ];
                 let result = func(&args);
                 assert!(result.is_ok());
                 assert_eq!(result.unwrap(), Value::Boolean(false));

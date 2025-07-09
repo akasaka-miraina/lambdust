@@ -3,9 +3,7 @@
 //! Tests the memory management built-in functions including memory usage,
 //! statistics collection, garbage collection, and location predicates.
 
-use lambdust::builtins::store::{
-    register_store_functions, statistics_to_scheme_value
-};
+use lambdust::builtins::store::{register_store_functions, statistics_to_scheme_value};
 use lambdust::error::LambdustError;
 use lambdust::evaluator::types::StoreStatisticsWrapper;
 use lambdust::lexer::SchemeNumber;
@@ -380,10 +378,19 @@ fn test_location_equal_function() {
         match proc {
             lambdust::value::Procedure::Builtin { func, .. } => {
                 let test_pairs = vec![
-                    (Value::Number(SchemeNumber::Integer(42)), Value::Number(SchemeNumber::Integer(42))),
-                    (Value::String("test".to_string()), Value::String("test".to_string())),
+                    (
+                        Value::Number(SchemeNumber::Integer(42)),
+                        Value::Number(SchemeNumber::Integer(42)),
+                    ),
+                    (
+                        Value::String("test".to_string()),
+                        Value::String("test".to_string()),
+                    ),
                     (Value::Boolean(true), Value::Boolean(false)),
-                    (Value::Symbol("symbol".to_string()), Value::Symbol("symbol".to_string())),
+                    (
+                        Value::Symbol("symbol".to_string()),
+                        Value::Symbol("symbol".to_string()),
+                    ),
                     (Value::Nil, Value::Nil),
                 ];
 
@@ -461,24 +468,24 @@ fn test_location_equal_arity_errors() {
 fn test_statistics_to_scheme_value_conversion() {
     // Create a mock statistics wrapper
     let stats = StoreStatisticsWrapper::from_raii(
-        lambdust::evaluator::raii_store::RaiiStoreStatistics::default()
+        lambdust::evaluator::raii_store::RaiiStoreStatistics::default(),
     );
-    
+
     // Convert to Scheme value
     let scheme_value = statistics_to_scheme_value(&stats);
-    
+
     // Check that the result is a proper list
     assert!(scheme_value.is_list());
-    
+
     // Convert to vector to check contents
     if let Some(vec) = scheme_value.to_vector() {
         assert_eq!(vec.len(), 3);
-        
+
         // Check that each element is a pair
         for item in &vec {
             assert!(item.as_pair().is_some());
         }
-        
+
         // Check specific keys exist
         let mut found_keys = std::collections::HashSet::new();
         for item in &vec {
@@ -488,7 +495,7 @@ fn test_statistics_to_scheme_value_conversion() {
                 }
             }
         }
-        
+
         assert!(found_keys.contains("total-allocations"));
         assert!(found_keys.contains("total-deallocations"));
         assert!(found_keys.contains("memory-usage"));
@@ -505,7 +512,7 @@ fn test_store_functions_isolation() {
     // Test that each store function works independently
     let functions = vec![
         "memory-usage",
-        "memory-statistics", 
+        "memory-statistics",
         "collect-garbage",
         "set-memory-limit!",
         "location?",
@@ -525,7 +532,7 @@ fn test_store_functions_edge_cases() {
 
     // Test set-memory-limit! with edge case values
     let set_limit_proc = builtins.get("set-memory-limit!").unwrap();
-    
+
     if let Value::Procedure(proc) = set_limit_proc {
         match proc {
             lambdust::value::Procedure::Builtin { func, .. } => {
@@ -536,7 +543,7 @@ fn test_store_functions_edge_cases() {
                 if let Err(LambdustError::RuntimeError { message, .. }) = result {
                     assert!(message.contains("set-memory-limit! requires evaluator context"));
                 }
-                
+
                 // Test with negative limit
                 let args = vec![Value::Number(SchemeNumber::Integer(-1))];
                 let result = func(&args);
@@ -544,7 +551,7 @@ fn test_store_functions_edge_cases() {
                 if let Err(LambdustError::RuntimeError { message, .. }) = result {
                     assert!(message.contains("set-memory-limit! requires evaluator context"));
                 }
-                
+
                 // Test with very large limit
                 let args = vec![Value::Number(SchemeNumber::Integer(i64::MAX))];
                 let result = func(&args);
@@ -575,14 +582,19 @@ fn test_store_functions_comprehensive_error_handling() {
 
     for (func_name, expected_arity) in functions_with_arity {
         let proc = builtins.get(func_name).unwrap();
-        
+
         if let Value::Procedure(proc_value) = proc {
             match proc_value {
                 lambdust::value::Procedure::Builtin { func, .. } => {
                     // Test with wrong number of arguments
-                    let wrong_args = vec![Value::Number(SchemeNumber::Integer(42)); expected_arity + 1];
+                    let wrong_args =
+                        vec![Value::Number(SchemeNumber::Integer(42)); expected_arity + 1];
                     let result = func(&wrong_args);
-                    assert!(result.is_err(), "{} should fail with wrong arity", func_name);
+                    assert!(
+                        result.is_err(),
+                        "{} should fail with wrong arity",
+                        func_name
+                    );
                 }
                 _ => panic!("Expected builtin procedure for {}", func_name),
             }

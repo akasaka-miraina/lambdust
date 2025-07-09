@@ -25,3 +25,5 @@ pub mod store_tests;
 pub mod ast_converter_tests;
 // Import system tests
 pub mod imports_tests;
+// Semantic evaluator tests
+pub mod semantic_evaluator_tests;
