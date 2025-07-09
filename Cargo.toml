@@ -127,8 +127,8 @@ default = ["standard"]
 
 # ===== Core Feature Layers =====
 
-# Embedded configuration (< 500KB binary)
-embedded = ["std"]
+# Embedded configuration (< 500KB binary) - mutually exclusive with standard features
+embedded = []
 
 # Minimal configuration (< 5MB binary)
 minimal = ["std"]

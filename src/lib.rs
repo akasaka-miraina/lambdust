@@ -87,47 +87,47 @@ pub mod error;
 pub mod lexer;
 pub mod parser;
 
-// Environment system (not needed in embedded mode)
-#[cfg(not(feature = "embedded"))]
+// Environment system
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod environment;
 
 // ===== Evaluator Selection =====
 #[cfg(feature = "embedded")]
 pub mod embedded_evaluator;
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod evaluator;
 
 // ===== Value System =====
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod value;
 
 // ===== Basic Modules (Minimal Configuration) =====
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod bridge;
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod builtins;
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod host;
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod interpreter;
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod macros;
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod marshal;
 
 // ===== Feature-Gated Modules =====
 
 // SRFI Support (Not available in embedded mode)
-#[cfg(all(feature = "srfi-support", not(feature = "embedded")))]
+#[cfg(all(feature = "srfi-support", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod srfi;
 
-#[cfg(all(not(feature = "srfi-support"), not(feature = "embedded")))]
+#[cfg(all(not(feature = "srfi-support"), any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod srfi {
     //! Stub SRFI module for minimal builds
     #[derive(Debug)]
@@ -301,31 +301,31 @@ pub mod srfi {
 }
 
 // Basic Optimization (Not available in embedded mode)
-#[cfg(all(feature = "basic-optimization", not(feature = "embedded")))]
+#[cfg(all(feature = "basic-optimization", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod cps_inlining;
 
-#[cfg(all(feature = "basic-optimization", not(feature = "embedded")))]
+#[cfg(all(feature = "basic-optimization", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod optimized_collections;
 
 // Memory Management (Not available in embedded mode)
-#[cfg(all(feature = "memory-pooling", not(feature = "embedded")))]
+#[cfg(all(feature = "memory-pooling", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod adaptive_memory;
 
-#[cfg(all(feature = "memory-pooling", not(feature = "embedded")))]
+#[cfg(all(feature = "memory-pooling", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod memory_pool;
 
 // Advanced Features (Not available in embedded mode)
-#[cfg(all(feature = "theorem-derivation", not(feature = "embedded")))]
+#[cfg(all(feature = "theorem-derivation", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod optimization;
 
-#[cfg(all(feature = "runtime-verification", not(feature = "embedded")))]
+#[cfg(all(feature = "runtime-verification", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod module_system;
 
 // Development Tools (Not available in embedded mode)
-#[cfg(all(feature = "debug-tracing", not(feature = "embedded")))]
+#[cfg(all(feature = "debug-tracing", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod debug;
 
-#[cfg(all(not(feature = "debug-tracing"), not(feature = "embedded")))]
+#[cfg(all(not(feature = "debug-tracing"), any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod debug {
     //! Stub debug module for minimal builds
     /// Stub debug tracer for non-debug builds
@@ -387,7 +387,7 @@ pub mod debug {
     }
 }
 
-#[cfg(feature = "debug-tracing")]
+#[cfg(all(feature = "debug-tracing", any(feature = "standard", feature = "minimal", not(feature = "embedded"))))]
 pub mod stack_monitor;
 
 // Platform-Specific
@@ -407,16 +407,16 @@ pub mod wasm;
 pub use error::{LambdustError, Result};
 
 // Standard API (not available in embedded mode)
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub use evaluator::{eval_with_formal_semantics, Evaluator};
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub use interpreter::LambdustInterpreter;
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub use value::Value;
 
 // Embedded API (only available in embedded mode)
@@ -473,7 +473,7 @@ pub use stack_monitor::{OptimizationRecommendation, StackFrameType, StackMonitor
 /// let result = interpreter.eval("(square 5)").unwrap();
 /// assert_eq!(result.to_string(), "25");
 /// ```
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub struct Interpreter {
     evaluator: Evaluator,
 }
@@ -504,7 +504,7 @@ pub struct EmbeddedInterpreter {
     evaluator: EmbeddedEvaluator,
 }
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 impl Interpreter {
     /// Create a new interpreter instance
     ///
@@ -593,7 +593,7 @@ impl Interpreter {
     }
 }
 
-#[cfg(not(feature = "embedded"))]
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 impl Default for Interpreter {
     fn default() -> Self {
         Self::new()
