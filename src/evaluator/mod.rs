@@ -54,6 +54,8 @@ pub mod formal_verification;
 pub mod church_rosser_proof;
 // Phase IV: Runtime optimization integration system
 pub mod runtime_optimization_integration;
+// Phase V: Performance measurement system
+pub mod performance_measurement_system;
 // Phase 6-A: Trampoline evaluator for stack overflow prevention
 pub mod trampoline;
 pub mod types;
@@ -128,6 +130,8 @@ pub use formal_verification::{FormalVerificationEngine, FormalVerificationResult
 pub use church_rosser_proof::{ChurchRosserProofEngine, ChurchRosserProof, ConfluenceProof, TerminationProof, NormalizationProof, ConfluenceVerifier, TerminationVerifier, NormalizationVerifier};
 // Phase IV: Runtime optimization integration system exports
 pub use runtime_optimization_integration::{IntegratedOptimizationManager, OptimizationStrategy, OptimizationResult, OptimizationCache, CorrectnessGuarantor};
+// Phase V: Performance measurement system exports
+pub use performance_measurement_system::{PerformanceMeasurementSystem, MeasurementTarget, PerformanceMeasurementResult, BenchmarkExecutionResult, OptimizationEffectResult, MetricType, MeasurementConfiguration};
 #[cfg(test)]
 pub mod theorem_proving_tests;
 // Phase 6-A: Trampoline evaluator exports
@@ -137,18 +141,13 @@ pub use types::*;
 use std::rc::Rc;
 
 impl Evaluator {
-    /// Main evaluation function: E[e]ρκσ
+    /// Main evaluation function: E[e]ρκσ - New Architecture Entry Point
     /// Where:
     /// - e: expression to evaluate
     /// - ρ: environment
     /// - κ: continuation
     /// - σ: store
     pub fn eval(&mut self, expr: Expr, env: Rc<Environment>, cont: Continuation) -> Result<Value> {
-        // Phase 5-Step1: Pre-analysis optimization
-        // TEMPORARY DISABLE: Investigating lambda evaluation issue
-        // This optimization system will be replaced with Agda-proven optimizations
-        // See formal_verification_strategy.md for the new approach
-
         // Stack overflow prevention
         if self.recursion_depth() >= self.max_recursion_depth() {
             return Err(LambdustError::stack_overflow());
@@ -204,21 +203,8 @@ impl Evaluator {
                     );
                 }
 
-                {
-                    #[cfg(debug_assertions)]
-                    {
-                        use crate::debug::{DebugTracer, TraceLevel};
-                        DebugTracer::trace(
-                            "evaluator::mod",
-                            "eval",
-                            line!(),
-                            TraceLevel::INFO,
-                            format!("About to call eval_application with exprs: {:?}", exprs),
-                        );
-                    }
-
-                    self.eval_application(exprs, env, cont)
-                }
+                // Use new architecture for expression evaluation
+                self.eval_application(exprs, env, cont)
             }
 
             // Empty list
@@ -228,7 +214,7 @@ impl Evaluator {
             Expr::Quote(expr) => self.eval_quote(*expr, cont),
 
             // Quasiquote: E[`E]ρκσ = κ(quasiquote-expand(E))
-            Expr::Quasiquote(expr) => self.eval_quasiquote(*expr, env, cont),
+            Expr::Quasiquote(expr) => self.eval_quasiquote_expr(*expr, env, cont),
 
             // Vector: evaluate all elements
             Expr::Vector(exprs) => self.eval_vector(exprs, env, cont),
@@ -324,11 +310,11 @@ impl Evaluator {
             return Err(LambdustError::syntax_error("Empty application".to_string()));
         }
 
-        // Try to handle special forms first
-        if let Some(special_result) =
-            self.try_eval_special_form(&exprs, env.clone(), cont.clone())?
-        {
-            return Ok(special_result);
+        // Try to handle special forms first using new architecture
+        if let Expr::Variable(name) = &exprs[0] {
+            if self.is_special_form(name) {
+                return self.eval_known_special_form(name, &exprs[1..], env, cont);
+            }
         }
 
         // Phase 6-D: Check for tail call optimization opportunity
@@ -351,25 +337,6 @@ impl Evaluator {
         self.eval(operator_expr.clone(), env, operator_cont)
     }
 
-    /// Try to evaluate as special form
-    fn try_eval_special_form(
-        &mut self,
-        exprs: &[Expr],
-        env: Rc<Environment>,
-        cont: Continuation,
-    ) -> Result<Option<Value>> {
-        if let Expr::Variable(name) = &exprs[0] {
-            if self.is_special_form(name) {
-                return Ok(Some(self.eval_known_special_form(
-                    name,
-                    &exprs[1..],
-                    env,
-                    cont,
-                )?));
-            }
-        }
-        Ok(None)
-    }
 
     /// Check if a name is a special form
     fn is_special_form(&self, name: &str) -> bool {
@@ -421,8 +388,8 @@ impl Evaluator {
         self.apply_continuation(cont, AstConverter::expr_to_value(expr)?)
     }
 
-    /// Evaluate quasiquote (simplified implementation)
-    fn eval_quasiquote(
+    /// Evaluate quasiquote expression (simplified implementation)
+    fn eval_quasiquote_expr(
         &mut self,
         expr: Expr,
         _env: Rc<Environment>,
@@ -481,36 +448,7 @@ impl Evaluator {
             &value,
         );
 
-        // Phase 6-B-Step3: Try inline evaluation first for maximum performance
-        // TEMPORARY DISABLE: Investigating lambda evaluation issue
-        let should_inline = false; // self.should_inline_continuation_impl(&cont);
-        if should_inline {
-            #[cfg(debug_assertions)]
-            DebugTracer::trace(
-                "evaluator::mod",
-                "apply_continuation",
-                line!(),
-                TraceLevel::INFO,
-                "Attempting inline continuation".to_string(),
-            );
-
-            if let Some(result) = self.try_inline_continuation_impl(&cont, &value)? {
-                // Update inline evaluator statistics
-                self.inline_evaluator_mut().record_successful_inline(&cont);
-
-                #[cfg(debug_assertions)]
-                DebugTracer::trace_value(
-                    "evaluator::mod",
-                    "apply_continuation",
-                    line!(),
-                    TraceLevel::EXIT,
-                    "Inline continuation success".to_string(),
-                    &result,
-                );
-
-                return Ok(result);
-            }
-        }
+        // Note: Inline evaluation is now handled by inline_evaluation.rs module
 
         #[cfg(debug_assertions)]
         DebugTracer::trace(
@@ -543,13 +481,7 @@ impl Evaluator {
         cont: Continuation,
         value: Value,
     ) -> Result<Value> {
-        // Performance optimization: Try compact continuation first (Phase 4 optimization)
-        let compact_cont = CompactContinuation::from_continuation(cont.clone());
-        if compact_cont.is_inline() {
-            if let Ok(result) = self.apply_compact_continuation(compact_cont, value.clone()) {
-                return Ok(result);
-            }
-        }
+        // Note: CompactContinuation optimization is now handled by inline_evaluation.rs
 
         // Fallback: Try lightweight continuation
         if let Some(light_cont) = LightContinuation::from_continuation(&cont) {
@@ -858,89 +790,6 @@ impl Evaluator {
         Ok(())
     }
 
-    /// Phase 6-B-Step3: Check if continuation should be inlined
-    #[allow(dead_code)]
-    fn should_inline_continuation_impl(&self, cont: &Continuation) -> bool {
-        use crate::evaluator::inline_evaluation::ContinuationWeight;
-
-        let weight = ContinuationWeight::from_continuation(cont);
-        let cont_type = self.get_continuation_type_name_impl(cont);
-        let hint = self.inline_evaluator().get_inline_hint(&cont_type);
-
-        weight.should_inline(hint)
-    }
-
-    /// Phase 6-B-Step3: Check if continuation should be inlined (public test version)
-    #[cfg(test)]
-    pub fn should_inline_continuation(&self, cont: &Continuation) -> bool {
-        self.should_inline_continuation_impl(cont)
-    }
-
-    /// Phase 6-B-Step3: Try to evaluate continuation inline
-    fn try_inline_continuation_impl(
-        &mut self,
-        cont: &Continuation,
-        value: &Value,
-    ) -> Result<Option<Value>> {
-        match cont {
-            // Identity continuation - most common case
-            Continuation::Identity => Ok(Some(value.clone())),
-
-            // Simple value accumulation
-            Continuation::Values { values, .. } => {
-                let mut new_values = values.clone();
-                new_values.push(value.clone());
-                Ok(Some(Value::Values(new_values)))
-            }
-
-            // Variable assignment
-            Continuation::Assignment { variable, env, .. } => {
-                env.set(variable, value.clone())?;
-                Ok(Some(Value::Undefined))
-            }
-
-            // Variable definition
-            Continuation::Define { variable, env, .. } => {
-                env.define(variable.clone(), value.clone());
-                Ok(Some(Value::Undefined))
-            }
-
-            // Other continuations require full evaluation
-            _ => Ok(None),
-        }
-    }
-
-    /// Phase 6-B-Step3: Try to evaluate continuation inline (public test version)
-    #[cfg(test)]
-    pub fn try_inline_continuation(
-        &mut self,
-        cont: &Continuation,
-        value: &Value,
-    ) -> Result<Option<Value>> {
-        self.try_inline_continuation_impl(cont, value)
-    }
-
-    /// Get continuation type name for tracking
-    #[allow(dead_code)]
-    fn get_continuation_type_name_impl(&self, cont: &Continuation) -> String {
-        match cont {
-            Continuation::Identity => "Identity".to_string(),
-            Continuation::Values { .. } => "Values".to_string(),
-            Continuation::Assignment { .. } => "Assignment".to_string(),
-            Continuation::Define { .. } => "Define".to_string(),
-            Continuation::Begin { .. } => "Begin".to_string(),
-            Continuation::IfTest { .. } => "IfTest".to_string(),
-            Continuation::Application { .. } => "Application".to_string(),
-            Continuation::Operator { .. } => "Operator".to_string(),
-            _ => "Other".to_string(),
-        }
-    }
-
-    /// Get continuation type name for tracking (public test version)
-    #[cfg(test)]
-    pub fn get_continuation_type_name(&self, cont: &Continuation) -> String {
-        self.get_continuation_type_name_impl(cont)
-    }
 
     /// Apply simple continuation
     fn apply_simple_continuation(&self, args: Vec<Value>) -> Result<Value> {
@@ -1065,6 +914,27 @@ impl Evaluator {
 
     /// Macro expansion integration
     fn try_expand_macro(&self, name: &str, args: &[Expr]) -> Result<Option<Expr>> {
+        // First try user-defined macros from environment
+        if let Some(macro_def) = self.global_env.get_macro(name) {
+            let expr = Expr::List({
+                let mut exprs = vec![Expr::Variable(name.to_string())];
+                exprs.extend(args.iter().cloned());
+                exprs
+            });
+            
+            match macro_def {
+                crate::macros::Macro::SyntaxRules { transformer, .. } => {
+                    let expanded = transformer.transform(&expr)?;
+                    return Ok(Some(expanded));
+                }
+                crate::macros::Macro::Builtin { transformer, .. } => {
+                    let expanded = transformer(args)?;
+                    return Ok(Some(expanded));
+                }
+            }
+        }
+
+        // Then try built-in macros
         match name {
             "let" | "let*" | "letrec" | "case" | "when" | "unless" => {
                 let expanded = expand_macro(name, args)?;
@@ -1182,94 +1052,6 @@ impl Evaluator {
         }
     }
 
-    /// Apply compact continuation with optimized inline processing
-    /// This is the core of Phase 4 continuation optimization
-    pub fn apply_compact_continuation(
-        &mut self,
-        compact_cont: CompactContinuation,
-        value: Value,
-    ) -> Result<Value> {
-        match compact_cont {
-            CompactContinuation::Inline(inline_cont) => {
-                self.apply_inline_continuation(*inline_cont, value)
-            }
-            CompactContinuation::Boxed(boxed_cont) => {
-                // For boxed continuations, use regular path
-                self.apply_continuation(*boxed_cont, value)
-            }
-        }
-    }
-
-    /// Apply inline continuation with specialized handling for evaluator context
-    #[inline]
-    pub fn apply_inline_continuation(
-        &mut self,
-        inline_cont: InlineContinuation,
-        value: Value,
-    ) -> Result<Value> {
-        match inline_cont {
-            InlineContinuation::Identity => Ok(value),
-            InlineContinuation::Values(mut values) => {
-                values.push(value);
-                Ok(Value::Values(values.into_vec()))
-            }
-            InlineContinuation::Assignment {
-                var_name,
-                mut env_ref,
-            } => {
-                if let Some(env) = env_ref.to_strong() {
-                    env.set(&var_name, value)?;
-                    Ok(Value::Undefined)
-                } else {
-                    Err(LambdustError::runtime_error(
-                        "Environment reference expired in compact continuation".to_string(),
-                    ))
-                }
-            }
-            InlineContinuation::Define {
-                variable,
-                mut env_ref,
-            } => {
-                if let Some(env) = env_ref.to_strong() {
-                    env.define(variable, value);
-                    Ok(Value::Undefined)
-                } else {
-                    Err(LambdustError::runtime_error(
-                        "Environment reference expired in compact continuation".to_string(),
-                    ))
-                }
-            }
-            InlineContinuation::SingleBegin { expr, mut env_ref } => {
-                if let Some(env) = env_ref.to_strong() {
-                    // For SingleBegin, we discard the current value and evaluate the expression
-                    self.eval(expr, env, Continuation::Identity)
-                } else {
-                    Err(LambdustError::runtime_error(
-                        "Environment reference expired in compact continuation".to_string(),
-                    ))
-                }
-            }
-            InlineContinuation::SimpleIf {
-                consequent,
-                alternate,
-                mut env_ref,
-            } => {
-                if let Some(env) = env_ref.to_strong() {
-                    if value.is_truthy() {
-                        self.eval(consequent, env, Continuation::Identity)
-                    } else if let Some(alt) = alternate {
-                        self.eval(alt, env, Continuation::Identity)
-                    } else {
-                        Ok(Value::Undefined)
-                    }
-                } else {
-                    Err(LambdustError::runtime_error(
-                        "Environment reference expired in compact continuation".to_string(),
-                    ))
-                }
-            }
-        }
-    }
 
     /// Analyze expression for optimization opportunities (Phase 5-Step1)
     #[allow(dead_code)]
@@ -1477,6 +1259,7 @@ impl Evaluator {
             None
         }
     }
+
 }
 
 /// Public API for evaluation

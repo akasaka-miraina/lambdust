@@ -1897,9 +1897,10 @@ mod tests {
         let result = evaluator.reduce_expression_combinatory(malformed_lambda);
         
         // Should either succeed with some valid transformation or fail gracefully
-        match result {
-            Ok(_) => {}, // Success is acceptable
-            Err(_) => {}, // Graceful error handling is also acceptable
+        if let Ok(_) = result {
+            // Success is acceptable
+        } else {
+            // Graceful error handling is also acceptable
         }
     }
 }

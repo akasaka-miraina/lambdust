@@ -1040,9 +1040,9 @@ impl FormalVerificationEngine {
     fn determine_verification_status(
         &self,
         semantic_verification: &Option<SystemVerificationResult>,
-        correctness_proof: &Option<CorrectnessProof>,
-        theorem_proving_result: &Option<TheoremProvingResult>,
-        external_prover_results: &[ExternalProverResult],
+        _correctness_proof: &Option<CorrectnessProof>,
+        _theorem_proving_result: &Option<TheoremProvingResult>,
+        _external_prover_results: &[ExternalProverResult],
         confidence_level: f64,
     ) -> FormalVerificationStatus {
         // Check for failures

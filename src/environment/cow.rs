@@ -5,6 +5,7 @@
 
 use crate::error::{LambdustError, Result};
 use crate::value::Value;
+use crate::macros::Macro;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -16,6 +17,10 @@ pub struct SharedEnvironment {
     /// Only contains bindings added to this specific frame
     local_bindings: HashMap<String, Value>,
 
+    /// Macro definitions for this environment frame
+    /// Only contains macros added to this specific frame
+    local_macros: HashMap<String, Macro>,
+
     /// Shared parent environment chain
     /// Uses Rc for efficient sharing without cloning
     parent: Option<Rc<SharedEnvironment>>,
@@ -23,6 +28,10 @@ pub struct SharedEnvironment {
     /// Cached immutable bindings for fast lookup
     /// Contains flattened view of all bindings up the chain
     immutable_cache: Option<Rc<HashMap<String, Value>>>,
+
+    /// Cached immutable macros for fast lookup
+    /// Contains flattened view of all macros up the chain
+    macro_cache: Option<Rc<HashMap<String, Macro>>>,
 
     /// Generation counter for cache invalidation
     /// Incremented when local bindings change
@@ -38,8 +47,10 @@ impl SharedEnvironment {
     pub fn new() -> Self {
         SharedEnvironment {
             local_bindings: HashMap::new(),
+            local_macros: HashMap::new(),
             parent: None,
             immutable_cache: None,
+            macro_cache: None,
             generation: 0,
             is_frozen: false,
         }
@@ -49,8 +60,10 @@ impl SharedEnvironment {
     pub fn with_parent(parent: Rc<SharedEnvironment>) -> Self {
         SharedEnvironment {
             local_bindings: HashMap::new(),
+            local_macros: HashMap::new(),
             parent: Some(parent),
             immutable_cache: None,
+            macro_cache: None,
             generation: 0,
             is_frozen: false,
         }
@@ -61,8 +74,10 @@ impl SharedEnvironment {
         let is_empty = bindings.is_empty();
         SharedEnvironment {
             local_bindings: bindings,
+            local_macros: HashMap::new(),
             parent: None,
             immutable_cache: None,
+            macro_cache: None,
             generation: 0,
             is_frozen: is_empty, // Empty environments can be frozen immediately
         }
@@ -83,12 +98,14 @@ impl SharedEnvironment {
 
             SharedEnvironment {
                 local_bindings: new_bindings,
+                local_macros: HashMap::new(),
                 parent: if self.is_empty() {
                     self.parent.clone()
                 } else {
                     Some(Rc::new(self.clone()))
                 },
                 immutable_cache: None,
+                macro_cache: None,
                 generation: 0,
                 is_frozen: false,
             }
@@ -219,6 +236,7 @@ impl SharedEnvironment {
     /// Invalidate cache when environment changes
     fn invalidate_cache(&mut self) {
         self.immutable_cache = None;
+        self.macro_cache = None;
         self.generation += 1;
     }
 
@@ -227,11 +245,12 @@ impl SharedEnvironment {
     pub fn freeze(&mut self) {
         self.is_frozen = true;
         self.build_cache(); // Build cache before freezing
+        self.build_macro_cache(); // Build macro cache before freezing
     }
 
-    /// Check if environment is empty (no local bindings)
+    /// Check if environment is empty (no local bindings or macros)
     pub fn is_empty(&self) -> bool {
-        self.local_bindings.is_empty()
+        self.local_bindings.is_empty() && self.local_macros.is_empty()
     }
 
     /// Check if environment is frozen
@@ -261,11 +280,22 @@ impl SharedEnvironment {
         let local_size = self.local_bindings.len()
             * (std::mem::size_of::<String>() + std::mem::size_of::<Value>());
 
+        let macro_size = self.local_macros.len()
+            * (std::mem::size_of::<String>() + std::mem::size_of::<Macro>());
+
         let cache_size = self
             .immutable_cache
             .as_ref()
             .map(|cache| {
                 cache.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Value>())
+            })
+            .unwrap_or(0);
+
+        let macro_cache_size = self
+            .macro_cache
+            .as_ref()
+            .map(|cache| {
+                cache.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Macro>())
             })
             .unwrap_or(0);
 
@@ -275,7 +305,78 @@ impl SharedEnvironment {
             .map(|_| std::mem::size_of::<Rc<SharedEnvironment>>())
             .unwrap_or(0);
 
-        local_size + cache_size + parent_size
+        local_size + macro_size + cache_size + macro_cache_size + parent_size
+    }
+
+    /// Define a macro in the current environment
+    pub fn define_macro(&mut self, name: String, macro_def: Macro) {
+        if self.is_frozen {
+            panic!("Cannot define macro in frozen environment");
+        }
+        self.local_macros.insert(name, macro_def);
+        self.invalidate_cache();
+    }
+
+    /// Get a macro from this environment or a parent
+    pub fn get_macro(&self, name: &str) -> Option<Macro> {
+        // Check macro cache first
+        if let Some(ref cache) = self.macro_cache {
+            return cache.get(name).cloned();
+        }
+
+        // Try local macros first
+        if let Some(macro_def) = self.local_macros.get(name) {
+            return Some(macro_def.clone());
+        }
+
+        // Try parent environments
+        if let Some(ref parent) = self.parent {
+            parent.get_macro(name)
+        } else {
+            None
+        }
+    }
+
+    /// Check if a macro exists in this environment or a parent
+    pub fn has_macro(&self, name: &str) -> bool {
+        // Check macro cache first
+        if let Some(ref cache) = self.macro_cache {
+            return cache.contains_key(name);
+        }
+
+        self.local_macros.contains_key(name)
+            || self.parent.as_ref().is_some_and(|p| p.has_macro(name))
+    }
+
+    /// Build macro cache for fast lookups
+    pub fn build_macro_cache(&mut self) {
+        if self.macro_cache.is_some() {
+            return; // Cache already exists
+        }
+
+        let mut cache = HashMap::new();
+
+        // Collect macros from parent chain (outer to inner)
+        let mut parent_macros = Vec::new();
+        let mut current = self.parent.as_ref();
+        while let Some(env) = current {
+            parent_macros.push(&env.local_macros);
+            current = env.parent.as_ref();
+        }
+
+        // Add parent macros (reverse order for correct shadowing)
+        for macros in parent_macros.iter().rev() {
+            cache.extend(macros.iter().map(|(k, v)| (k.clone(), v.clone())));
+        }
+
+        // Local macros override parent macros
+        cache.extend(
+            self.local_macros
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone())),
+        );
+
+        self.macro_cache = Some(Rc::new(cache));
     }
 
     /// Convert to iterator over all bindings (for debugging)
@@ -353,6 +454,30 @@ impl EnvironmentStrategy {
         match self {
             EnvironmentStrategy::Traditional(env) => env.exists(name),
             EnvironmentStrategy::Shared(env) => env.exists(name),
+        }
+    }
+
+    /// Define a macro in the environment
+    pub fn define_macro(&mut self, name: String, macro_def: Macro) {
+        match self {
+            EnvironmentStrategy::Traditional(env) => env.define_macro(name, macro_def),
+            EnvironmentStrategy::Shared(env) => env.define_macro(name, macro_def),
+        }
+    }
+
+    /// Get a macro from the environment
+    pub fn get_macro(&self, name: &str) -> Option<Macro> {
+        match self {
+            EnvironmentStrategy::Traditional(env) => env.get_macro(name),
+            EnvironmentStrategy::Shared(env) => env.get_macro(name),
+        }
+    }
+
+    /// Check if a macro exists
+    pub fn has_macro(&self, name: &str) -> bool {
+        match self {
+            EnvironmentStrategy::Traditional(env) => env.has_macro(name),
+            EnvironmentStrategy::Shared(env) => env.has_macro(name),
         }
     }
 }

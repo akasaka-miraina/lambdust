@@ -45,14 +45,17 @@ impl PlaceholderAnalysis {
         Self {}
     }
     
+    #[allow(dead_code)]
     fn is_tail_call_candidate(&self) -> bool {
         false // Conservative placeholder
     }
     
+    #[allow(dead_code)]
     fn is_hot_path(&self) -> bool {
         false // Conservative placeholder
     }
     
+    #[allow(dead_code)]
     fn is_loop_candidate(&self) -> bool {
         false // Conservative placeholder
     }
@@ -76,18 +79,23 @@ pub struct RuntimeExecutor {
     semantic_evaluator: SemanticEvaluator,
     
     /// Expression analyzer for optimization hints
+    #[allow(dead_code)]
     expression_analyzer: ExpressionAnalyzer,
     
     /// JIT loop optimizer
+    #[allow(dead_code)]
     jit_optimizer: JitLoopOptimizer,
     
     /// Tail call optimizer
+    #[allow(dead_code)]
     tail_call_optimizer: TailCallOptimizer,
     
     /// Inline evaluator for hot path optimization
+    #[allow(dead_code)]
     inline_evaluator: InlineEvaluator,
     
     /// Continuation pooling manager
+    #[allow(dead_code)]
     continuation_pooler: ContinuationPoolManager,
     
     /// Integrated optimization manager
@@ -621,7 +629,7 @@ mod tests {
     
     #[test]
     fn test_runtime_executor_creation() {
-        let executor = RuntimeExecutor::new();
+        let mut executor = RuntimeExecutor::new();
         assert_eq!(executor.optimization_level(), RuntimeOptimizationLevel::Balanced);
         assert_eq!(executor.get_stats().expressions_evaluated, 0);
     }
@@ -676,7 +684,7 @@ mod tests {
     
     #[test]
     fn test_values_equality() {
-        let executor = RuntimeExecutor::new();
+        let mut executor = RuntimeExecutor::new();
         
         // Test number equality
         let num1 = Value::Number(SchemeNumber::Integer(42));

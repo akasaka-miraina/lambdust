@@ -5,6 +5,7 @@
 
 use crate::error::{LambdustError, Result};
 use crate::value::Value;
+use crate::macros::Macro;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -14,6 +15,8 @@ use std::rc::Rc;
 pub struct Environment {
     /// Current frame of bindings
     bindings: Rc<RefCell<HashMap<String, Value>>>,
+    /// Macro definitions
+    macros: Rc<RefCell<HashMap<String, Macro>>>,
     /// Parent environment (for lexical scoping)
     parent: Option<Rc<Environment>>,
 }
@@ -23,6 +26,7 @@ impl Environment {
     pub fn new() -> Self {
         Environment {
             bindings: Rc::new(RefCell::new(HashMap::new())),
+            macros: Rc::new(RefCell::new(HashMap::new())),
             parent: None,
         }
     }
@@ -31,6 +35,7 @@ impl Environment {
     pub fn with_parent(parent: Rc<Environment>) -> Self {
         Environment {
             bindings: Rc::new(RefCell::new(HashMap::new())),
+            macros: Rc::new(RefCell::new(HashMap::new())),
             parent: Some(parent),
         }
     }
@@ -39,6 +44,7 @@ impl Environment {
     pub fn with_bindings(bindings: HashMap<String, Value>) -> Self {
         Environment {
             bindings: Rc::new(RefCell::new(bindings)),
+            macros: Rc::new(RefCell::new(HashMap::new())),
             parent: None,
         }
     }
@@ -145,6 +151,7 @@ impl Environment {
 
         Ok(Environment {
             bindings: Rc::new(RefCell::new(bindings)),
+            macros: Rc::new(RefCell::new(HashMap::new())),
             parent: Some(Rc::new(self.clone())),
         })
     }
@@ -152,6 +159,32 @@ impl Environment {
     /// Get all bindings in the current frame (for debugging)
     pub fn current_bindings(&self) -> HashMap<String, Value> {
         self.bindings.borrow().clone()
+    }
+
+    /// Define a macro in the current environment
+    pub fn define_macro(&self, name: String, macro_def: Macro) {
+        self.macros.borrow_mut().insert(name, macro_def);
+    }
+
+    /// Get a macro from this environment or a parent
+    pub fn get_macro(&self, name: &str) -> Option<Macro> {
+        // Try current environment first
+        if let Some(macro_def) = self.macros.borrow().get(name) {
+            return Some(macro_def.clone());
+        }
+
+        // Try parent environments
+        if let Some(ref parent) = self.parent {
+            parent.get_macro(name)
+        } else {
+            None
+        }
+    }
+
+    /// Check if a macro exists in this environment or a parent
+    pub fn has_macro(&self, name: &str) -> bool {
+        self.macros.borrow().contains_key(name)
+            || self.parent.as_ref().is_some_and(|p| p.has_macro(name))
     }
 
     /// Get the global environment (root of the chain)

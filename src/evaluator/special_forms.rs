@@ -7,7 +7,8 @@ use crate::builtins::utils::make_boolean;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{Continuation, Evaluator};
-use crate::macros::expand_macro;
+use crate::macros::{expand_macro, Macro, SyntaxRulesTransformer, SyntaxRule};
+use crate::macros::pattern_matching::{Pattern, Template};
 use crate::value::{Procedure, Value};
 use std::rc::Rc;
 
@@ -62,6 +63,10 @@ impl Evaluator {
             "location-set!" => self.eval_location_set_special_form(operands, env, cont),
             // Import functionality
             "import" => self.eval_import(operands, env, cont),
+            // Macro system
+            "define-syntax" => self.eval_define_syntax(operands, env, cont),
+            // Quasiquote system
+            "quasiquote" => self.eval_quasiquote(operands, env, cont),
             _ => {
                 // Try macro expansion first
                 if let Some(expanded) = self.try_expand_macro(name, operands)? {
@@ -875,6 +880,397 @@ impl Evaluator {
             };
 
             self.eval(first, env, or_cont)
+        }
+    }
+
+    /// Evaluate define-syntax special form
+    fn eval_define_syntax(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        _cont: Continuation,
+    ) -> Result<Value> {
+        // Syntax: (define-syntax <name> <transformer>)
+        if operands.len() != 2 {
+            return Err(LambdustError::syntax_error(
+                "define-syntax: expected exactly 2 arguments".to_string(),
+            ));
+        }
+
+        // Extract macro name
+        let macro_name = match &operands[0] {
+            Expr::Variable(name) => name.clone(),
+            _ => {
+                return Err(LambdustError::syntax_error(
+                    "define-syntax: first argument must be a symbol".to_string(),
+                ));
+            }
+        };
+
+        // Parse transformer (must be syntax-rules)
+        let transformer = &operands[1];
+        let macro_def = self.parse_syntax_rules_transformer(transformer)?;
+
+        // Define the macro in the environment
+        env.define_macro(macro_name.clone(), macro_def);
+
+        // Return the macro name as the result
+        Ok(Value::Symbol(macro_name))
+    }
+
+    /// Parse syntax-rules transformer
+    fn parse_syntax_rules_transformer(&self, expr: &Expr) -> Result<Macro> {
+        match expr {
+            Expr::List(exprs) if !exprs.is_empty() => {
+                // Check if it's a syntax-rules form
+                if let Expr::Variable(name) = &exprs[0] {
+                    if name == "syntax-rules" {
+                        return self.parse_syntax_rules(&exprs[1..]);
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        Err(LambdustError::syntax_error(
+            "define-syntax: transformer must be a syntax-rules expression".to_string(),
+        ))
+    }
+
+    /// Parse syntax-rules expression
+    fn parse_syntax_rules(&self, args: &[Expr]) -> Result<Macro> {
+        // Syntax: (syntax-rules <literals> <rule1> <rule2> ...)
+        if args.is_empty() {
+            return Err(LambdustError::syntax_error(
+                "syntax-rules: missing literal list".to_string(),
+            ));
+        }
+
+        // Parse literals
+        let literals = self.parse_literals(&args[0])?;
+
+        // Parse rules
+        let mut rules = Vec::new();
+        for rule_expr in &args[1..] {
+            let rule = self.parse_syntax_rule(rule_expr)?;
+            rules.push(rule);
+        }
+
+        if rules.is_empty() {
+            return Err(LambdustError::syntax_error(
+                "syntax-rules: at least one rule is required".to_string(),
+            ));
+        }
+
+        // Create syntax-rules transformer
+        let transformer = SyntaxRulesTransformer::new(literals, rules);
+        Ok(Macro::SyntaxRules {
+            name: "user-defined".to_string(),
+            transformer,
+        })
+    }
+
+    /// Parse literals list
+    fn parse_literals(&self, expr: &Expr) -> Result<Vec<String>> {
+        match expr {
+            Expr::List(exprs) => {
+                let mut literals = Vec::new();
+                for expr in exprs {
+                    match expr {
+                        Expr::Variable(name) => literals.push(name.clone()),
+                        _ => {
+                            return Err(LambdustError::syntax_error(
+                                "syntax-rules: literals must be symbols".to_string(),
+                            ));
+                        }
+                    }
+                }
+                Ok(literals)
+            }
+            _ => Err(LambdustError::syntax_error(
+                "syntax-rules: literals must be a list".to_string(),
+            )),
+        }
+    }
+
+    /// Parse syntax rule
+    fn parse_syntax_rule(&self, expr: &Expr) -> Result<SyntaxRule> {
+        match expr {
+            Expr::List(exprs) if exprs.len() == 2 => {
+                // Parse pattern
+                let pattern = self.parse_pattern(&exprs[0])?;
+                // Parse template
+                let template = self.parse_template(&exprs[1])?;
+                Ok(SyntaxRule { pattern, template })
+            }
+            _ => Err(LambdustError::syntax_error(
+                "syntax-rules: each rule must be a list of two elements (pattern template)".to_string(),
+            )),
+        }
+    }
+
+    /// Parse pattern
+    fn parse_pattern(&self, expr: &Expr) -> Result<Pattern> {
+        match expr {
+            Expr::Variable(name) => {
+                if name == "..." {
+                    return Err(LambdustError::syntax_error(
+                        "syntax-rules: unexpected ellipsis".to_string(),
+                    ));
+                }
+                Ok(Pattern::Variable(name.clone()))
+            }
+            Expr::List(exprs) => {
+                if exprs.is_empty() {
+                    return Ok(Pattern::List(vec![]));
+                }
+
+                let mut patterns = Vec::new();
+                let mut i = 0;
+
+                while i < exprs.len() {
+                    if let Expr::Variable(name) = &exprs[i] {
+                        if name == "..." {
+                            if patterns.is_empty() {
+                                return Err(LambdustError::syntax_error(
+                                    "syntax-rules: ellipsis without preceding pattern".to_string(),
+                                ));
+                            }
+                            let last_pattern = patterns.pop().unwrap();
+                            patterns.push(Pattern::Ellipsis(Box::new(last_pattern)));
+                            i += 1;
+                            continue;
+                        }
+                    }
+
+                    patterns.push(self.parse_pattern(&exprs[i])?);
+                    i += 1;
+                }
+
+                Ok(Pattern::List(patterns))
+            }
+            Expr::Literal(lit) => Ok(Pattern::Literal(format!("{lit:?}"))),
+            _ => Err(LambdustError::syntax_error(
+                "syntax-rules: invalid pattern".to_string(),
+            )),
+        }
+    }
+
+    /// Parse template
+    fn parse_template(&self, expr: &Expr) -> Result<Template> {
+        match expr {
+            Expr::Variable(name) => {
+                if name == "..." {
+                    return Err(LambdustError::syntax_error(
+                        "syntax-rules: unexpected ellipsis in template".to_string(),
+                    ));
+                }
+                Ok(Template::Variable(name.clone()))
+            }
+            Expr::List(exprs) => {
+                if exprs.is_empty() {
+                    return Ok(Template::List(vec![]));
+                }
+
+                let mut templates = Vec::new();
+                let mut i = 0;
+
+                while i < exprs.len() {
+                    if let Expr::Variable(name) = &exprs[i] {
+                        if name == "..." {
+                            if templates.is_empty() {
+                                return Err(LambdustError::syntax_error(
+                                    "syntax-rules: ellipsis without preceding template".to_string(),
+                                ));
+                            }
+                            let last_template = templates.pop().unwrap();
+                            templates.push(Template::Ellipsis(Box::new(last_template)));
+                            i += 1;
+                            continue;
+                        }
+                    }
+
+                    templates.push(self.parse_template(&exprs[i])?);
+                    i += 1;
+                }
+
+                Ok(Template::List(templates))
+            }
+            Expr::Literal(lit) => Ok(Template::Literal(format!("{lit:?}"))),
+            _ => Err(LambdustError::syntax_error(
+                "syntax-rules: invalid template".to_string(),
+            )),
+        }
+    }
+
+    /// Evaluate quasiquote special form
+    fn eval_quasiquote(
+        &mut self,
+        operands: &[Expr],
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        // Syntax: (quasiquote <template>)
+        if operands.len() != 1 {
+            return Err(LambdustError::syntax_error(
+                "quasiquote: expected exactly 1 argument".to_string(),
+            ));
+        }
+
+        let template = &operands[0];
+        let result = self.expand_quasiquote(template, env, 0)?;
+        self.apply_continuation(cont, result)
+    }
+
+    /// Expand quasiquote template
+    fn expand_quasiquote(
+        &mut self,
+        template: &Expr,
+        env: Rc<Environment>,
+        depth: usize,
+    ) -> Result<Value> {
+        match template {
+            // Handle unquote
+            Expr::List(exprs) if !exprs.is_empty() => {
+                match &exprs[0] {
+                    Expr::Variable(name) if name == "unquote" => {
+                        if depth == 0 {
+                            // Evaluate the unquoted expression
+                            if exprs.len() != 2 {
+                                return Err(LambdustError::syntax_error(
+                                    "unquote: expected exactly 1 argument".to_string(),
+                                ));
+                            }
+                            return self.eval(exprs[1].clone(), env, Continuation::Identity);
+                        } else {
+                            // Nested quasiquote, decrease depth
+                            return self.expand_quasiquote_list(exprs, env, depth - 1);
+                        }
+                    }
+                    Expr::Variable(name) if name == "unquote-splicing" => {
+                        return Err(LambdustError::syntax_error(
+                            "unquote-splicing: can only appear within a list".to_string(),
+                        ));
+                    }
+                    Expr::Variable(name) if name == "quasiquote" => {
+                        // Nested quasiquote, increase depth
+                        return self.expand_quasiquote_list(exprs, env, depth + 1);
+                    }
+                    _ => {
+                        // Regular list processing
+                        return self.expand_quasiquote_list(exprs, env, depth);
+                    }
+                }
+            }
+            // Handle vectors
+            Expr::Vector(exprs) => {
+                let mut result = Vec::new();
+                for expr in exprs {
+                    let value = self.expand_quasiquote(expr, env.clone(), depth)?;
+                    result.push(value);
+                }
+                Ok(Value::from_vector(result))
+            }
+            // Handle atoms (literals, variables, etc.)
+            _ => {
+                // Convert expression to value as-is (quoted)
+                self.quote_expression(template)
+            }
+        }
+    }
+
+    /// Expand quasiquote list with unquote-splicing support
+    fn expand_quasiquote_list(
+        &mut self,
+        exprs: &[Expr],
+        env: Rc<Environment>,
+        depth: usize,
+    ) -> Result<Value> {
+        let mut result = Vec::new();
+        let mut i = 0;
+
+        while i < exprs.len() {
+            match &exprs[i] {
+                Expr::List(inner_exprs) if !inner_exprs.is_empty() => {
+                    if let Expr::Variable(name) = &inner_exprs[0] {
+                        if name == "unquote-splicing" && depth == 0 {
+                            // Handle unquote-splicing
+                            if inner_exprs.len() != 2 {
+                                return Err(LambdustError::syntax_error(
+                                    "unquote-splicing: expected exactly 1 argument".to_string(),
+                                ));
+                            }
+                            let spliced_value = self.eval(inner_exprs[1].clone(), env.clone(), Continuation::Identity)?;
+                            
+                            // Convert to list and splice
+                            match spliced_value {
+                                Value::Vector(vec) => {
+                                    result.extend(vec);
+                                }
+                                Value::Nil => {
+                                    // Empty list, nothing to splice
+                                }
+                                _ => {
+                                    // Try to convert to list
+                                    let list_items = self.value_to_list(spliced_value)?;
+                                    result.extend(list_items);
+                                }
+                            }
+                            i += 1;
+                            continue;
+                        }
+                    }
+                    // Regular expression
+                    let value = self.expand_quasiquote(&exprs[i], env.clone(), depth)?;
+                    result.push(value);
+                }
+                _ => {
+                    // Regular expression
+                    let value = self.expand_quasiquote(&exprs[i], env.clone(), depth)?;
+                    result.push(value);
+                }
+            }
+            i += 1;
+        }
+
+        Ok(Value::from_vector(result))
+    }
+
+    /// Quote an expression (convert to value representation)
+    fn quote_expression(&self, expr: &Expr) -> Result<Value> {
+        use crate::evaluator::ast_converter::AstConverter;
+        AstConverter::expr_to_value(expr.clone())
+    }
+
+    /// Convert a value to a list of values
+    fn value_to_list(&self, value: Value) -> Result<Vec<Value>> {
+        match value {
+            Value::Vector(vec) => Ok(vec),
+            Value::Nil => Ok(Vec::new()),
+            Value::Pair(pair_ref) => {
+                let mut result = Vec::new();
+                let mut current = Value::Pair(pair_ref);
+                
+                loop {
+                    match current {
+                        Value::Pair(pair_ref) => {
+                            let pair = pair_ref.borrow();
+                            result.push(pair.car.clone());
+                            current = pair.cdr.clone();
+                        }
+                        Value::Nil => break,
+                        _ => {
+                            return Err(LambdustError::type_error(
+                                "unquote-splicing: expected proper list".to_string(),
+                            ));
+                        }
+                    }
+                }
+                Ok(result)
+            }
+            _ => Err(LambdustError::type_error(
+                "unquote-splicing: expected list or vector".to_string(),
+            )),
         }
     }
 }

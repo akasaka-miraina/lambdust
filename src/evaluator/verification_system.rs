@@ -750,8 +750,10 @@ mod tests {
     fn test_confidence_level_calculation() {
         let system = VerificationSystem::new();
         
-        let mut analysis = VerificationAnalysis::default();
-        analysis.value_type_match = false;
+        let mut analysis = VerificationAnalysis {
+            value_type_match: false,
+            ..Default::default()
+        };
         analysis.discrepancies.push("Type mismatch".to_string());
         
         let confidence = system.calculate_confidence_level(&analysis);
@@ -764,9 +766,11 @@ mod tests {
     fn test_configuration_management() {
         let mut system = VerificationSystem::new();
         
-        let mut config = VerificationConfig::default();
-        config.verify_semantic_equivalence = false;
-        config.max_verification_time_ms = 500;
+        let config = VerificationConfig {
+            verify_semantic_equivalence: false,
+            max_verification_time_ms: 500,
+            ..Default::default()
+        };
         
         system.set_config(config.clone());
         assert_eq!(system.get_config().max_verification_time_ms, 500);
