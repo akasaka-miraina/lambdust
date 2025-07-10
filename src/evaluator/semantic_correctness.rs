@@ -52,6 +52,7 @@ pub struct CorrectnessProof {
 }
 
 /// SemanticEvaluator correctness verification system
+#[derive(Debug)]
 pub struct SemanticCorrectnessProver {
     /// Reference to the semantic evaluator
     evaluator: SemanticEvaluator,
@@ -74,11 +75,9 @@ impl SemanticCorrectnessProver {
     /// Prove a correctness property
     pub fn prove_property(&mut self, property: CorrectnessProperty) -> Result<CorrectnessProof> {
         let start_time = std::time::Instant::now();
-        
+
         let proof_result = match &property {
-            CorrectnessProperty::R7RSCompliance(expr) => {
-                self.prove_r7rs_compliance(expr)
-            }
+            CorrectnessProperty::R7RSCompliance(expr) => self.prove_r7rs_compliance(expr),
             CorrectnessProperty::EvaluationDeterminism(expr, env) => {
                 self.prove_evaluation_determinism(expr, env)
             }
@@ -88,9 +87,7 @@ impl SemanticCorrectnessProver {
             CorrectnessProperty::PureFunctionProperty(expr) => {
                 self.prove_pure_function_property(expr)
             }
-            CorrectnessProperty::Termination(expr) => {
-                self.prove_termination(expr)
-            }
+            CorrectnessProperty::Termination(expr) => self.prove_termination(expr),
             CorrectnessProperty::TypePreservation(expr, expected_type) => {
                 self.prove_type_preservation(expr, expected_type)
             }
@@ -103,7 +100,7 @@ impl SemanticCorrectnessProver {
         };
 
         let verification_time = start_time.elapsed().as_millis() as u64;
-        
+
         let proof = CorrectnessProof {
             property: property.clone(),
             proven: proof_result.is_ok(),
@@ -140,7 +137,8 @@ impl SemanticCorrectnessProver {
         self.theorem_prover.add_goal(goal)?;
 
         // Apply R7RS semantics verification
-        let tactic_result = self.theorem_prover
+        let tactic_result = self
+            .theorem_prover
             .apply_tactic(crate::evaluator::theorem_proving::ProofTactic::R7RSSemantics)?;
 
         if tactic_result.success {
@@ -157,16 +155,18 @@ impl SemanticCorrectnessProver {
     }
 
     /// Prove evaluation determinism
-    fn prove_evaluation_determinism(&mut self, expr: &Expr, env: &Rc<Environment>) -> Result<ProofTerm> {
+    fn prove_evaluation_determinism(
+        &mut self,
+        expr: &Expr,
+        env: &Rc<Environment>,
+    ) -> Result<ProofTerm> {
         // Evaluate expression multiple times to check determinism
         let mut results = Vec::new();
-        
+
         for _ in 0..5 {
-            let result = self.evaluator.eval_pure(
-                expr.clone(),
-                env.clone(),
-                Continuation::Identity,
-            )?;
+            let result =
+                self.evaluator
+                    .eval_pure(expr.clone(), env.clone(), Continuation::Identity)?;
             results.push(result);
         }
 
@@ -188,19 +188,21 @@ impl SemanticCorrectnessProver {
     }
 
     /// Prove continuation preservation
-    fn prove_continuation_preservation(&mut self, expr: &Expr, cont_name: &str) -> Result<ProofTerm> {
+    fn prove_continuation_preservation(
+        &mut self,
+        expr: &Expr,
+        cont_name: &str,
+    ) -> Result<ProofTerm> {
         // Verify that continuation is correctly applied
         let _test_value = Value::Number(SchemeNumber::Integer(42));
-        
+
         // Create a test environment
         let env = Rc::new(Environment::new());
-        
+
         // Test that continuation correctly processes values
-        let _result = self.evaluator.eval_pure(
-            expr.clone(),
-            env,
-            Continuation::Identity,
-        )?;
+        let _result = self
+            .evaluator
+            .eval_pure(expr.clone(), env, Continuation::Identity)?;
 
         // Verify the result is processed through the continuation
         match cont_name {
@@ -234,17 +236,13 @@ impl SemanticCorrectnessProver {
 
         // Verify referential transparency
         let env = Rc::new(Environment::new());
-        let result1 = self.evaluator.eval_pure(
-            expr.clone(),
-            env.clone(),
-            Continuation::Identity,
-        )?;
-        
-        let result2 = self.evaluator.eval_pure(
-            expr.clone(),
-            env,
-            Continuation::Identity,
-        )?;
+        let result1 =
+            self.evaluator
+                .eval_pure(expr.clone(), env.clone(), Continuation::Identity)?;
+
+        let result2 = self
+            .evaluator
+            .eval_pure(expr.clone(), env, Continuation::Identity)?;
 
         if !self.values_equal(&result1, &result2)? {
             return Err(LambdustError::runtime_error(
@@ -270,11 +268,9 @@ impl SemanticCorrectnessProver {
 
         // Attempt evaluation with timeout
         let env = Rc::new(Environment::new());
-        let _result = self.evaluator.eval_pure(
-            expr.clone(),
-            env,
-            Continuation::Identity,
-        )?;
+        let _result = self
+            .evaluator
+            .eval_pure(expr.clone(), env, Continuation::Identity)?;
 
         Ok(ProofTerm {
             method: ProofMethod::Computation,
@@ -286,14 +282,12 @@ impl SemanticCorrectnessProver {
     /// Prove type preservation
     fn prove_type_preservation(&mut self, expr: &Expr, expected_type: &str) -> Result<ProofTerm> {
         let env = Rc::new(Environment::new());
-        let result = self.evaluator.eval_pure(
-            expr.clone(),
-            env,
-            Continuation::Identity,
-        )?;
+        let result = self
+            .evaluator
+            .eval_pure(expr.clone(), env, Continuation::Identity)?;
 
         let actual_type = self.get_value_type(&result);
-        
+
         if actual_type != expected_type {
             return Err(LambdustError::type_error(format!(
                 "Expected type {}, got {}",
@@ -312,21 +306,17 @@ impl SemanticCorrectnessProver {
     fn prove_reduction_correctness(&mut self, expr: &Expr) -> Result<ProofTerm> {
         // Get original evaluation result
         let env = Rc::new(Environment::new());
-        let original_result = self.evaluator.eval_pure(
-            expr.clone(),
-            env.clone(),
-            Continuation::Identity,
-        )?;
+        let original_result =
+            self.evaluator
+                .eval_pure(expr.clone(), env.clone(), Continuation::Identity)?;
 
         // Apply reduction
         let reduced_expr = self.evaluator.reduce_expression_pure(expr.clone())?;
-        
+
         // Evaluate reduced expression
-        let reduced_result = self.evaluator.eval_pure(
-            reduced_expr,
-            env,
-            Continuation::Identity,
-        )?;
+        let reduced_result = self
+            .evaluator
+            .eval_pure(reduced_expr, env, Continuation::Identity)?;
 
         // Check semantic equivalence
         if !self.values_equal(&original_result, &reduced_result)? {
@@ -343,13 +333,15 @@ impl SemanticCorrectnessProver {
     }
 
     /// Prove referential transparency
-    fn prove_referential_transparency(&mut self, expr: &Expr, expected_value: &Value) -> Result<ProofTerm> {
+    fn prove_referential_transparency(
+        &mut self,
+        expr: &Expr,
+        expected_value: &Value,
+    ) -> Result<ProofTerm> {
         let env = Rc::new(Environment::new());
-        let result = self.evaluator.eval_pure(
-            expr.clone(),
-            env,
-            Continuation::Identity,
-        )?;
+        let result = self
+            .evaluator
+            .eval_pure(expr.clone(), env, Continuation::Identity)?;
 
         if !self.values_equal(&result, expected_value)? {
             return Err(LambdustError::runtime_error(
@@ -399,19 +391,19 @@ impl SemanticCorrectnessProver {
         if name.is_empty() {
             return false;
         }
-        
+
         // R7RS identifier rules (simplified)
         let first_char = name.chars().next().unwrap();
         if !first_char.is_alphabetic() && !"!$%&*+-./:<=>?@^_~".contains(first_char) {
             return false;
         }
-        
+
         for ch in name.chars().skip(1) {
             if !ch.is_alphanumeric() && !"!$%&*+-./:<=>?@^_~".contains(ch) {
                 return false;
             }
         }
-        
+
         true
     }
 
@@ -423,14 +415,14 @@ impl SemanticCorrectnessProver {
                 if exprs.is_empty() {
                     return Ok(false);
                 }
-                
+
                 // Check if first element is a side-effecting special form
                 if let Expr::Variable(name) = &exprs[0] {
                     if self.is_side_effecting_form(name) {
                         return Ok(true);
                     }
                 }
-                
+
                 // Check all subexpressions
                 for expr in exprs {
                     if self.has_side_effects(expr)? {
@@ -456,8 +448,16 @@ impl SemanticCorrectnessProver {
     fn is_side_effecting_form(&self, name: &str) -> bool {
         matches!(
             name,
-            "set!" | "set-car!" | "set-cdr!" | "display" | "write" | "read" | 
-            "open-input-file" | "close-output-port" | "load" | "exit"
+            "set!"
+                | "set-car!"
+                | "set-cdr!"
+                | "display"
+                | "write"
+                | "read"
+                | "open-input-file"
+                | "close-output-port"
+                | "load"
+                | "exit"
         )
     }
 
@@ -467,7 +467,9 @@ impl SemanticCorrectnessProver {
         match expr {
             Expr::List(exprs) => {
                 if exprs.len() >= 2 {
-                    if let (Expr::Variable(func_name), Expr::Variable(arg_name)) = (&exprs[0], &exprs[1]) {
+                    if let (Expr::Variable(func_name), Expr::Variable(arg_name)) =
+                        (&exprs[0], &exprs[1])
+                    {
                         if func_name == arg_name {
                             // Self-application without base case might indicate infinite recursion
                             return Ok(true);
@@ -507,6 +509,7 @@ impl SemanticCorrectnessProver {
             Value::Ideque(_) => "ideque".to_string(),
             Value::Text(_) => "text".to_string(),
             Value::IString(_) => "istring".to_string(),
+            Value::UniqueTypeInstance(_) => "unique-type-instance".to_string(),
         }
     }
 
@@ -546,7 +549,10 @@ impl SemanticCorrectnessProver {
     }
 
     /// Verify comprehensive correctness
-    pub fn verify_comprehensive_correctness(&mut self, expr: &Expr) -> Result<Vec<CorrectnessProof>> {
+    pub fn verify_comprehensive_correctness(
+        &mut self,
+        expr: &Expr,
+    ) -> Result<Vec<CorrectnessProof>> {
         let mut proofs = Vec::new();
         let env = Rc::new(Environment::new());
 
@@ -593,8 +599,10 @@ mod tests {
     fn test_r7rs_compliance_simple_literal() {
         let mut prover = SemanticCorrectnessProver::new();
         let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        
-        let proof = prover.prove_property(CorrectnessProperty::R7RSCompliance(expr)).unwrap();
+
+        let proof = prover
+            .prove_property(CorrectnessProperty::R7RSCompliance(expr))
+            .unwrap();
         assert!(proof.proven);
         assert!(proof.proof_term.is_some());
     }
@@ -605,10 +613,10 @@ mod tests {
         let mut prover = SemanticCorrectnessProver::new();
         let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         let env = Rc::new(Environment::new());
-        
-        let proof = prover.prove_property(
-            CorrectnessProperty::EvaluationDeterminism(expr, env)
-        ).unwrap();
+
+        let proof = prover
+            .prove_property(CorrectnessProperty::EvaluationDeterminism(expr, env))
+            .unwrap();
         assert!(proof.proven);
     }
 
@@ -621,8 +629,10 @@ mod tests {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
         ]);
-        
-        let proof = prover.prove_property(CorrectnessProperty::PureFunctionProperty(expr)).unwrap();
+
+        let proof = prover
+            .prove_property(CorrectnessProperty::PureFunctionProperty(expr))
+            .unwrap();
         assert!(proof.proven);
     }
 
@@ -631,8 +641,10 @@ mod tests {
     fn test_termination_simple() {
         let mut prover = SemanticCorrectnessProver::new();
         let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        
-        let proof = prover.prove_property(CorrectnessProperty::Termination(expr)).unwrap();
+
+        let proof = prover
+            .prove_property(CorrectnessProperty::Termination(expr))
+            .unwrap();
         assert!(proof.proven);
     }
 
@@ -641,10 +653,13 @@ mod tests {
     fn test_type_preservation() {
         let mut prover = SemanticCorrectnessProver::new();
         let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        
-        let proof = prover.prove_property(
-            CorrectnessProperty::TypePreservation(expr, "number".to_string())
-        ).unwrap();
+
+        let proof = prover
+            .prove_property(CorrectnessProperty::TypePreservation(
+                expr,
+                "number".to_string(),
+            ))
+            .unwrap();
         assert!(proof.proven);
     }
 
@@ -657,8 +672,10 @@ mod tests {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
         ]);
-        
-        let proof = prover.prove_property(CorrectnessProperty::ReductionCorrectness(expr)).unwrap();
+
+        let proof = prover
+            .prove_property(CorrectnessProperty::ReductionCorrectness(expr))
+            .unwrap();
         assert!(proof.proven);
     }
 
@@ -668,10 +685,13 @@ mod tests {
         let mut prover = SemanticCorrectnessProver::new();
         let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         let expected_value = Value::Number(SchemeNumber::Integer(42));
-        
-        let proof = prover.prove_property(
-            CorrectnessProperty::ReferentialTransparency(expr, expected_value)
-        ).unwrap();
+
+        let proof = prover
+            .prove_property(CorrectnessProperty::ReferentialTransparency(
+                expr,
+                expected_value,
+            ))
+            .unwrap();
         assert!(proof.proven);
     }
 
@@ -680,10 +700,10 @@ mod tests {
     fn test_comprehensive_correctness() {
         let mut prover = SemanticCorrectnessProver::new();
         let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        
+
         let proofs = prover.verify_comprehensive_correctness(&expr).unwrap();
         assert!(!proofs.is_empty());
-        
+
         for proof in proofs {
             assert!(proof.proven);
         }
@@ -693,7 +713,7 @@ mod tests {
     #[ignore]
     fn test_side_effect_detection() {
         let prover = SemanticCorrectnessProver::new();
-        
+
         // Pure expression
         let pure_expr = Expr::List(vec![
             Expr::Variable("+".to_string()),
@@ -701,7 +721,7 @@ mod tests {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
         ]);
         assert!(!prover.has_side_effects(&pure_expr).unwrap());
-        
+
         // Side-effecting expression
         let side_effect_expr = Expr::List(vec![
             Expr::Variable("set!".to_string()),
@@ -715,12 +735,12 @@ mod tests {
     #[ignore]
     fn test_r7rs_syntax_validation() {
         let prover = SemanticCorrectnessProver::new();
-        
+
         // Valid identifier
         assert!(prover.is_valid_identifier("valid-name"));
         assert!(prover.is_valid_identifier("x"));
         assert!(prover.is_valid_identifier("lambda"));
-        
+
         // Invalid identifier
         assert!(!prover.is_valid_identifier("123invalid"));
         assert!(!prover.is_valid_identifier(""));
@@ -730,11 +750,11 @@ mod tests {
     #[ignore]
     fn test_value_equality() {
         let prover = SemanticCorrectnessProver::new();
-        
+
         let v1 = Value::Number(SchemeNumber::Integer(42));
         let v2 = Value::Number(SchemeNumber::Integer(42));
         let v3 = Value::Number(SchemeNumber::Integer(43));
-        
+
         assert!(prover.values_equal(&v1, &v2).unwrap());
         assert!(!prover.values_equal(&v1, &v3).unwrap());
     }

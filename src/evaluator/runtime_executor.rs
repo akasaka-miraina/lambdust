@@ -269,7 +269,7 @@ impl RuntimeExecutor {
                 strategies,
             ) {
                 Ok(optimization_result) => {
-                    if optimization_result.success {
+                    if !optimization_result.applied_strategies.is_empty() {
                         // Apply optimization result
                         self.stats.optimizations_applied += 1;
                         return self.apply_optimization_result(optimization_result, env, cont);
@@ -315,7 +315,7 @@ impl RuntimeExecutor {
                 strategies,
             ) {
                 Ok(optimization_result) => {
-                    if optimization_result.success {
+                    if !optimization_result.applied_strategies.is_empty() {
                         // Apply optimization result
                         self.stats.optimizations_applied += 1;
                         return self.apply_optimization_result(optimization_result, env, cont);
@@ -361,7 +361,7 @@ impl RuntimeExecutor {
                 strategies,
             ) {
                 Ok(optimization_result) => {
-                    if optimization_result.success {
+                    if !optimization_result.applied_strategies.is_empty() {
                         // Apply optimization result
                         self.stats.optimizations_applied += 1;
                         return self.apply_optimization_result(optimization_result, env, cont);
@@ -385,11 +385,13 @@ impl RuntimeExecutor {
         cont: Continuation,
     ) -> Result<Value> {
         // Update statistics based on the optimization result
-        if optimization_result.success {
+        if !optimization_result.applied_strategies.is_empty() {
             self.stats.optimizations_applied += 1;
 
             // Determine optimization type from strategy name and apply accordingly
-            match optimization_result.applied_strategy.as_str() {
+            // Use the first applied strategy for classification
+            let strategy = optimization_result.applied_strategies.first().map(|s| s.as_str()).unwrap_or("");
+            match strategy {
                 s if s.contains("tail_call") => {
                     self.stats.tail_calls_optimized += 1;
                 }
@@ -408,17 +410,10 @@ impl RuntimeExecutor {
             }
 
             // Recursively evaluate the optimized expression
-            self.eval_optimized(optimization_result.optimized_expression, env, cont)
+            self.eval_optimized(optimization_result.optimized_expr, env, cont)
         } else {
-            // Optimization failed, use the original expression with semantic evaluator
-            if let Some(error_msg) = optimization_result.error_message {
-                eprintln!("Optimization failed: {}", error_msg);
-            }
-
-            // For now, we'll fallback to the optimized expression even if optimization "failed"
-            // This is because the integrated optimization system may still produce a valid expression
-            self.semantic_evaluator
-                .eval_pure(optimization_result.optimized_expression, env, cont)
+            // No optimization strategies were applied, use the optimized expression as-is
+            self.eval_optimized(optimization_result.optimized_expr, env, cont)
         }
     }
 
@@ -702,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_runtime_executor_creation() {
-        let mut executor = RuntimeExecutor::new();
+        let executor = RuntimeExecutor::new();
         assert_eq!(
             executor.optimization_level(),
             RuntimeOptimizationLevel::Balanced
@@ -732,7 +727,7 @@ mod tests {
 
     #[test]
     fn test_basic_arithmetic_simple() {
-        let mut executor = RuntimeExecutor::new();
+        let executor = RuntimeExecutor::new();
 
         // Test simple addition
         let args = vec![
@@ -763,7 +758,7 @@ mod tests {
 
     #[test]
     fn test_values_equality() {
-        let mut executor = RuntimeExecutor::new();
+        let executor = RuntimeExecutor::new();
 
         // Test number equality
         let num1 = Value::Number(SchemeNumber::Integer(42));

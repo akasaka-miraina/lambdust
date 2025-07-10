@@ -1,4 +1,4 @@
-//! Phase 6-B-Step2: Unified Continuation Pooling System
+//! Unified Continuation Pooling System
 //!
 //! This module implements a comprehensive continuation pooling system:
 //! - Global pool manager for centralized resource management

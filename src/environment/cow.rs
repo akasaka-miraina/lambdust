@@ -1,11 +1,11 @@
-//! Copy-on-Write Environment implementation for Phase 4 optimization
+//! Copy-on-Write Environment implementation for memory optimization
 //!
 //! This module provides memory-efficient environment sharing using
 //! copy-on-write semantics and immutable parent chain sharing.
 
 use crate::error::{LambdustError, Result};
-use crate::value::Value;
 use crate::macros::Macro;
+use crate::value::Value;
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -410,7 +410,7 @@ impl Default for SharedEnvironment {
 pub enum EnvironmentStrategy {
     /// Traditional environment (existing implementation)
     Traditional(super::traditional::Environment),
-    /// Shared COW environment (Phase 4 optimization)
+    /// Shared COW environment
     Shared(SharedEnvironment),
 }
 

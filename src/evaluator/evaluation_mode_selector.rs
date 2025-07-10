@@ -4,23 +4,23 @@
 //! expression analysis, historical performance data, and optimization hints.
 
 use crate::ast::Expr;
-use crate::evaluator::{EvaluationMode, RuntimeOptimizationLevel, PerformanceMetrics};
+use crate::evaluator::{EvaluationMode, PerformanceMetrics, RuntimeOptimizationLevel};
 use std::collections::HashMap;
 
 /// Intelligent evaluation mode selector
 pub struct EvaluationModeSelector {
     /// Performance history for different expression types
     performance_history: HashMap<ExpressionType, PerformanceStats>,
-    
+
     /// Optimization effectiveness tracking
     optimization_effectiveness: HashMap<RuntimeOptimizationLevel, f64>,
-    
+
     /// Expression complexity threshold for mode switching
     complexity_threshold: usize,
-    
+
     /// Minimum performance improvement required for optimization
     min_improvement_threshold: f64,
-    
+
     /// Historical decision tracking
     decision_history: Vec<ModeDecision>,
 }
@@ -46,16 +46,16 @@ pub enum ExpressionType {
 pub struct PerformanceStats {
     /// Average semantic evaluation time (microseconds)
     avg_semantic_time: f64,
-    
+
     /// Average runtime evaluation time (microseconds)
     avg_runtime_time: f64,
-    
+
     /// Average speedup achieved by runtime optimization
     avg_speedup: f64,
-    
+
     /// Success rate of runtime optimization
     success_rate: f64,
-    
+
     /// Number of evaluations tracked
     sample_count: usize,
 }
@@ -65,16 +65,16 @@ pub struct PerformanceStats {
 pub struct ModeDecision {
     /// Expression type that was evaluated
     expression_type: ExpressionType,
-    
+
     /// Selected evaluation mode
     selected_mode: EvaluationMode,
-    
+
     /// Actual performance achieved
     actual_performance: PerformanceMetrics,
-    
+
     /// Whether the decision was optimal in hindsight
     was_optimal: bool,
-    
+
     /// Timestamp of decision
     timestamp: std::time::SystemTime,
 }
@@ -84,13 +84,13 @@ pub struct ModeDecision {
 pub struct SelectionCriteria {
     /// Expression being evaluated
     pub expression: Expr,
-    
+
     /// Expected value type (if known)
     pub expected_type: Option<String>,
-    
+
     /// Performance requirements
     pub performance_requirements: PerformanceRequirements,
-    
+
     /// Evaluation context
     pub context: EvaluationContext,
 }
@@ -100,13 +100,13 @@ pub struct SelectionCriteria {
 pub struct PerformanceRequirements {
     /// Maximum acceptable evaluation time (microseconds)
     pub max_time_us: Option<u64>,
-    
+
     /// Minimum acceptable accuracy
     pub min_accuracy: f64,
-    
+
     /// Priority: 0.0 (low) to 1.0 (high)
     pub priority: f64,
-    
+
     /// Whether correctness verification is required
     pub require_verification: bool,
 }
@@ -116,16 +116,16 @@ pub struct PerformanceRequirements {
 pub struct EvaluationContext {
     /// Current recursion depth
     pub recursion_depth: usize,
-    
+
     /// Available memory (bytes)
     pub available_memory: usize,
-    
+
     /// Whether this is a hot path
     pub is_hot_path: bool,
-    
+
     /// Whether this is in a loop
     pub is_in_loop: bool,
-    
+
     /// Recent performance trend
     pub recent_performance: PerformanceTrend,
 }
@@ -165,9 +165,10 @@ impl EvaluationModeSelector {
     pub fn select_mode(&mut self, criteria: &SelectionCriteria) -> EvaluationMode {
         let expression_type = self.classify_expression(&criteria.expression);
         let complexity = self.calculate_complexity(&criteria.expression);
-        
+
         // Get historical performance data
-        let performance_stats = self.performance_history
+        let performance_stats = self
+            .performance_history
             .get(&expression_type)
             .cloned()
             .unwrap_or_default();
@@ -186,7 +187,7 @@ impl EvaluationModeSelector {
             expression_type,
             selected_mode: selected_mode.clone(),
             actual_performance: PerformanceMetrics::default(), // Will be updated later
-            was_optimal: false, // Will be determined later
+            was_optimal: false,                                // Will be determined later
             timestamp: std::time::SystemTime::now(),
         });
 
@@ -202,7 +203,7 @@ impl EvaluationModeSelector {
                 if exprs.is_empty() {
                     return ExpressionType::Unknown;
                 }
-                
+
                 match &exprs[0] {
                     Expr::Variable(name) => {
                         match name.as_str() {
@@ -246,11 +247,17 @@ impl EvaluationModeSelector {
         match expr {
             Expr::Literal(_) | Expr::Variable(_) => 1,
             Expr::List(exprs) => {
-                1 + exprs.iter().map(|e| self.calculate_complexity(e)).sum::<usize>()
+                1 + exprs
+                    .iter()
+                    .map(|e| self.calculate_complexity(e))
+                    .sum::<usize>()
             }
             Expr::Quote(expr) => 1 + self.calculate_complexity(expr),
             Expr::Vector(exprs) => {
-                1 + exprs.iter().map(|e| self.calculate_complexity(e)).sum::<usize>()
+                1 + exprs
+                    .iter()
+                    .map(|e| self.calculate_complexity(e))
+                    .sum::<usize>()
             }
             _ => 3, // Default complexity for other expressions
         }
@@ -261,7 +268,9 @@ impl EvaluationModeSelector {
         match expr {
             Expr::List(exprs) => {
                 if exprs.len() >= 2 {
-                    if let (Expr::Variable(func_name), Expr::Variable(arg_name)) = (&exprs[0], &exprs[1]) {
+                    if let (Expr::Variable(func_name), Expr::Variable(arg_name)) =
+                        (&exprs[0], &exprs[1])
+                    {
                         if func_name == arg_name {
                             return true;
                         }
@@ -293,7 +302,12 @@ impl EvaluationModeSelector {
         }
 
         // Rule 2: Simple expressions always use semantic evaluation
-        if complexity <= 3 && matches!(expression_type, ExpressionType::Literal | ExpressionType::Variable) {
+        if complexity <= 3
+            && matches!(
+                expression_type,
+                ExpressionType::Literal | ExpressionType::Variable
+            )
+        {
             return EvaluationMode::Semantic;
         }
 
@@ -308,7 +322,10 @@ impl EvaluationModeSelector {
         }
 
         // Rule 4: Complex expressions with good optimization history
-        if complexity > self.complexity_threshold && performance_stats.success_rate > 0.8 && performance_stats.avg_speedup > 0.2 {
+        if complexity > self.complexity_threshold
+            && performance_stats.success_rate > 0.8
+            && performance_stats.avg_speedup > 0.2
+        {
             return EvaluationMode::Runtime(self.select_optimization_level(
                 expression_type,
                 complexity,
@@ -318,7 +335,8 @@ impl EvaluationModeSelector {
         }
 
         // Rule 5: Memory constraints favor semantic evaluation
-        if context.available_memory < 1_000_000 { // Less than 1MB
+        if context.available_memory < 1_000_000 {
+            // Less than 1MB
             return EvaluationMode::Semantic;
         }
 
@@ -363,7 +381,7 @@ impl EvaluationModeSelector {
     /// Record mode selection decision
     fn record_decision(&mut self, decision: ModeDecision) {
         self.decision_history.push(decision);
-        
+
         // Keep only recent decisions (last 1000)
         if self.decision_history.len() > 1000 {
             self.decision_history.remove(0);
@@ -377,30 +395,34 @@ impl EvaluationModeSelector {
         mode_used: EvaluationMode,
         performance: PerformanceMetrics,
     ) {
-        let stats = self.performance_history.entry(expression_type.clone()).or_default();
-        
+        let stats = self
+            .performance_history
+            .entry(expression_type.clone())
+            .or_default();
+
         // Update statistics using exponential moving average
         let alpha = 0.1; // Learning rate
-        
+
         match mode_used {
             EvaluationMode::Semantic => {
-                stats.avg_semantic_time = alpha * performance.semantic_time_us as f64 
+                stats.avg_semantic_time = alpha * performance.semantic_time_us as f64
                     + (1.0 - alpha) * stats.avg_semantic_time;
             }
             EvaluationMode::Runtime(_) => {
-                stats.avg_runtime_time = alpha * performance.runtime_time_us as f64 
+                stats.avg_runtime_time = alpha * performance.runtime_time_us as f64
                     + (1.0 - alpha) * stats.avg_runtime_time;
-                    
+
                 if performance.semantic_time_us > 0 {
-                    let speedup = performance.semantic_time_us as f64 / performance.runtime_time_us as f64;
+                    let speedup =
+                        performance.semantic_time_us as f64 / performance.runtime_time_us as f64;
                     stats.avg_speedup = alpha * speedup + (1.0 - alpha) * stats.avg_speedup;
                 }
             }
             EvaluationMode::Verification => {
                 // Update both semantic and runtime statistics
-                stats.avg_semantic_time = alpha * performance.semantic_time_us as f64 
+                stats.avg_semantic_time = alpha * performance.semantic_time_us as f64
                     + (1.0 - alpha) * stats.avg_semantic_time;
-                stats.avg_runtime_time = alpha * performance.runtime_time_us as f64 
+                stats.avg_runtime_time = alpha * performance.runtime_time_us as f64
                     + (1.0 - alpha) * stats.avg_runtime_time;
             }
             EvaluationMode::Auto => {
@@ -408,12 +430,15 @@ impl EvaluationModeSelector {
                 // This would need additional context about which mode was actually selected
             }
         }
-        
+
         stats.sample_count += 1;
     }
 
     /// Get performance statistics for an expression type
-    pub fn get_performance_stats(&self, expression_type: &ExpressionType) -> Option<&PerformanceStats> {
+    pub fn get_performance_stats(
+        &self,
+        expression_type: &ExpressionType,
+    ) -> Option<&PerformanceStats> {
         self.performance_history.get(expression_type)
     }
 
@@ -431,23 +456,28 @@ impl EvaluationModeSelector {
     /// Get mode selection recommendations
     pub fn get_recommendations(&self, expression_type: &ExpressionType) -> Vec<String> {
         let mut recommendations = Vec::new();
-        
+
         if let Some(stats) = self.performance_history.get(expression_type) {
             if stats.success_rate < 0.5 {
-                recommendations.push("Consider using semantic evaluation for better reliability".to_string());
+                recommendations
+                    .push("Consider using semantic evaluation for better reliability".to_string());
             }
-            
+
             if stats.avg_speedup < 0.1 {
-                recommendations.push("Runtime optimization provides minimal benefit for this expression type".to_string());
+                recommendations.push(
+                    "Runtime optimization provides minimal benefit for this expression type"
+                        .to_string(),
+                );
             }
-            
+
             if stats.sample_count < 10 {
                 recommendations.push("More data needed for reliable mode selection".to_string());
             }
         } else {
-            recommendations.push("No historical data available for this expression type".to_string());
+            recommendations
+                .push("No historical data available for this expression type".to_string());
         }
-        
+
         recommendations
     }
 }
@@ -497,32 +527,41 @@ mod tests {
     #[test]
     fn test_expression_classification() {
         let selector = EvaluationModeSelector::new();
-        
+
         // Test literal classification
         let literal = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        assert_eq!(selector.classify_expression(&literal), ExpressionType::Literal);
-        
+        assert_eq!(
+            selector.classify_expression(&literal),
+            ExpressionType::Literal
+        );
+
         // Test variable classification
         let variable = Expr::Variable("x".to_string());
-        assert_eq!(selector.classify_expression(&variable), ExpressionType::Variable);
-        
+        assert_eq!(
+            selector.classify_expression(&variable),
+            ExpressionType::Variable
+        );
+
         // Test simple arithmetic
         let simple_arithmetic = Expr::List(vec![
             Expr::Variable("+".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
         ]);
-        assert_eq!(selector.classify_expression(&simple_arithmetic), ExpressionType::SimpleArithmetic);
+        assert_eq!(
+            selector.classify_expression(&simple_arithmetic),
+            ExpressionType::SimpleArithmetic
+        );
     }
 
     #[test]
     fn test_complexity_calculation() {
         let selector = EvaluationModeSelector::new();
-        
+
         // Simple expression
         let simple = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         assert_eq!(selector.calculate_complexity(&simple), 1);
-        
+
         // Complex expression
         let complex = Expr::List(vec![
             Expr::Variable("+".to_string()),
@@ -539,14 +578,14 @@ mod tests {
     #[test]
     fn test_mode_selection_simple_expression() {
         let mut selector = EvaluationModeSelector::new();
-        
+
         let criteria = SelectionCriteria {
             expression: Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
             expected_type: None,
             performance_requirements: PerformanceRequirements::default(),
             context: EvaluationContext::default(),
         };
-        
+
         let mode = selector.select_mode(&criteria);
         assert_eq!(mode, EvaluationMode::Semantic);
     }
@@ -554,7 +593,7 @@ mod tests {
     #[test]
     fn test_mode_selection_verification_required() {
         let mut selector = EvaluationModeSelector::new();
-        
+
         let criteria = SelectionCriteria {
             expression: Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
             expected_type: None,
@@ -564,7 +603,7 @@ mod tests {
             },
             context: EvaluationContext::default(),
         };
-        
+
         let mode = selector.select_mode(&criteria);
         assert_eq!(mode, EvaluationMode::Verification);
     }
@@ -572,19 +611,19 @@ mod tests {
     #[test]
     fn test_performance_stats_update() {
         let mut selector = EvaluationModeSelector::new();
-        
+
         let performance = PerformanceMetrics {
             semantic_time_us: 100,
             runtime_time_us: 50,
             ..Default::default()
         };
-        
+
         selector.update_performance_stats(
             ExpressionType::SimpleArithmetic,
             EvaluationMode::Runtime(RuntimeOptimizationLevel::Balanced),
             performance,
         );
-        
+
         let stats = selector.get_performance_stats(&ExpressionType::SimpleArithmetic);
         assert!(stats.is_some());
         assert_eq!(stats.unwrap().sample_count, 1);
@@ -593,7 +632,7 @@ mod tests {
     #[test]
     fn test_recommendations() {
         let selector = EvaluationModeSelector::new();
-        
+
         let recommendations = selector.get_recommendations(&ExpressionType::Literal);
         assert!(!recommendations.is_empty());
         assert!(recommendations[0].contains("No historical data available"));

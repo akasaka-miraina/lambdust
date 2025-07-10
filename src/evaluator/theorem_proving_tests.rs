@@ -1,24 +1,24 @@
 //! Tests for theorem proving support system
 
+use super::combinators::CombinatorExpr;
 use super::theorem_proving::*;
 use super::SemanticEvaluator;
-use super::combinators::CombinatorExpr;
 use crate::ast::{Expr, Literal};
 use crate::lexer::SchemeNumber;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_theorem_proving_support_creation() {
         let semantic_evaluator = SemanticEvaluator::new();
         let theorem_system = TheoremProvingSupport::new(semantic_evaluator);
-        
+
         assert!(theorem_system.proof_state().goals.is_empty());
         assert!(!theorem_system.theorem_db().combinator_theorems.is_empty());
     }
-    
+
     #[test]
     fn test_proof_goal_creation() {
         let goal = ProofGoal {
@@ -30,15 +30,15 @@ mod tests {
             expressions: vec![],
             id: "test_goal".to_string(),
         };
-        
+
         assert_eq!(goal.goal_type, GoalType::Equivalence);
         assert_eq!(goal.id, "test_goal");
     }
-    
+
     #[test]
     fn test_theorem_database_fundamental_theorems() {
         let db = TheoremDatabase::new();
-        
+
         assert!(!db.combinator_theorems.is_empty());
         assert!(db.find_theorem("S_reduction").is_some());
         assert!(db.find_theorem("K_reduction").is_some());
@@ -47,59 +47,62 @@ mod tests {
         assert!(db.find_theorem("Church_Rosser_property").is_some());
         assert!(db.find_theorem("Semantic_preservation").is_some());
     }
-    
+
     #[test]
     fn test_proof_state_management() {
         let mut state = ProofState::new();
-        
+
         assert!(state.is_complete());
         assert!(state.current_goal().is_none());
-        
+
         let goal = ProofGoal {
             statement: Statement::Termination(CombinatorExpr::I),
             goal_type: GoalType::Termination,
             expressions: vec![],
             id: "termination_test".to_string(),
         };
-        
+
         state.goals.push(goal);
         assert!(!state.is_complete());
         assert!(state.current_goal().is_some());
-        
+
         let removed_goal = state.remove_current_goal();
         assert!(removed_goal.is_some());
         assert!(state.is_complete());
     }
-    
+
     #[test]
     fn test_proof_context() {
         let mut context = ProofContext::new();
-        
+
         assert_eq!(context.depth, 0);
-        
-        context.add_variable("x".to_string(), Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
+
+        context.add_variable(
+            "x".to_string(),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
+        );
         context.add_type_assumption("x".to_string(), "Number".to_string());
-        
+
         assert!(context.variables.contains_key("x"));
         assert!(context.type_assumptions.contains_key("x"));
-        
+
         context.push_context();
         assert_eq!(context.depth, 1);
-        
+
         context.pop_context();
         assert_eq!(context.depth, 0);
     }
-    
+
     #[test]
     fn test_basic_tactic_application() {
         let semantic_evaluator = SemanticEvaluator::new();
         let mut theorem_system = TheoremProvingSupport::new(semantic_evaluator);
-        
+
         // Test applying tactic with no goals
         let result = theorem_system.apply_tactic(ProofTactic::Simplify).unwrap();
         assert!(!result.success);
         assert_eq!(result.explanation, "No goals to prove");
-        
+
         // Add a goal
         let goal = ProofGoal {
             statement: Statement::ReductionCorrectness(
@@ -110,21 +113,23 @@ mod tests {
             expressions: vec![],
             id: "test_correctness".to_string(),
         };
-        
+
         theorem_system.add_goal(goal).unwrap();
         assert!(!theorem_system.proof_state().goals.is_empty());
-        
+
         // Apply combinator reduction tactic
-        let result = theorem_system.apply_tactic(ProofTactic::CombinatorReduction).unwrap();
+        let _result = theorem_system
+            .apply_tactic(ProofTactic::CombinatorReduction)
+            .unwrap();
         // The result will depend on whether the literal can be transformed to combinator I
         // This is expected to fail since we're comparing a literal with combinator I
     }
-    
+
     #[test]
     fn test_semantic_equivalence_tactic() {
         let semantic_evaluator = SemanticEvaluator::new();
         let mut theorem_system = TheoremProvingSupport::new(semantic_evaluator);
-        
+
         // Test semantic equivalence of identical literals
         let goal = ProofGoal {
             statement: Statement::SemanticEquivalence(
@@ -135,20 +140,22 @@ mod tests {
             expressions: vec![],
             id: "equivalence_test".to_string(),
         };
-        
+
         theorem_system.add_goal(goal).unwrap();
-        
-        let result = theorem_system.apply_tactic(ProofTactic::SemanticEquivalence).unwrap();
+
+        let result = theorem_system
+            .apply_tactic(ProofTactic::SemanticEquivalence)
+            .unwrap();
         assert!(result.success);
         assert_eq!(result.explanation, "Semantic equivalence verified");
         assert!(theorem_system.proof_state().goals.is_empty());
     }
-    
+
     #[test]
     fn test_semantic_equivalence_failure() {
         let semantic_evaluator = SemanticEvaluator::new();
         let mut theorem_system = TheoremProvingSupport::new(semantic_evaluator);
-        
+
         // Test semantic equivalence of different literals
         let goal = ProofGoal {
             statement: Statement::SemanticEquivalence(
@@ -159,69 +166,74 @@ mod tests {
             expressions: vec![],
             id: "equivalence_failure_test".to_string(),
         };
-        
+
         theorem_system.add_goal(goal).unwrap();
-        
-        let result = theorem_system.apply_tactic(ProofTactic::SemanticEquivalence).unwrap();
+
+        let result = theorem_system
+            .apply_tactic(ProofTactic::SemanticEquivalence)
+            .unwrap();
         assert!(!result.success);
-        assert_eq!(result.explanation, "Semantic equivalence could not be verified");
+        assert_eq!(
+            result.explanation,
+            "Semantic equivalence could not be verified"
+        );
         assert!(!theorem_system.proof_state().goals.is_empty());
     }
-    
+
     #[test]
     fn test_statement_types() {
         let expr1 = Expr::Literal(Literal::Number(SchemeNumber::Integer(1)));
         let expr2 = Expr::Literal(Literal::Number(SchemeNumber::Integer(2)));
-        
+
         let equivalence = Statement::SemanticEquivalence(expr1.clone(), expr2.clone());
         let correctness = Statement::ReductionCorrectness(expr1.clone(), CombinatorExpr::I);
         let termination = Statement::Termination(CombinatorExpr::S);
         let compliance = Statement::R7RSCompliance(expr1.clone());
         let type_preservation = Statement::TypePreservation(expr1.clone(), "Number".to_string());
         let custom = Statement::Custom("test_theorem".to_string(), vec![expr1, expr2]);
-        
+
         // Test that all statement types can be created and matched
         match equivalence {
-            Statement::SemanticEquivalence(_, _) => {},
+            Statement::SemanticEquivalence(_, _) => {}
             _ => panic!("Expected SemanticEquivalence"),
         }
-        
+
         match correctness {
-            Statement::ReductionCorrectness(_, _) => {},
+            Statement::ReductionCorrectness(_, _) => {}
             _ => panic!("Expected ReductionCorrectness"),
         }
-        
+
         match termination {
-            Statement::Termination(_) => {},
+            Statement::Termination(_) => {}
             _ => panic!("Expected Termination"),
         }
-        
+
         match compliance {
-            Statement::R7RSCompliance(_) => {},
+            Statement::R7RSCompliance(_) => {}
             _ => panic!("Expected R7RSCompliance"),
         }
-        
+
         match type_preservation {
-            Statement::TypePreservation(_, _) => {},
+            Statement::TypePreservation(_, _) => {}
             _ => panic!("Expected TypePreservation"),
         }
-        
+
         match custom {
-            Statement::Custom(_, _) => {},
+            Statement::Custom(_, _) => {}
             _ => panic!("Expected Custom"),
         }
     }
-    
+
     #[test]
     fn test_verification_result() {
         let semantic_evaluator = SemanticEvaluator::new();
         let mut theorem_system = TheoremProvingSupport::new(semantic_evaluator);
-        
+
         let statement = Statement::SemanticEquivalence(
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
         );
-        
+
         let result = theorem_system.verify_statement(statement).unwrap();
         // Note: These assertions are based on current placeholder implementation
         // When real verification is implemented, these may need to be updated
@@ -229,14 +241,14 @@ mod tests {
         assert!(result.error.is_some());
         assert!(result.proof.is_none());
     }
-    
+
     #[test]
     fn test_church_rosser_property_theorem() {
         let db = TheoremDatabase::new();
-        
+
         let church_rosser_theorem = db.find_theorem("Church_Rosser_property");
         assert!(church_rosser_theorem.is_some());
-        
+
         if let Some(theorem) = church_rosser_theorem {
             assert_eq!(theorem.name, "Church_Rosser_property");
             assert!(theorem.proof.is_some());
@@ -245,14 +257,14 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_semantic_preservation_theorem() {
         let db = TheoremDatabase::new();
-        
+
         let semantic_preservation_theorem = db.find_theorem("Semantic_preservation");
         assert!(semantic_preservation_theorem.is_some());
-        
+
         if let Some(theorem) = semantic_preservation_theorem {
             assert_eq!(theorem.name, "Semantic_preservation");
             assert!(theorem.proof.is_some());
@@ -261,72 +273,103 @@ mod tests {
             }
         }
     }
-    
+
     #[test]
     fn test_expressions_semantically_equal() {
         let semantic_evaluator = SemanticEvaluator::new();
         let theorem_system = TheoremProvingSupport::new(semantic_evaluator);
-        
+
         // Test identical literals
         let literal1 = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         let literal2 = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        assert!(theorem_system.expressions_semantically_equal(&literal1, &literal2).unwrap());
-        
+        assert!(theorem_system
+            .expressions_semantically_equal(&literal1, &literal2)
+            .unwrap());
+
         // Test different literals
         let literal3 = Expr::Literal(Literal::Number(SchemeNumber::Integer(43)));
-        assert!(!theorem_system.expressions_semantically_equal(&literal1, &literal3).unwrap());
-        
+        assert!(!theorem_system
+            .expressions_semantically_equal(&literal1, &literal3)
+            .unwrap());
+
         // Test identical variables
         let var1 = Expr::Variable("x".to_string());
         let var2 = Expr::Variable("x".to_string());
-        assert!(theorem_system.expressions_semantically_equal(&var1, &var2).unwrap());
-        
+        assert!(theorem_system
+            .expressions_semantically_equal(&var1, &var2)
+            .unwrap());
+
         // Test different variables
         let var3 = Expr::Variable("y".to_string());
-        assert!(!theorem_system.expressions_semantically_equal(&var1, &var3).unwrap());
-        
+        assert!(!theorem_system
+            .expressions_semantically_equal(&var1, &var3)
+            .unwrap());
+
         // Test identical lists
         let list1 = Expr::List(vec![literal1.clone(), var1.clone()]);
         let list2 = Expr::List(vec![literal2.clone(), var2.clone()]);
-        assert!(theorem_system.expressions_semantically_equal(&list1, &list2).unwrap());
-        
+        assert!(theorem_system
+            .expressions_semantically_equal(&list1, &list2)
+            .unwrap());
+
         // Test different lists (different length)
         let list3 = Expr::List(vec![literal1.clone()]);
-        assert!(!theorem_system.expressions_semantically_equal(&list1, &list3).unwrap());
+        assert!(!theorem_system
+            .expressions_semantically_equal(&list1, &list3)
+            .unwrap());
     }
-    
+
     #[test]
     fn test_combinator_expressions_equivalent() {
         let semantic_evaluator = SemanticEvaluator::new();
         let theorem_system = TheoremProvingSupport::new(semantic_evaluator);
-        
+
         // Test identical basic combinators
-        assert!(theorem_system.combinator_expressions_equivalent(&CombinatorExpr::S, &CombinatorExpr::S).unwrap());
-        assert!(theorem_system.combinator_expressions_equivalent(&CombinatorExpr::K, &CombinatorExpr::K).unwrap());
-        assert!(theorem_system.combinator_expressions_equivalent(&CombinatorExpr::I, &CombinatorExpr::I).unwrap());
-        
+        assert!(theorem_system
+            .combinator_expressions_equivalent(&CombinatorExpr::S, &CombinatorExpr::S)
+            .unwrap());
+        assert!(theorem_system
+            .combinator_expressions_equivalent(&CombinatorExpr::K, &CombinatorExpr::K)
+            .unwrap());
+        assert!(theorem_system
+            .combinator_expressions_equivalent(&CombinatorExpr::I, &CombinatorExpr::I)
+            .unwrap());
+
         // Test different basic combinators
-        assert!(!theorem_system.combinator_expressions_equivalent(&CombinatorExpr::S, &CombinatorExpr::K).unwrap());
-        
+        assert!(!theorem_system
+            .combinator_expressions_equivalent(&CombinatorExpr::S, &CombinatorExpr::K)
+            .unwrap());
+
         // Test identical atomic expressions
-        let atom1 = CombinatorExpr::Atomic(Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
-        let atom2 = CombinatorExpr::Atomic(Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
-        assert!(theorem_system.combinator_expressions_equivalent(&atom1, &atom2).unwrap());
-        
+        let atom1 =
+            CombinatorExpr::Atomic(Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
+        let atom2 =
+            CombinatorExpr::Atomic(Expr::Literal(Literal::Number(SchemeNumber::Integer(42))));
+        assert!(theorem_system
+            .combinator_expressions_equivalent(&atom1, &atom2)
+            .unwrap());
+
         // Test different atomic expressions
-        let atom3 = CombinatorExpr::Atomic(Expr::Literal(Literal::Number(SchemeNumber::Integer(43))));
-        assert!(!theorem_system.combinator_expressions_equivalent(&atom1, &atom3).unwrap());
-        
+        let atom3 =
+            CombinatorExpr::Atomic(Expr::Literal(Literal::Number(SchemeNumber::Integer(43))));
+        assert!(!theorem_system
+            .combinator_expressions_equivalent(&atom1, &atom3)
+            .unwrap());
+
         // Test identical applications
         let app1 = CombinatorExpr::App(Box::new(CombinatorExpr::S), Box::new(CombinatorExpr::K));
         let app2 = CombinatorExpr::App(Box::new(CombinatorExpr::S), Box::new(CombinatorExpr::K));
-        assert!(theorem_system.combinator_expressions_equivalent(&app1, &app2).unwrap());
-        
+        assert!(theorem_system
+            .combinator_expressions_equivalent(&app1, &app2)
+            .unwrap());
+
         // Test different applications
         let app3 = CombinatorExpr::App(Box::new(CombinatorExpr::S), Box::new(CombinatorExpr::I));
-        assert!(!theorem_system.combinator_expressions_equivalent(&app1, &app3).unwrap());
+        assert!(!theorem_system
+            .combinator_expressions_equivalent(&app1, &app3)
+            .unwrap());
     }
-    
+
     #[test]
     fn test_proof_methods() {
         // Test that all proof methods can be constructed
@@ -337,40 +380,40 @@ mod tests {
         let contradiction = ProofMethod::Contradiction;
         let combinator_reduction = ProofMethod::CombinatorReduction;
         let semantic_equivalence = ProofMethod::SemanticEquivalence;
-        
+
         // Test that they can be matched
         match computation {
-            ProofMethod::Computation => {},
+            ProofMethod::Computation => {}
             _ => panic!("Expected Computation"),
         }
-        
+
         match rewrite {
-            ProofMethod::Rewrite(_) => {},
+            ProofMethod::Rewrite(_) => {}
             _ => panic!("Expected Rewrite"),
         }
-        
+
         match induction {
-            ProofMethod::Induction(_) => {},
+            ProofMethod::Induction(_) => {}
             _ => panic!("Expected Induction"),
         }
-        
+
         match case_analysis {
-            ProofMethod::CaseAnalysis => {},
+            ProofMethod::CaseAnalysis => {}
             _ => panic!("Expected CaseAnalysis"),
         }
-        
+
         match contradiction {
-            ProofMethod::Contradiction => {},
+            ProofMethod::Contradiction => {}
             _ => panic!("Expected Contradiction"),
         }
-        
+
         match combinator_reduction {
-            ProofMethod::CombinatorReduction => {},
+            ProofMethod::CombinatorReduction => {}
             _ => panic!("Expected CombinatorReduction"),
         }
-        
+
         match semantic_equivalence {
-            ProofMethod::SemanticEquivalence => {},
+            ProofMethod::SemanticEquivalence => {}
             _ => panic!("Expected SemanticEquivalence"),
         }
     }

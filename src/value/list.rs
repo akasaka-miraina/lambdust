@@ -43,7 +43,7 @@ impl Value {
     /// Create a list from a vector of values
     pub fn from_vector(values: Vec<Value>) -> Value {
         values.into_iter().rev().fold(Value::Nil, |acc, val| {
-            Value::Pair(Rc::new(RefCell::new(PairData::new(val, acc))))
+            Value::cons(val, acc)
         })
     }
 

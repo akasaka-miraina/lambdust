@@ -113,6 +113,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use lambdust::Value;
 
     #[test]
     fn test_basic_record_operations() {

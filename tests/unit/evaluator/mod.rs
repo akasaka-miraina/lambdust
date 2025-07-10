@@ -27,3 +27,5 @@ pub mod ast_converter_tests;
 pub mod imports_tests;
 // Semantic evaluator tests
 pub mod semantic_evaluator_tests;
+// Phase 3: EvaluatorInterface unified evaluation system tests
+pub mod evaluator_interface_tests;

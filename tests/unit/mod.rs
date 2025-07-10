@@ -19,6 +19,7 @@ pub mod interpreter_tests;
 pub mod lexer_tests;
 pub mod lib_tests;
 // pub mod macro_integration_tests; // 削除済み
+pub mod macros;
 pub mod macros_tests;
 pub mod marshal_tests;
 pub mod memory_pool_tests;

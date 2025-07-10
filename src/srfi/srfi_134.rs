@@ -328,11 +328,7 @@ impl super::SrfiModule for Srfi134 {
                     let elements = ideque.to_list();
                     let mut result = Value::Nil;
                     for element in elements.into_iter().rev() {
-                        let pair_data = crate::value::PairData {
-                            car: element,
-                            cdr: result,
-                        };
-                        result = Value::Pair(std::rc::Rc::new(std::cell::RefCell::new(pair_data)));
+                        result = Value::cons(element, result);
                     }
                     Ok(result)
                 } else {
@@ -493,18 +489,13 @@ mod tests {
         let exports = srfi.exports();
 
         // Create a simple list: (1 2 3)
-        let pair3 = Value::Pair(Rc::new(RefCell::new(PairData {
-            car: Value::from(3i64),
-            cdr: Value::Nil,
-        })));
-        let pair2 = Value::Pair(Rc::new(RefCell::new(PairData {
-            car: Value::from(2i64),
-            cdr: pair3,
-        })));
-        let list = Value::Pair(Rc::new(RefCell::new(PairData {
-            car: Value::from(1i64),
-            cdr: pair2,
-        })));
+        let list = Value::cons(
+            Value::from(1i64),
+            Value::cons(
+                Value::from(2i64),
+                Value::cons(Value::from(3i64), Value::Nil),
+            ),
+        );
 
         // Test list->ideque conversion
         let list_to_ideque = exports.get("list->ideque").unwrap();

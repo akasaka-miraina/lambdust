@@ -210,6 +210,9 @@ impl ExpressionAnalyzer {
             // Vectors
             Expr::Vector(exprs) => self.analyze_vector(exprs, env),
 
+            // Hygienic variables are analyzed like regular variables
+            Expr::HygienicVariable(symbol) => self.analyze_variable(&symbol.unique_name(), env),
+
             // Dotted lists
             Expr::DottedList(_, _) => Ok(AnalysisResult {
                 is_constant: false,

@@ -1,4 +1,4 @@
-//! Phase 6-B-Step3: Inline Evaluation System
+//! Inline Evaluation System
 //!
 //! This module implements lightweight continuation inline processing:
 //! - Branch prediction optimization for simple continuations

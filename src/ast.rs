@@ -10,6 +10,8 @@ pub enum Expr {
     Literal(Literal),
     /// Variable reference
     Variable(String),
+    /// Hygienic variable reference (for macro expansion)
+    HygienicVariable(crate::macros::hygiene::HygienicSymbol),
     /// Function call or special form
     List(Vec<Expr>),
     /// Quoted expression
@@ -46,6 +48,7 @@ impl fmt::Display for Expr {
         match self {
             Self::Literal(lit) => write!(f, "{lit}"),
             Self::Variable(name) => write!(f, "{name}"),
+            Self::HygienicVariable(symbol) => write!(f, "{}", symbol),
             Self::List(exprs) => {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
@@ -111,7 +114,19 @@ impl Expr {
     /// Check if this expression is a variable
     #[must_use]
     pub const fn is_variable(&self) -> bool {
+        matches!(self, Self::Variable(_) | Self::HygienicVariable(_))
+    }
+    
+    /// Check if this expression is a traditional variable
+    #[must_use]
+    pub const fn is_traditional_variable(&self) -> bool {
         matches!(self, Self::Variable(_))
+    }
+    
+    /// Check if this expression is a hygienic variable
+    #[must_use]
+    pub const fn is_hygienic_variable(&self) -> bool {
+        matches!(self, Self::HygienicVariable(_))
     }
 
     /// Check if this expression is a list
@@ -131,6 +146,15 @@ impl Expr {
     pub fn as_symbol(&self) -> Option<&str> {
         match self {
             Expr::Variable(name) => Some(name),
+            Expr::HygienicVariable(symbol) => Some(symbol.original_name()),
+            _ => None,
+        }
+    }
+    
+    /// Get the hygienic symbol if this is a hygienic variable
+    pub fn as_hygienic_symbol(&self) -> Option<&crate::macros::hygiene::HygienicSymbol> {
+        match self {
+            Expr::HygienicVariable(symbol) => Some(symbol),
             _ => None,
         }
     }
@@ -164,7 +188,7 @@ impl Expr {
     pub fn is_special_form(&self) -> bool {
         match self {
             Expr::List(exprs) if !exprs.is_empty() => match &exprs[0] {
-                Expr::Variable(name) => matches!(
+                Expr::Variable(name) | Expr::HygienicVariable(crate::macros::hygiene::HygienicSymbol { name, .. }) => matches!(
                     name.as_str(),
                     "define"
                         | "lambda"

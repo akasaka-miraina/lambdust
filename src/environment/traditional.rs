@@ -4,8 +4,8 @@
 //! for backward compatibility and performance comparison.
 
 use crate::error::{LambdustError, Result};
-use crate::value::Value;
 use crate::macros::Macro;
+use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

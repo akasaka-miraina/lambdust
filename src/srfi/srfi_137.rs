@@ -4,10 +4,11 @@
 //! The key procedure `make-type` takes any Scheme object and returns 5 procedures
 //! that collectively manage a completely new disjoint type.
 
-use crate::builtins::utils::{check_arity, make_builtin_procedure};
+use crate::builtins::utils::check_arity;
 use crate::error::{LambdustError, Result};
-use crate::value::Value;
+use crate::value::{Procedure, Value};
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Unique type instance for SRFI 137
@@ -63,42 +64,62 @@ fn create_type_procedures(type_id: usize, type_payload: Value, subtype_chain: Op
     
     let procedures = vec![
         // 1. Type accessor
-        make_builtin_procedure("type-accessor", Some(0), {
-            let payload = type_payload.clone();
-            move |args| {
-                check_arity(args, 0)?;
-                Ok(payload.clone())
-            }
+        Value::Procedure(Procedure::HostFunction {
+            name: "type-accessor".to_string(),
+            arity: Some(0),
+            func: {
+                let payload = type_payload.clone();
+                Rc::new(move |args| {
+                    check_arity(args, 0)?;
+                    Ok(payload.clone())
+                })
+            },
         }),
         // 2. Constructor
-        make_builtin_procedure("constructor", Some(1), {
-            let chain = chain.clone();
-            move |args| {
-                check_arity(args, 1)?;
-                Ok(Value::UniqueTypeInstance(UniqueTypeInstance {
-                    type_id,
-                    payload: Box::new(args[0].clone()),
-                    subtype_chain: chain.clone(),
-                }))
-            }
+        Value::Procedure(Procedure::HostFunction {
+            name: "constructor".to_string(),
+            arity: Some(1),
+            func: {
+                let chain = chain.clone();
+                Rc::new(move |args| {
+                    check_arity(args, 1)?;
+                    Ok(Value::UniqueTypeInstance(UniqueTypeInstance {
+                        type_id,
+                        payload: Box::new(args[0].clone()),
+                        subtype_chain: chain.clone(),
+                    }))
+                })
+            },
         }),
         // 3. Predicate
-        make_builtin_procedure("predicate", Some(1), move |args| {
-            check_arity(args, 1)?;
-            Ok(Value::Boolean(is_instance_of_type(&args[0], type_id)))
+        Value::Procedure(Procedure::HostFunction {
+            name: "predicate".to_string(),
+            arity: Some(1),
+            func: Rc::new(move |args| {
+                check_arity(args, 1)?;
+                Ok(Value::Boolean(is_instance_of_type(&args[0], type_id)))
+            }),
         }),
         // 4. Instance accessor
-        make_builtin_procedure("instance-accessor", Some(1), move |args| {
-            check_arity(args, 1)?;
-            get_instance_payload(&args[0], type_id)
+        Value::Procedure(Procedure::HostFunction {
+            name: "instance-accessor".to_string(),
+            arity: Some(1),
+            func: Rc::new(move |args| {
+                check_arity(args, 1)?;
+                get_instance_payload(&args[0], type_id)
+            }),
         }),
         // 5. Subtype maker
-        make_builtin_procedure("subtype-maker", Some(1), move |args| {
-            check_arity(args, 1)?;
-            // Create a simple subtype with the current type as parent
-            let new_type_id = generate_type_id();
-            let new_chain = vec![new_type_id, type_id];
-            create_type_procedures(new_type_id, args[0].clone(), Some(new_chain))
+        Value::Procedure(Procedure::HostFunction {
+            name: "subtype-maker".to_string(),
+            arity: Some(1),
+            func: Rc::new(move |args| {
+                check_arity(args, 1)?;
+                // Create a simple subtype with the current type as parent
+                let new_type_id = generate_type_id();
+                let new_chain = vec![new_type_id, type_id];
+                create_type_procedures(new_type_id, args[0].clone(), Some(new_chain))
+            }),
         }),
     ];
 
@@ -137,7 +158,11 @@ impl super::SrfiModule for Srfi137 {
         // Main procedure
         exports.insert(
             "make-type".to_string(),
-            make_builtin_procedure("make-type", Some(1), make_type_proc),
+            Value::Procedure(Procedure::Builtin {
+                name: "make-type".to_string(),
+                arity: Some(1),
+                func: make_type_proc,
+            }),
         );
 
         exports

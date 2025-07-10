@@ -1,4 +1,4 @@
-//! Phase 6-C: JIT Loop Optimization System
+//! JIT Loop Optimization System
 //!
 //! This module implements JIT compilation for iterative constructs to eliminate
 //! CPS stack overhead through native iteration code generation.
@@ -408,7 +408,7 @@ impl LoopPatternAnalyzer {
                         list_expr: init_expr.clone(),
                     }));
                 }
-                _ => continue,
+                _ => {},
             }
         }
         Ok(None)
@@ -704,7 +704,7 @@ impl JitLoopOptimizer {
             return Ok(None);
         }
 
-        // Phase 6-C: Enhanced analysis using ExpressionAnalyzer
+        // Enhanced analysis using ExpressionAnalyzer
         let loop_complexity = self.analyze_loop_complexity(evaluator, operands, &env)?;
 
         // Skip optimization for very complex loops
@@ -938,7 +938,7 @@ impl JitLoopOptimizer {
         self.hot_path_detector.clear_cache();
     }
 
-    /// Phase 6-C: Analyze loop complexity using ExpressionAnalyzer
+    /// Analyze loop complexity using ExpressionAnalyzer
     pub fn analyze_loop_complexity(
         &self,
         _evaluator: &Evaluator,

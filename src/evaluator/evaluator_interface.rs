@@ -8,10 +8,10 @@ use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{
-    Continuation, RuntimeExecutor, RuntimeOptimizationLevel, SemanticEvaluator,
-    SemanticCorrectnessProver, CorrectnessProperty, CorrectnessProof,
-    EvaluationModeSelector, SelectionCriteria, PerformanceRequirements, EvaluationContext,
-    VerificationSystem, VerificationConfig, SystemVerificationResult,
+    Continuation, CorrectnessProof, CorrectnessProperty, EvaluationContext, EvaluationModeSelector,
+    PerformanceRequirements, RuntimeExecutor, RuntimeOptimizationLevel, SelectionCriteria,
+    SemanticCorrectnessProver, SemanticEvaluator, SystemVerificationResult, VerificationConfig,
+    VerificationSystem,
 };
 use crate::value::Value;
 use std::collections::HashMap;
@@ -152,7 +152,9 @@ impl EvaluatorInterface {
             runtime_executor: RuntimeExecutor::new(),
             correctness_prover: SemanticCorrectnessProver::new(),
             mode_selector: EvaluationModeSelector::new(),
-            verification_system: VerificationSystem::with_config(config.verification_config.clone()),
+            verification_system: VerificationSystem::with_config(
+                config.verification_config.clone(),
+            ),
             config,
             performance_history: Vec::new(),
             verification_cache: HashMap::new(),
@@ -167,20 +169,12 @@ impl EvaluatorInterface {
         cont: Continuation,
     ) -> Result<EvaluationResult> {
         let _start_time = Instant::now();
-        
+
         match &self.config.mode {
-            EvaluationMode::Semantic => {
-                self.eval_semantic(expr, env, cont)
-            }
-            EvaluationMode::Runtime(level) => {
-                self.eval_runtime(expr, env, cont, level.clone())
-            }
-            EvaluationMode::Auto => {
-                self.eval_auto(expr, env, cont)
-            }
-            EvaluationMode::Verification => {
-                self.eval_verification(expr, env, cont)
-            }
+            EvaluationMode::Semantic => self.eval_semantic(expr, env, cont),
+            EvaluationMode::Runtime(level) => self.eval_runtime(expr, env, cont, level.clone()),
+            EvaluationMode::Auto => self.eval_auto(expr, env, cont),
+            EvaluationMode::Verification => self.eval_verification(expr, env, cont),
         }
     }
 
@@ -192,11 +186,11 @@ impl EvaluatorInterface {
         cont: Continuation,
     ) -> Result<EvaluationResult> {
         let start_time = Instant::now();
-        
+
         let value = self.semantic_evaluator.eval_pure(expr.clone(), env, cont)?;
-        
+
         let evaluation_time = start_time.elapsed().as_micros() as u64;
-        
+
         let correctness_proof = if self.config.verify_correctness {
             Some(self.verify_correctness(&expr, &value)?)
         } else {
@@ -208,7 +202,7 @@ impl EvaluatorInterface {
             semantic_time_us: evaluation_time,
             runtime_time_us: 0,
             verification_time_us: 0,
-            reduction_steps: 0, // TODO: track from SemanticEvaluator
+            reduction_steps: 0,    // TODO: track from SemanticEvaluator
             memory_usage_bytes: 0, // TODO: implement memory tracking
         };
 
@@ -232,19 +226,17 @@ impl EvaluatorInterface {
         level: RuntimeOptimizationLevel,
     ) -> Result<EvaluationResult> {
         let start_time = Instant::now();
-        
+
         // Set optimization level and attempt runtime evaluation
         self.runtime_executor.set_optimization_level(level.clone());
-        let runtime_result = self.runtime_executor.eval_optimized(
-            expr.clone(),
-            env.clone(),
-            cont.clone(),
-        );
+        let runtime_result =
+            self.runtime_executor
+                .eval_optimized(expr.clone(), env.clone(), cont.clone());
 
         match runtime_result {
             Ok(value) => {
                 let evaluation_time = start_time.elapsed().as_micros() as u64;
-                
+
                 let correctness_proof = if self.config.verify_correctness {
                     Some(self.verify_correctness(&expr, &value)?)
                 } else {
@@ -252,26 +244,28 @@ impl EvaluatorInterface {
                 };
 
                 // Perform advanced verification against SemanticEvaluator
-                let verification_result = if self.config.verification_config.verify_semantic_equivalence {
-                    Some(self.verification_system.verify_execution(
-                        &expr,
-                        &env,
-                        &cont,
-                        &value,
-                        level.clone(),
-                    )?)
-                } else {
-                    None
-                };
+                let verification_result =
+                    if self.config.verification_config.verify_semantic_equivalence {
+                        Some(self.verification_system.verify_execution(
+                            &expr,
+                            &env,
+                            &cont,
+                            &value,
+                            level.clone(),
+                        )?)
+                    } else {
+                        None
+                    };
 
                 let performance_metrics = PerformanceMetrics {
                     total_time_us: evaluation_time,
                     semantic_time_us: 0,
                     runtime_time_us: evaluation_time,
-                    verification_time_us: verification_result.as_ref()
+                    verification_time_us: verification_result
+                        .as_ref()
                         .map(|vr| vr.verification_time.as_micros() as u64)
                         .unwrap_or(0),
-                    reduction_steps: 0, // TODO: track from RuntimeExecutor
+                    reduction_steps: 0,    // TODO: track from RuntimeExecutor
                     memory_usage_bytes: 0, // TODO: implement memory tracking
                 };
 
@@ -309,9 +303,9 @@ impl EvaluatorInterface {
             performance_requirements: PerformanceRequirements::default(),
             context: EvaluationContext::default(),
         };
-        
+
         let selected_mode = self.mode_selector.select_mode(&criteria);
-        
+
         // Execute with selected mode
         match selected_mode {
             EvaluationMode::Semantic => self.eval_semantic(expr, env, cont),
@@ -337,24 +331,21 @@ impl EvaluatorInterface {
         cont: Continuation,
     ) -> Result<EvaluationResult> {
         let start_time = Instant::now();
-        
+
         // Run semantic evaluation
         let semantic_start = Instant::now();
-        let semantic_result = self.semantic_evaluator.eval_pure(
-            expr.clone(),
-            env.clone(),
-            cont.clone(),
-        )?;
+        let semantic_result =
+            self.semantic_evaluator
+                .eval_pure(expr.clone(), env.clone(), cont.clone())?;
         let semantic_time = semantic_start.elapsed().as_micros() as u64;
 
         // Run runtime evaluation
         let runtime_start = Instant::now();
-        self.runtime_executor.set_optimization_level(RuntimeOptimizationLevel::Conservative);
-        let runtime_result = self.runtime_executor.eval_optimized(
-            expr.clone(),
-            env.clone(),
-            cont.clone(),
-        )?;
+        self.runtime_executor
+            .set_optimization_level(RuntimeOptimizationLevel::Conservative);
+        let runtime_result =
+            self.runtime_executor
+                .eval_optimized(expr.clone(), env.clone(), cont.clone())?;
         let runtime_time = runtime_start.elapsed().as_micros() as u64;
 
         // Verify equivalence
@@ -369,7 +360,7 @@ impl EvaluatorInterface {
         }
 
         let total_time = start_time.elapsed().as_micros() as u64;
-        
+
         let correctness_proof = self.verify_correctness(&expr, &semantic_result)?;
 
         // Perform comprehensive verification
@@ -385,8 +376,9 @@ impl EvaluatorInterface {
             total_time_us: total_time,
             semantic_time_us: semantic_time,
             runtime_time_us: runtime_time,
-            verification_time_us: verification_time + verification_result.verification_time.as_micros() as u64,
-            reduction_steps: 0, // TODO: aggregate from both evaluators
+            verification_time_us: verification_time
+                + verification_result.verification_time.as_micros() as u64,
+            reduction_steps: 0,    // TODO: aggregate from both evaluators
             memory_usage_bytes: 0, // TODO: implement memory tracking
         };
 
@@ -403,11 +395,8 @@ impl EvaluatorInterface {
 
     /// Verify correctness of evaluation result
     fn verify_correctness(&mut self, expr: &Expr, value: &Value) -> Result<CorrectnessProof> {
-        let property = CorrectnessProperty::ReferentialTransparency(
-            expr.clone(),
-            value.clone(),
-        );
-        
+        let property = CorrectnessProperty::ReferentialTransparency(expr.clone(), value.clone());
+
         self.correctness_prover.prove_property(property)
     }
 
@@ -423,11 +412,17 @@ impl EvaluatorInterface {
         match expr {
             Expr::Literal(_) | Expr::Variable(_) => 1,
             Expr::List(exprs) => {
-                1 + exprs.iter().map(|e| self.analyze_expression_complexity(e)).sum::<usize>()
+                1 + exprs
+                    .iter()
+                    .map(|e| self.analyze_expression_complexity(e))
+                    .sum::<usize>()
             }
             Expr::Quote(expr) => 1 + self.analyze_expression_complexity(expr),
             Expr::Vector(exprs) => {
-                1 + exprs.iter().map(|e| self.analyze_expression_complexity(e)).sum::<usize>()
+                1 + exprs
+                    .iter()
+                    .map(|e| self.analyze_expression_complexity(e))
+                    .sum::<usize>()
             }
             _ => 5, // Default complexity for other expressions
         }
@@ -456,17 +451,18 @@ impl EvaluatorInterface {
     /// Get verification cache statistics
     pub fn get_verification_cache_stats(&self) -> (usize, usize) {
         let total_entries = self.verification_cache.len();
-        let successful_verifications = self.verification_cache.values()
+        let successful_verifications = self
+            .verification_cache
+            .values()
             .filter(|v| v.results_match)
             .count();
         (total_entries, successful_verifications)
     }
 
-
     /// Get mode selector statistics
     pub fn get_mode_selector_stats(&self) -> Vec<String> {
         use crate::evaluator::ExpressionType;
-        
+
         let expression_types = vec![
             ExpressionType::Literal,
             ExpressionType::Variable,
@@ -479,13 +475,13 @@ impl EvaluatorInterface {
             ExpressionType::RecursiveFunction,
             ExpressionType::ComplexNested,
         ];
-        
+
         let mut stats = Vec::new();
         for expr_type in expression_types {
             let recommendations = self.mode_selector.get_recommendations(&expr_type);
             stats.push(format!("{:?}: {:?}", expr_type, recommendations));
         }
-        
+
         stats
     }
 
@@ -502,7 +498,7 @@ impl EvaluatorInterface {
             performance_requirements: PerformanceRequirements::default(),
             context: EvaluationContext::default(),
         };
-        
+
         self.mode_selector.select_mode(&criteria)
     }
 
@@ -572,12 +568,12 @@ mod tests {
         let mut interface = EvaluatorInterface::new();
         let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         let env = Rc::new(Environment::new());
-        
+
         interface.config.mode = EvaluationMode::Semantic;
         interface.config.verify_correctness = false; // Disable for simple test
-        
+
         let result = interface.eval(expr, env, Continuation::Identity).unwrap();
-        
+
         assert_eq!(result.mode_used, EvaluationMode::Semantic);
         assert!(!result.fallback_used);
         assert!(result.evaluation_time_us > 0);
@@ -588,13 +584,13 @@ mod tests {
         let mut interface = EvaluatorInterface::new();
         let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         let env = Rc::new(Environment::new());
-        
+
         interface.config.mode = EvaluationMode::Runtime(RuntimeOptimizationLevel::Conservative);
         interface.config.fallback_to_semantic = true;
         interface.config.verify_correctness = false; // Disable for simple test
-        
+
         let result = interface.eval(expr, env, Continuation::Identity).unwrap();
-        
+
         // Should succeed either with runtime or fallback to semantic
         assert!(result.evaluation_time_us > 0);
     }
@@ -603,23 +599,25 @@ mod tests {
     fn test_auto_mode_selection() {
         let mut interface = EvaluatorInterface::new();
         interface.config.verify_correctness = false; // Disable for simple test
-        
+
         // Simple expression should use semantic evaluation
         let simple_expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         let env = Rc::new(Environment::new());
-        
-        let result = interface.eval(simple_expr, env, Continuation::Identity).unwrap();
+
+        let result = interface
+            .eval(simple_expr, env, Continuation::Identity)
+            .unwrap();
         assert_eq!(result.mode_used, EvaluationMode::Semantic);
     }
 
     #[test]
     fn test_expression_complexity_analysis() {
         let interface = EvaluatorInterface::new();
-        
+
         // Simple literal
         let simple = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
         assert_eq!(interface.analyze_expression_complexity(&simple), 1);
-        
+
         // Complex nested expression
         let complex = Expr::List(vec![
             Expr::Variable("+".to_string()),
@@ -636,7 +634,7 @@ mod tests {
     #[test]
     fn test_configuration_management() {
         let mut interface = EvaluatorInterface::new();
-        
+
         let custom_config = EvaluationConfig {
             mode: EvaluationMode::Semantic,
             verify_correctness: false,
@@ -645,7 +643,7 @@ mod tests {
             verification_timeout_ms: 1000,
             verification_config: VerificationConfig::default(),
         };
-        
+
         interface.set_config(custom_config.clone());
         assert_eq!(interface.get_config().mode, EvaluationMode::Semantic);
         assert!(!interface.get_config().verify_correctness);
@@ -655,7 +653,7 @@ mod tests {
     fn test_performance_tracking() {
         let mut interface = EvaluatorInterface::new();
         assert_eq!(interface.get_performance_history().len(), 0);
-        
+
         interface.clear_performance_history();
         assert_eq!(interface.get_performance_history().len(), 0);
     }
@@ -666,7 +664,7 @@ mod tests {
         let (total, successful) = interface.get_verification_cache_stats();
         assert_eq!(total, 0);
         assert_eq!(successful, 0);
-        
+
         interface.clear_verification_cache();
         let (total, successful) = interface.get_verification_cache_stats();
         assert_eq!(total, 0);

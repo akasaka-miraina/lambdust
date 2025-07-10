@@ -17,6 +17,7 @@ impl AstConverter {
         match expr {
             Expr::Literal(lit) => Self::literal_to_value(lit),
             Expr::Variable(name) => Ok(Value::Symbol(name)),
+            Expr::HygienicVariable(symbol) => Ok(Value::Symbol(symbol.unique_name())),
             Expr::List(exprs) => Self::list_to_value(exprs),
             Expr::Vector(exprs) => Self::vector_to_value(exprs),
             Expr::Quote(expr) => Self::expr_to_value(*expr),

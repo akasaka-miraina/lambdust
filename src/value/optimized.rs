@@ -1,4 +1,4 @@
-//! Optimized value representation for Phase 4 memory efficiency
+//! Optimized value representation for memory efficiency
 //!
 //! This module provides memory-optimized value types using:
 //! - SmallInt: Stack-allocated small integers

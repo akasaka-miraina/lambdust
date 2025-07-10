@@ -141,6 +141,9 @@ impl EmbeddedEvaluator {
             Expr::Variable(name) => env.lookup(name).ok_or_else(|| {
                 LambdustError::runtime_error(format!("Undefined variable: {}", name))
             }),
+            Expr::HygienicVariable(symbol) => env.lookup(symbol.original_name()).ok_or_else(|| {
+                LambdustError::runtime_error(format!("Undefined hygienic variable: {}", symbol.unique_name()))
+            }),
             Expr::List(exprs) => {
                 if exprs.is_empty() {
                     Ok(EmbeddedValue::Nil)
@@ -590,6 +593,7 @@ impl EmbeddedEvaluator {
         match expr {
             Expr::Literal(literal) => self.eval_literal(literal),
             Expr::Variable(name) => Ok(EmbeddedValue::Symbol(name.clone())),
+            Expr::HygienicVariable(symbol) => Ok(EmbeddedValue::Symbol(symbol.original_name().to_string())),
             Expr::List(exprs) => {
                 let mut result = EmbeddedValue::Nil;
                 for expr in exprs.iter().rev() {

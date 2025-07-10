@@ -133,6 +133,9 @@ impl DependencyAnalyzer {
             Expr::Variable(name) => {
                 self.record_variable_reference(name.clone());
             }
+            Expr::HygienicVariable(symbol) => {
+                self.record_variable_reference(symbol.original_name().to_string());
+            }
             Expr::Quote(_) => {
                 // Quoted expressions don't create dependencies
             }
@@ -262,6 +265,9 @@ impl DependencyAnalyzer {
         match expr {
             Expr::Variable(name) => {
                 dependencies.push(name.clone());
+            }
+            Expr::HygienicVariable(symbol) => {
+                dependencies.push(symbol.original_name().to_string());
             }
             Expr::List(exprs) => {
                 for expr in exprs {

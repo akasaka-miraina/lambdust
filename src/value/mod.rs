@@ -80,4 +80,6 @@ pub enum Value {
     Text(std::rc::Rc<crate::srfi::srfi_135::Text>),
     /// Immutable string values (SRFI 140)
     IString(std::rc::Rc<crate::srfi::srfi_140::IString>),
+    /// Unique type instance values (SRFI 137)
+    UniqueTypeInstance(crate::srfi::srfi_137::UniqueTypeInstance),
 }

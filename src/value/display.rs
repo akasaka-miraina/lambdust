@@ -180,6 +180,9 @@ impl fmt::Display for Value {
             Value::IString(istring) => {
                 write!(f, "\"{}\"", istring.to_string())
             }
+            Value::UniqueTypeInstance(instance) => {
+                write!(f, "#<unique-type-instance:{} {:?}>", instance.type_id, instance.payload)
+            }
         }
     }
 }
@@ -230,6 +233,10 @@ impl std::fmt::Debug for Value {
             Self::Ideque(arg0) => f.debug_tuple("Ideque").field(arg0).finish(),
             Self::Text(arg0) => f.debug_tuple("Text").field(&arg0.text_to_string()).finish(),
             Self::IString(arg0) => f.debug_tuple("IString").field(&arg0.to_string()).finish(),
+            Self::UniqueTypeInstance(instance) => f.debug_tuple("UniqueTypeInstance")
+                .field(&instance.type_id)
+                .field(&instance.payload)
+                .finish(),
         }
     }
 }

@@ -7,8 +7,8 @@ use crate::builtins::utils::make_boolean;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{Continuation, Evaluator};
-use crate::macros::{expand_macro, Macro, SyntaxRulesTransformer, SyntaxRule};
 use crate::macros::pattern_matching::{Pattern, Template};
+use crate::macros::{expand_macro, Macro, SyntaxRule, SyntaxRulesTransformer};
 use crate::value::{Procedure, Value};
 use std::rc::Rc;
 
@@ -1004,7 +1004,8 @@ impl Evaluator {
                 Ok(SyntaxRule { pattern, template })
             }
             _ => Err(LambdustError::syntax_error(
-                "syntax-rules: each rule must be a list of two elements (pattern template)".to_string(),
+                "syntax-rules: each rule must be a list of two elements (pattern template)"
+                    .to_string(),
             )),
         }
     }
@@ -1142,10 +1143,9 @@ impl Evaluator {
                                 ));
                             }
                             return self.eval(exprs[1].clone(), env, Continuation::Identity);
-                        } else {
-                            // Nested quasiquote, decrease depth
-                            return self.expand_quasiquote_list(exprs, env, depth - 1);
                         }
+                        // Nested quasiquote, decrease depth
+                        return self.expand_quasiquote_list(exprs, env, depth - 1);
                     }
                     Expr::Variable(name) if name == "unquote-splicing" => {
                         return Err(LambdustError::syntax_error(
@@ -1200,8 +1200,12 @@ impl Evaluator {
                                     "unquote-splicing: expected exactly 1 argument".to_string(),
                                 ));
                             }
-                            let spliced_value = self.eval(inner_exprs[1].clone(), env.clone(), Continuation::Identity)?;
-                            
+                            let spliced_value = self.eval(
+                                inner_exprs[1].clone(),
+                                env.clone(),
+                                Continuation::Identity,
+                            )?;
+
                             // Convert to list and splice
                             match spliced_value {
                                 Value::Vector(vec) => {
@@ -1250,7 +1254,7 @@ impl Evaluator {
             Value::Pair(pair_ref) => {
                 let mut result = Vec::new();
                 let mut current = Value::Pair(pair_ref);
-                
+
                 loop {
                     match current {
                         Value::Pair(pair_ref) => {

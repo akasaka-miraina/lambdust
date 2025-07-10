@@ -129,6 +129,16 @@ impl SyntaxRulesTransformer {
                 ))
             }
 
+            // Advanced patterns are not supported in syntax-rules
+            (Pattern::Conditional { .. }, _) | (Pattern::TypeGuard { .. }, _) 
+            | (Pattern::And(_), _) | (Pattern::Or(_), _) | (Pattern::Not(_), _)
+            | (Pattern::Range { .. }, _) | (Pattern::Regex(_), _)
+            | (Pattern::HygienicVariable(_), _) | (Pattern::SyntaxObject(_), _) | (Pattern::Any, _) => {
+                Err(LambdustError::macro_error_old(
+                    "Advanced patterns not supported in syntax-rules".to_string(),
+                ))
+            }
+            
             // Type mismatches
             _ => Err(LambdustError::macro_error_old(format!(
                 "Pattern type mismatch: {pattern:?} vs {expr:?}"
@@ -364,6 +374,25 @@ impl SyntaxRulesTransformer {
             Template::NestedEllipsis(_template, _level) => {
                 // Placeholder for nested ellipsis expansion
                 Ok(Expr::List(Vec::new()))
+            }
+
+            Template::HygienicVariable(_symbol) => {
+                // In syntax-rules context, treat as regular variable
+                Err(LambdustError::macro_error_old(
+                    "Hygienic variables not supported in syntax-rules".to_string(),
+                ))
+            }
+
+            Template::SyntaxObject(inner_template) => {
+                // In syntax-rules context, just expand the inner template
+                self.template_expand(inner_template, bindings)
+            }
+
+            // Advanced templates are not supported in syntax-rules
+            Template::Conditional { .. } | Template::Repeat { .. } | Template::Transform { .. } => {
+                Err(LambdustError::macro_error_old(
+                    "Advanced templates not supported in syntax-rules".to_string(),
+                ))
             }
         }
     }

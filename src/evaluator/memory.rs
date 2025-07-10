@@ -71,9 +71,9 @@ pub struct Store {
     current_generation: u32,
     /// Statistics for monitoring
     pub stats: StoreStatistics,
-    /// Memory pool for reusing freed cells (Phase 3 optimization)
+    /// Memory pool for reusing freed cells
     cell_pool: Vec<MemoryCell>,
-    /// Location pool for reusing location IDs (Phase 3 optimization)
+    /// Location pool for reusing location IDs
     location_pool: Vec<usize>,
     /// Maximum pool size to prevent unbounded growth
     max_pool_size: usize,
@@ -90,9 +90,9 @@ pub struct StoreStatistics {
     pub gc_cycles: usize,
     /// Peak memory usage
     pub peak_memory_usage: usize,
-    /// Memory pool hits (Phase 3 optimization)
+    /// Memory pool hits
     pub pool_hits: usize,
-    /// Clone eliminations (Phase 3 optimization)
+    /// Clone eliminations
     pub clone_eliminations: usize,
     /// Memory pool efficiency (0.0 - 1.0)
     pub memory_pool_efficiency: f64,
@@ -163,7 +163,7 @@ impl Store {
         Location::new(loc_id)
     }
 
-    /// Allocate a new location using memory pool optimization (Phase 3)
+    /// Allocate a new location using memory pool optimization
     pub fn allocate_pooled(&mut self, value: Value) -> Location {
         // Check memory limit before allocation
         if self.should_collect_garbage() {
@@ -290,12 +290,12 @@ impl Store {
             self.memory_usage = self.memory_usage.saturating_sub(value_size);
             self.stats.total_deallocations += 1;
 
-            // Add to memory pools if space available (Phase 3 optimization)
+            // Add to memory pools if space available
             self.pool_deallocated_resources(location.id(), cell);
         }
     }
 
-    /// Pool deallocated resources for reuse (Phase 3 optimization)
+    /// Pool deallocated resources for reuse
     fn pool_deallocated_resources(&mut self, location_id: usize, mut cell: MemoryCell) {
         // Add location ID to pool if space available
         if self.location_pool.len() < self.max_pool_size {
@@ -313,7 +313,7 @@ impl Store {
         }
     }
 
-    /// Update memory pool efficiency statistics (Phase 3 optimization)
+    /// Update memory pool efficiency statistics
     pub fn update_pool_efficiency(&mut self) {
         if self.stats.total_allocations > 0 {
             self.stats.memory_pool_efficiency =
@@ -421,6 +421,12 @@ impl Store {
                 let storage = lazy_vec.borrow();
                 let stats = storage.memory_stats();
                 stats.estimated_bytes + 128 // Add overhead for LazyVector wrapper
+            }
+            Value::UniqueTypeInstance(instance) => {
+                // Size includes the type_id, subtype_chain, and payload size
+                let payload_size = self.estimate_value_size(&instance.payload);
+                let chain_size = instance.subtype_chain.len() * 8; // size of usize vec
+                payload_size + chain_size + 16 // base overhead for UniqueTypeInstance
             }
         }
     }

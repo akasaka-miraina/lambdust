@@ -1,6 +1,6 @@
 //! Trampoline evaluator for stack overflow prevention
 //!
-//! Phase 6-A: Implements heap-based continuation unwinding to prevent
+//! Implements heap-based continuation unwinding to prevent
 //! stack overflow in iterative constructs like do-loops.
 //!
 //! Architecture:
@@ -146,7 +146,7 @@ impl TrampolineEvaluator {
     }
 
     /// Convert expression evaluation to trampoline thunk
-    /// Phase 6-A-Step2: Enhanced expression unwinding for heap-based evaluation
+    /// Enhanced expression unwinding for heap-based evaluation
     fn eval_to_thunk(
         evaluator: &mut Evaluator,
         expr: Expr,
@@ -216,7 +216,7 @@ impl TrampolineEvaluator {
         }
     }
 
-    /// Phase 6-A-Step2: Heap-based begin evaluation
+    /// Heap-based begin evaluation
     fn eval_begin_to_thunk(
         exprs: &[Expr],
         env: Rc<Environment>,
@@ -255,7 +255,7 @@ impl TrampolineEvaluator {
         })))
     }
 
-    /// Phase 6-A-Step2: Heap-based if evaluation  
+    /// Heap-based if evaluation  
     fn eval_if_to_thunk(
         _evaluator: &mut Evaluator,
         exprs: &[Expr],
@@ -286,7 +286,7 @@ impl TrampolineEvaluator {
         })))
     }
 
-    /// Phase 6-A-Step2: Heap-based define evaluation
+    /// Heap-based define evaluation
     fn eval_define_to_thunk(
         exprs: &[Expr],
         env: Rc<Environment>,
@@ -319,7 +319,7 @@ impl TrampolineEvaluator {
         }
     }
 
-    /// Phase 6-A-Step2: Heap-based assignment evaluation  
+    /// Heap-based assignment evaluation  
     fn eval_assignment_to_thunk(
         exprs: &[Expr],
         env: Rc<Environment>,
@@ -352,7 +352,7 @@ impl TrampolineEvaluator {
         }
     }
 
-    /// Phase 6-A-Step2: Heap-based quote evaluation
+    /// Heap-based quote evaluation
     fn eval_quote_to_thunk(exprs: &[Expr], cont: Continuation) -> Result<Bounce> {
         if exprs.len() != 1 {
             return Ok(Bounce::Error(LambdustError::syntax_error(
@@ -368,17 +368,17 @@ impl TrampolineEvaluator {
     }
 
     /// Apply continuation in trampoline-safe manner
-    /// Phase 6-A-Step2: Convert stack-based continuation to heap-based unwinding
+    /// Convert stack-based continuation to heap-based unwinding
     fn apply_continuation_to_thunk(
         evaluator: &mut Evaluator,
         cont: Continuation,
         value: Value,
     ) -> Result<Bounce> {
-        // Phase 6-A-Step2: Heap-based continuation unwinding
+        // Heap-based continuation unwinding
         Self::unwind_continuation_chain(evaluator, cont, value)
     }
 
-    /// Phase 6-A-Step2: Unwind continuation chain on heap to prevent stack overflow
+    /// Unwind continuation chain on heap to prevent stack overflow
     /// Converts recursive continuation application to iterative processing
     fn unwind_continuation_chain(
         evaluator: &mut Evaluator,
@@ -406,16 +406,17 @@ impl TrampolineEvaluator {
                 Continuation::LetBinding { .. } => {
                     // LetBinding continuation not implemented in trampoline yet
                     return Err(LambdustError::runtime_error(
-                        "LetBinding continuation not implemented in trampoline evaluator".to_string()
+                        "LetBinding continuation not implemented in trampoline evaluator"
+                            .to_string(),
                     ));
-                },
+                }
 
                 // Simple continuations that can be unwound iteratively
                 Continuation::Values { mut values, parent } => {
                     values.push(current_value);
                     current_value = Value::Values(values);
                     current_cont = *parent;
-                    continue; // Iterative unwinding
+                    // Iterative unwinding
                 }
 
                 // Assignment continuation - can be handled inline
@@ -427,7 +428,6 @@ impl TrampolineEvaluator {
                     Ok(_) => {
                         current_value = Value::Undefined;
                         current_cont = *parent;
-                        continue;
                     }
                     Err(e) => return Ok(Bounce::Error(e)),
                 },
@@ -441,7 +441,6 @@ impl TrampolineEvaluator {
                     env.define(variable, current_value);
                     current_value = Value::Undefined;
                     current_cont = *parent;
-                    continue;
                 }
 
                 // Begin continuation with single expression
@@ -488,7 +487,7 @@ impl TrampolineEvaluator {
     }
 
     /// Parse and create do-loop thunk for iterative evaluation
-    /// Phase 6-A-Step3: Enhanced do-loop parsing with proper init expression evaluation
+    /// Enhanced do-loop parsing with proper init expression evaluation
     fn eval_do_special_form(
         evaluator: &mut Evaluator,
         operands: &[Expr],
@@ -511,7 +510,7 @@ impl TrampolineEvaluator {
                     match clause {
                         Expr::List(clause_exprs) if clause_exprs.len() >= 2 => {
                             if let Expr::Variable(var_name) = &clause_exprs[0] {
-                                // Phase 6-A-Step3: Properly evaluate init expression
+                                // Properly evaluate init expression
                                 let init_expr = &clause_exprs[1];
                                 let init_value = match init_expr {
                                     // Direct literal evaluation
@@ -594,7 +593,7 @@ impl TrampolineEvaluator {
     }
 
     /// Evaluate one iteration of do-loop in stack-safe manner
-    /// Phase 6-A-Step3: Enhanced iteration with proper step expression evaluation
+    /// Enhanced iteration with proper step expression evaluation
     #[allow(clippy::too_many_arguments)]
     fn eval_do_loop_iteration(
         evaluator: &mut Evaluator,
@@ -613,7 +612,7 @@ impl TrampolineEvaluator {
         }
         let loop_env = Rc::new(loop_env.extend());
 
-        // Phase 6-A-Step3: Enhanced test condition evaluation
+        // Enhanced test condition evaluation
         let test_result = Self::eval_test_condition(evaluator, &test_expr, &loop_env, &variables)?;
 
         if test_result {
@@ -635,7 +634,7 @@ impl TrampolineEvaluator {
         }
     }
 
-    /// Phase 6-A-Step3: Enhanced test condition evaluation
+    /// Enhanced test condition evaluation
     fn eval_test_condition(
         evaluator: &mut Evaluator,
         test_expr: &Expr,
@@ -755,7 +754,7 @@ impl TrampolineEvaluator {
                 value: Value::Undefined,
             })))
         } else {
-            // For Phase 6-A-Step3, return the first variable value as placeholder
+            // Return the first variable value as placeholder
             // TODO: Properly evaluate result expressions in sequence
             let result_value = if result_exprs.len() == 1 {
                 // Single result expression - try simple evaluation
@@ -800,7 +799,7 @@ impl TrampolineEvaluator {
         loop_env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Bounce> {
-        // Phase 6-A-Step3: Evaluate step expressions and prepare next iteration
+        // Evaluate step expressions and prepare next iteration
         let mut next_variables = Vec::new();
         for (i, (name, value)) in variables.into_iter().enumerate() {
             let next_value = if let Some(step_expr) = &step_exprs.get(i).unwrap_or(&None) {
@@ -847,7 +846,7 @@ pub trait TrampolineEvaluation {
         cont: Continuation,
     ) -> Result<Value>;
 
-    /// Evaluate do-loop using trampoline to prevent stack overflow (Phase 6-A integration)
+    /// Evaluate do-loop using trampoline to prevent stack overflow
     fn evaluate_do_loop_trampoline(
         &mut self,
         operands: &[Expr],

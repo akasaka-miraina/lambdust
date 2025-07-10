@@ -24,6 +24,20 @@ pub enum Macro {
         /// Transformer implementing syntax-rules pattern matching
         transformer: super::syntax_rules::SyntaxRulesTransformer,
     },
+    /// Hygienic syntax-rules macro with symbol collision prevention
+    HygienicSyntaxRules {
+        /// Name of the hygienic macro
+        name: String,
+        /// Hygienic transformer with symbol renaming
+        transformer: super::hygiene::HygienicSyntaxRulesTransformer,
+    },
+    /// Syntax-case macro with advanced pattern matching
+    SyntaxCase {
+        /// Name of the syntax-case macro
+        name: String,
+        /// Syntax-case transformer with guard conditions
+        transformer: super::syntax_case::SyntaxCaseTransformer,
+    },
 }
 
 /// Variable bindings from pattern matching

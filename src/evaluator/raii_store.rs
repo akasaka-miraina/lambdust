@@ -489,6 +489,12 @@ impl RaiiStoreManager {
                 let stats = storage.memory_stats();
                 stats.estimated_bytes + 128 // Add overhead for LazyVector wrapper
             }
+            Value::UniqueTypeInstance(instance) => {
+                // Size includes the type_id, subtype_chain, and payload size
+                let payload_size = self.estimate_value_size(&instance.payload);
+                let chain_size = instance.subtype_chain.len() * 8; // size of usize vec
+                payload_size + chain_size + 16 // base overhead for UniqueTypeInstance
+            }
         }
     }
 }

@@ -8,9 +8,9 @@ use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{
-    Continuation, RuntimeOptimizationLevel, SemanticEvaluator,
-    SemanticCorrectnessProver, CorrectnessProperty, CorrectnessProof,
-    TheoremProvingSupport, ProofGoal, Statement, GoalType, ProofTactic,
+    Continuation, CorrectnessProof, CorrectnessProperty, GoalType, ProofGoal, ProofTactic,
+    RuntimeOptimizationLevel, SemanticCorrectnessProver, SemanticEvaluator, Statement,
+    TheoremProvingSupport,
 };
 use crate::value::Value;
 use std::collections::HashMap;
@@ -124,6 +124,7 @@ pub struct VerificationHistoryEntry {
 }
 
 /// Main verification system
+#[derive(Debug)]
 pub struct VerificationSystem {
     /// Configuration
     config: VerificationConfig,
@@ -178,19 +179,17 @@ impl VerificationSystem {
         optimization_level: RuntimeOptimizationLevel,
     ) -> Result<VerificationResult> {
         let start_time = Instant::now();
-        
+
         // Check timeout
         let timeout = Duration::from_millis(self.config.max_verification_time_ms);
-        
+
         // Get reference result from SemanticEvaluator
         let reference_result = if self.config.verify_semantic_equivalence {
             let eval_start = Instant::now();
-            let result = self.semantic_evaluator.eval_pure(
-                expr.clone(),
-                env.clone(),
-                cont.clone(),
-            );
-            
+            let result = self
+                .semantic_evaluator
+                .eval_pure(expr.clone(), env.clone(), cont.clone());
+
             // Check if semantic evaluation timed out
             if eval_start.elapsed() > timeout {
                 return Ok(VerificationResult {
@@ -204,7 +203,7 @@ impl VerificationSystem {
                     analysis: VerificationAnalysis::default(),
                 });
             }
-            
+
             match result {
                 Ok(value) => Some(value),
                 Err(e) => {
@@ -300,10 +299,10 @@ impl VerificationSystem {
         }
 
         let result = self.deep_value_comparison(reference, actual)?;
-        
+
         // Cache the result
         self.comparison_cache.insert(cache_key, result);
-        
+
         Ok(result)
     }
 
@@ -318,7 +317,7 @@ impl VerificationSystem {
             (Value::Symbol(s1), Value::Symbol(s2)) => Ok(s1 == s2),
             (Value::Nil, Value::Nil) => Ok(true),
             (Value::Undefined, Value::Undefined) => Ok(true),
-            
+
             // Vector comparison
             (Value::Vector(v1), Value::Vector(v2)) => {
                 if v1.len() != v2.len() {
@@ -331,15 +330,17 @@ impl VerificationSystem {
                 }
                 Ok(true)
             }
-            
+
             // Pair comparison
             (Value::Pair(p1), Value::Pair(p2)) => {
                 let p1_borrowed = p1.borrow();
                 let p2_borrowed = p2.borrow();
-                Ok(self.deep_value_comparison(&p1_borrowed.car, &p2_borrowed.car)? &&
-                self.deep_value_comparison(&p1_borrowed.cdr, &p2_borrowed.cdr)?)
+                Ok(
+                    self.deep_value_comparison(&p1_borrowed.car, &p2_borrowed.car)?
+                        && self.deep_value_comparison(&p1_borrowed.cdr, &p2_borrowed.cdr)?,
+                )
             }
-            
+
             // Multiple values comparison
             (Value::Values(v1), Value::Values(v2)) => {
                 if v1.len() != v2.len() {
@@ -352,19 +353,20 @@ impl VerificationSystem {
                 }
                 Ok(true)
             }
-            
+
             // Different types
             _ => Ok(false),
         }
     }
 
     /// Generate correctness proof for the result
-    fn generate_correctness_proof(&mut self, expr: &Expr, result: &Value) -> Result<CorrectnessProof> {
-        let property = CorrectnessProperty::ReferentialTransparency(
-            expr.clone(),
-            result.clone(),
-        );
-        
+    fn generate_correctness_proof(
+        &mut self,
+        expr: &Expr,
+        result: &Value,
+    ) -> Result<CorrectnessProof> {
+        let property = CorrectnessProperty::ReferentialTransparency(expr.clone(), result.clone());
+
         self.correctness_prover.prove_property(property)
     }
 
@@ -372,7 +374,7 @@ impl VerificationSystem {
     fn verify_with_theorem_proving(&mut self, expr: &Expr, _result: &Value) -> Result<String> {
         // Create semantic equivalence statement
         let statement = Statement::R7RSCompliance(expr.clone());
-        
+
         // Create proof goal
         let goal = ProofGoal {
             statement,
@@ -385,8 +387,10 @@ impl VerificationSystem {
         self.theorem_prover.add_goal(goal)?;
 
         // Apply R7RS semantics verification
-        let tactic_result = self.theorem_prover.apply_tactic(ProofTactic::R7RSSemantics)?;
-        
+        let tactic_result = self
+            .theorem_prover
+            .apply_tactic(ProofTactic::R7RSSemantics)?;
+
         if tactic_result.success {
             Ok("R7RS semantic compliance verified".to_string())
         } else {
@@ -399,13 +403,13 @@ impl VerificationSystem {
     /// Perform detailed analysis of verification
     fn analyze_verification(&self, reference: &Value, actual: &Value) -> VerificationAnalysis {
         let mut analysis = VerificationAnalysis::default();
-        
+
         // Check value type consistency
         analysis.value_type_match = self.get_value_type(reference) == self.get_value_type(actual);
-        
+
         // Check structural equivalence
         analysis.structural_match = self.check_structural_equivalence(reference, actual);
-        
+
         // Type-specific analysis
         match (reference, actual) {
             (Value::Number(n1), Value::Number(n2)) => {
@@ -419,13 +423,13 @@ impl VerificationSystem {
             }
             _ => {}
         }
-        
+
         // Detect discrepancies
         analysis.discrepancies = self.detect_discrepancies(reference, actual);
-        
+
         // Calculate confidence level
         analysis.confidence_level = self.calculate_confidence_level(&analysis);
-        
+
         analysis
     }
 
@@ -461,62 +465,75 @@ impl VerificationSystem {
     /// Detect discrepancies between values
     fn detect_discrepancies(&self, reference: &Value, actual: &Value) -> Vec<String> {
         let mut discrepancies = Vec::new();
-        
+
         let ref_type = self.get_value_type(reference);
         let actual_type = self.get_value_type(actual);
-        
+
         if ref_type != actual_type {
-            discrepancies.push(format!("Type mismatch: expected {}, got {}", ref_type, actual_type));
+            discrepancies.push(format!(
+                "Type mismatch: expected {}, got {}",
+                ref_type, actual_type
+            ));
         }
-        
+
         match (reference, actual) {
             (Value::Number(n1), Value::Number(n2)) => {
                 if n1 != n2 {
-                    discrepancies.push(format!("Numerical value mismatch: expected {:?}, got {:?}", n1, n2));
+                    discrepancies.push(format!(
+                        "Numerical value mismatch: expected {:?}, got {:?}",
+                        n1, n2
+                    ));
                 }
             }
             (Value::String(s1), Value::String(s2)) => {
                 if s1 != s2 {
-                    discrepancies.push(format!("String content mismatch: expected '{}', got '{}'", s1, s2));
+                    discrepancies.push(format!(
+                        "String content mismatch: expected '{}', got '{}'",
+                        s1, s2
+                    ));
                 }
             }
             (Value::Vector(v1), Value::Vector(v2)) => {
                 if v1.len() != v2.len() {
-                    discrepancies.push(format!("Vector length mismatch: expected {}, got {}", v1.len(), v2.len()));
+                    discrepancies.push(format!(
+                        "Vector length mismatch: expected {}, got {}",
+                        v1.len(),
+                        v2.len()
+                    ));
                 }
             }
             _ => {}
         }
-        
+
         discrepancies
     }
 
     /// Calculate confidence level based on analysis
     fn calculate_confidence_level(&self, analysis: &VerificationAnalysis) -> f64 {
         let mut confidence = 1.0;
-        
+
         if !analysis.value_type_match {
             confidence -= 0.5;
         }
-        
+
         if !analysis.structural_match {
             confidence -= 0.3;
         }
-        
+
         if let Some(false) = analysis.numerical_precision_match {
             confidence -= 0.2;
         }
-        
+
         if let Some(false) = analysis.string_content_match {
             confidence -= 0.2;
         }
-        
+
         if let Some(false) = analysis.list_structure_match {
             confidence -= 0.2;
         }
-        
+
         confidence -= analysis.discrepancies.len() as f64 * 0.1;
-        
+
         confidence.max(0.0)
     }
 
@@ -531,33 +548,40 @@ impl VerificationSystem {
         if let Some(false) = semantic_equivalence {
             return VerificationStatus::Failed("Semantic equivalence check failed".to_string());
         }
-        
+
         if !analysis.value_type_match {
             return VerificationStatus::Failed("Value type mismatch".to_string());
         }
-        
+
         if analysis.confidence_level < 0.5 {
             return VerificationStatus::Failed("Low confidence level".to_string());
         }
-        
+
         if !analysis.discrepancies.is_empty() {
-            return VerificationStatus::Failed(format!("Discrepancies detected: {:?}", analysis.discrepancies));
+            return VerificationStatus::Failed(format!(
+                "Discrepancies detected: {:?}",
+                analysis.discrepancies
+            ));
         }
-        
+
         VerificationStatus::Passed
     }
 
     /// Update verification statistics
     fn update_statistics(&mut self, result: &VerificationResult) {
         self.statistics.total_verifications += 1;
-        
+
         match result.status {
             VerificationStatus::Passed => {
                 self.statistics.successful_verifications += 1;
             }
             VerificationStatus::Failed(ref reason) => {
                 self.statistics.failed_verifications += 1;
-                let count = self.statistics.common_failures.entry(reason.clone()).or_insert(0);
+                let count = self
+                    .statistics
+                    .common_failures
+                    .entry(reason.clone())
+                    .or_insert(0);
                 *count += 1;
             }
             VerificationStatus::Timeout => {
@@ -565,14 +589,17 @@ impl VerificationSystem {
             }
             _ => {}
         }
-        
+
         // Update average verification time
-        let total_time = self.statistics.average_verification_time_ms * (self.statistics.total_verifications - 1) as f64;
+        let total_time = self.statistics.average_verification_time_ms
+            * (self.statistics.total_verifications - 1) as f64;
         let new_time = result.verification_time.as_millis() as f64;
-        self.statistics.average_verification_time_ms = (total_time + new_time) / self.statistics.total_verifications as f64;
-        
+        self.statistics.average_verification_time_ms =
+            (total_time + new_time) / self.statistics.total_verifications as f64;
+
         // Update success rate
-        self.statistics.success_rate = self.statistics.successful_verifications as f64 / self.statistics.total_verifications as f64;
+        self.statistics.success_rate = self.statistics.successful_verifications as f64
+            / self.statistics.total_verifications as f64;
     }
 
     /// Store verification in history
@@ -588,9 +615,9 @@ impl VerificationSystem {
             result,
             timestamp: Instant::now(),
         };
-        
+
         self.history.push(entry);
-        
+
         // Keep only recent entries
         if self.history.len() > self.config.max_history_entries {
             self.history.remove(0);
@@ -617,6 +644,45 @@ impl VerificationSystem {
         self.comparison_cache.clear();
     }
 
+    /// Get reference to semantic evaluator for direct access
+    pub fn get_semantic_evaluator(&self) -> &SemanticEvaluator {
+        &self.semantic_evaluator
+    }
+
+    /// Get mutable reference to semantic evaluator
+    pub fn get_semantic_evaluator_mut(&mut self) -> &mut SemanticEvaluator {
+        &mut self.semantic_evaluator
+    }
+
+    /// Verify expression using semantic evaluator
+    pub fn verify_with_semantic_evaluator(
+        &mut self,
+        expr: &Expr,
+        env: Rc<Environment>,
+        expected: &Value,
+    ) -> Result<bool> {
+        let result = self.semantic_evaluator.eval_pure(
+            expr.clone(),
+            env,
+            Continuation::Identity,
+        )?;
+        Ok(self.values_equal(&result, expected))
+    }
+
+    /// Compare two values for equality
+    fn values_equal(&self, a: &Value, b: &Value) -> bool {
+        match (a, b) {
+            (Value::Number(n1), Value::Number(n2)) => n1 == n2,
+            (Value::Boolean(b1), Value::Boolean(b2)) => b1 == b2,
+            (Value::String(s1), Value::String(s2)) => s1 == s2,
+            (Value::Character(c1), Value::Character(c2)) => c1 == c2,
+            (Value::Symbol(s1), Value::Symbol(s2)) => s1 == s2,
+            (Value::Nil, Value::Nil) => true,
+            (Value::Undefined, Value::Undefined) => true,
+            _ => false, // More sophisticated comparison would be needed for complex types
+        }
+    }
+
     /// Get configuration
     pub fn get_config(&self) -> &VerificationConfig {
         &self.config
@@ -634,7 +700,10 @@ impl VerificationSystem {
 
     /// Get cache statistics
     pub fn get_cache_stats(&self) -> (usize, usize) {
-        (self.comparison_cache.len(), self.comparison_cache.capacity())
+        (
+            self.comparison_cache.len(),
+            self.comparison_cache.capacity(),
+        )
     }
 }
 
@@ -687,16 +756,16 @@ mod tests {
     #[test]
     fn test_deep_value_comparison() {
         let system = VerificationSystem::new();
-        
+
         // Test identical values
         let val1 = Value::Number(SchemeNumber::Integer(42));
         let val2 = Value::Number(SchemeNumber::Integer(42));
         assert!(system.deep_value_comparison(&val1, &val2).unwrap());
-        
+
         // Test different values
         let val3 = Value::Number(SchemeNumber::Integer(43));
         assert!(!system.deep_value_comparison(&val1, &val3).unwrap());
-        
+
         // Test different types
         let val4 = Value::String("42".to_string());
         assert!(!system.deep_value_comparison(&val1, &val4).unwrap());
@@ -705,12 +774,12 @@ mod tests {
     #[test]
     fn test_verification_analysis() {
         let system = VerificationSystem::new();
-        
+
         let reference = Value::Number(SchemeNumber::Integer(42));
         let actual = Value::Number(SchemeNumber::Integer(42));
-        
+
         let analysis = system.analyze_verification(&reference, &actual);
-        
+
         assert!(analysis.value_type_match);
         assert!(analysis.structural_match);
         assert!(analysis.discrepancies.is_empty());
@@ -720,28 +789,31 @@ mod tests {
     #[test]
     fn test_verification_status_determination() {
         let system = VerificationSystem::new();
-        
+
         let reference = Some(Value::Number(SchemeNumber::Integer(42)));
         let actual = Value::Number(SchemeNumber::Integer(42));
         let semantic_equivalence = Some(true);
         let analysis = VerificationAnalysis::default();
-        
+
         let status = system.determine_verification_status(
-            &reference, &actual, &semantic_equivalence, &analysis
+            &reference,
+            &actual,
+            &semantic_equivalence,
+            &analysis,
         );
-        
+
         assert_eq!(status, VerificationStatus::Passed);
     }
 
     #[test]
     fn test_discrepancy_detection() {
         let system = VerificationSystem::new();
-        
+
         let reference = Value::Number(SchemeNumber::Integer(42));
         let actual = Value::String("42".to_string());
-        
+
         let discrepancies = system.detect_discrepancies(&reference, &actual);
-        
+
         assert!(!discrepancies.is_empty());
         assert!(discrepancies[0].contains("Type mismatch"));
     }
@@ -749,15 +821,15 @@ mod tests {
     #[test]
     fn test_confidence_level_calculation() {
         let system = VerificationSystem::new();
-        
+
         let mut analysis = VerificationAnalysis {
             value_type_match: false,
             ..Default::default()
         };
         analysis.discrepancies.push("Type mismatch".to_string());
-        
+
         let confidence = system.calculate_confidence_level(&analysis);
-        
+
         assert!(confidence < 1.0);
         assert!(confidence >= 0.0);
     }
@@ -765,13 +837,13 @@ mod tests {
     #[test]
     fn test_configuration_management() {
         let mut system = VerificationSystem::new();
-        
+
         let config = VerificationConfig {
             verify_semantic_equivalence: false,
             max_verification_time_ms: 500,
             ..Default::default()
         };
-        
+
         system.set_config(config.clone());
         assert_eq!(system.get_config().max_verification_time_ms, 500);
         assert!(!system.get_config().verify_semantic_equivalence);
@@ -781,7 +853,7 @@ mod tests {
     fn test_statistics_tracking() {
         let system = VerificationSystem::new();
         let stats = system.get_statistics();
-        
+
         assert_eq!(stats.total_verifications, 0);
         assert_eq!(stats.successful_verifications, 0);
         assert_eq!(stats.success_rate, 0.0);
@@ -790,14 +862,14 @@ mod tests {
     #[test]
     fn test_cache_management() {
         let mut system = VerificationSystem::new();
-        
+
         // Cache should be empty initially
-        let (size, capacity) = system.get_cache_stats();
+        let (size, _capacity) = system.get_cache_stats();
         assert_eq!(size, 0);
-        
+
         // Clear cache should not panic
         system.clear_cache();
-        
+
         let (size_after, _) = system.get_cache_stats();
         assert_eq!(size_after, 0);
     }

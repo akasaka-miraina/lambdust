@@ -4,14 +4,19 @@
 - **核心部分テスト充実**: evaluator・value・parser系の重要モジュール優先テスト実装
 - **80%カバレッジ達成**: Bridge Module Tests（48.97%）成功をベースに核心部分カバレッジ向上
 - **品質保証**: 継続・値システム・構文解析器の包括的テスト実装・production readiness確保
+- **🎯 品質管理継続**: Warning Free状態維持・missing docs解決・コード品質向上（[品質管理方針](DEVELOPMENT_FLOW.md#品質管理方針)遵守）
 
 ## 🎯 **HIGH PRIORITY（次期マイルストーン）**
+- **🔥 衛生的マクロシステム実装**: シンボル衝突防止・HygienicSymbol・SymbolGenerator・真のR7RS準拠マクロ（[設計書](HYGIENIC_MACRO_DESIGN.md)）
 - **高度SRFIサポート継続**: SRFI 137-141順次実装・R7RS Large完全対応
 - **Phase 6-D tail call高度化**: LLVM backend・recursive function optimization・performance tuning
 
 ## 📈 **MEDIUM PRIORITY（機能拡張）**
 - **REPL機能拡張**: タブ補完・シンタックスハイライト・デバッガー統合・プロファイラー
-- **エコシステム拡張**: VS Code 拡張・Language Server Protocol・パッケージマネージャー
+- **エコシステム拡張**: VS Code 拡張・Language Server Protocol
+
+## 🌟 **LONG-TERM VISION（長期ビジョン）**
+- **🚀 Dustpanエコシステム構想**: Cargo/npm相当パッケージマネージャー・dustpan.dev・コミュニティ機能（[詳細](DUSTPAN_ECOSYSTEM_VISION.md)）
 
 ## 🚨 重要技術課題: CPS評価器スタックオーバーフロー問題
 

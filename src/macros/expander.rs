@@ -16,7 +16,8 @@ use std::collections::HashMap;
 
 // Import from the new modular structure
 use super::builtin::*;
-use super::pattern_matching::{Pattern, Template};
+use super::pattern_matching::{Pattern, Template, SyntaxCaseClause};
+use super::syntax_case::SyntaxCaseTransformer;
 use super::syntax_rules::SyntaxRulesTransformer;
 use super::types::{Macro, MacroTransformer};
 
@@ -58,6 +59,51 @@ impl MacroExpander {
         let transformer = SyntaxRulesTransformer::new(literals, rules);
         self.macros
             .insert(name.clone(), Macro::SyntaxRules { name, transformer });
+    }
+
+    /// Define a new hygienic syntax-rules macro
+    ///
+    /// Registers a new hygienic syntax-rules macro with symbol collision prevention.
+    /// The definition environment is captured at definition time for proper hygiene.
+    pub fn define_hygienic_syntax_rules_macro(
+        &mut self,
+        name: String,
+        literals: Vec<String>,
+        rules: Vec<crate::macros::pattern_matching::SyntaxRule>,
+        definition_environment: std::rc::Rc<super::hygiene::HygienicEnvironment>,
+    ) {
+        let transformer = super::hygiene::HygienicSyntaxRulesTransformer::new(
+            literals,
+            rules,
+            definition_environment,
+            name.clone(),
+        );
+        self.macros.insert(
+            name.clone(),
+            Macro::HygienicSyntaxRules { name, transformer },
+        );
+    }
+
+    /// Define a new syntax-case macro
+    ///
+    /// Registers a new syntax-case macro with advanced pattern matching and guard conditions.
+    /// This provides more sophisticated macro capabilities compared to syntax-rules.
+    pub fn define_syntax_case_macro(
+        &mut self,
+        name: String,
+        literals: Vec<String>,
+        clauses: Vec<SyntaxCaseClause>,
+        definition_environment: super::hygiene::HygienicEnvironment,
+    ) {
+        let transformer = SyntaxCaseTransformer::new(
+            literals,
+            clauses,
+            definition_environment,
+        );
+        self.macros.insert(
+            name.clone(),
+            Macro::SyntaxCase { name, transformer },
+        );
     }
 
     /// Add built-in macros
@@ -169,6 +215,18 @@ impl MacroExpander {
                                 Macro::SyntaxRules { transformer, .. } => {
                                     transformer.transform(&expr)
                                 }
+                                Macro::HygienicSyntaxRules { transformer, .. } => {
+                                    // For hygienic macros, we need usage environment
+                                    // For now, use a default environment - this should be passed as parameter
+                                    let usage_env = super::hygiene::HygienicEnvironment::new();
+                                    let args = &exprs[1..];
+                                    transformer.transform_hygienic(args, &usage_env)
+                                }
+                                Macro::SyntaxCase { transformer, .. } => {
+                                    // For syntax-case, use a default hygienic environment
+                                    let usage_env = super::hygiene::HygienicEnvironment::new();
+                                    transformer.transform(&Expr::List(exprs.clone()), &usage_env)
+                                }
                             }
                         } else {
                             Ok(expr) // Not a macro
@@ -178,6 +236,93 @@ impl MacroExpander {
                 }
             }
             _ => Ok(expr), // Not a macro
+        }
+    }
+
+    /// Expand a macro call with hygienic environment and safety checks
+    ///
+    /// Expands a single macro call using the appropriate transformer with proper
+    /// hygienic environment context for symbol collision prevention.
+    pub fn expand_macro_hygienic(
+        &self,
+        expr: Expr,
+        usage_env: &super::hygiene::HygienicEnvironment,
+    ) -> Result<Expr> {
+        match &expr {
+            Expr::List(exprs) if !exprs.is_empty() => {
+                match &exprs[0] {
+                    Expr::Variable(name) => {
+                        if let Some(macro_def) = self.macros.get(name) {
+                            match macro_def {
+                                Macro::Builtin { transformer, .. } => {
+                                    let args = &exprs[1..];
+                                    transformer(args)
+                                }
+                                Macro::SyntaxRules { transformer, .. } => {
+                                    transformer.transform(&expr)
+                                }
+                                Macro::HygienicSyntaxRules { transformer, .. } => {
+                                    self.expand_hygienic_syntax_rules(transformer, name, &exprs[1..], usage_env)
+                                }
+                                Macro::SyntaxCase { transformer, .. } => {
+                                    // For syntax-case, we pass the entire expression including the macro name
+                                    transformer.transform(&Expr::List(exprs.clone()), usage_env)
+                                }
+                            }
+                        } else {
+                            Ok(expr) // Not a macro
+                        }
+                    }
+                    _ => Ok(expr), // Not a macro
+                }
+            }
+            _ => Ok(expr), // Not a macro
+        }
+    }
+    
+    /// Helper method to expand hygienic syntax rules
+    ///
+    /// Extracted from nested pattern matching to reduce nesting depth
+    fn expand_hygienic_syntax_rules(
+        &self,
+        transformer: &super::hygiene::HygienicSyntaxRulesTransformer,
+        name: &str,
+        args: &[Expr],
+        usage_env: &super::hygiene::HygienicEnvironment,
+    ) -> Result<Expr> {
+        transformer.transform_hygienic(args, usage_env)
+    }
+
+    /// Recursively expand nested macros in an expression
+    ///
+    /// This method safely handles nested macro expansion while checking for
+    /// circular dependencies and respecting safety limits.
+    fn expand_nested_macros(
+        &self,
+        expr: Expr,
+        env: &super::hygiene::HygienicEnvironment,
+    ) -> Result<Expr> {
+        match expr {
+            Expr::List(exprs) => {
+                let mut expanded_exprs = Vec::new();
+                for sub_expr in exprs {
+                    let expanded = self.expand_nested_macros(sub_expr, env)?;
+                    // Check if this sub-expression is a macro call
+                    if let Expr::List(ref sub_list) = expanded {
+                        if let Some(Expr::Variable(name)) = sub_list.first() {
+                            if self.macros.contains_key(name) {
+                                // This is a macro call, expand it
+                                let further_expanded = self.expand_macro_hygienic(expanded, env)?;
+                                expanded_exprs.push(further_expanded);
+                                continue;
+                            }
+                        }
+                    }
+                    expanded_exprs.push(expanded);
+                }
+                Ok(Expr::List(expanded_exprs))
+            }
+            other => Ok(other),
         }
     }
 

@@ -1,4 +1,4 @@
-//! Phase 6-B-Step1: DoLoop specialized continuation implementation
+//! DoLoop specialized continuation implementation
 //!
 //! This module implements optimized do-loop continuation handling with:
 //! - State machine optimization for iteration tracking
@@ -15,7 +15,7 @@ use crate::ast::Expr;
 
 impl Evaluator {
     /// Apply DoLoop specialized continuation
-    /// Phase 6-B-Step1: High-performance iteration handling with memory pool integration
+    /// High-performance iteration handling with memory pool integration
     pub fn apply_doloop_continuation(
         &mut self,
         test_value: Value,
@@ -205,7 +205,7 @@ impl Evaluator {
 }
 
 /// DoLoop continuation pool for memory optimization
-/// Phase 6-B-Step1: Continuation reuse system
+/// Continuation reuse system
 #[derive(Debug)]
 pub struct DoLoopContinuationPool {
     /// Pool of reusable continuations

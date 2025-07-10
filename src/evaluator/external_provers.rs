@@ -6,7 +6,7 @@
 use crate::ast::Expr;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::combinators::CombinatorExpr;
-use crate::evaluator::theorem_proving::{Statement, ProofTerm, ProofMethod};
+use crate::evaluator::theorem_proving::{ProofMethod, ProofTerm, Statement};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -57,28 +57,29 @@ pub struct ExternalVerificationResult {
 }
 
 /// Interface for external prover integration
-pub trait ExternalProverInterface {
+pub trait ExternalProverInterface: std::fmt::Debug {
     /// Verify a statement using the external prover
     fn verify_statement(
         &self,
         statement: &Statement,
         config: &ProverConfig,
     ) -> Result<ExternalVerificationResult>;
-    
+
     /// Generate prover code for a statement
     fn generate_prover_code(&self, statement: &Statement) -> Result<String>;
-    
+
     /// Parse prover output into proof term
     fn parse_proof_output(&self, output: &str) -> Result<Option<ProofTerm>>;
-    
+
     /// Check if prover is available
     fn is_available(&self, config: &ProverConfig) -> bool;
-    
+
     /// Get prover version
     fn get_version(&self, config: &ProverConfig) -> Result<String>;
 }
 
 /// Agda prover integration
+#[derive(Debug)]
 pub struct AgdaProver {
     /// Cache for generated modules
     module_cache: HashMap<String, String>,
@@ -91,10 +92,10 @@ impl AgdaProver {
             module_cache: HashMap::new(),
         }
     }
-    
+
     /// Generate Agda module for combinator correctness
     pub fn generate_combinator_module(&self) -> String {
-        r#"-- Combinator Theory Correctness in Agda
+        r"-- Combinator Theory Correctness in Agda
 module CombinatorCorrectness where
 
 open import Data.Nat
@@ -150,46 +151,41 @@ postulate termination : ∀ e → ∃[ e' ] (e ⟶* e' × ∀ e'' → ¬ (e' ⟶
 -- SKI completeness
 ski-complete : ∀ e → ∃[ e' ] (e ⟶* e' × ∀ x → ¬ (x ⟶ e'))
 ski-complete = {!!} -- Proof to be filled
-"#.to_string()
+"
+        .to_string()
     }
-    
+
     /// Generate Agda proof for specific statement
     pub fn generate_statement_proof(&self, statement: &Statement) -> Result<String> {
         match statement {
-            Statement::SemanticEquivalence(expr1, expr2) => {
-                Ok(format!(
-                    r#"-- Semantic equivalence proof
+            Statement::SemanticEquivalence(expr1, expr2) => Ok(format!(
+                r"-- Semantic equivalence proof
 equivalence-proof : semantics {} ≡ semantics {}
 equivalence-proof = {{!!}} -- Proof to be filled
-"#,
-                    self.expr_to_agda(expr1)?,
-                    self.expr_to_agda(expr2)?
-                ))
-            }
-            Statement::ReductionCorrectness(expr, combinator) => {
-                Ok(format!(
-                    r#"-- Reduction correctness proof
+",
+                self.expr_to_agda(expr1)?,
+                self.expr_to_agda(expr2)?
+            )),
+            Statement::ReductionCorrectness(expr, combinator) => Ok(format!(
+                r"-- Reduction correctness proof
 reduction-proof : ∀ {{e'}} → {} ⟶ e' → semantics {} ≡ semantics e'
 reduction-proof red = correctness-theorem red
-"#,
-                    self.combinator_to_agda(combinator)?,
-                    self.expr_to_agda(expr)?
-                ))
-            }
-            Statement::Termination(combinator) => {
-                Ok(format!(
-                    r#"-- Termination proof
+",
+                self.combinator_to_agda(combinator)?,
+                self.expr_to_agda(expr)?
+            )),
+            Statement::Termination(combinator) => Ok(format!(
+                r"-- Termination proof
 termination-proof : ∃[ e' ] ({} ⟶* e' × ∀ e'' → ¬ (e' ⟶ e''))
 termination-proof = termination {}
-"#,
-                    self.combinator_to_agda(combinator)?,
-                    self.combinator_to_agda(combinator)?
-                ))
-            }
+",
+                self.combinator_to_agda(combinator)?,
+                self.combinator_to_agda(combinator)?
+            )),
             _ => Ok("-- Proof not yet implemented for this statement type".to_string()),
         }
     }
-    
+
     /// Convert expression to Agda syntax
     fn expr_to_agda(&self, expr: &Expr) -> Result<String> {
         match expr {
@@ -205,7 +201,7 @@ termination-proof = termination {}
             _ => Ok("Atom \"unknown\"".to_string()),
         }
     }
-    
+
     /// Convert combinator expression to Agda syntax
     fn combinator_to_agda(&self, combinator: &CombinatorExpr) -> Result<String> {
         match combinator {
@@ -215,16 +211,12 @@ termination-proof = termination {}
             CombinatorExpr::B => Ok("B".to_string()),
             CombinatorExpr::C => Ok("C".to_string()),
             CombinatorExpr::W => Ok("W".to_string()),
-            CombinatorExpr::App(f, arg) => {
-                Ok(format!(
-                    "App ({}) ({})",
-                    self.combinator_to_agda(f)?,
-                    self.combinator_to_agda(arg)?
-                ))
-            }
-            CombinatorExpr::Atomic(expr) => {
-                Ok(format!("Atom \"{}\"", format!("{:?}", expr)))
-            }
+            CombinatorExpr::App(f, arg) => Ok(format!(
+                "App ({}) ({})",
+                self.combinator_to_agda(f)?,
+                self.combinator_to_agda(arg)?
+            )),
+            CombinatorExpr::Atomic(expr) => Ok(format!("Atom \"{}\"", format!("{:?}", expr))),
         }
     }
 }
@@ -237,16 +229,12 @@ impl ExternalProverInterface for AgdaProver {
     ) -> Result<ExternalVerificationResult> {
         // Generate Agda code for the statement
         let agda_code = self.generate_statement_proof(statement)?;
-        let full_module = format!(
-            "{}\n\n{}",
-            self.generate_combinator_module(),
-            agda_code
-        );
-        
+        let full_module = format!("{}\n\n{}", self.generate_combinator_module(), agda_code);
+
         // Write to temporary file
         let temp_file = std::env::temp_dir().join("lambdust_verification.agda");
         std::fs::write(&temp_file, full_module)?;
-        
+
         // Run Agda type checker
         let start_time = std::time::Instant::now();
         let output = Command::new(&config.executable_path)
@@ -256,20 +244,24 @@ impl ExternalProverInterface for AgdaProver {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output();
-        
+
         let verification_time = start_time.elapsed().as_millis() as u64;
-        
+
         match output {
             Ok(result) => {
                 let stdout = String::from_utf8_lossy(&result.stdout);
                 let stderr = String::from_utf8_lossy(&result.stderr);
-                
+
                 let success = result.status.success() && !stderr.contains("error");
-                
+
                 Ok(ExternalVerificationResult {
                     success,
                     output: stdout.to_string(),
-                    error_output: if stderr.is_empty() { None } else { Some(stderr.to_string()) },
+                    error_output: if stderr.is_empty() {
+                        None
+                    } else {
+                        Some(stderr.to_string())
+                    },
                     proof_term: if success { Some(agda_code) } else { None },
                     verification_time_ms: verification_time,
                 })
@@ -280,11 +272,11 @@ impl ExternalProverInterface for AgdaProver {
             ))),
         }
     }
-    
+
     fn generate_prover_code(&self, statement: &Statement) -> Result<String> {
         self.generate_statement_proof(statement)
     }
-    
+
     fn parse_proof_output(&self, output: &str) -> Result<Option<ProofTerm>> {
         if output.contains("Checking") && !output.contains("error") {
             Ok(Some(ProofTerm {
@@ -296,25 +288,28 @@ impl ExternalProverInterface for AgdaProver {
             Ok(None)
         }
     }
-    
+
     fn is_available(&self, config: &ProverConfig) -> bool {
         Command::new(&config.executable_path)
             .arg("--version")
             .output()
             .is_ok()
     }
-    
+
     fn get_version(&self, config: &ProverConfig) -> Result<String> {
         let output = Command::new(&config.executable_path)
             .arg("--version")
             .output()
-            .map_err(|e| LambdustError::runtime_error(format!("Failed to get Agda version: {}", e)))?;
-        
+            .map_err(|e| {
+                LambdustError::runtime_error(format!("Failed to get Agda version: {}", e))
+            })?;
+
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 }
 
 /// Coq prover integration
+#[derive(Debug)]
 pub struct CoqProver {
     /// Cache for generated theories
     theory_cache: HashMap<String, String>,
@@ -327,10 +322,10 @@ impl CoqProver {
             theory_cache: HashMap::new(),
         }
     }
-    
+
     /// Generate Coq theory for combinator correctness
     pub fn generate_combinator_theory(&self) -> String {
-        r#"(* Combinator Theory Correctness in Coq *)
+        r"(* Combinator Theory Correctness in Coq *)
 Require Import Coq.Logic.Eqdep_dec.
 Require Import Coq.Strings.String.
 
@@ -398,28 +393,26 @@ Theorem ski_complete :
 Proof.
   (* Proof to be filled *)
 Admitted.
-"#.to_string()
+"
+        .to_string()
     }
-    
+
     /// Generate Coq proof for specific statement
     pub fn generate_statement_proof(&self, statement: &Statement) -> Result<String> {
         match statement {
-            Statement::SemanticEquivalence(expr1, expr2) => {
-                Ok(format!(
-                    r#"(* Semantic equivalence proof *)
+            Statement::SemanticEquivalence(expr1, expr2) => Ok(format!(
+                r"(* Semantic equivalence proof *)
 Theorem equivalence_proof : 
   semantics {} = semantics {}.
 Proof.
   (* Proof to be filled *)
 Admitted.
-"#,
-                    self.expr_to_coq(expr1)?,
-                    self.expr_to_coq(expr2)?
-                ))
-            }
-            Statement::ReductionCorrectness(expr, combinator) => {
-                Ok(format!(
-                    r#"(* Reduction correctness proof *)
+",
+                self.expr_to_coq(expr1)?,
+                self.expr_to_coq(expr2)?
+            )),
+            Statement::ReductionCorrectness(expr, combinator) => Ok(format!(
+                r"(* Reduction correctness proof *)
 Theorem reduction_proof : 
   forall e', reduction {} e' -> semantics {} = semantics e'.
 Proof.
@@ -427,27 +420,24 @@ Proof.
   apply combinator_reduction_correct.
   exact H.
 Qed.
-"#,
-                    self.combinator_to_coq(combinator)?,
-                    self.expr_to_coq(expr)?
-                ))
-            }
-            Statement::Termination(combinator) => {
-                Ok(format!(
-                    r#"(* Termination proof *)
+",
+                self.combinator_to_coq(combinator)?,
+                self.expr_to_coq(expr)?
+            )),
+            Statement::Termination(combinator) => Ok(format!(
+                r"(* Termination proof *)
 Theorem termination_proof : 
   exists e', multi_reduction {} e' /\ forall e'', ~ reduction e' e''.
 Proof.
   apply termination.
 Qed.
-"#,
-                    self.combinator_to_coq(combinator)?
-                ))
-            }
+",
+                self.combinator_to_coq(combinator)?
+            )),
             _ => Ok("(* Proof not yet implemented for this statement type *)".to_string()),
         }
     }
-    
+
     /// Convert expression to Coq syntax
     fn expr_to_coq(&self, expr: &Expr) -> Result<String> {
         match expr {
@@ -463,7 +453,7 @@ Qed.
             _ => Ok("(Atom \"unknown\")".to_string()),
         }
     }
-    
+
     /// Convert combinator expression to Coq syntax
     fn combinator_to_coq(&self, combinator: &CombinatorExpr) -> Result<String> {
         match combinator {
@@ -473,16 +463,12 @@ Qed.
             CombinatorExpr::B => Ok("B".to_string()),
             CombinatorExpr::C => Ok("C".to_string()),
             CombinatorExpr::W => Ok("W".to_string()),
-            CombinatorExpr::App(f, arg) => {
-                Ok(format!(
-                    "(App {} {})",
-                    self.combinator_to_coq(f)?,
-                    self.combinator_to_coq(arg)?
-                ))
-            }
-            CombinatorExpr::Atomic(expr) => {
-                Ok(format!("(Atom \"{}\")", format!("{:?}", expr)))
-            }
+            CombinatorExpr::App(f, arg) => Ok(format!(
+                "(App {} {})",
+                self.combinator_to_coq(f)?,
+                self.combinator_to_coq(arg)?
+            )),
+            CombinatorExpr::Atomic(expr) => Ok(format!("(Atom \"{}\")", format!("{:?}", expr))),
         }
     }
 }
@@ -495,16 +481,12 @@ impl ExternalProverInterface for CoqProver {
     ) -> Result<ExternalVerificationResult> {
         // Generate Coq code for the statement
         let coq_code = self.generate_statement_proof(statement)?;
-        let full_theory = format!(
-            "{}\n\n{}",
-            self.generate_combinator_theory(),
-            coq_code
-        );
-        
+        let full_theory = format!("{}\n\n{}", self.generate_combinator_theory(), coq_code);
+
         // Write to temporary file
         let temp_file = std::env::temp_dir().join("lambdust_verification.v");
         std::fs::write(&temp_file, full_theory)?;
-        
+
         // Run Coq compiler
         let start_time = std::time::Instant::now();
         let output = Command::new(&config.executable_path)
@@ -513,20 +495,24 @@ impl ExternalProverInterface for CoqProver {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output();
-        
+
         let verification_time = start_time.elapsed().as_millis() as u64;
-        
+
         match output {
             Ok(result) => {
                 let stdout = String::from_utf8_lossy(&result.stdout);
                 let stderr = String::from_utf8_lossy(&result.stderr);
-                
+
                 let success = result.status.success() && !stderr.contains("Error");
-                
+
                 Ok(ExternalVerificationResult {
                     success,
                     output: stdout.to_string(),
-                    error_output: if stderr.is_empty() { None } else { Some(stderr.to_string()) },
+                    error_output: if stderr.is_empty() {
+                        None
+                    } else {
+                        Some(stderr.to_string())
+                    },
                     proof_term: if success { Some(coq_code) } else { None },
                     verification_time_ms: verification_time,
                 })
@@ -537,11 +523,11 @@ impl ExternalProverInterface for CoqProver {
             ))),
         }
     }
-    
+
     fn generate_prover_code(&self, statement: &Statement) -> Result<String> {
         self.generate_statement_proof(statement)
     }
-    
+
     fn parse_proof_output(&self, output: &str) -> Result<Option<ProofTerm>> {
         if !output.contains("Error") && output.contains("compiled") {
             Ok(Some(ProofTerm {
@@ -553,25 +539,28 @@ impl ExternalProverInterface for CoqProver {
             Ok(None)
         }
     }
-    
+
     fn is_available(&self, config: &ProverConfig) -> bool {
         Command::new(&config.executable_path)
             .arg("-v")
             .output()
             .is_ok()
     }
-    
+
     fn get_version(&self, config: &ProverConfig) -> Result<String> {
         let output = Command::new(&config.executable_path)
             .arg("-v")
             .output()
-            .map_err(|e| LambdustError::runtime_error(format!("Failed to get Coq version: {}", e)))?;
-        
+            .map_err(|e| {
+                LambdustError::runtime_error(format!("Failed to get Coq version: {}", e))
+            })?;
+
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
     }
 }
 
 /// External prover manager for handling multiple provers
+#[derive(Debug)]
 pub struct ExternalProverManager {
     /// Available provers
     provers: HashMap<ExternalProver, Box<dyn ExternalProverInterface>>,
@@ -586,17 +575,17 @@ impl ExternalProverManager {
             provers: HashMap::new(),
             configs: HashMap::new(),
         };
-        
+
         // Register default provers
         manager.register_prover(ExternalProver::Agda, Box::new(AgdaProver::new()));
         manager.register_prover(ExternalProver::Coq, Box::new(CoqProver::new()));
-        
+
         // Set default configurations
         manager.set_default_configs();
-        
+
         manager
     }
-    
+
     /// Register a new prover
     pub fn register_prover(
         &mut self,
@@ -605,7 +594,7 @@ impl ExternalProverManager {
     ) {
         self.provers.insert(prover_type, prover);
     }
-    
+
     /// Set default configurations for provers
     fn set_default_configs(&mut self) {
         // Agda configuration
@@ -620,7 +609,7 @@ impl ExternalProverManager {
                 library_paths: vec![],
             },
         );
-        
+
         // Coq configuration
         self.configs.insert(
             ExternalProver::Coq,
@@ -634,29 +623,31 @@ impl ExternalProverManager {
             },
         );
     }
-    
+
     /// Verify statement using specified prover
     pub fn verify_with_prover(
         &self,
         statement: &Statement,
         prover_type: ExternalProver,
     ) -> Result<ExternalVerificationResult> {
-        let prover = self.provers.get(&prover_type)
-            .ok_or_else(|| LambdustError::runtime_error(format!("Prover {:?} not available", prover_type)))?;
-        
-        let config = self.configs.get(&prover_type)
-            .ok_or_else(|| LambdustError::runtime_error(format!("No config for prover {:?}", prover_type)))?;
-        
+        let prover = self.provers.get(&prover_type).ok_or_else(|| {
+            LambdustError::runtime_error(format!("Prover {:?} not available", prover_type))
+        })?;
+
+        let config = self.configs.get(&prover_type).ok_or_else(|| {
+            LambdustError::runtime_error(format!("No config for prover {:?}", prover_type))
+        })?;
+
         prover.verify_statement(statement, config)
     }
-    
+
     /// Verify statement using all available provers
     pub fn verify_with_all_provers(
         &self,
         statement: &Statement,
     ) -> HashMap<ExternalProver, Result<ExternalVerificationResult>> {
         let mut results = HashMap::new();
-        
+
         for (prover_type, prover) in &self.provers {
             if let Some(config) = self.configs.get(prover_type) {
                 if prover.is_available(config) {
@@ -665,10 +656,10 @@ impl ExternalProverManager {
                 }
             }
         }
-        
+
         results
     }
-    
+
     /// Check which provers are available
     pub fn available_provers(&self) -> Vec<ExternalProver> {
         self.provers
@@ -684,21 +675,22 @@ impl ExternalProverManager {
             })
             .collect()
     }
-    
+
     /// Update configuration for a prover
     pub fn update_config(&mut self, prover_type: ExternalProver, config: ProverConfig) {
         self.configs.insert(prover_type, config);
     }
-    
+
     /// Generate prover code for statement
     pub fn generate_code(
         &self,
         statement: &Statement,
         prover_type: ExternalProver,
     ) -> Result<String> {
-        let prover = self.provers.get(&prover_type)
-            .ok_or_else(|| LambdustError::runtime_error(format!("Prover {:?} not available", prover_type)))?;
-        
+        let prover = self.provers.get(&prover_type).ok_or_else(|| {
+            LambdustError::runtime_error(format!("Prover {:?} not available", prover_type))
+        })?;
+
         prover.generate_prover_code(statement)
     }
 }
@@ -714,26 +706,26 @@ mod tests {
     use super::*;
     use crate::ast::{Expr, Literal};
     use crate::lexer::SchemeNumber;
-    
+
     #[test]
     fn test_agda_prover_creation() {
         let prover = AgdaProver::new();
         assert!(prover.module_cache.is_empty());
     }
-    
+
     #[test]
     fn test_coq_prover_creation() {
         let prover = CoqProver::new();
         assert!(prover.theory_cache.is_empty());
     }
-    
+
     #[test]
     fn test_external_prover_manager() {
         let manager = ExternalProverManager::new();
         assert!(manager.provers.len() >= 2); // At least Agda and Coq
         assert!(manager.configs.len() >= 2);
     }
-    
+
     #[test]
     fn test_agda_module_generation() {
         let prover = AgdaProver::new();
@@ -742,7 +734,7 @@ mod tests {
         assert!(module.contains("data CombinatorExpr"));
         assert!(module.contains("correctness-theorem"));
     }
-    
+
     #[test]
     fn test_coq_theory_generation() {
         let prover = CoqProver::new();
@@ -751,51 +743,49 @@ mod tests {
         assert!(theory.contains("Inductive reduction"));
         assert!(theory.contains("combinator_reduction_correct"));
     }
-    
+
     #[test]
     fn test_statement_proof_generation() {
         let agda_prover = AgdaProver::new();
         let coq_prover = CoqProver::new();
-        
+
         let statement = Statement::SemanticEquivalence(
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
         );
-        
+
         let agda_proof = agda_prover.generate_statement_proof(&statement).unwrap();
         assert!(agda_proof.contains("equivalence-proof"));
-        
+
         let coq_proof = coq_prover.generate_statement_proof(&statement).unwrap();
         assert!(coq_proof.contains("equivalence_proof"));
     }
-    
+
     #[test]
     fn test_expr_to_prover_syntax() {
         let agda_prover = AgdaProver::new();
         let coq_prover = CoqProver::new();
-        
+
         let expr = Expr::Variable("x".to_string());
-        
+
         let agda_syntax = agda_prover.expr_to_agda(&expr).unwrap();
         assert_eq!(agda_syntax, "Atom \"x\"");
-        
+
         let coq_syntax = coq_prover.expr_to_coq(&expr).unwrap();
         assert_eq!(coq_syntax, "(Atom \"x\")");
     }
-    
+
     #[test]
     fn test_combinator_to_prover_syntax() {
         let agda_prover = AgdaProver::new();
         let coq_prover = CoqProver::new();
-        
-        let combinator = CombinatorExpr::App(
-            Box::new(CombinatorExpr::S),
-            Box::new(CombinatorExpr::K),
-        );
-        
+
+        let combinator =
+            CombinatorExpr::App(Box::new(CombinatorExpr::S), Box::new(CombinatorExpr::K));
+
         let agda_syntax = agda_prover.combinator_to_agda(&combinator).unwrap();
         assert_eq!(agda_syntax, "App (S) (K)");
-        
+
         let coq_syntax = coq_prover.combinator_to_coq(&combinator).unwrap();
         assert_eq!(coq_syntax, "(App S K)");
     }

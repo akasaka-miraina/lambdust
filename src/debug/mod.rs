@@ -326,6 +326,7 @@ impl DebugTracer {
                 crate::ast::Literal::Nil => "()".to_string(),
             },
             Expr::Variable(v) => v.clone(),
+            Expr::HygienicVariable(symbol) => symbol.unique_name(),
             Expr::List(exprs) => {
                 let items: Vec<String> = exprs.iter().map(Self::expr_to_sexpr).collect();
                 format!("({})", items.join(" "))

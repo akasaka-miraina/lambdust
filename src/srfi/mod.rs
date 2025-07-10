@@ -16,6 +16,8 @@ pub mod srfi_133; // Vector Libraries
 pub mod srfi_134; // Immutable Deques
 pub mod srfi_135; // Immutable Texts
 pub mod srfi_136; // Extensible Record Types
+pub mod srfi_137; // Minimal Unique Types
+pub mod srfi_138; // Compiling Scheme to Machine Code
 pub mod srfi_139; // Syntax Parameters
 pub mod srfi_140; // Immutable Strings
 pub mod srfi_141; // Integer Division

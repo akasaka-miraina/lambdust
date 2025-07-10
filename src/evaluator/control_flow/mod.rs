@@ -13,7 +13,7 @@
 mod call_cc;
 mod continuations;
 mod do_loops;
-// Phase 6-B-Step1: DoLoop specialized continuation module
+// DoLoop specialized continuation module
 mod doloop_continuation;
 mod dynamic_wind;
 mod exceptions;
@@ -24,7 +24,7 @@ mod promises;
 pub use call_cc::eval_call_cc;
 pub use continuations::apply_control_flow_continuation;
 pub use do_loops::eval_do;
-// Phase 6-B-Step1: DoLoop specialized continuation exports
+// DoLoop specialized continuation exports
 pub use doloop_continuation::DoLoopContinuationPool;
 pub use dynamic_wind::eval_dynamic_wind;
 pub use exceptions::{eval_guard, eval_raise, eval_with_exception_handler};

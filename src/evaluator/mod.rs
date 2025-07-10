@@ -54,8 +54,12 @@ pub mod formal_verification;
 pub mod church_rosser_proof;
 // Runtime optimization integration system for performance tuning
 pub mod runtime_optimization_integration;
+// Modular runtime optimization system (new architecture)
+pub mod runtime_optimization;
 // Performance measurement system for benchmarking and profiling
 pub mod performance_measurement_system;
+// Modular performance measurement system (new architecture)
+pub mod performance_measurement;
 // Trampoline evaluator for stack overflow prevention
 pub mod trampoline;
 pub mod types;
@@ -162,7 +166,11 @@ pub use runtime_optimization_integration::{
 // Performance measurement system exports
 pub use performance_measurement_system::{
     BenchmarkExecutionResult, MeasurementConfiguration, MeasurementTarget, MetricType,
-    OptimizationEffectResult, PerformanceMeasurementResult, PerformanceMeasurementSystem,
+    OptimizationEffectResult, PerformanceMeasurementSystem,
+};
+// Also re-export from the new modular system
+pub use performance_measurement::{
+    ComprehensiveMeasurementResult as PerformanceMeasurementResult,
 };
 #[cfg(test)]
 pub mod theorem_proving_tests;
@@ -961,6 +969,19 @@ impl Evaluator {
                     let expanded = transformer(args)?;
                     return Ok(Some(expanded));
                 }
+                crate::macros::Macro::HygienicSyntaxRules { transformer, .. } => {
+                    // For now, use a default hygienic environment
+                    // TODO: Pass actual usage environment from evaluation context
+                    let usage_env = crate::macros::hygiene::HygienicEnvironment::new();
+                    let expanded = transformer.transform_hygienic(args, &usage_env)?;
+                    return Ok(Some(expanded));
+                }
+                crate::macros::Macro::SyntaxCase { transformer, .. } => {
+                    // For syntax-case, use a default hygienic environment
+                    let usage_env = crate::macros::hygiene::HygienicEnvironment::new();
+                    let expanded = transformer.transform(&expr, &usage_env)?;
+                    return Ok(Some(expanded));
+                }
             }
         }
 
@@ -1120,7 +1141,6 @@ impl Evaluator {
                 }
                 _ => {
                     // Other optimizations are applied during evaluation, not here
-                    continue;
                 }
             }
         }
@@ -1232,33 +1252,9 @@ impl Evaluator {
         };
 
         // Check if this is a self-recursive tail call
-        if let Expr::Variable(func_name) = &exprs[0] {
-            if let Some(ref current_func) = current_function {
-                if func_name == current_func && self.recursion_depth() > 1 {
-                    // This is a self-recursive tail call - apply direct optimization
-                    if let Some(procedure_value) = env.get(func_name) {
-                        if let Value::Procedure(procedure) = procedure_value {
-                            // Evaluate arguments
-                            let mut evaluated_args = Vec::new();
-                            for arg_expr in &exprs[1..] {
-                                let arg_value = self.eval(
-                                    arg_expr.clone(),
-                                    env.clone(),
-                                    Continuation::Identity,
-                                )?;
-                                evaluated_args.push(arg_value);
-                            }
-
-                            // Apply procedure directly without creating new stack frame
-                            return Ok(Some(self.apply_procedure_direct(
-                                &procedure,
-                                evaluated_args,
-                                env.clone(),
-                            )?));
-                        }
-                    }
-                }
-            }
+        if let Some(optimized_result) = self.try_self_recursive_tail_call(
+            &exprs[0], &current_function, env.clone(), &exprs[1..])? {
+            return Ok(Some(optimized_result));
         }
 
         // Try general tail call optimization with analyzer
@@ -1287,6 +1283,64 @@ impl Evaluator {
         } else {
             None
         }
+    }
+
+    /// Try self-recursive tail call optimization with early returns to avoid deep nesting
+    fn try_self_recursive_tail_call(
+        &mut self,
+        first_expr: &Expr,
+        current_function: &Option<String>,
+        env: Rc<Environment>,
+        arg_exprs: &[Expr],
+    ) -> Result<Option<Value>> {
+        // Early returns to avoid deep nesting
+        let Expr::Variable(func_name) = first_expr else {
+            return Ok(None);
+        };
+
+        let Some(ref current_func) = current_function else {
+            return Ok(None);
+        };
+
+        if func_name != current_func || self.recursion_depth() <= 1 {
+            return Ok(None);
+        }
+
+        let Some(procedure_value) = env.get(func_name) else {
+            return Ok(None);
+        };
+
+        let Value::Procedure(procedure) = procedure_value else {
+            return Ok(None);
+        };
+
+        // Evaluate arguments for direct procedure application
+        let evaluated_args = self.evaluate_tail_call_arguments(arg_exprs, env.clone())?;
+
+        // Apply procedure directly without creating new stack frame
+        Ok(Some(self.apply_procedure_direct(
+            &procedure,
+            evaluated_args,
+            env,
+        )?))
+    }
+
+    /// Evaluate arguments for tail call optimization
+    fn evaluate_tail_call_arguments(
+        &mut self,
+        arg_exprs: &[Expr],
+        env: Rc<Environment>,
+    ) -> Result<Vec<Value>> {
+        let mut evaluated_args = Vec::new();
+        for arg_expr in arg_exprs {
+            let arg_value = self.eval(
+                arg_expr.clone(),
+                env.clone(),
+                Continuation::Identity,
+            )?;
+            evaluated_args.push(arg_value);
+        }
+        Ok(evaluated_args)
     }
 }
 

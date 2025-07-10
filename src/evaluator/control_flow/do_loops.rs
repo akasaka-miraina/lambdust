@@ -65,22 +65,22 @@ fn evaluate_expression_directly(
 }
 
 /// Evaluate do loop special form
-/// Phase 6-A: Trampoline evaluator integration for stack overflow prevention
+/// Trampoline evaluator integration for stack overflow prevention
 pub fn eval_do(
     evaluator: &mut Evaluator,
     operands: &[Expr],
     env: Rc<Environment>,
     cont: Continuation,
 ) -> Result<Value> {
-    // Phase 6-A: Use trampoline evaluator to prevent stack overflow
+    // Use trampoline evaluator to prevent stack overflow
     // This delegates to the heap-based continuation unwinding system
 
-    // Phase 6-A: Use iterative implementation to prevent stack overflow
+    // Use iterative implementation to prevent stack overflow
     // Direct iterative loop without recursive continuation chains
     eval_do_iterative(evaluator, operands, env, cont)
 }
 
-/// Iterative do-loop implementation to prevent stack overflow (Phase 6-A)
+/// Iterative do-loop implementation to prevent stack overflow
 /// This implementation avoids deep recursive continuation chains
 fn eval_do_iterative(
     evaluator: &mut Evaluator,
@@ -125,7 +125,7 @@ fn eval_do_iterative(
 
     let loop_env_rc = Rc::new(loop_env);
 
-    // Iterative loop implementation with larger iteration limit (Phase 6-A)
+    // Iterative loop implementation with larger iteration limit
     const MAX_ITERATIONS: usize = 10000; // Increased from 1000 to 10000
 
     for _iteration in 0..MAX_ITERATIONS {
@@ -136,23 +136,22 @@ fn eval_do_iterative(
             // Test passed - evaluate result expressions
             if result_exprs.is_empty() {
                 return evaluator.apply_continuation(cont, Value::Undefined);
-            } else if result_exprs.len() == 1 {
+            }
+            if result_exprs.len() == 1 {
                 let result =
                     evaluate_expression_directly(evaluator, &result_exprs[0], loop_env_rc)?;
                 return evaluator.apply_continuation(cont, result);
-            } else {
-                // Multiple result expressions - evaluate in sequence
-                let last_idx = result_exprs.len() - 1;
-                for (i, expr) in result_exprs.iter().enumerate() {
-                    if i == last_idx {
-                        // Last expression uses original continuation
-                        let result = evaluate_expression_directly(evaluator, expr, loop_env_rc)?;
-                        return evaluator.apply_continuation(cont, result);
-                    } else {
-                        // Intermediate expressions use Identity continuation
-                        evaluate_expression_directly(evaluator, expr, loop_env_rc.clone())?;
-                    }
+            }
+            // Multiple result expressions - evaluate in sequence
+            let last_idx = result_exprs.len() - 1;
+            for (i, expr) in result_exprs.iter().enumerate() {
+                if i == last_idx {
+                    // Last expression uses original continuation
+                    let result = evaluate_expression_directly(evaluator, expr, loop_env_rc)?;
+                    return evaluator.apply_continuation(cont, result);
                 }
+                // Intermediate expressions use Identity continuation
+                evaluate_expression_directly(evaluator, expr, loop_env_rc.clone())?;
             }
         }
 
@@ -251,24 +250,23 @@ fn eval_do_fallback(
             // Test passed - evaluate result expressions
             if result_exprs.is_empty() {
                 return evaluator.apply_continuation(cont, Value::Undefined);
-            } else if result_exprs.len() == 1 {
+            }
+            if result_exprs.len() == 1 {
                 return evaluator.eval(result_exprs[0].clone(), loop_env_rc, cont);
-            } else {
-                // Multiple result expressions - evaluate in sequence
-                let last_idx = result_exprs.len() - 1;
-                for (i, expr) in result_exprs.iter().enumerate() {
-                    if i == last_idx {
-                        // Last expression uses original continuation
-                        return evaluator.eval(expr.clone(), loop_env_rc, cont);
-                    } else {
-                        // Intermediate expressions use Identity continuation
-                        evaluator.eval(
-                            expr.clone(),
-                            loop_env_rc.clone(),
-                            Continuation::Identity,
-                        )?;
-                    }
+            }
+            // Multiple result expressions - evaluate in sequence
+            let last_idx = result_exprs.len() - 1;
+            for (i, expr) in result_exprs.iter().enumerate() {
+                if i == last_idx {
+                    // Last expression uses original continuation
+                    return evaluator.eval(expr.clone(), loop_env_rc, cont);
                 }
+                // Intermediate expressions use Identity continuation
+                evaluator.eval(
+                    expr.clone(),
+                    loop_env_rc.clone(),
+                    Continuation::Identity,
+                )?;
             }
         }
 
