@@ -4,59 +4,59 @@
 //! that strictly follows the R7RS formal semantics definition.
 
 pub mod ast_converter;
-// Phase II: Combinatory logic system
+// Combinatory logic system for lambda calculus integration
 pub mod combinators;
 pub mod continuation;
-// Phase 6-B-Step2: Unified continuation pooling system
+// Unified continuation pooling system for memory optimization
 pub mod continuation_pooling;
 pub mod control_flow;
 pub mod evaluation;
 pub mod expression_analyzer;
 pub mod higher_order;
 pub mod imports;
-// Phase 6-B-Step3: Inline evaluation system
+// Inline evaluation system for performance optimization
 pub mod inline_evaluation;
-// Phase 6-C: JIT loop optimization system
+// JIT loop optimization system for iterative constructs
 pub mod jit_loop_optimization;
 pub mod memory;
 #[cfg(test)]
 pub mod memory_tests;
-// Phase 6-D: Tail call optimization system
+// Tail call optimization system for proper tail recursion
 pub mod tail_call_optimization;
-// Phase 6-D: LLVM backend for advanced tail call optimization
+// LLVM backend for advanced tail call optimization
 pub mod llvm_backend;
-// Phase 5-Step2: RAII store is now always available
+// RAII store for memory management and resource cleanup
 pub mod raii_store;
-// Phase II: Pure R7RS semantic evaluator
+// Pure R7RS semantic evaluator for formal semantics reference
 pub mod semantic;
-// Phase II: Semantic evaluator correctness proofs
+// Semantic evaluator correctness proofs and verification
 pub mod semantic_correctness;
-// Phase II: Runtime executor for optimized evaluation
+// Runtime executor for optimized evaluation with performance tuning
 pub mod runtime_executor;
 pub mod special_forms;
-// Phase II: Theorem proving support system
+// Theorem proving support system for formal verification
 pub mod theorem_proving;
-// Phase II: External prover integration
+// External prover integration for advanced verification
 pub mod external_provers;
-// Phase III: Unified evaluator interface
+// Unified evaluator interface for transparent evaluation mode switching
 pub mod evaluator_interface;
-// Phase III: Advanced evaluation mode selection
+// Advanced evaluation mode selection for performance and correctness trade-offs
 pub mod evaluation_mode_selector;
-// Phase III: Comprehensive verification system
+// Comprehensive verification system for correctness guarantees
 pub mod verification_system;
-// Phase III: Backward compatibility system
+// Backward compatibility system for legacy code support
 pub mod backward_compatibility;
-// Phase III: Migration strategy system
+// Migration strategy system for seamless evaluator transitions
 pub mod migration_strategy;
-// Phase IV: Formal verification foundation
+// Formal verification foundation for mathematical proofs
 pub mod formal_verification;
-// Phase IV: Church-Rosser property and confluence formal proofs
+// Church-Rosser property and confluence formal proofs
 pub mod church_rosser_proof;
-// Phase IV: Runtime optimization integration system
+// Runtime optimization integration system for performance tuning
 pub mod runtime_optimization_integration;
-// Phase V: Performance measurement system
+// Performance measurement system for benchmarking and profiling
 pub mod performance_measurement_system;
-// Phase 6-A: Trampoline evaluator for stack overflow prevention
+// Trampoline evaluator for stack overflow prevention
 pub mod trampoline;
 pub mod types;
 
@@ -72,7 +72,7 @@ pub use continuation::{
     CompactContinuation, Continuation, DoLoopState, DynamicPoint, EnvironmentRef,
     InlineContinuation, LightContinuation,
 };
-// Phase 6-B-Step2: Continuation pooling system exports
+// Continuation pooling system exports
 pub use continuation_pooling::{
     ContinuationPoolManager, ContinuationType, PoolStatistics, SharedContinuationPoolManager,
     TypedContinuationPool,
@@ -82,59 +82,91 @@ pub use expression_analyzer::{
     AnalysisResult, EvaluationComplexity, ExpressionAnalyzer, OptimizationHint, OptimizationStats,
     TypeHint,
 };
-// Phase 6-B-Step3: Inline evaluation exports
+// Inline evaluation exports
 pub use inline_evaluation::{
     CacheFriendlyPatterns, ContinuationWeight, HotPathDetector, InlineEvaluator, InlineHint,
     InlineResult,
 };
-// Phase 6-D: Tail call optimization exports
+// Tail call optimization exports
 pub use tail_call_optimization::{
     ArgEvaluationStrategy, OptimizationLevel, OptimizedTailCall, TailCallAnalyzer, TailCallContext,
     TailCallOptimizer, TailCallStats,
 };
-// Phase 6-D: LLVM backend exports
+// LLVM backend exports
 pub use llvm_backend::{
     LLVMCodeGenerator, LLVMCompilerIntegration, LLVMFunction, LLVMInstruction,
     LLVMOptimizationLevel, LLVMOptimizationStats, LLVMTailCallIntrinsic,
 };
-// Phase 6-C: JIT loop optimization exports
+// JIT loop optimization exports
 pub use jit_loop_optimization::{
     GeneratedCode, IterationStrategy, IteratorType, JitHint, JitLoopOptimizer,
     JitOptimizationStats, LoopPattern, NativeCodeGenerator,
 };
-// Phase II: Combinatory logic system exports
+// Combinatory logic system exports
 pub use combinators::{BracketAbstraction, CombinatorExpr, CombinatorStats};
-// Phase II: Pure semantic evaluator exports
+// Pure semantic evaluator exports
 pub use semantic::SemanticEvaluator;
-// Phase II: Semantic correctness exports
-pub use semantic_correctness::{SemanticCorrectnessProver, CorrectnessProperty, CorrectnessProof};
-// Phase II: Runtime executor exports
-pub use runtime_executor::{RuntimeExecutor, RuntimeStats, RuntimeOptimizationLevel};
-// Phase II: Theorem proving support exports
-pub use theorem_proving::{TheoremProvingSupport, ProofState, ProofGoal, Statement, GoalType, ProofTactic, VerificationResult as TheoremVerificationResult};
-// Phase II: External prover integration exports
-pub use external_provers::{ExternalProver, ExternalProverManager, ExternalVerificationResult, ProverConfig};
-// Phase III: Unified evaluator interface exports
-pub use evaluator_interface::{EvaluatorInterface, EvaluationMode, EvaluationConfig, EvaluationResult, PerformanceMetrics, VerificationResult as InterfaceVerificationResult};
-// Phase III: Advanced evaluation mode selection exports
-pub use evaluation_mode_selector::{EvaluationModeSelector, ExpressionType, PerformanceStats, SelectionCriteria, PerformanceRequirements, EvaluationContext};
-// Phase III: Comprehensive verification system exports
-pub use verification_system::{VerificationSystem, VerificationConfig, VerificationResult as SystemVerificationResult, VerificationStatus, VerificationAnalysis, VerificationStatistics};
-// Phase III: Backward compatibility system exports
-pub use backward_compatibility::{LegacyEvaluatorAdapter, CompatibilityMode, MigrationStatistics, MigrationRecommendation, CompatibilityResult, migration_helpers};
-// Phase III: Migration strategy system exports  
-pub use migration_strategy::{MigrationStrategy, MigrationPhase, MigrationStatusReport, RiskLevel, PhaseConfiguration, MigrationProgressTracker};
-// Phase IV: Formal verification foundation exports
-pub use formal_verification::{FormalVerificationEngine, FormalVerificationResult, FormalVerificationStatus, VerificationConfiguration, VerificationDepth, FormalProof, CorrectnessGuarantee};
-// Phase IV: Church-Rosser property and confluence formal proofs exports
-pub use church_rosser_proof::{ChurchRosserProofEngine, ChurchRosserProof, ConfluenceProof, TerminationProof, NormalizationProof, ConfluenceVerifier, TerminationVerifier, NormalizationVerifier};
-// Phase IV: Runtime optimization integration system exports
-pub use runtime_optimization_integration::{IntegratedOptimizationManager, OptimizationStrategy, OptimizationResult, OptimizationCache, CorrectnessGuarantor};
-// Phase V: Performance measurement system exports
-pub use performance_measurement_system::{PerformanceMeasurementSystem, MeasurementTarget, PerformanceMeasurementResult, BenchmarkExecutionResult, OptimizationEffectResult, MetricType, MeasurementConfiguration};
+// Semantic correctness exports
+pub use semantic_correctness::{CorrectnessProof, CorrectnessProperty, SemanticCorrectnessProver};
+// Runtime executor exports
+pub use runtime_executor::{RuntimeExecutor, RuntimeOptimizationLevel, RuntimeStats};
+// Theorem proving support exports
+pub use theorem_proving::{
+    GoalType, ProofGoal, ProofState, ProofTactic, Statement, TheoremProvingSupport,
+    VerificationResult as TheoremVerificationResult,
+};
+// External prover integration exports
+pub use external_provers::{
+    ExternalProver, ExternalProverManager, ExternalVerificationResult, ProverConfig,
+};
+// Unified evaluator interface exports
+pub use evaluator_interface::{
+    EvaluationConfig, EvaluationMode, EvaluationResult, EvaluatorInterface, PerformanceMetrics,
+    VerificationResult as InterfaceVerificationResult,
+};
+// Advanced evaluation mode selection exports
+pub use evaluation_mode_selector::{
+    EvaluationContext, EvaluationModeSelector, ExpressionType, PerformanceRequirements,
+    PerformanceStats, SelectionCriteria,
+};
+// Comprehensive verification system exports
+pub use verification_system::{
+    VerificationAnalysis, VerificationConfig, VerificationResult as SystemVerificationResult,
+    VerificationStatistics, VerificationStatus, VerificationSystem,
+};
+// Backward compatibility system exports
+pub use backward_compatibility::{
+    migration_helpers, CompatibilityMode, CompatibilityResult, LegacyEvaluatorAdapter,
+    MigrationRecommendation, MigrationStatistics,
+};
+// Migration strategy system exports
+pub use migration_strategy::{
+    MigrationPhase, MigrationProgressTracker, MigrationStatusReport, MigrationStrategy,
+    PhaseConfiguration, RiskLevel,
+};
+// Formal verification foundation exports
+pub use formal_verification::{
+    CorrectnessGuarantee, FormalProof, FormalVerificationEngine, FormalVerificationResult,
+    FormalVerificationStatus, VerificationConfiguration, VerificationDepth,
+};
+// Church-Rosser property and confluence formal proofs exports
+pub use church_rosser_proof::{
+    ChurchRosserProof, ChurchRosserProofEngine, ConfluenceProof, ConfluenceVerifier,
+    NormalizationProof, NormalizationVerifier, TerminationProof, TerminationVerifier,
+};
+// Runtime optimization integration system exports
+pub use runtime_optimization_integration::{
+    CorrectnessGuarantor, IntegratedOptimizationManager, OptimizationCache, OptimizationResult,
+    OptimizationStrategy,
+};
+// Performance measurement system exports
+pub use performance_measurement_system::{
+    BenchmarkExecutionResult, MeasurementConfiguration, MeasurementTarget, MetricType,
+    OptimizationEffectResult, PerformanceMeasurementResult, PerformanceMeasurementSystem,
+};
 #[cfg(test)]
 pub mod theorem_proving_tests;
-// Phase 6-A: Trampoline evaluator exports
+// Trampoline evaluator exports
 pub use trampoline::{Bounce, ContinuationThunk, TrampolineEvaluation, TrampolineEvaluator};
 pub use types::*;
 
@@ -317,7 +349,7 @@ impl Evaluator {
             }
         }
 
-        // Phase 6-D: Check for tail call optimization opportunity
+        // Check for tail call optimization opportunity
         let is_tail_position = self.is_tail_position(&cont);
         if is_tail_position {
             if let Some(optimized_result) = self.try_tail_call_optimization(&exprs, &env, &cont)? {
@@ -336,7 +368,6 @@ impl Evaluator {
 
         self.eval(operator_expr.clone(), env, operator_cont)
     }
-
 
     /// Check if a name is a special form
     fn is_special_form(&self, name: &str) -> bool {
@@ -790,7 +821,6 @@ impl Evaluator {
         Ok(())
     }
 
-
     /// Apply simple continuation
     fn apply_simple_continuation(&self, args: Vec<Value>) -> Result<Value> {
         if args.len() != 1 {
@@ -921,7 +951,7 @@ impl Evaluator {
                 exprs.extend(args.iter().cloned());
                 exprs
             });
-            
+
             match macro_def {
                 crate::macros::Macro::SyntaxRules { transformer, .. } => {
                     let expanded = transformer.transform(&expr)?;
@@ -1052,8 +1082,7 @@ impl Evaluator {
         }
     }
 
-
-    /// Analyze expression for optimization opportunities (Phase 5-Step1)
+    /// Analyze expression for optimization opportunities
     #[allow(dead_code)]
     fn analyze_expression_for_optimization(
         &mut self,
@@ -1149,7 +1178,7 @@ impl Evaluator {
         self.expression_analyzer_mut().clear_cache();
     }
 
-    /// Phase 6-D: Get tail call optimization statistics
+    /// Get tail call optimization statistics
     pub fn get_tail_call_stats(
         &self,
     ) -> (
@@ -1162,12 +1191,12 @@ impl Evaluator {
         )
     }
 
-    /// Phase 6-D: Reset tail call optimization statistics
+    /// Reset tail call optimization statistics
     pub fn reset_tail_call_stats(&mut self) {
         self.tail_call_optimizer_mut().reset_stats();
     }
 
-    /// Phase 6-D: Check if the current position is a tail position
+    /// Check if the current position is a tail position
     fn is_tail_position(&self, cont: &Continuation) -> bool {
         match cont {
             // Identity continuation means we're at the end of evaluation
@@ -1181,7 +1210,7 @@ impl Evaluator {
         }
     }
 
-    /// Phase 6-D: Try tail call optimization for function application
+    /// Try tail call optimization for function application
     fn try_tail_call_optimization(
         &mut self,
         exprs: &[Expr],
@@ -1247,7 +1276,7 @@ impl Evaluator {
         Ok(None)
     }
 
-    /// Phase 6-D: Extract current function name from environment for recursion detection
+    /// Extract current function name from environment for recursion detection
     fn get_current_function_name_from_env(&self, _env: &Rc<Environment>) -> Option<String> {
         // Look for special markers or use recursion depth heuristics
         // This is a simplified implementation - in practice, we'd need better function tracking
@@ -1259,7 +1288,6 @@ impl Evaluator {
             None
         }
     }
-
 }
 
 /// Public API for evaluation

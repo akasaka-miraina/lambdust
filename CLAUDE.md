@@ -12,11 +12,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **[PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md)**: プロジェクト概要・開発状況・基本方針
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)**: アーキテクチャ設計・モジュール構成・技術的詳細
-- **[DEVELOPMENT_FLOW.md](docs/DEVELOPMENT_FLOW.md)**: 開発フロー・作業手順・品質チェック
+- **[DEVELOPMENT_FLOW.md](docs/DEVELOPMENT_FLOW.md)**: 開発フロー・作業手順・品質チェック・**品質管理方針**
 - **[BUILD_COMMANDS.md](docs/BUILD_COMMANDS.md)**: ビルドコマンド・テスト実行・開発ツール
 - **[CURRENT_TASKS.md](docs/CURRENT_TASKS.md)**: 現在のタスク・優先度・技術課題
 - **[R7RS_IMPLEMENTATION.md](docs/R7RS_IMPLEMENTATION.md)**: R7RS実装状況・SRFI対応・機能完成度
 - **[COMBINATOR_THEORY_INTEGRATION.md](docs/COMBINATOR_THEORY_INTEGRATION.md)**: コンビネータ理論統合・SKIシステム・定理証明基盤
+- **[HYGIENIC_MACRO_DESIGN.md](docs/HYGIENIC_MACRO_DESIGN.md)**: 衛生的マクロシステム設計・シンボル衝突防止・R7RS準拠マクロ実装
+- **[DUSTPAN_ECOSYSTEM_VISION.md](docs/DUSTPAN_ECOSYSTEM_VISION.md)**: 🌟 **Dustpanエコシステム構想**・パッケージマネージャー・Cargo/npm相当システム
 
 ## 🚀 現在の最重要タスク - Evaluator分離アーキテクチャ（2025年7月最新）
 
@@ -142,6 +144,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **意味論的正確性**: R7RS形式的意味論厳密遵守・数学的参照実装
 3. **backward compatibility**: 既存evaluator構造との互換性保持
 4. **形式的検証準備**: SemanticEvaluatorを基準とした正当性証明基盤
+5. **🎯 品質管理方針**: **「隠す」ではなく「直す」**・linter/コンパイラ警告の根本解決・Warning Free実現（詳細は[DEVELOPMENT_FLOW.md](docs/DEVELOPMENT_FLOW.md#品質管理方針)）
 
 ## 🔄 開発フロー（アーキテクチャ統合）
 
@@ -165,9 +168,36 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 🎯 次期作業推奨（Phase 3展開）
 1. **EvaluatorInterface実装**: 統一API・意味論と実行の透明切り替え・verification system
-2. **パフォーマンス測定システム**: RuntimeExecutor効果定量評価・ベンチマーク体系構築
-3. **定理証明支援システム強化**: コンビネータ理論基盤の形式的検証・Agda/Coq統合・正当性証明体系
-4. **形式的検証基盤完成**: SemanticEvaluator基準・correctness guarantee・数学的証明体系完成
-5. **本格的最適化統合**: JIT・continuation pooling・performance tuning本格実装
+2. **🔥 衛生的マクロシステム実装**: シンボル衝突防止・HygienicSymbol・ExpansionContext・R7RS準拠マクロ（**[設計書](docs/HYGIENIC_MACRO_DESIGN.md)**）
+3. **パフォーマンス測定システム**: RuntimeExecutor効果定量評価・ベンチマーク体系構築
+4. **定理証明支援システム強化**: コンビネータ理論基盤の形式的検証・Agda/Coq統合・正当性証明体系
+5. **形式的検証基盤完成**: SemanticEvaluator基準・correctness guarantee・数学的証明体系完成
+6. **本格的最適化統合**: JIT・continuation pooling・performance tuning本格実装
+
+## 🌟 長期ビジョン - Dustpanエコシステム構想
+
+### Dustpan: Lambdustエコシステムのパッケージマネージャー
+- **コンセプト**: Cargo（Rust）・npm（Node.js）相当のSchemeパッケージマネージャー
+- **名前の由来**: Lambdust（λust）の「dust」を集める「ちりとり」（Dustpan）
+- **目標**: 現代的なパッケージ管理・ライブラリ発見・開発者体験向上
+
+### 主要機能構想
+1. **パッケージ管理**: `dustpan install`・依存解決・バージョン管理・セキュリティスキャン
+2. **開発ツール**: `dustpan new`・テストフレームワーク・ドキュメント生成・ベンチマーク
+3. **レジストリシステム**: dustpan.dev・パッケージ公開・検索・コミュニティ機能
+4. **IDE統合**: VS Code拡張・Language Server Protocol・コード補完
+5. **🏢 .NET統合**: Windowsエンタープライズエコシステムとのブリッジ・NuGet連携・Visual Studio統合
+
+### 実装タイムライン（構想）
+- **Year 1**: CLI基盤・レジストリインフラ・コアパッケージエコシステム
+- **Year 2**: 高度ツール・IDE統合・**🏢 .NET Framework統合**・エンタープライズ機能
+- **Year 3**: 言語間相互運用（JVM・Python・JavaScript）・プラットフォーム統合・持続可能エコシステム
+
+### 戦略的価値
+- **エンタープライズ採用促進**: 既存.NETインフラとの統合・企業IT環境での即戦力化
+- **Windowsファーストクラス**: SchemeをWindows開発の有力選択肢に
+- **ポリグロット開発**: 複数言語エコシステムを横断する統合開発基盤
+
+**詳細**: [DUSTPAN_ECOSYSTEM_VISION.md](docs/DUSTPAN_ECOSYSTEM_VISION.md)
 
 重要：コードコメントやCLAUDE.md以外のmarkdownドキュメントは英語で、CLAUDE.mdやチャットは日本語で行います。

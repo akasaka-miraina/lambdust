@@ -373,7 +373,7 @@ impl InlineContinuation {
     }
 }
 
-/// Phase 6-B-Step1: DoLoop iteration state for specialized optimization
+/// DoLoop iteration state for specialized optimization with memory pooling
 #[derive(Debug, Clone)]
 pub struct DoLoopState {
     /// Current variable values [(name, current_value)]
@@ -760,7 +760,7 @@ pub enum Continuation {
         /// Parent continuation
         parent: Box<Continuation>,
     },
-    /// Phase 6-B-Step1: DoLoop specialized continuation for iteration optimization
+    /// DoLoop specialized continuation for iteration optimization with memory pooling
     DoLoop {
         /// Current iteration state
         iteration_state: DoLoopState,

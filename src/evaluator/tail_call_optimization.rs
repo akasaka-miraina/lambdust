@@ -1,4 +1,4 @@
-//! Phase 6-D: Tail Call Optimization System
+//! Tail Call Optimization System
 //!
 //! This module implements tail call optimization for the R7RS evaluator,
 //! providing stack-safe recursive function calls and enhanced performance

@@ -74,7 +74,7 @@ pub fn apply_control_flow_continuation(
         } => {
             evaluator.apply_dynamic_wind_continuation(value, after_thunk, dynamic_point_id, *parent)
         }
-        // Phase 6-B-Step1: DoLoop specialized continuation handling
+        // DoLoop specialized continuation handling with memory pool integration
         Continuation::DoLoop {
             iteration_state,
             pool_id,

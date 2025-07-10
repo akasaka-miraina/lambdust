@@ -8,7 +8,7 @@ use crate::error::{LambdustError, Result};
 use crate::evaluator::continuation::DynamicPoint;
 use crate::evaluator::evaluation::{EvalOrder, ExceptionHandlerInfo};
 use crate::evaluator::expression_analyzer::ExpressionAnalyzer;
-// Phase 5-Step2: RAII-only memory management - removed traditional Store and Location imports
+// RAII-based memory management system
 use crate::srfi::SrfiRegistry;
 use crate::value::{Value, ValueOptimizer};
 use std::fmt::Debug;
@@ -17,15 +17,11 @@ use std::rc::Rc;
 // Import control flow functions
 use crate::ast::Expr;
 use crate::evaluator::Continuation;
-// Phase 6-B-Step1: DoLoop continuation pool import
+// Advanced optimization systems
 use crate::evaluator::control_flow::DoLoopContinuationPool;
-// Phase 6-B-Step2: Unified continuation pooling imports
 use crate::evaluator::continuation_pooling::ContinuationPoolManager;
-// Phase 6-B-Step3: Inline evaluation imports
 use crate::evaluator::inline_evaluation::InlineEvaluator;
-// Phase 6-C: JIT loop optimization imports
 use crate::evaluator::jit_loop_optimization::JitLoopOptimizer;
-// Phase 6-D: Tail call optimization imports
 use crate::evaluator::tail_call_optimization::TailCallOptimizer;
 
 /// Location handle trait for abstracting over different memory management strategies
@@ -40,7 +36,7 @@ pub trait LocationHandle: Debug {
     fn id(&self) -> usize;
 }
 
-/// RAII location handle implementation (Phase 5-Step2: Always available)
+/// RAII location handle implementation
 impl LocationHandle for crate::evaluator::raii_store::RaiiLocation {
     fn get(&self) -> Option<Value> {
         self.get()
@@ -60,7 +56,7 @@ impl LocationHandle for crate::evaluator::raii_store::RaiiLocation {
 }
 
 /// Statistics wrapper for unified RAII memory management
-/// Phase 5-Step2: Simplified to use only RAII store statistics
+/// Simplified to use only RAII store statistics
 #[derive(Debug, Clone)]
 pub struct StoreStatisticsWrapper {
     /// RAII store statistics
@@ -95,7 +91,7 @@ impl StoreStatisticsWrapper {
 }
 
 /// Memory management strategy for the evaluator
-/// Phase 5-Step2: Unified RAII-only memory management
+/// Unified RAII-only memory management
 #[derive(Debug, Default)]
 pub struct MemoryStrategy {
     /// RAII-based store leveraging Rust's ownership model
@@ -149,19 +145,19 @@ pub struct Evaluator {
     exception_handlers: Vec<ExceptionHandlerInfo>,
     /// SRFI registry for module imports
     srfi_registry: SrfiRegistry,
-    /// Value optimizer for Phase 4 memory optimization
+    /// Value optimizer for memory optimization
     value_optimizer: ValueOptimizer,
-    /// Expression analyzer for Phase 5 compile-time optimization
+    /// Expression analyzer for compile-time optimization
     expression_analyzer: ExpressionAnalyzer,
-    /// Phase 6-B-Step1: DoLoop continuation pool for memory optimization
+    /// DoLoop continuation pool for memory optimization
     doloop_continuation_pool: DoLoopContinuationPool,
-    /// Phase 6-B-Step2: Global continuation pool manager for unified pooling
+    /// Global continuation pool manager for unified pooling
     continuation_pool_manager: ContinuationPoolManager,
-    /// Phase 6-B-Step3: Inline evaluator for lightweight continuation optimization
+    /// Inline evaluator for lightweight continuation optimization
     inline_evaluator: InlineEvaluator,
-    /// Phase 6-C: JIT loop optimizer for native iteration code generation
+    /// JIT loop optimizer for native iteration code generation
     jit_loop_optimizer: JitLoopOptimizer,
-    /// Phase 6-D: Tail call optimizer for recursive function optimization
+    /// Tail call optimizer for recursive function optimization
     tail_call_optimizer: TailCallOptimizer,
 }
 
@@ -580,52 +576,52 @@ impl Evaluator {
         crate::evaluator::control_flow::eval_guard(self, operands, env, cont)
     }
 
-    /// Phase 6-B-Step1: Get reference to DoLoop continuation pool
+    /// Get reference to DoLoop continuation pool
     pub fn doloop_continuation_pool(&self) -> &DoLoopContinuationPool {
         &self.doloop_continuation_pool
     }
 
-    /// Phase 6-B-Step1: Get mutable reference to DoLoop continuation pool
+    /// Get mutable reference to DoLoop continuation pool
     pub fn doloop_continuation_pool_mut(&mut self) -> &mut DoLoopContinuationPool {
         &mut self.doloop_continuation_pool
     }
 
-    /// Phase 6-B-Step2: Get reference to global continuation pool manager
+    /// Get reference to global continuation pool manager
     pub fn continuation_pool_manager(&self) -> &ContinuationPoolManager {
         &self.continuation_pool_manager
     }
 
-    /// Phase 6-B-Step2: Get mutable reference to global continuation pool manager
+    /// Get mutable reference to global continuation pool manager
     pub fn continuation_pool_manager_mut(&mut self) -> &mut ContinuationPoolManager {
         &mut self.continuation_pool_manager
     }
 
-    /// Phase 6-B-Step3: Get reference to inline evaluator
+    /// Get reference to inline evaluator
     pub fn inline_evaluator(&self) -> &InlineEvaluator {
         &self.inline_evaluator
     }
 
-    /// Phase 6-B-Step3: Get mutable reference to inline evaluator
+    /// Get mutable reference to inline evaluator
     pub fn inline_evaluator_mut(&mut self) -> &mut InlineEvaluator {
         &mut self.inline_evaluator
     }
 
-    /// Phase 6-C: Get reference to JIT loop optimizer
+    /// Get reference to JIT loop optimizer
     pub fn jit_loop_optimizer(&self) -> &JitLoopOptimizer {
         &self.jit_loop_optimizer
     }
 
-    /// Phase 6-C: Get mutable reference to JIT loop optimizer
+    /// Get mutable reference to JIT loop optimizer
     pub fn jit_loop_optimizer_mut(&mut self) -> &mut JitLoopOptimizer {
         &mut self.jit_loop_optimizer
     }
 
-    /// Phase 6-D: Get reference to tail call optimizer
+    /// Get reference to tail call optimizer
     pub fn tail_call_optimizer(&self) -> &TailCallOptimizer {
         &self.tail_call_optimizer
     }
 
-    /// Phase 6-D: Get mutable reference to tail call optimizer
+    /// Get mutable reference to tail call optimizer
     pub fn tail_call_optimizer_mut(&mut self) -> &mut TailCallOptimizer {
         &mut self.tail_call_optimizer
     }

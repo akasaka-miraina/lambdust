@@ -241,7 +241,13 @@ impl SemanticEvaluator {
                 parent,
             } => {
                 evaluated_bindings.push((variable, value));
-                self.eval_let_bindings_pure(remaining_bindings, evaluated_bindings, env, body, *parent)
+                self.eval_let_bindings_pure(
+                    remaining_bindings,
+                    evaluated_bindings,
+                    env,
+                    body,
+                    *parent,
+                )
             }
 
             // Function application continuations
@@ -507,7 +513,7 @@ impl SemanticEvaluator {
             _ => Err(LambdustError::syntax_error(format!(
                 "Unknown special form: {}",
                 name
-            )))
+            ))),
         }
     }
 
@@ -664,7 +670,7 @@ impl SemanticEvaluator {
             _ => Err(LambdustError::runtime_error(format!(
                 "Builtin function '{}' not implemented in pure evaluator",
                 name
-            )))
+            ))),
         }
     }
 
@@ -739,7 +745,11 @@ impl SemanticEvaluator {
 
         let first = match &args[0] {
             Value::Number(SchemeNumber::Integer(i)) => *i,
-            _ => return Err(LambdustError::type_error("Numeric comparison expects integers")),
+            _ => {
+                return Err(LambdustError::type_error(
+                    "Numeric comparison expects integers",
+                ))
+            }
         };
 
         for arg in &args[1..] {
@@ -748,8 +758,12 @@ impl SemanticEvaluator {
                     if first != *i {
                         return Ok(Value::Boolean(false));
                     }
-                },
-                _ => return Err(LambdustError::type_error("Numeric comparison expects integers")),
+                }
+                _ => {
+                    return Err(LambdustError::type_error(
+                        "Numeric comparison expects integers",
+                    ))
+                }
             }
         }
 
@@ -765,11 +779,19 @@ impl SemanticEvaluator {
         for window in args.windows(2) {
             let left = match &window[0] {
                 Value::Number(SchemeNumber::Integer(i)) => *i,
-                _ => return Err(LambdustError::type_error("Numeric comparison expects integers")),
+                _ => {
+                    return Err(LambdustError::type_error(
+                        "Numeric comparison expects integers",
+                    ))
+                }
             };
             let right = match &window[1] {
                 Value::Number(SchemeNumber::Integer(i)) => *i,
-                _ => return Err(LambdustError::type_error("Numeric comparison expects integers")),
+                _ => {
+                    return Err(LambdustError::type_error(
+                        "Numeric comparison expects integers",
+                    ))
+                }
             };
 
             if left >= right {
@@ -790,7 +812,7 @@ impl SemanticEvaluator {
             Value::Pair(pair_ref) => {
                 let pair = pair_ref.borrow();
                 Ok(pair.car.clone())
-            },
+            }
             _ => Err(LambdustError::type_error("car expects pair")),
         }
     }
@@ -805,7 +827,7 @@ impl SemanticEvaluator {
             Value::Pair(pair_ref) => {
                 let pair = pair_ref.borrow();
                 Ok(pair.cdr.clone())
-            },
+            }
             _ => Err(LambdustError::type_error("cdr expects pair")),
         }
     }
@@ -860,9 +882,11 @@ impl SemanticEvaluator {
 
         let variable = match &operands[0] {
             Expr::Variable(name) => name.clone(),
-            _ => return Err(LambdustError::syntax_error(
-                "set!: first argument must be variable".to_string(),
-            )),
+            _ => {
+                return Err(LambdustError::syntax_error(
+                    "set!: first argument must be variable".to_string(),
+                ))
+            }
         };
 
         let value_expr = operands[1].clone();
@@ -942,13 +966,17 @@ impl SemanticEvaluator {
         for operand in operands {
             if let Expr::List(clause_exprs) = operand {
                 if clause_exprs.is_empty() {
-                    return Err(LambdustError::syntax_error("cond: empty clause".to_string()));
+                    return Err(LambdustError::syntax_error(
+                        "cond: empty clause".to_string(),
+                    ));
                 }
                 let test = clause_exprs[0].clone();
                 let consequent = clause_exprs[1..].to_vec();
                 clauses.push((test, consequent));
             } else {
-                return Err(LambdustError::syntax_error("cond: clause must be list".to_string()));
+                return Err(LambdustError::syntax_error(
+                    "cond: clause must be list".to_string(),
+                ));
             }
         }
         Ok(clauses)
@@ -1052,9 +1080,11 @@ impl SemanticEvaluator {
                 }
                 parsed_bindings
             }
-            _ => return Err(LambdustError::syntax_error(
-                "let: bindings must be list".to_string(),
-            )),
+            _ => {
+                return Err(LambdustError::syntax_error(
+                    "let: bindings must be list".to_string(),
+                ))
+            }
         };
 
         // Evaluate all binding values first, then create new environment
@@ -1142,6 +1172,7 @@ impl SemanticEvaluator {
                 }
                 Ok(Value::Vector(values))
             }
+            Expr::HygienicVariable(symbol) => Ok(Value::Symbol(symbol.unique_name())),
             Expr::DottedList(exprs, tail) => {
                 // Convert dotted list to proper list representation
                 let mut values = Vec::new();
@@ -1181,7 +1212,7 @@ impl SemanticEvaluator {
     }
 
     /// Apply R7RS-compliant S-expression reductions
-    /// 
+    ///
     /// This function implements formal reductions that preserve R7RS semantics
     /// while eliminating unnecessary computation steps.
     pub fn reduce_expression_pure(&self, expr: Expr) -> Result<Expr> {
@@ -1192,22 +1223,22 @@ impl SemanticEvaluator {
                 if self.is_lambda_application(exprs) {
                     return self.beta_reduce_pure(expr);
                 }
-                
+
                 // Identity reductions: Mathematical identities (check before constant folding)
                 if self.is_identity_operation(exprs) {
                     return self.reduce_identity_pure(expr);
                 }
-                
+
                 // Constant folding: Arithmetic expressions
                 if self.is_arithmetic_expression(exprs) {
                     return self.fold_constants_pure(expr);
                 }
-                
+
                 // Conditional reduction: if with constant test
                 if self.is_conditional_with_constant(exprs) {
                     return self.reduce_conditional_pure(expr);
                 }
-                
+
                 // Recursive reduction for nested expressions
                 let reduced_exprs = exprs
                     .iter()
@@ -1215,12 +1246,12 @@ impl SemanticEvaluator {
                     .collect::<Result<Vec<_>>>()?;
                 Ok(Expr::List(reduced_exprs))
             }
-            
+
             // Empty list - no reduction
             Expr::List(_) => Ok(expr),
-            
+
             // No reduction for other expression types
-            _ => Ok(expr)
+            _ => Ok(expr),
         }
     }
 
@@ -1229,24 +1260,27 @@ impl SemanticEvaluator {
         if exprs.len() < 2 {
             return false;
         }
-        
+
         match &exprs[0] {
             Expr::List(lambda_expr) if lambda_expr.len() >= 3 => {
                 matches!(&lambda_expr[0], Expr::Variable(name) if name == "lambda")
             }
-            _ => false
+            _ => false,
         }
     }
 
-    /// Check if expression is arithmetic: (+/-/*/...) 
+    /// Check if expression is arithmetic: (+/-/*/...)
     fn is_arithmetic_expression(&self, exprs: &[Expr]) -> bool {
         if exprs.is_empty() {
             return false;
         }
-        
+
         match &exprs[0] {
-            Expr::Variable(name) => matches!(name.as_str(), "+" | "-" | "*" | "/" | "=" | "<" | ">" | "<=" | ">="),
-            _ => false
+            Expr::Variable(name) => matches!(
+                name.as_str(),
+                "+" | "-" | "*" | "/" | "=" | "<" | ">" | "<=" | ">="
+            ),
+            _ => false,
         }
     }
 
@@ -1255,25 +1289,30 @@ impl SemanticEvaluator {
         if exprs.len() != 3 {
             return false;
         }
-        
+
         match &exprs[0] {
             Expr::Variable(op) => {
                 match op.as_str() {
                     "+" => {
                         // (+ x 0) → x or (+ 0 x) → x
                         self.is_zero_literal(&exprs[1]) || self.is_zero_literal(&exprs[2])
-                    },
+                    }
                     "*" => {
                         // (* x 1) → x or (* 1 x) → x or (* x 0) → 0 or (* 0 x) → 0
-                        self.is_one_literal(&exprs[1]) || self.is_one_literal(&exprs[2]) ||
-                        self.is_zero_literal(&exprs[1]) || self.is_zero_literal(&exprs[2])
-                    },
+                        self.is_one_literal(&exprs[1])
+                            || self.is_one_literal(&exprs[2])
+                            || self.is_zero_literal(&exprs[1])
+                            || self.is_zero_literal(&exprs[2])
+                    }
                     "and" => matches!(&exprs[1], Expr::Literal(crate::ast::Literal::Boolean(true))),
-                    "or" => matches!(&exprs[1], Expr::Literal(crate::ast::Literal::Boolean(false))),
-                    _ => false
+                    "or" => matches!(
+                        &exprs[1],
+                        Expr::Literal(crate::ast::Literal::Boolean(false))
+                    ),
+                    _ => false,
                 }
             }
-            _ => false
+            _ => false,
         }
     }
 
@@ -1282,12 +1321,12 @@ impl SemanticEvaluator {
         if exprs.len() < 3 {
             return false;
         }
-        
+
         match &exprs[0] {
             Expr::Variable(name) if name == "if" => {
                 matches!(&exprs[1], Expr::Literal(crate::ast::Literal::Boolean(_)))
             }
-            _ => false
+            _ => false,
         }
     }
 
@@ -1295,7 +1334,7 @@ impl SemanticEvaluator {
     fn is_zero_literal(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Literal(crate::ast::Literal::Number(n)) => n.to_f64() == 0.0,
-            _ => false
+            _ => false,
         }
     }
 
@@ -1303,13 +1342,13 @@ impl SemanticEvaluator {
     fn is_one_literal(&self, expr: &Expr) -> bool {
         match expr {
             Expr::Literal(crate::ast::Literal::Number(n)) => n.to_f64() == 1.0,
-            _ => false
+            _ => false,
         }
     }
 
     /// Beta reduction: ((lambda (params) body) args) → body[params := args]
     fn beta_reduce_pure(&self, expr: Expr) -> Result<Expr> {
-        // For Phase 1, return simplified placeholder
+        // Return simplified placeholder for basic beta reduction
         // Full beta reduction requires variable substitution implementation
         if let Expr::List(ref exprs) = expr {
             if exprs.len() >= 2 {
@@ -1334,10 +1373,10 @@ impl SemanticEvaluator {
             if exprs.len() >= 3 {
                 if let Expr::Variable(op) = &exprs[0] {
                     // Only fold if all arguments are literals
-                    let are_all_literals = exprs[1..].iter().all(|e| {
-                        matches!(e, Expr::Literal(crate::ast::Literal::Number(_)))
-                    });
-                    
+                    let are_all_literals = exprs[1..]
+                        .iter()
+                        .all(|e| matches!(e, Expr::Literal(crate::ast::Literal::Number(_))));
+
                     if are_all_literals {
                         return self.fold_arithmetic_constants(op, &exprs[1..]);
                     }
@@ -1349,18 +1388,19 @@ impl SemanticEvaluator {
 
     /// Fold arithmetic constants
     fn fold_arithmetic_constants(&self, op: &str, args: &[Expr]) -> Result<Expr> {
-        let numbers: Result<Vec<_>> = args.iter()
+        let numbers: Result<Vec<_>> = args
+            .iter()
             .map(|e| match e {
                 Expr::Literal(crate::ast::Literal::Number(n)) => Ok(n.to_f64()),
-                _ => Err(LambdustError::runtime_error("Expected number".to_string()))
+                _ => Err(LambdustError::runtime_error("Expected number".to_string())),
             })
             .collect();
-        
+
         let nums = numbers?;
         if nums.is_empty() {
             return Ok(Expr::List(vec![Expr::Variable(op.to_string())]));
         }
-        
+
         let result = match op {
             "+" => nums.iter().sum::<f64>(),
             "*" => nums.iter().product::<f64>(),
@@ -1380,15 +1420,15 @@ impl SemanticEvaluator {
             }
             _ => return Ok(Expr::List(vec![Expr::Variable(op.to_string())])), // No reduction
         };
-        
+
         // Convert result back to appropriate number type
         if result.fract() == 0.0 && result.abs() <= i64::MAX as f64 {
             Ok(Expr::Literal(crate::ast::Literal::Number(
-                SchemeNumber::Integer(result as i64)
+                SchemeNumber::Integer(result as i64),
             )))
         } else {
             Ok(Expr::Literal(crate::ast::Literal::Number(
-                SchemeNumber::Real(result)
+                SchemeNumber::Real(result),
             )))
         }
     }
@@ -1415,22 +1455,31 @@ impl SemanticEvaluator {
                                 // (* 0 x) → 0 (only if x has no side effects)
                                 if !self.has_side_effects_pure(&exprs[2]) {
                                     return Ok(Expr::Literal(crate::ast::Literal::Number(
-                                        SchemeNumber::Integer(0)
+                                        SchemeNumber::Integer(0),
                                     )));
                                 }
                             } else if self.is_zero_literal(&exprs[2]) {
                                 // (* x 0) → 0 (only if x has no side effects)
                                 if !self.has_side_effects_pure(&exprs[1]) {
                                     return Ok(Expr::Literal(crate::ast::Literal::Number(
-                                        SchemeNumber::Integer(0)
+                                        SchemeNumber::Integer(0),
                                     )));
                                 }
                             }
                         }
-                        "and" if matches!(&exprs[1], Expr::Literal(crate::ast::Literal::Boolean(true))) => {
+                        "and"
+                            if matches!(
+                                &exprs[1],
+                                Expr::Literal(crate::ast::Literal::Boolean(true))
+                            ) =>
+                        {
                             return Ok(exprs[2].clone()); // (and #t x) → x
                         }
-                        "or" if matches!(&exprs[1], Expr::Literal(crate::ast::Literal::Boolean(false))) => {
+                        "or" if matches!(
+                            &exprs[1],
+                            Expr::Literal(crate::ast::Literal::Boolean(false))
+                        ) =>
+                        {
                             return Ok(exprs[2].clone()); // (or #f x) → x
                         }
                         _ => {}
@@ -1455,7 +1504,8 @@ impl SemanticEvaluator {
                                 if exprs.len() >= 4 {
                                     return Ok(exprs[3].clone()); // (if #f then else) → else
                                 } else {
-                                    return Ok(Expr::Literal(crate::ast::Literal::Nil)); // (if #f then) → nil
+                                    return Ok(Expr::Literal(crate::ast::Literal::Nil));
+                                    // (if #f then) → nil
                                 }
                             }
                             _ => {}
@@ -1483,17 +1533,18 @@ impl SemanticEvaluator {
                         // Check arguments for side effects
                         exprs[1..].iter().any(|e| self.has_side_effects_pure(e))
                     }
-                    _ => exprs.iter().any(|e| self.has_side_effects_pure(e))
+                    _ => exprs.iter().any(|e| self.has_side_effects_pure(e)),
                 }
             }
             Expr::List(_) => false, // Empty list has no side effects
-            _ => false // Conservative: assume no side effects for other forms
+            _ => false,             // Conservative: assume no side effects for other forms
         }
     }
 
     /// R7RS-compliant side effect procedure identification
     fn is_side_effect_procedure(&self, name: &str) -> bool {
-        matches!(name,
+        matches!(
+            name,
             // Assignment operations
             "set!" | "set-car!" | "set-cdr!" | "vector-set!" | "string-set!" |
             // I/O operations
@@ -1523,38 +1574,37 @@ impl SemanticEvaluator {
     }
 
     /// Apply combinatory logic-based reductions
-    /// 
+    ///
     /// This function converts lambda expressions to combinators, applies
     /// combinator reductions, and converts back to lambda form while
     /// preserving R7RS semantics.
     pub fn reduce_expression_combinatory(&self, expr: Expr) -> Result<Expr> {
         // Step 1: Convert lambda abstractions to combinators
         let combinators = BracketAbstraction::lambda_to_combinators(&expr)?;
-        
+
         // Step 2: Apply combinator reductions
         let reduced_combinators = combinators.reduce_to_normal_form()?;
-        
+
         // Step 3: Convert back to lambda form
         let reduced_expr = BracketAbstraction::combinators_to_lambda(&reduced_combinators)?;
-        
+
         // Step 4: Apply standard S-expression reductions
         self.reduce_expression_pure(reduced_expr)
     }
 
     /// Get current reduction statistics
     pub fn get_reduction_stats(&self) -> ReductionStats {
-        // For Phase 1, return empty stats
-        // In future phases, this will track actual reduction statistics
+        // Return empty stats for basic implementation
+        // Future implementation will track actual reduction statistics
         ReductionStats::default()
     }
 
     /// Reset reduction statistics
     pub fn reset_reduction_stats(&mut self) {
-        // For Phase 1, no-op
-        // In future phases, this will reset the actual statistics
+        // No-op for basic implementation
+        // Future implementation will reset the actual statistics
     }
 }
-
 
 impl Default for SemanticEvaluator {
     fn default() -> Self {
@@ -1571,17 +1621,17 @@ mod tests {
     #[test]
     fn test_constant_folding_addition() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (+ 2 3) → 5
         let expr = Expr::List(vec![
             Expr::Variable("+".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(expr).unwrap();
         match reduced {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(5))) => {},
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(5))) => {}
             _ => panic!("Expected constant folding to produce 5, got {:?}", reduced),
         }
     }
@@ -1589,17 +1639,17 @@ mod tests {
     #[test]
     fn test_constant_folding_multiplication() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (* 4 6) → 24
         let expr = Expr::List(vec![
             Expr::Variable("*".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(4))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(6))),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(expr).unwrap();
         match reduced {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(24))) => {},
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(24))) => {}
             _ => panic!("Expected constant folding to produce 24, got {:?}", reduced),
         }
     }
@@ -1607,43 +1657,49 @@ mod tests {
     #[test]
     fn test_identity_reduction_addition() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (+ x 0) → x
         let expr = Expr::List(vec![
             Expr::Variable("+".to_string()),
             Expr::Variable("x".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(expr).unwrap();
         match reduced {
-            Expr::Variable(name) if name == "x" => {},
-            _ => panic!("Expected identity reduction to produce x, got {:?}", reduced),
+            Expr::Variable(name) if name == "x" => {}
+            _ => panic!(
+                "Expected identity reduction to produce x, got {:?}",
+                reduced
+            ),
         }
     }
 
     #[test]
     fn test_identity_reduction_multiplication() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (* x 1) → x
         let expr = Expr::List(vec![
             Expr::Variable("*".to_string()),
             Expr::Variable("x".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(expr).unwrap();
         match reduced {
-            Expr::Variable(name) if name == "x" => {},
-            _ => panic!("Expected identity reduction to produce x, got {:?}", reduced),
+            Expr::Variable(name) if name == "x" => {}
+            _ => panic!(
+                "Expected identity reduction to produce x, got {:?}",
+                reduced
+            ),
         }
     }
 
     #[test]
     fn test_conditional_reduction_true() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (if #t 42 99) → 42
         let expr = Expr::List(vec![
             Expr::Variable("if".to_string()),
@@ -1651,18 +1707,21 @@ mod tests {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(99))),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(expr).unwrap();
         match reduced {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(42))) => {},
-            _ => panic!("Expected conditional reduction to produce 42, got {:?}", reduced),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(42))) => {}
+            _ => panic!(
+                "Expected conditional reduction to produce 42, got {:?}",
+                reduced
+            ),
         }
     }
 
     #[test]
     fn test_conditional_reduction_false() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (if #f 42 99) → 99
         let expr = Expr::List(vec![
             Expr::Variable("if".to_string()),
@@ -1670,25 +1729,28 @@ mod tests {
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(99))),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(expr).unwrap();
         match reduced {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(99))) => {},
-            _ => panic!("Expected conditional reduction to produce 99, got {:?}", reduced),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(99))) => {}
+            _ => panic!(
+                "Expected conditional reduction to produce 99, got {:?}",
+                reduced
+            ),
         }
     }
 
     #[test]
     fn test_no_reduction_for_complex_expressions() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (+ x y) → (+ x y) (no reduction)
         let expr = Expr::List(vec![
             Expr::Variable("+".to_string()),
             Expr::Variable("x".to_string()),
             Expr::Variable("y".to_string()),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(expr).unwrap();
         // Should remain unchanged (recursive reduction will occur on subexpressions)
         match reduced {
@@ -1696,26 +1758,30 @@ mod tests {
                 assert!(matches!(exprs[0], Expr::Variable(ref name) if name == "+"));
                 assert!(matches!(exprs[1], Expr::Variable(ref name) if name == "x"));
                 assert!(matches!(exprs[2], Expr::Variable(ref name) if name == "y"));
-            },
-            _ => panic!("Expected no reduction for complex expression, got {:?}", reduced),
+            }
+            _ => panic!(
+                "Expected no reduction for complex expression, got {:?}",
+                reduced
+            ),
         }
     }
 
     #[test]
     fn test_side_effect_analysis() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test that variables and literals have no side effects
         assert!(!evaluator.has_side_effects_pure(&Expr::Variable("x".to_string())));
-        assert!(!evaluator.has_side_effects_pure(&Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))));
-        
+        assert!(!evaluator
+            .has_side_effects_pure(&Expr::Literal(Literal::Number(SchemeNumber::Integer(42)))));
+
         // Test that side-effect procedures are detected
         let side_effect_expr = Expr::List(vec![
             Expr::Variable("display".to_string()),
             Expr::Literal(Literal::String("Hello".to_string())),
         ]);
         assert!(evaluator.has_side_effects_pure(&side_effect_expr));
-        
+
         // Test that pure procedures have no side effects
         let pure_expr = Expr::List(vec![
             Expr::Variable("+".to_string()),
@@ -1728,48 +1794,51 @@ mod tests {
     #[test]
     fn test_multiply_by_zero_reduction() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (* 42 0) → 0 (since 42 has no side effects)
         let expr = Expr::List(vec![
             Expr::Variable("*".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(expr).unwrap();
         match reduced {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(0))) => {},
-            _ => panic!("Expected multiplication by zero to produce 0, got {:?}", reduced),
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(0))) => {}
+            _ => panic!(
+                "Expected multiplication by zero to produce 0, got {:?}",
+                reduced
+            ),
         }
     }
 
     #[test]
     fn test_boolean_identity_reductions() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (and #t x) → x
         let and_expr = Expr::List(vec![
             Expr::Variable("and".to_string()),
             Expr::Literal(Literal::Boolean(true)),
             Expr::Variable("x".to_string()),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(and_expr).unwrap();
         match reduced {
-            Expr::Variable(name) if name == "x" => {},
+            Expr::Variable(name) if name == "x" => {}
             _ => panic!("Expected (and #t x) → x, got {:?}", reduced),
         }
-        
+
         // Test (or #f x) → x
         let or_expr = Expr::List(vec![
             Expr::Variable("or".to_string()),
             Expr::Literal(Literal::Boolean(false)),
             Expr::Variable("x".to_string()),
         ]);
-        
+
         let reduced = evaluator.reduce_expression_pure(or_expr).unwrap();
         match reduced {
-            Expr::Variable(name) if name == "x" => {},
+            Expr::Variable(name) if name == "x" => {}
             _ => panic!("Expected (or #f x) → x, got {:?}", reduced),
         }
     }
@@ -1777,14 +1846,14 @@ mod tests {
     #[test]
     fn test_reduction_stats_api() {
         let mut evaluator = SemanticEvaluator::new();
-        
+
         // Test that stats API is available
         let stats = evaluator.get_reduction_stats();
         assert_eq!(stats.beta_reductions, 0);
         assert_eq!(stats.constant_folds, 0);
         assert_eq!(stats.conditional_reductions, 0);
         assert_eq!(stats.identity_reductions, 0);
-        
+
         // Test reset (should not panic)
         evaluator.reset_reduction_stats();
     }
@@ -1792,46 +1861,57 @@ mod tests {
     #[test]
     fn test_identity_operation_detection() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (+ x 0) detection
         let expr_plus = vec![
             Expr::Variable("+".to_string()),
             Expr::Variable("x".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
         ];
-        assert!(evaluator.is_identity_operation(&expr_plus), "Should detect (+ x 0) as identity");
-        
+        assert!(
+            evaluator.is_identity_operation(&expr_plus),
+            "Should detect (+ x 0) as identity"
+        );
+
         // Test (* x 1) detection
         let expr_mult = vec![
             Expr::Variable("*".to_string()),
             Expr::Variable("x".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
         ];
-        assert!(evaluator.is_identity_operation(&expr_mult), "Should detect (* x 1) as identity");
+        assert!(
+            evaluator.is_identity_operation(&expr_mult),
+            "Should detect (* x 1) as identity"
+        );
     }
 
     #[test]
     fn test_combinatory_reduction_identity_function() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (lambda (x) x) → I combinator → (lambda (x) x)
         let identity_lambda = Expr::List(vec![
             Expr::Variable("lambda".to_string()),
             Expr::List(vec![Expr::Variable("x".to_string())]),
             Expr::Variable("x".to_string()),
         ]);
-        
-        let reduced = evaluator.reduce_expression_combinatory(identity_lambda.clone()).unwrap();
-        
+
+        let reduced = evaluator
+            .reduce_expression_combinatory(identity_lambda.clone())
+            .unwrap();
+
         // The reduction should preserve the semantic meaning
         // In this case, identity function should remain essentially the same
         // (though the exact representation might differ after combinator conversion)
-        
+
         // Test that the reduced expression is still a lambda
         match reduced {
             Expr::List(exprs) if exprs.len() >= 2 => {
                 if let Expr::Variable(keyword) = &exprs[0] {
-                    assert_eq!(keyword, "lambda", "Should still be a lambda after combinator reduction");
+                    assert_eq!(
+                        keyword, "lambda",
+                        "Should still be a lambda after combinator reduction"
+                    );
                 }
             }
             _ => {} // Other valid forms are also acceptable
@@ -1841,34 +1921,39 @@ mod tests {
     #[test]
     fn test_combinatory_reduction_constant_function() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test (lambda (x) 42) → K 42 combinator → (lambda (x) 42)
         let constant_lambda = Expr::List(vec![
             Expr::Variable("lambda".to_string()),
             Expr::List(vec![Expr::Variable("x".to_string())]),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
         ]);
-        
-        let reduced = evaluator.reduce_expression_combinatory(constant_lambda.clone()).unwrap();
-        
+
+        let reduced = evaluator
+            .reduce_expression_combinatory(constant_lambda.clone())
+            .unwrap();
+
         // The reduction should preserve the semantic meaning
         // A constant function should remain a constant function
         match reduced {
             Expr::List(exprs) if exprs.len() >= 2 => {
                 if let Expr::Variable(keyword) = &exprs[0] {
                     // Should be either lambda or some combinator representation
-                    assert!(keyword == "lambda" || keyword == "K", 
-                           "Should be lambda or K combinator, got: {}", keyword);
+                    assert!(
+                        keyword == "lambda" || keyword == "K",
+                        "Should be lambda or K combinator, got: {}",
+                        keyword
+                    );
                 }
             }
             _ => {} // Other valid forms are also acceptable
         }
     }
 
-    #[test] 
+    #[test]
     fn test_combinatory_reduction_preserves_semantics() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test that combinatory reduction preserves semantic meaning
         // by checking that both original and reduced expressions can be evaluated
         let test_expr = Expr::List(vec![
@@ -1876,26 +1961,30 @@ mod tests {
             Expr::List(vec![Expr::Variable("x".to_string())]),
             Expr::Variable("x".to_string()),
         ]);
-        
-        let reduced = evaluator.reduce_expression_combinatory(test_expr.clone()).unwrap();
-        
+
+        let reduced = evaluator
+            .reduce_expression_combinatory(test_expr.clone())
+            .unwrap();
+
         // Both should be valid expressions (no runtime errors in reduction)
-        assert!(reduced != test_expr || reduced == test_expr, 
-               "Reduced expression should be valid");
+        assert!(
+            reduced != test_expr || reduced == test_expr,
+            "Reduced expression should be valid"
+        );
     }
 
     #[test]
     fn test_combinatory_reduction_error_handling() {
         let evaluator = SemanticEvaluator::new();
-        
+
         // Test that malformed lambda expressions are handled gracefully
         let malformed_lambda = Expr::List(vec![
             Expr::Variable("lambda".to_string()),
             Expr::Literal(Literal::Number(SchemeNumber::Integer(42))), // Invalid parameter list
         ]);
-        
+
         let result = evaluator.reduce_expression_combinatory(malformed_lambda);
-        
+
         // Should either succeed with some valid transformation or fail gracefully
         if let Ok(_) = result {
             // Success is acceptable
