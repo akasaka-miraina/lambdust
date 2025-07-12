@@ -58,7 +58,7 @@ impl RecordTypeDescriptor {
     }
 
     /// Get all fields including inherited ones
-    pub fn all_fields(&self) -> Vec<FieldSpec> {
+    #[must_use] pub fn all_fields(&self) -> Vec<FieldSpec> {
         let mut all_fields = Vec::new();
 
         // Add parent fields first
@@ -73,7 +73,7 @@ impl RecordTypeDescriptor {
     }
 
     /// Check if this type is a subtype of another
-    pub fn is_subtype_of(&self, other: &RecordTypeDescriptor) -> bool {
+    #[must_use] pub fn is_subtype_of(&self, other: &RecordTypeDescriptor) -> bool {
         if self.type_id == other.type_id {
             return true;
         }
@@ -86,7 +86,7 @@ impl RecordTypeDescriptor {
     }
 
     /// Get field count including inherited fields
-    pub fn field_count(&self) -> usize {
+    #[must_use] pub fn field_count(&self) -> usize {
         self.all_fields().len()
     }
 }
@@ -185,7 +185,7 @@ impl super::SrfiModule for Srfi136 {
                 if args.len() < 2 || args.len() > 3 {
                     return Err(LambdustError::arity_error(2, args.len()));
                 }
-                make_record_type_descriptor_proc(&args)
+                make_record_type_descriptor_proc(args)
             }),
         );
 

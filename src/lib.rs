@@ -81,6 +81,8 @@
 #![allow(clippy::writeln_empty_string)]
 #![allow(clippy::module_inception)]
 #![allow(clippy::multiple_crate_versions)]
+#![allow(clippy::negative_feature_names)]
+#![allow(clippy::redundant_feature_names)]
 
 // ===== Core Modules (Always Included) =====
 pub mod ast;
@@ -109,9 +111,9 @@ pub mod value;
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod bridge;
 
-#[cfg(test)]
-#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
-pub mod bridge_tests;
+// Tests moved to tests/ directory
+// #[cfg(test)]
+// pub mod bridge_tests;
 
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod builtins;
@@ -339,6 +341,13 @@ pub mod adaptive_memory;
 ))]
 pub mod memory_pool;
 
+// ===== Type System =====
+#[cfg(all(
+    feature = "type-system",
+    any(feature = "standard", feature = "minimal", not(feature = "embedded"))
+))]
+pub mod type_system;
+
 // Advanced Features (Not available in embedded mode)
 #[cfg(all(
     feature = "theorem-derivation",
@@ -429,6 +438,12 @@ pub mod debug {
     any(feature = "standard", feature = "minimal", not(feature = "embedded"))
 ))]
 pub mod stack_monitor;
+pub mod benchmarks;
+pub mod formal_verification;
+
+// Language Server Protocol support
+#[cfg(feature = "language-server")]
+pub mod lsp;
 
 // Platform-Specific
 #[cfg(feature = "wasm")]
@@ -452,6 +467,9 @@ pub use bridge::{Callable, FromScheme, LambdustBridge, ToScheme};
 
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub use evaluator::{eval_with_formal_semantics, Evaluator};
+
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
+pub use environment::Environment;
 
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub use interpreter::LambdustInterpreter;
@@ -580,9 +598,38 @@ impl Interpreter {
     /// let mut interpreter = Interpreter::new();
     /// let result = interpreter.eval("(+ 1 2)").unwrap();
     /// ```
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             evaluator: Evaluator::new(),
+        }
+    }
+
+    /// Create a new interpreter with shared environment (new architecture)
+    /// 
+    /// This constructor follows the new architecture where the environment
+    /// is created first and shared across all components for thread safety
+    /// and memory efficiency.
+    ///
+    /// # Arguments
+    ///
+    /// * `environment` - Pre-created shared environment with R7RS builtins
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use lambdust::{Interpreter, Environment};
+    /// use std::sync::Arc;
+    ///
+    /// // Create shared environment once
+    /// let env = Arc::new(Environment::with_builtins());
+    /// 
+    /// // Create interpreter with shared environment
+    /// let mut interpreter = Interpreter::with_shared_environment(env);
+    /// let result = interpreter.eval("(+ 1 2)").unwrap();
+    /// ```
+    #[must_use] pub fn with_shared_environment(environment: std::sync::Arc<Environment>) -> Self {
+        Self {
+            evaluator: Evaluator::with_environment(environment),
         }
     }
 
@@ -620,6 +667,10 @@ impl Interpreter {
     /// let result = interpreter.eval("(factorial 5)").unwrap();
     /// assert_eq!(result, Value::from(120i64));
     /// ```
+    /// 
+    /// # Errors
+    /// 
+    /// Returns an error if the input cannot be parsed or evaluated successfully.
     pub fn eval(&mut self, input: &str) -> Result<Value> {
         self.evaluator.eval_string(input)
     }
@@ -647,6 +698,10 @@ impl Interpreter {
     /// let mut interpreter = Interpreter::new();
     /// let result = interpreter.load_file("script.scm").unwrap();
     /// ```
+    /// 
+    /// # Errors
+    /// 
+    /// Returns an error if the file cannot be read or the contents cannot be evaluated successfully.
     pub fn load_file(&mut self, path: &str) -> Result<Value> {
         let content =
             std::fs::read_to_string(path).map_err(|e| LambdustError::io_error(e.to_string()))?;
@@ -676,6 +731,7 @@ impl EmbeddedInterpreter {
     /// let mut interpreter = EmbeddedInterpreter::new();
     /// let result = interpreter.eval("(+ 1 2)").unwrap();
     /// ```
+    #[must_use]
     pub fn new() -> Self {
         Self {
             evaluator: EmbeddedEvaluator::new(),
@@ -712,6 +768,10 @@ impl EmbeddedInterpreter {
     /// // Lambda functions
     /// let result = interpreter.eval("((lambda (x) (* x x)) 5)").unwrap();
     /// ```
+    /// 
+    /// # Errors
+    /// 
+    /// Returns an error if the input cannot be parsed or evaluated successfully.
     pub fn eval(&mut self, input: &str) -> Result<EmbeddedValue> {
         let tokens = crate::lexer::tokenize(input)?;
         let expr = crate::parser::parse(tokens)?;

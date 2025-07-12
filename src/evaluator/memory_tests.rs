@@ -237,11 +237,11 @@ fn test_memory_usage_tracking() {
     assert_eq!(initial_memory, 0);
 
     // Allocate values of different sizes
-    let _loc1 = store.allocate(Value::Number(SchemeNumber::Integer(42)));
+    store.allocate(Value::Number(SchemeNumber::Integer(42)));
     let memory_after_int = store.memory_usage();
     assert!(memory_after_int > initial_memory);
 
-    let _loc2 = store.allocate(Value::String("hello world".to_string()));
+    store.allocate(Value::String("hello world".to_string()));
     let memory_after_string = store.memory_usage();
     assert!(memory_after_string > memory_after_int);
 
@@ -256,7 +256,7 @@ fn test_memory_limit_enforcement() {
 
     // Allocate values until memory limit is reached
     for i in 0..10 {
-        let _location = store.allocate(Value::String(format!("string_{}", i)));
+        store.allocate(Value::String(format!("string_{}", i)));
     }
 
     // Should have triggered garbage collection
@@ -269,8 +269,8 @@ fn test_garbage_collection_manual() {
     let mut store = Store::new();
 
     // Allocate some values
-    let _loc1 = store.allocate(Value::Number(SchemeNumber::Integer(1)));
-    let _loc2 = store.allocate(Value::Number(SchemeNumber::Integer(2)));
+    store.allocate(Value::Number(SchemeNumber::Integer(1)));
+    store.allocate(Value::Number(SchemeNumber::Integer(2)));
 
     let initial_gc_cycles = store.get_statistics().gc_cycles;
 
@@ -287,7 +287,7 @@ fn test_memory_statistics_tracking() {
 
     // Allocate values
     let loc1 = store.allocate(Value::Number(SchemeNumber::Integer(42)));
-    let _loc2 = store.allocate(Value::String("hello".to_string()));
+    store.allocate(Value::String("hello".to_string()));
 
     let stats = store.get_statistics();
     assert_eq!(stats.total_allocations, 2);
@@ -311,7 +311,7 @@ fn test_pool_efficiency_calculation() {
     store.deallocate(loc1);
 
     // Allocate again to use pool
-    let _loc2 = store.allocate_pooled(Value::Number(SchemeNumber::Integer(2)));
+    store.allocate_pooled(Value::Number(SchemeNumber::Integer(2)));
 
     // Update pool efficiency
     store.update_pool_efficiency();
@@ -349,7 +349,7 @@ fn test_memory_limit_setting() {
 
     // Allocate values to test limit
     for i in 0..10 {
-        let _location = store.allocate(Value::String(format!("test_string_{}", i)));
+        store.allocate(Value::String(format!("test_string_{}", i)));
     }
 
     // Should not crash and should respect limit
@@ -460,7 +460,7 @@ fn test_values_memory_estimation() {
         Value::String("test".to_string()),
     ]);
 
-    let _location = store.allocate(values);
+    store.allocate(values);
     assert!(store.memory_usage() > 0);
 }
 

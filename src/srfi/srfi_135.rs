@@ -36,7 +36,7 @@ pub enum Text {
 
 impl Text {
     /// Create a new text from a string
-    pub fn from_string(s: String) -> Self {
+    #[must_use] pub fn from_string(s: String) -> Self {
         let length = s.chars().count();
         Text::Leaf {
             data: Arc::new(s),
@@ -46,7 +46,7 @@ impl Text {
     }
 
     /// Create an empty text
-    pub fn empty() -> Self {
+    #[must_use] pub fn empty() -> Self {
         Text::Leaf {
             data: Arc::new(String::new()),
             start: 0,
@@ -55,7 +55,7 @@ impl Text {
     }
 
     /// Get the length of the text in characters
-    pub fn length(&self) -> usize {
+    #[must_use] pub fn length(&self) -> usize {
         match self {
             Text::Leaf { length, .. } => *length,
             Text::Concat { length, .. } => *length,
@@ -63,7 +63,7 @@ impl Text {
     }
 
     /// Check if the text is empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.length() == 0
     }
 
@@ -150,7 +150,7 @@ impl Text {
     }
 
     /// Concatenate two texts efficiently
-    pub fn concat(left: Text, right: Text) -> Text {
+    #[must_use] pub fn concat(left: Text, right: Text) -> Text {
         if left.is_empty() {
             return right;
         }
@@ -167,7 +167,7 @@ impl Text {
     }
 
     /// Convert text to a regular string
-    pub fn text_to_string(&self) -> String {
+    #[must_use] pub fn text_to_string(&self) -> String {
         match self {
             Text::Leaf {
                 data,
@@ -186,7 +186,7 @@ impl Text {
     }
 
     /// Take first n characters
-    pub fn take(&self, n: usize) -> Text {
+    #[must_use] pub fn take(&self, n: usize) -> Text {
         if n == 0 {
             Text::empty()
         } else if n >= self.length() {
@@ -197,7 +197,7 @@ impl Text {
     }
 
     /// Drop first n characters
-    pub fn drop(&self, n: usize) -> Text {
+    #[must_use] pub fn drop(&self, n: usize) -> Text {
         if n == 0 {
             self.clone()
         } else if n >= self.length() {
@@ -209,7 +209,7 @@ impl Text {
     }
 
     /// Check if this text equals another text
-    pub fn text_equal(&self, other: &Text) -> bool {
+    #[must_use] pub fn text_equal(&self, other: &Text) -> bool {
         if self.length() != other.length() {
             return false;
         }
@@ -240,7 +240,7 @@ impl Default for Text {
 }
 
 /// Check if a value is textual (either text or string)
-pub fn is_textual(value: &Value) -> bool {
+#[must_use] pub fn is_textual(value: &Value) -> bool {
     matches!(value, Value::Text(_) | Value::String(_))
 }
 

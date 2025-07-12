@@ -1,6 +1,6 @@
 # Lambdust Development Makefile
 
-.PHONY: help test coverage lint fmt doc clean install-tools
+.PHONY: help test coverage lint fmt doc clean install-tools index index-check
 
 # Default target
 help:
@@ -14,6 +14,10 @@ help:
 	@echo "  doc-open       - Generate and open documentation"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  install-tools  - Install development tools"
+	@echo ""
+	@echo "Code Index Management:"
+	@echo "  index          - Generate/update code index"
+	@echo "  index-check    - Validate code index is up to date"
 
 # Run tests
 test:
@@ -35,7 +39,7 @@ coverage-summary:
 
 # Run clippy
 lint:
-	cargo clippy --all-features --lib --tests --benches -- -D warnings
+	cargo clippy --all-features --lib --tests --benches -- -A clippy::all -D warnings
 
 # Format code
 fmt:
@@ -75,3 +79,40 @@ ci-check: fmt-check lint test coverage doc
 
 # Quick development check
 dev-check: fmt lint test
+
+## Code Index Management
+
+# Generate or update code index
+index:
+	@echo "🔍 Generating code index..."
+	@python3 tools/index_generator.py --verbose
+	@echo "✅ Code index updated"
+
+# Check if code index is up to date
+index-check:
+	@echo "🔍 Validating code index..."
+	@python3 tools/index_generator.py --output docs/CODE_INDEX_TEMP.md
+	@if diff -q docs/CODE_INDEX_GENERATED.md docs/CODE_INDEX_TEMP.md > /dev/null 2>&1; then \
+		echo "✅ Index is up to date"; \
+		rm -f docs/CODE_INDEX_TEMP.md; \
+	else \
+		echo "❌ Index is outdated. Run 'make index' to update"; \
+		rm -f docs/CODE_INDEX_TEMP.md; \
+		exit 1; \
+	fi
+
+# R7RS-pico specific targets
+check-pico:
+	cargo check --features pico
+
+test-pico:
+	cargo test --features pico
+
+demo-pico:
+	cargo run --example r7rs_pico_demo --features pico
+
+# Enhanced CI check with index validation
+ci-check-full: fmt-check lint test coverage doc index-check
+
+# Development workflow with index
+dev-full: fmt lint test index

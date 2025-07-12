@@ -2,10 +2,10 @@
 //!
 //! This module implements R7RS control flow constructs organized into focused submodules:
 //! - promises: Promise and lazy evaluation (delay, force, lazy, promise?)
-//! - do_loops: Do loop iteration with step expressions
-//! - call_cc: Call-with-current-continuation and continuation capture
-//! - multi_values: Multiple values system (values, call-with-values)
-//! - dynamic_wind: Dynamic extent management
+//! - `do_loops`: Do loop iteration with step expressions
+//! - `call_cc`: Call-with-current-continuation and continuation capture
+//! - `multi_values`: Multiple values system (values, call-with-values)
+//! - `dynamic_wind`: Dynamic extent management
 //! - exceptions: Exception handling (raise, with-exception-handler, guard)
 //! - continuations: Centralized continuation application handlers
 

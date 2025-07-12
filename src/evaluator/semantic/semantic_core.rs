@@ -8,7 +8,7 @@ use crate::debug::{DebugTracer, TraceLevel};
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::Continuation;
-use crate::lexer::SchemeNumber;
+// Removed unused import: use crate::lexer::SchemeNumber;
 use crate::value::{Procedure, Value};
 use std::rc::Rc;
 
@@ -17,7 +17,7 @@ use std::rc::Rc;
 /// This evaluator implements ONLY the formal semantics defined in R7RS
 /// Section 7.2. It contains no optimizations and serves as the mathematical
 /// reference for correctness verification.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SemanticEvaluator {
     /// Global environment containing R7RS standard library
     #[allow(dead_code)]
@@ -51,9 +51,9 @@ pub struct ReductionStats {
 
 impl SemanticEvaluator {
     /// Create a new pure semantic evaluator
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
-            global_env: Rc::new(Environment::new()),
+            global_env: Rc::new(Environment::with_builtins()),
             recursion_depth: 0,
             max_recursion_depth: 1000,
 
@@ -62,8 +62,9 @@ impl SemanticEvaluator {
         }
     }
 
+
     /// Create with custom global environment
-    pub fn with_environment(env: Rc<Environment>) -> Self {
+    #[must_use] pub fn with_environment(env: Rc<Environment>) -> Self {
         Self {
             global_env: env,
             recursion_depth: 0,
@@ -116,16 +117,14 @@ impl SemanticEvaluator {
             Expr::Variable(name) => {
                 if self.is_special_form(&name) {
                     return Err(LambdustError::syntax_error(format!(
-                        "Special form '{}' used as variable",
-                        name
+                        "Special form '{name}' used as variable"
                     )));
                 }
 
                 match env.get(&name) {
                     Some(value) => self.apply_continuation_pure(cont, value),
                     None => Err(LambdustError::runtime_error(format!(
-                        "Undefined variable: {}",
-                        name
+                        "Undefined variable: {name}"
                     ))),
                 }
             }
@@ -243,7 +242,7 @@ impl SemanticEvaluator {
         &mut self,
         args: Vec<Expr>,
         env: Rc<Environment>,
-        mut evaluated_args: Vec<Value>,
+        evaluated_args: Vec<Value>,
         operator: Value,
         cont: Continuation,
     ) -> Result<Value> {
@@ -281,14 +280,14 @@ impl SemanticEvaluator {
                     let new_env = self.bind_parameters_pure(params, args, closure, variadic)?;
                     self.eval_sequence_pure(body, new_env, cont)
                 }
-                Procedure::Builtin { name, arity: _, func: _ } => {
-                    let result = self.apply_builtin_pure(&name, &args)?;
+                Procedure::Builtin { name: _, arity: _, func } => {
+                    let result = func(&args)?;
                     self.apply_continuation_pure(cont, result)
                 }
                 Procedure::HostFunction { name, arity: _, func: _ } => {
                     // Host functions not supported in pure semantic evaluation
                     Err(LambdustError::type_error(format!(
-                        "Host function '{}' not supported in pure evaluation", name
+                        "Host function '{name}' not supported in pure evaluation"
                     )))
                 }
                 Procedure::Continuation { continuation: _ } => {
@@ -411,17 +410,12 @@ impl SemanticEvaluator {
     /// Apply other continuation types (delegated to control flow)
     pub fn apply_other_continuation_pure(
         &mut self,
-        cont: Continuation,
+        _cont: Continuation,
         value: Value,
     ) -> Result<Value> {
         // Placeholder implementation for complex continuations
         // These would be handled by the control flow module
-        match cont {
-            _ => {
-                // For now, just apply identity
-                Ok(value)
-            }
-        }
+        Ok(value)
     }
 }
 

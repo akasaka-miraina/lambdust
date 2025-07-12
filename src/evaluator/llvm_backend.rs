@@ -5,10 +5,10 @@
 //! optimization passes for maximum performance.
 //!
 //! Architecture:
-//! - LLVMCodeGenerator: Generates LLVM IR with tail call annotations
-//! - TailCallIntrinsic: LLVM tail call intrinsic integration
-//! - OptimizationPass: Custom LLVM optimization pass for Scheme functions
-//! - CompilerIntegration: Rustc backend integration for seamless compilation
+//! - `LLVMCodeGenerator`: Generates LLVM IR with tail call annotations
+//! - `TailCallIntrinsic`: LLVM tail call intrinsic integration
+//! - `OptimizationPass`: Custom LLVM optimization pass for Scheme functions
+//! - `CompilerIntegration`: Rustc backend integration for seamless compilation
 
 use crate::ast::Expr;
 use crate::error::{LambdustError, Result};
@@ -33,7 +33,7 @@ pub struct LLVMInstruction {
 
 impl LLVMInstruction {
     /// Create a new LLVM instruction
-    pub fn new(opcode: String, operands: Vec<String>) -> Self {
+    #[must_use] pub fn new(opcode: String, operands: Vec<String>) -> Self {
         LLVMInstruction {
             opcode,
             operands,
@@ -44,42 +44,42 @@ impl LLVMInstruction {
     }
 
     /// Add tail call attribute
-    pub fn with_tail_call(mut self) -> Self {
+    #[must_use] pub fn with_tail_call(mut self) -> Self {
         self.attributes.push("tail".to_string());
         self
     }
 
     /// Add musttail attribute for guaranteed tail call elimination
-    pub fn with_musttail(mut self) -> Self {
+    #[must_use] pub fn with_musttail(mut self) -> Self {
         self.attributes.push("musttail".to_string());
         self
     }
 
     /// Add notail attribute to prevent tail call optimization
-    pub fn with_notail(mut self) -> Self {
+    #[must_use] pub fn with_notail(mut self) -> Self {
         self.attributes.push("notail".to_string());
         self
     }
 
     /// Set result register
-    pub fn with_result(mut self, result: String) -> Self {
+    #[must_use] pub fn with_result(mut self, result: String) -> Self {
         self.result = Some(result);
         self
     }
 
     /// Add debug information
-    pub fn with_debug(mut self, debug: String) -> Self {
+    #[must_use] pub fn with_debug(mut self, debug: String) -> Self {
         self.debug_info = Some(debug);
         self
     }
 
     /// Generate LLVM IR string representation
-    pub fn to_llvm_ir(&self) -> String {
+    #[must_use] pub fn to_llvm_ir(&self) -> String {
         let mut ir = String::new();
 
         // Result assignment
         if let Some(ref result) = self.result {
-            ir.push_str(&format!("{} = ", result));
+            ir.push_str(&format!("{result} = "));
         }
 
         // Attributes (tail call markers)
@@ -97,7 +97,7 @@ impl LLVMInstruction {
 
         // Debug information
         if let Some(ref debug) = self.debug_info {
-            ir.push_str(&format!(", !dbg !{}", debug));
+            ir.push_str(&format!(", !dbg !{debug}"));
         }
 
         ir
@@ -123,7 +123,7 @@ pub struct LLVMFunction {
 
 impl LLVMFunction {
     /// Create a new LLVM function
-    pub fn new(name: String, return_type: String) -> Self {
+    #[must_use] pub fn new(name: String, return_type: String) -> Self {
         LLVMFunction {
             name,
             parameters: Vec::new(),
@@ -155,7 +155,7 @@ impl LLVMFunction {
     }
 
     /// Generate LLVM IR for the function
-    pub fn to_llvm_ir(&self) -> String {
+    #[must_use] pub fn to_llvm_ir(&self) -> String {
         let mut ir = String::new();
 
         // Function declaration
@@ -169,7 +169,7 @@ impl LLVMFunction {
         let params: Vec<String> = self
             .parameters
             .iter()
-            .map(|(ty, name)| format!("{} %{}", ty, name))
+            .map(|(ty, name)| format!("{ty} %{name}"))
             .collect();
         ir.push_str(&params.join(", "));
         ir.push_str(") {\n");
@@ -220,7 +220,7 @@ pub enum LLVMOptimizationLevel {
 
 impl LLVMCodeGenerator {
     /// Create a new LLVM code generator
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         LLVMCodeGenerator {
             functions: HashMap::new(),
             current_function: None,
@@ -231,7 +231,7 @@ impl LLVMCodeGenerator {
     }
 
     /// Create with specific optimization level
-    pub fn with_optimization_level(optimization_level: LLVMOptimizationLevel) -> Self {
+    #[must_use] pub fn with_optimization_level(optimization_level: LLVMOptimizationLevel) -> Self {
         LLVMCodeGenerator {
             functions: HashMap::new(),
             current_function: None,
@@ -251,8 +251,7 @@ impl LLVMCodeGenerator {
     pub fn start_function(&mut self, name: String, return_type: String) -> Result<()> {
         if self.functions.contains_key(&name) {
             return Err(LambdustError::runtime_error(format!(
-                "Function '{}' already defined",
-                name
+                "Function '{name}' already defined"
             )));
         }
 
@@ -300,8 +299,7 @@ impl LLVMCodeGenerator {
             Expr::Variable(name) => self.generate_variable(name),
             Expr::List(exprs) if !exprs.is_empty() => self.generate_function_call(exprs, context),
             _ => Err(LambdustError::runtime_error(format!(
-                "Unsupported expression for LLVM generation: {:?}",
-                expr
+                "Unsupported expression for LLVM generation: {expr:?}"
             ))),
         }
     }
@@ -335,8 +333,7 @@ impl LLVMCodeGenerator {
             .with_result(register.clone()),
             _ => {
                 return Err(LambdustError::runtime_error(format!(
-                    "Unsupported literal type: {:?}",
-                    lit
+                    "Unsupported literal type: {lit:?}"
                 )));
             }
         };
@@ -485,7 +482,7 @@ impl LLVMCodeGenerator {
     }
 
     /// Generate LLVM IR for all functions
-    pub fn generate_module(&self) -> String {
+    #[must_use] pub fn generate_module(&self) -> String {
         let mut module_ir = String::new();
 
         // Module header
@@ -512,7 +509,7 @@ impl LLVMCodeGenerator {
     }
 
     /// Get optimization statistics
-    pub fn get_optimization_stats(&self) -> LLVMOptimizationStats {
+    #[must_use] pub fn get_optimization_stats(&self) -> LLVMOptimizationStats {
         let mut stats = LLVMOptimizationStats::default();
 
         for function in self.functions.values() {
@@ -541,7 +538,7 @@ impl LLVMCodeGenerator {
     }
 
     /// Get current optimization level
-    pub fn optimization_level(&self) -> &LLVMOptimizationLevel {
+    #[must_use] pub fn optimization_level(&self) -> &LLVMOptimizationLevel {
         &self.optimization_level
     }
 
@@ -576,7 +573,7 @@ pub struct LLVMOptimizationStats {
 
 impl LLVMOptimizationStats {
     /// Calculate tail call optimization ratio
-    pub fn tail_call_ratio(&self) -> f64 {
+    #[must_use] pub fn tail_call_ratio(&self) -> f64 {
         if self.total_functions == 0 {
             0.0
         } else {
@@ -585,7 +582,7 @@ impl LLVMOptimizationStats {
     }
 
     /// Calculate instruction optimization ratio
-    pub fn instruction_optimization_ratio(&self) -> f64 {
+    #[must_use] pub fn instruction_optimization_ratio(&self) -> f64 {
         if self.total_instructions == 0 {
             0.0
         } else {
@@ -617,7 +614,7 @@ pub struct LLVMIntrinsicStats {
 
 impl LLVMTailCallIntrinsic {
     /// Create new LLVM tail call intrinsic interface
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         LLVMTailCallIntrinsic {
             codegen: LLVMCodeGenerator::new(),
             stats: LLVMIntrinsicStats::default(),
@@ -633,34 +630,31 @@ impl LLVMTailCallIntrinsic {
     ) -> Result<String> {
         self.stats.intrinsic_calls += 1;
 
-        match procedure {
-            Procedure::Lambda { params, body, .. } => {
-                if body.len() == 1 {
-                    let function_name = format!("lambda_{}", self.stats.intrinsic_calls);
-                    let llvm_ir =
-                        self.codegen
-                            .generate_function(function_name, params.clone(), &body[0])?;
+        if let Procedure::Lambda { params, body, .. } = procedure {
+            if body.len() == 1 {
+                let function_name = format!("lambda_{}", self.stats.intrinsic_calls);
+                let llvm_ir =
+                    self.codegen
+                        .generate_function(function_name, params.clone(), &body[0])?;
 
-                    self.stats.successful_optimizations += 1;
-                    Ok(llvm_ir)
-                } else {
-                    self.stats.failed_optimizations += 1;
-                    Err(LambdustError::runtime_error(
-                        "Multi-expression lambda not supported yet".to_string(),
-                    ))
-                }
-            }
-            _ => {
+                self.stats.successful_optimizations += 1;
+                Ok(llvm_ir)
+            } else {
                 self.stats.failed_optimizations += 1;
                 Err(LambdustError::runtime_error(
-                    "Only lambda procedures supported for LLVM intrinsics".to_string(),
+                    "Multi-expression lambda not supported yet".to_string(),
                 ))
             }
+        } else {
+            self.stats.failed_optimizations += 1;
+            Err(LambdustError::runtime_error(
+                "Only lambda procedures supported for LLVM intrinsics".to_string(),
+            ))
         }
     }
 
     /// Get intrinsic statistics
-    pub fn get_stats(&self) -> &LLVMIntrinsicStats {
+    #[must_use] pub fn get_stats(&self) -> &LLVMIntrinsicStats {
         &self.stats
     }
 
@@ -707,7 +701,7 @@ pub struct LLVMCompilerStats {
 
 impl LLVMCompilerIntegration {
     /// Create new LLVM compiler integration
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         LLVMCompilerIntegration {
             intrinsic: LLVMTailCallIntrinsic::new(),
             opt_level: LLVMOptimizationLevel::O2,
@@ -716,7 +710,7 @@ impl LLVMCompilerIntegration {
     }
 
     /// Create with optimization level
-    pub fn with_optimization_level(opt_level: LLVMOptimizationLevel) -> Self {
+    #[must_use] pub fn with_optimization_level(opt_level: LLVMOptimizationLevel) -> Self {
         LLVMCompilerIntegration {
             intrinsic: LLVMTailCallIntrinsic::new(),
             opt_level,
@@ -772,7 +766,7 @@ impl LLVMCompilerIntegration {
     }
 
     /// Get compiler statistics
-    pub fn get_stats(&self) -> &LLVMCompilerStats {
+    #[must_use] pub fn get_stats(&self) -> &LLVMCompilerStats {
         &self.stats
     }
 

@@ -46,7 +46,7 @@ pub enum ContinuationWeight {
 
 impl ContinuationWeight {
     /// Determine continuation weight from continuation type
-    pub fn from_continuation(cont: &Continuation) -> Self {
+    #[must_use] pub fn from_continuation(cont: &Continuation) -> Self {
         match cont {
             // Identity is the lightest possible continuation
             Continuation::Identity => ContinuationWeight::VeryLight,
@@ -107,7 +107,7 @@ impl ContinuationWeight {
     }
 
     /// Check if continuation should be inlined based on weight and hint
-    pub fn should_inline(&self, hint: InlineHint) -> bool {
+    #[must_use] pub fn should_inline(&self, hint: InlineHint) -> bool {
         match (self, hint) {
             (ContinuationWeight::VeryLight, _) => true,
             (ContinuationWeight::Light, InlineHint::Likely | InlineHint::Neutral) => true,
@@ -131,7 +131,7 @@ pub struct HotPathDetector {
 
 impl HotPathDetector {
     /// Create new hot path detector
-    pub fn new(hot_threshold: usize) -> Self {
+    #[must_use] pub fn new(hot_threshold: usize) -> Self {
         HotPathDetector {
             frequency_counters: std::collections::HashMap::new(),
             hot_threshold,
@@ -149,7 +149,7 @@ impl HotPathDetector {
     }
 
     /// Get inline hint based on execution frequency
-    pub fn get_inline_hint(&self, cont_type: &str) -> InlineHint {
+    #[must_use] pub fn get_inline_hint(&self, cont_type: &str) -> InlineHint {
         if let Some(&count) = self.frequency_counters.get(cont_type) {
             if count >= self.hot_threshold {
                 InlineHint::Likely
@@ -164,7 +164,7 @@ impl HotPathDetector {
     }
 
     /// Get execution statistics
-    pub fn statistics(&self) -> (usize, usize, f64) {
+    #[must_use] pub fn statistics(&self) -> (usize, usize, f64) {
         let hot_paths = self
             .frequency_counters
             .values()
@@ -207,7 +207,7 @@ pub struct InlineEvaluator {
 
 impl InlineEvaluator {
     /// Create new inline evaluator
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         InlineEvaluator {
             hot_path_detector: HotPathDetector::default(),
             inlined_count: 0,
@@ -217,7 +217,7 @@ impl InlineEvaluator {
     }
 
     /// Attempt to evaluate continuation inline
-    /// Returns InlineResult indicating whether inline evaluation succeeded
+    /// Returns `InlineResult` indicating whether inline evaluation succeeded
     pub fn try_inline_evaluation(
         &mut self,
         evaluator: &mut Evaluator,
@@ -365,7 +365,7 @@ impl InlineEvaluator {
     }
 
     /// Get inline evaluation statistics
-    pub fn statistics(&self) -> (usize, usize, f64, usize) {
+    #[must_use] pub fn statistics(&self) -> (usize, usize, f64, usize) {
         let inline_rate = if self.total_attempts > 0 {
             self.inlined_count as f64 / self.total_attempts as f64
         } else {
@@ -380,7 +380,7 @@ impl InlineEvaluator {
     }
 
     /// Get hot path statistics
-    pub fn hot_path_statistics(&self) -> (usize, usize, f64) {
+    #[must_use] pub fn hot_path_statistics(&self) -> (usize, usize, f64) {
         self.hot_path_detector.statistics()
     }
 
@@ -401,7 +401,7 @@ impl InlineEvaluator {
     }
 
     /// Get inline hint for continuation type
-    pub fn get_inline_hint(&self, cont_type: &str) -> InlineHint {
+    #[must_use] pub fn get_inline_hint(&self, cont_type: &str) -> InlineHint {
         self.hot_path_detector.get_inline_hint(cont_type)
     }
 }
@@ -417,7 +417,7 @@ pub struct CacheFriendlyPatterns;
 
 impl CacheFriendlyPatterns {
     /// Optimize continuation chain for cache locality
-    pub fn optimize_continuation_chain(cont: Continuation) -> Continuation {
+    #[must_use] pub fn optimize_continuation_chain(cont: Continuation) -> Continuation {
         // Placeholder implementation for cache locality optimization
         // In a full implementation, this would reorder continuation chains
         // to improve cache hit rates
@@ -425,7 +425,7 @@ impl CacheFriendlyPatterns {
     }
 
     /// Check if continuation pattern is cache-friendly
-    pub fn is_cache_friendly(cont: &Continuation) -> bool {
+    #[must_use] pub fn is_cache_friendly(cont: &Continuation) -> bool {
         match cont {
             // Simple continuations are cache-friendly
             Continuation::Identity
@@ -442,7 +442,7 @@ impl CacheFriendlyPatterns {
     }
 
     /// Estimate memory footprint for cache analysis
-    pub fn estimate_memory_footprint(cont: &Continuation) -> usize {
+    #[must_use] pub fn estimate_memory_footprint(cont: &Continuation) -> usize {
         match cont {
             Continuation::Identity => 16, // Minimum size for enum variant
             Continuation::Values { values, .. } => {

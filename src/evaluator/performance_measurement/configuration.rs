@@ -89,7 +89,12 @@ pub enum OutputDestination {
     /// ファイル
     File(String),
     /// 複数ファイル
-    MultipleFiles { base_path: String, format: String },
+    MultipleFiles { 
+        /// ベースパス
+        base_path: String, 
+        /// ファイルフォーマット
+        format: String 
+    },
     /// メモリ内
     Memory,
 }
@@ -146,13 +151,27 @@ pub struct OutlierDetectionConfiguration {
 #[derive(Debug, Clone)]
 pub enum OutlierDetectionMethod {
     /// 標準偏差ベース
-    StandardDeviation { multiplier: f64 },
+    StandardDeviation { 
+        /// 標準偏差の倍数
+        multiplier: f64 
+    },
     /// 四分位範囲ベース
-    InterquartileRange { multiplier: f64 },
+    InterquartileRange { 
+        /// 四分位範囲の倍数
+        multiplier: f64 
+    },
     /// 修正Zスコア
-    ModifiedZScore { threshold: f64 },
+    ModifiedZScore { 
+        /// Zスコア闾値
+        threshold: f64 
+    },
     /// パーセンタイルベース
-    Percentile { lower: f64, upper: f64 },
+    Percentile { 
+        /// 下位パーセンタイル
+        lower: f64, 
+        /// 上位パーセンタイル
+        upper: f64 
+    },
 }
 
 /// 閾値設定
@@ -204,13 +223,25 @@ pub struct BaselineConfiguration {
 #[derive(Debug, Clone)]
 pub enum BaselineType {
     /// 固定ベースライン
-    Fixed { value: f64 },
+    Fixed { 
+        /// ベースライン値
+        value: f64 
+    },
     /// 履歴ベースライン
-    Historical { period: Duration },
+    Historical { 
+        /// 履歴期間
+        period: Duration 
+    },
     /// 動的ベースライン
-    Dynamic { algorithm: String },
+    Dynamic { 
+        /// アルゴリズム名
+        algorithm: String 
+    },
     /// 外部ベースライン
-    External { source: String },
+    External { 
+        /// データソース
+        source: String 
+    },
 }
 
 /// 比較対象
@@ -219,11 +250,17 @@ pub enum ComparisonTarget {
     /// 前回測定
     Previous,
     /// 平均値
-    Average { period: Duration },
+    Average { 
+        /// 平均化期間
+        period: Duration 
+    },
     /// ベスト値
     Best,
     /// 指定値
-    Specified { value: f64 },
+    Specified { 
+        /// 指定値
+        value: f64 
+    },
 }
 
 /// 許容差異設定

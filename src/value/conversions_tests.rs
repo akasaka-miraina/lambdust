@@ -401,7 +401,7 @@ mod conversion_edge_cases {
 
     #[test]
     fn test_numeric_precision() {
-        let f = 1.23456789012345;
+        let f = 1.234_567_890_123_45;
         let value = Value::from(f);
         if let Value::Number(SchemeNumber::Real(stored)) = value {
             assert!((stored - f).abs() < f64::EPSILON);

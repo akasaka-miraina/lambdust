@@ -56,14 +56,11 @@ pub fn string_take(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(2, args.len()));
     }
 
-    let string = match &args[0] {
-        Value::String(s) => s,
-        _ => {
+    let Value::String(string) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
 
     let n = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
@@ -103,14 +100,11 @@ pub fn string_drop(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(2, args.len()));
     }
 
-    let string = match &args[0] {
-        Value::String(s) => s,
-        _ => {
+    let Value::String(string) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
 
     let n = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
@@ -150,14 +144,11 @@ pub fn string_take_right(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(2, args.len()));
     }
 
-    let string = match &args[0] {
-        Value::String(s) => s,
-        _ => {
+    let Value::String(string) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
 
     let n = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,
@@ -199,14 +190,11 @@ pub fn string_drop_right(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(2, args.len()));
     }
 
-    let string = match &args[0] {
-        Value::String(s) => s,
-        _ => {
+    let Value::String(string) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
 
     let n = match &args[1] {
         Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i,

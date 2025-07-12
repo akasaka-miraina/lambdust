@@ -6,7 +6,7 @@
 use crate::ast::Expr;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::combinators::CombinatorExpr;
-use crate::evaluator::theorem_proving::{ProofMethod, ProofTerm, Statement};
+use crate::evaluator::theorem_proving::{ProofMethod, ProofTerm, Statement, ProofTermType};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -82,19 +82,26 @@ pub trait ExternalProverInterface: std::fmt::Debug {
 #[derive(Debug)]
 pub struct AgdaProver {
     /// Cache for generated modules
+    #[allow(dead_code)]
     module_cache: HashMap<String, String>,
+}
+
+impl Default for AgdaProver {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl AgdaProver {
     /// Create new Agda prover instance
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             module_cache: HashMap::new(),
         }
     }
 
     /// Generate Agda module for combinator correctness
-    pub fn generate_combinator_module(&self) -> String {
+    #[must_use] pub fn generate_combinator_module(&self) -> String {
         r"-- Combinator Theory Correctness in Agda
 module CombinatorCorrectness where
 
@@ -189,7 +196,7 @@ termination-proof = termination {}
     /// Convert expression to Agda syntax
     fn expr_to_agda(&self, expr: &Expr) -> Result<String> {
         match expr {
-            Expr::Variable(name) => Ok(format!("Atom \"{}\"", name)),
+            Expr::Variable(name) => Ok(format!("Atom \"{name}\"")),
             Expr::Literal(lit) => Ok(format!("Atom \"{}\"", format!("{:?}", lit))),
             Expr::List(exprs) if !exprs.is_empty() => {
                 let mut result = self.expr_to_agda(&exprs[0])?;
@@ -267,8 +274,7 @@ impl ExternalProverInterface for AgdaProver {
                 })
             }
             Err(e) => Err(LambdustError::runtime_error(format!(
-                "Failed to execute Agda: {}",
-                e
+                "Failed to execute Agda: {e}"
             ))),
         }
     }
@@ -279,11 +285,11 @@ impl ExternalProverInterface for AgdaProver {
 
     fn parse_proof_output(&self, output: &str) -> Result<Option<ProofTerm>> {
         if output.contains("Checking") && !output.contains("error") {
-            Ok(Some(ProofTerm {
-                method: ProofMethod::Custom("Agda type checker".to_string()),
-                subproofs: vec![],
-                explanation: "Verified by Agda type checker".to_string(),
-            }))
+            Ok(Some(ProofTerm::new_simple(
+                ProofMethod::Custom("Agda type checker".to_string()),
+                "Verified by Agda type checker".to_string(),
+                Statement::Axiom("Agda verified".to_string()),
+            )))
         } else {
             Ok(None)
         }
@@ -301,7 +307,7 @@ impl ExternalProverInterface for AgdaProver {
             .arg("--version")
             .output()
             .map_err(|e| {
-                LambdustError::runtime_error(format!("Failed to get Agda version: {}", e))
+                LambdustError::runtime_error(format!("Failed to get Agda version: {e}"))
             })?;
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -312,19 +318,26 @@ impl ExternalProverInterface for AgdaProver {
 #[derive(Debug)]
 pub struct CoqProver {
     /// Cache for generated theories
+    #[allow(dead_code)]
     theory_cache: HashMap<String, String>,
+}
+
+impl Default for CoqProver {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CoqProver {
     /// Create new Coq prover instance
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             theory_cache: HashMap::new(),
         }
     }
 
     /// Generate Coq theory for combinator correctness
-    pub fn generate_combinator_theory(&self) -> String {
+    #[must_use] pub fn generate_combinator_theory(&self) -> String {
         r"(* Combinator Theory Correctness in Coq *)
 Require Import Coq.Logic.Eqdep_dec.
 Require Import Coq.Strings.String.
@@ -441,7 +454,7 @@ Qed.
     /// Convert expression to Coq syntax
     fn expr_to_coq(&self, expr: &Expr) -> Result<String> {
         match expr {
-            Expr::Variable(name) => Ok(format!("(Atom \"{}\")", name)),
+            Expr::Variable(name) => Ok(format!("(Atom \"{name}\")")),
             Expr::Literal(lit) => Ok(format!("(Atom \"{}\")", format!("{:?}", lit))),
             Expr::List(exprs) if !exprs.is_empty() => {
                 let mut result = self.expr_to_coq(&exprs[0])?;
@@ -491,7 +504,7 @@ impl ExternalProverInterface for CoqProver {
         let start_time = std::time::Instant::now();
         let output = Command::new(&config.executable_path)
             .arg("-compile")
-            .arg(&temp_file.to_string_lossy().strip_suffix(".v").unwrap_or(""))
+            .arg(temp_file.to_string_lossy().strip_suffix(".v").unwrap_or(""))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output();
@@ -518,8 +531,7 @@ impl ExternalProverInterface for CoqProver {
                 })
             }
             Err(e) => Err(LambdustError::runtime_error(format!(
-                "Failed to execute Coq: {}",
-                e
+                "Failed to execute Coq: {e}"
             ))),
         }
     }
@@ -534,6 +546,11 @@ impl ExternalProverInterface for CoqProver {
                 method: ProofMethod::Custom("Coq compiler".to_string()),
                 subproofs: vec![],
                 explanation: "Verified by Coq compiler".to_string(),
+                term_type: ProofTermType::TheoremProof,
+                proof_steps: vec![],
+                lemmas_used: vec![],
+                tactics_used: vec!["coq_compiler".to_string()],
+                conclusion: Statement::Axiom("Coq verified".to_string()),
             }))
         } else {
             Ok(None)
@@ -552,7 +569,7 @@ impl ExternalProverInterface for CoqProver {
             .arg("-v")
             .output()
             .map_err(|e| {
-                LambdustError::runtime_error(format!("Failed to get Coq version: {}", e))
+                LambdustError::runtime_error(format!("Failed to get Coq version: {e}"))
             })?;
 
         Ok(String::from_utf8_lossy(&output.stdout).to_string())
@@ -570,7 +587,7 @@ pub struct ExternalProverManager {
 
 impl ExternalProverManager {
     /// Create new prover manager
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut manager = Self {
             provers: HashMap::new(),
             configs: HashMap::new(),
@@ -631,18 +648,18 @@ impl ExternalProverManager {
         prover_type: ExternalProver,
     ) -> Result<ExternalVerificationResult> {
         let prover = self.provers.get(&prover_type).ok_or_else(|| {
-            LambdustError::runtime_error(format!("Prover {:?} not available", prover_type))
+            LambdustError::runtime_error(format!("Prover {prover_type:?} not available"))
         })?;
 
         let config = self.configs.get(&prover_type).ok_or_else(|| {
-            LambdustError::runtime_error(format!("No config for prover {:?}", prover_type))
+            LambdustError::runtime_error(format!("No config for prover {prover_type:?}"))
         })?;
 
         prover.verify_statement(statement, config)
     }
 
     /// Verify statement using all available provers
-    pub fn verify_with_all_provers(
+    #[must_use] pub fn verify_with_all_provers(
         &self,
         statement: &Statement,
     ) -> HashMap<ExternalProver, Result<ExternalVerificationResult>> {
@@ -661,7 +678,7 @@ impl ExternalProverManager {
     }
 
     /// Check which provers are available
-    pub fn available_provers(&self) -> Vec<ExternalProver> {
+    #[must_use] pub fn available_provers(&self) -> Vec<ExternalProver> {
         self.provers
             .iter()
             .filter_map(|(prover_type, prover)| {
@@ -688,7 +705,7 @@ impl ExternalProverManager {
         prover_type: ExternalProver,
     ) -> Result<String> {
         let prover = self.provers.get(&prover_type).ok_or_else(|| {
-            LambdustError::runtime_error(format!("Prover {:?} not available", prover_type))
+            LambdustError::runtime_error(format!("Prover {prover_type:?} not available"))
         })?;
 
         prover.generate_prover_code(statement)

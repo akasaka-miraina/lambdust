@@ -5,6 +5,7 @@ pub mod continuation;
 pub mod conversions;
 #[cfg(test)]
 pub mod conversions_tests;
+pub mod custom_predicates;
 pub mod display;
 pub mod equality;
 pub mod lazy_vector;
@@ -19,6 +20,10 @@ pub mod record;
 
 // Re-export key types
 pub use continuation::{Continuation, StackFrame};
+pub use custom_predicates::{
+    CustomPredicateInfo, CustomPredicateRegistry, CustomPredicateFn,
+    global_custom_predicate_registry, register_global_custom_predicate, evaluate_global_custom_predicate,
+};
 pub use lazy_vector::{MemoryStats, VectorStorage};
 pub use optimized::{OptimizationStats, OptimizedValue, ShortStringData, ValueOptimizer};
 pub use pair::PairData;
@@ -40,10 +45,14 @@ pub enum Value {
     Number(SchemeNumber),
     /// String values
     String(String),
+    /// Short string values (up to 15 bytes, no heap allocation)
+    ShortString(optimized::ShortStringData),
     /// Character values
     Character(char),
     /// Symbol values
     Symbol(String),
+    /// Short symbol values (up to 15 bytes, no heap allocation)
+    ShortSymbol(optimized::ShortStringData),
     /// Pair values (cons cells) - shared reference for efficient memory management
     Pair(std::rc::Rc<std::cell::RefCell<PairData>>),
     /// The empty list

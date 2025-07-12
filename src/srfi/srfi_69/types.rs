@@ -9,7 +9,7 @@ use std::collections::HashMap;
 /// Hash table implementation for SRFI 69
 #[derive(Debug, Clone)]
 pub struct HashTable {
-    /// Internal storage using Rust HashMap
+    /// Internal storage using Rust `HashMap`
     pub table: HashMap<HashKey, Value>,
     /// Equality predicate for keys (evaluator integration ready)
     #[allow(dead_code)]
@@ -45,12 +45,12 @@ impl HashKey {
             Value::Symbol(s) => Ok(HashKey::Symbol(s.clone())),
             Value::Character(c) => Ok(HashKey::Character(*c)),
             Value::Boolean(b) => Ok(HashKey::Boolean(*b)),
-            _ => Ok(HashKey::Complex(format!("{:?}", value))),
+            _ => Ok(HashKey::Complex(format!("{value:?}"))),
         }
     }
 
     /// Convert hash key back to Scheme value
-    pub fn to_value(&self) -> Value {
+    #[must_use] pub fn to_value(&self) -> Value {
         match self {
             HashKey::Number(n) => {
                 // Try to parse back to number
@@ -79,7 +79,7 @@ impl Default for HashTable {
 
 impl HashTable {
     /// Create a new empty hash table
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         HashTable {
             table: HashMap::new(),
             equality_predicate: None,
@@ -88,7 +88,7 @@ impl HashTable {
     }
 
     /// Create a new hash table with specified predicates
-    pub fn with_predicates(
+    #[must_use] pub fn with_predicates(
         equality_predicate: Option<Value>,
         hash_function: Option<Value>,
     ) -> Self {
@@ -100,7 +100,7 @@ impl HashTable {
     }
 
     /// Get value by key
-    pub fn get(&self, key: &HashKey) -> Option<&Value> {
+    #[must_use] pub fn get(&self, key: &HashKey) -> Option<&Value> {
         self.table.get(key)
     }
 
@@ -115,22 +115,22 @@ impl HashTable {
     }
 
     /// Check if key exists
-    pub fn contains_key(&self, key: &HashKey) -> bool {
+    #[must_use] pub fn contains_key(&self, key: &HashKey) -> bool {
         self.table.contains_key(key)
     }
 
     /// Get size
-    pub fn size(&self) -> usize {
+    #[must_use] pub fn size(&self) -> usize {
         self.table.len()
     }
 
     /// Get all keys
-    pub fn keys(&self) -> Vec<HashKey> {
+    #[must_use] pub fn keys(&self) -> Vec<HashKey> {
         self.table.keys().cloned().collect()
     }
 
     /// Get all values
-    pub fn values(&self) -> Vec<Value> {
+    #[must_use] pub fn values(&self) -> Vec<Value> {
         self.table.values().cloned().collect()
     }
 
@@ -140,7 +140,7 @@ impl HashTable {
     }
 
     /// Create a copy of the hash table
-    pub fn copy(&self) -> Self {
+    #[must_use] pub fn copy(&self) -> Self {
         HashTable {
             table: self.table.clone(),
             equality_predicate: self.equality_predicate.clone(),

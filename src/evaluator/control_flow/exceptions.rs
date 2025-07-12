@@ -18,7 +18,7 @@ use std::sync::Arc;
 pub struct GuardHandler {
     /// The condition variable name
     pub condition_var: String,
-    /// List of guard clauses: (condition_expr, result_exprs)
+    /// List of guard clauses: (`condition_expr`, `result_exprs`)
     pub clauses: Vec<(Expr, Vec<Expr>)>,
     /// Optional else clause expressions
     pub else_exprs: Option<Vec<Expr>>,
@@ -266,13 +266,12 @@ impl Evaluator {
         } else {
             // No handler found, convert to LambdustError
             let formatted_exception = match &exception {
-                Value::String(s) => format!("\"{}\"", s),
+                Value::String(s) => format!("\"{s}\""),
                 Value::Symbol(s) => s.clone(),
-                other => format!("{:?}", other),
+                other => format!("{other:?}"),
             };
             Err(LambdustError::runtime_error(format!(
-                "Uncaught exception: {}",
-                formatted_exception
+                "Uncaught exception: {formatted_exception}"
             )))
         }
     }
@@ -335,14 +334,11 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Option<Value>> {
         // Evaluate the condition expression
-        let condition_result = match self.eval(
+        let Ok(condition_result) = self.eval(
             condition_expr.clone(),
             Rc::new(guard_env.clone()),
             Continuation::Identity,
-        ) {
-            Ok(result) => result,
-            Err(_) => return Ok(None), // Condition evaluation failed, continue to next clause
-        };
+        ) else { return Ok(None) }; // Condition evaluation failed, continue to next clause
 
         // Check if condition is true (any non-#f value is true in Scheme)
         if matches!(condition_result, Value::Boolean(false)) {

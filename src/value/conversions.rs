@@ -35,7 +35,12 @@ impl From<String> for Value {
 
 impl From<&str> for Value {
     fn from(s: &str) -> Self {
-        Value::String(s.to_string())
+        use crate::value::optimized::ShortStringData;
+        if let Some(short) = ShortStringData::new(s) {
+            Value::ShortString(short)
+        } else {
+            Value::String(s.to_string())
+        }
     }
 }
 
@@ -59,22 +64,32 @@ impl Value {
     }
 
     /// Create a new symbol value from string reference
-    pub fn new_symbol_ref(symbol: &str) -> Self {
-        Value::Symbol(symbol.to_string())
+    #[must_use] pub fn new_symbol_ref(symbol: &str) -> Self {
+        use crate::value::optimized::ShortStringData;
+        if let Some(short) = ShortStringData::new(symbol) {
+            Value::ShortSymbol(short)
+        } else {
+            Value::Symbol(symbol.to_string())
+        }
     }
 
     /// Create a new string value
-    pub fn new_string(string: String) -> Self {
+    #[must_use] pub fn new_string(string: String) -> Self {
         Value::String(string)
     }
 
     /// Create a new string value from string reference
-    pub fn new_string_ref(string: &str) -> Self {
-        Value::String(string.to_string())
+    #[must_use] pub fn new_string_ref(string: &str) -> Self {
+        use crate::value::optimized::ShortStringData;
+        if let Some(short) = ShortStringData::new(string) {
+            Value::ShortString(short)
+        } else {
+            Value::String(string.to_string())
+        }
     }
 
     /// Create a new character value
-    pub fn new_character(character: char) -> Self {
+    #[must_use] pub fn new_character(character: char) -> Self {
         Value::Character(character)
     }
 
@@ -85,7 +100,7 @@ impl Value {
     }
 
     /// Create a new number value
-    pub fn new_number(number: SchemeNumber) -> Self {
+    #[must_use] pub fn new_number(number: SchemeNumber) -> Self {
         Value::Number(number)
     }
 
@@ -96,17 +111,17 @@ impl Value {
     }
 
     /// Create a new real value
-    pub fn new_real(real: f64) -> Self {
+    #[must_use] pub fn new_real(real: f64) -> Self {
         Value::Number(SchemeNumber::Real(real))
     }
 
     /// Create the nil value
-    pub fn nil() -> Self {
+    #[must_use] pub fn nil() -> Self {
         Value::Nil
     }
 
     /// Create an undefined value
-    pub fn undefined() -> Self {
+    #[must_use] pub fn undefined() -> Self {
         Value::Undefined
     }
 
@@ -117,7 +132,7 @@ impl Value {
     }
 }
 
-/// Extension trait to add to_value method to String
+/// Extension trait to add `to_value` method to String
 pub trait ToValue {
     /// Convert this type to a Scheme Value
     fn to_value(&self) -> Value;
@@ -131,6 +146,11 @@ impl ToValue for String {
 
 impl ToValue for &str {
     fn to_value(&self) -> Value {
-        Value::String(self.to_string())
+        use crate::value::optimized::ShortStringData;
+        if let Some(short) = ShortStringData::new(self) {
+            Value::ShortString(short)
+        } else {
+            Value::String((*self).to_string())
+        }
     }
 }

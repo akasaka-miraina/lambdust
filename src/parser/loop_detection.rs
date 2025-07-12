@@ -66,7 +66,7 @@ pub struct InfiniteLoopDetector {
 
 impl InfiniteLoopDetector {
     /// Create a new infinite loop detector
-    pub fn new(config: LoopDetectionConfig) -> Self {
+    #[must_use] pub fn new(config: LoopDetectionConfig) -> Self {
         Self {
             config,
             dependency_analyzer: DependencyAnalyzer::new(),
@@ -271,7 +271,7 @@ impl InfiniteLoopDetector {
         }
     }
 
-    /// Create a ParseError for an infinite loop
+    /// Create a `ParseError` for an infinite loop
     fn create_infinite_loop_error(&self, loop_info: &InfiniteLoopInfo) -> LambdustError {
         let error_message = match loop_info.loop_type {
             InfiniteLoopType::VariableCircularDependency => {
@@ -301,7 +301,7 @@ impl InfiniteLoopDetector {
         };
 
         LambdustError::ParseError {
-            message: format!("Infinite loop detected: {}", error_message),
+            message: format!("Infinite loop detected: {error_message}"),
             location: SourceSpan::unknown(),
         }
     }

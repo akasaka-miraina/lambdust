@@ -1,8 +1,8 @@
-//! Gradual migration strategy for EvaluatorInterface adoption
+//! Gradual migration strategy for `EvaluatorInterface` adoption
 //!
 //! This module provides a comprehensive migration framework that enables
 //! systematic and safe transition from legacy evaluator code to the new
-//! EvaluatorInterface architecture with minimal disruption to existing systems.
+//! `EvaluatorInterface` architecture with minimal disruption to existing systems.
 
 use crate::error::{LambdustError, Result};
 use crate::evaluator::backward_compatibility::ErrorHandlingStrategy;
@@ -375,97 +375,155 @@ pub struct SuppressionRule {
 }
 
 // Enums for type safety
+/// Risk assessment levels for migration decisions
 #[derive(Debug, Clone, PartialEq)]
 pub enum RiskLevel {
+    /// Low risk operation - minimal impact, safe to proceed without extensive monitoring
     Low,
+    /// Medium risk operation - moderate impact, requires standard monitoring and validation
     Medium,
+    /// High risk operation - significant impact, requires extensive monitoring and rollback preparation
     High,
+    /// Critical risk operation - severe impact, requires immediate attention and may block migration
     Critical,
 }
 
+/// Type of condition that must be met for migration phase transitions
 #[derive(Debug, Clone)]
 pub enum ConditionType {
+    /// Performance metrics must meet specified threshold values
     PerformanceThreshold,
+    /// Error rate must be below acceptable threshold
     ErrorRateThreshold,
+    /// System load must be within acceptable limits
     SystemLoad,
+    /// User acceptance and satisfaction criteria
     UserAcceptance,
+    /// Technical debt levels must be manageable
     TechnicalDebt,
+    /// Test coverage must meet minimum requirements
     TestCoverage,
 }
 
+/// Type of success criterion used to measure migration phase completion
 #[derive(Debug, Clone)]
 pub enum CriterionType {
+    /// Performance improvements achieved compared to baseline
     PerformanceImprovement,
+    /// Error rate reduction from previous levels
     ErrorRateReduction,
+    /// Percentage of migration tasks completed
     MigrationCompletion,
+    /// User satisfaction scores and feedback
     UserSatisfaction,
+    /// System stability and reliability metrics
     SystemStability,
+    /// Resource utilization efficiency improvements
     ResourceUtilization,
 }
 
+/// Validation criteria for evaluating migration conditions and success
 #[derive(Debug, Clone)]
 pub enum ValidationCriteria {
+    /// Numeric value must meet or exceed threshold
     NumericThreshold(f64),
+    /// Boolean condition must match expected value
     BooleanCheck(bool),
+    /// Enum value must match specified string representation
     EnumMatch(String),
+    /// Custom validation logic specified by string identifier
     CustomValidation(String),
 }
 
+/// Level of monitoring and data collection during migration
 #[derive(Debug, Clone, PartialEq)]
 pub enum MonitoringLevel {
+    /// Basic monitoring with essential metrics only
     Basic,
+    /// Standard monitoring with core performance and error metrics
     Standard,
+    /// Comprehensive monitoring with detailed metrics and analysis
     Comprehensive,
+    /// Debug-level monitoring with verbose logging and tracing
     Debug,
 }
 
+/// Types of risk factors that can affect migration success
 #[derive(Debug, Clone)]
 pub enum RiskFactorType {
+    /// Performance degradation during or after migration
     PerformanceDegradation,
+    /// System instability or reliability issues
     SystemInstability,
+    /// Data consistency problems between old and new systems
     DataInconsistency,
+    /// Negative impact on user experience
     UserExperience,
+    /// Technical complexity that may lead to implementation issues
     TechnicalComplexity,
+    /// Operational risks affecting business continuity
     OperationalRisk,
 }
 
+/// Types of triggers that can initiate rollback procedures
 #[derive(Debug, Clone)]
 pub enum TriggerType {
+    /// Error rate exceeds acceptable threshold
     ErrorRate,
+    /// Performance metrics fall below acceptable levels
     PerformanceDegradation,
+    /// Complete or partial system failure
     SystemFailure,
+    /// User complaints reach critical threshold
     UserComplaint,
+    /// System resources become exhausted
     ResourceExhaustion,
 }
 
+/// Performance trend direction over time
 #[derive(Debug, Clone)]
 pub enum TrendDirection {
+    /// Performance metrics are consistently improving over time
     Improving,
+    /// Performance metrics remain stable with minimal variation
     Stable,
+    /// Performance metrics are declining or showing degradation
     Degrading,
+    /// Trend direction cannot be determined due to insufficient data
     Unknown,
 }
 
+/// Overall system health state during migration
 #[derive(Debug, Clone)]
 pub enum SystemState {
+    /// System is operating normally with all functions available
     Healthy,
+    /// System has minor issues but remains functional
     Warning,
+    /// System has critical issues affecting normal operation
     Critical,
+    /// System has failed and is non-functional
     Failed,
+    /// System is under planned maintenance or migration
     Maintenance,
 }
 
+/// Severity levels for migration alerts and notifications
 #[derive(Debug, Clone)]
 pub enum AlertSeverity {
+    /// Informational messages about migration progress
     Info,
+    /// Warning messages about potential issues
     Warning,
+    /// Error messages about problems requiring attention
     Error,
+    /// Critical alerts about severe issues requiring immediate action
     Critical,
 }
 
 impl MigrationStrategy {
     /// Create new migration strategy with default phases
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             migration_phases: Self::create_default_phases(),
             current_phase: 0,
@@ -478,7 +536,7 @@ impl MigrationStrategy {
     }
 
     /// Create migration strategy with custom phases
-    pub fn with_phases(phases: Vec<MigrationPhase>) -> Self {
+    #[must_use] pub fn with_phases(phases: Vec<MigrationPhase>) -> Self {
         Self {
             migration_phases: phases,
             current_phase: 0,
@@ -818,7 +876,7 @@ impl MigrationStrategy {
             ));
         }
 
-        println!("Triggering rollback: {}", reason);
+        println!("Triggering rollback: {reason}");
 
         // Execute rollback procedures
         for procedure in &self.rollback_config.rollback_procedures {
@@ -840,7 +898,7 @@ impl MigrationStrategy {
         println!("Executing rollback procedure: {}", procedure.name);
 
         for step in &procedure.steps {
-            println!("  - {}", step);
+            println!("  - {step}");
             // In a real implementation, execute the actual rollback steps
         }
 
@@ -848,7 +906,7 @@ impl MigrationStrategy {
     }
 
     /// Get migration status report
-    pub fn get_migration_status(&self) -> MigrationStatusReport {
+    #[must_use] pub fn get_migration_status(&self) -> MigrationStatusReport {
         MigrationStatusReport {
             current_phase: if self.current_phase < self.migration_phases.len() {
                 Some(self.migration_phases[self.current_phase].clone())

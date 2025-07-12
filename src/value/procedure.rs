@@ -167,12 +167,12 @@ impl PartialEq for Procedure {
 
 impl Value {
     /// Check if this value is a procedure
-    pub fn is_procedure(&self) -> bool {
+    #[must_use] pub fn is_procedure(&self) -> bool {
         matches!(self, Value::Procedure(_))
     }
 
     /// Get the procedure if this is a procedure
-    pub fn as_procedure(&self) -> Option<&Procedure> {
+    #[must_use] pub fn as_procedure(&self) -> Option<&Procedure> {
         match self {
             Value::Procedure(p) => Some(p),
             _ => None,

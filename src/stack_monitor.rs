@@ -73,7 +73,7 @@ pub struct StackMonitor {
 
 impl StackMonitor {
     /// Create a new stack monitor
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             frames: VecDeque::with_capacity(1000),
             max_depth: 0,
@@ -209,7 +209,7 @@ impl StackMonitor {
     }
 
     /// Estimate memory usage of a frame
-    pub fn estimate_frame_memory(&self, operation: &StackFrameType) -> usize {
+    #[must_use] pub fn estimate_frame_memory(&self, operation: &StackFrameType) -> usize {
         match operation {
             StackFrameType::Application { arg_count, .. } => {
                 // Estimate: 64 bytes base + 32 bytes per argument
@@ -233,23 +233,23 @@ impl StackMonitor {
     /// Check if a frame type can be optimized
     fn is_optimizable(&self, operation: &StackFrameType) -> bool {
         match operation {
-            StackFrameType::Application { .. } => true, // Function calls can often be optimized
-            StackFrameType::ContinuationApplication { .. } => true, // Continuations can be inlined
-            StackFrameType::RecursiveCall { .. } => true, // Tail recursion can be optimized
-            StackFrameType::SpecialForm { .. } => false, // Special forms need careful handling
-            StackFrameType::MacroExpansion { .. } => false, // Macros are complex
+            StackFrameType::Application { .. } | 
+            StackFrameType::ContinuationApplication { .. } | 
+            StackFrameType::RecursiveCall { .. } => true, // Function calls and continuations can be optimized
+            StackFrameType::SpecialForm { .. } | 
+            StackFrameType::MacroExpansion { .. } => false, // Special forms and macros need careful handling
         }
     }
 
     /// Get current stack statistics
-    pub fn statistics(&self) -> StackStatistics {
+    #[must_use] pub fn statistics(&self) -> StackStatistics {
         StackStatistics {
             current_depth: self.frames.len(),
             max_depth: self.max_depth,
             total_frames: self.total_frames,
             optimizations_applied: self.optimizations_applied,
             average_frame_time: if self.total_frames > 0 {
-                self.evaluation_time / self.total_frames as u32
+                self.evaluation_time / u32::try_from(self.total_frames).unwrap_or(1)
             } else {
                 Duration::new(0, 0)
             },
@@ -259,7 +259,7 @@ impl StackMonitor {
     }
 
     /// Check if stack should trigger optimization
-    pub fn should_optimize(&self) -> bool {
+    #[must_use] pub fn should_optimize(&self) -> bool {
         let stats = self.statistics();
 
         // Trigger optimization if:
@@ -272,7 +272,7 @@ impl StackMonitor {
     }
 
     /// Get optimization recommendations
-    pub fn optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
+    #[must_use] pub fn optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
         let mut recommendations = Vec::new();
         let stats = self.statistics();
 

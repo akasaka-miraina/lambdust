@@ -12,7 +12,7 @@ use rustyline::error::ReadlineError;
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
 use rustyline::validate::{MatchingBracketValidator, Validator};
-use rustyline::{Context, DefaultEditor, Result as RustylineResult};
+use rustyline::{Context, DefaultEditor, Result as RustylineResult, CmdKind};
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::collections::HashSet;
 use std::path::Path;
@@ -491,8 +491,8 @@ impl Highlighter for SchemeHelper {
         Owned("\x1b[1m".to_owned() + hint + "\x1b[m")
     }
 
-    fn highlight_char(&self, line: &str, pos: usize, forced: bool) -> bool {
-        self.highlighter.highlight_char(line, pos, forced)
+    fn highlight_char(&self, line: &str, pos: usize, kind: CmdKind) -> bool {
+        self.highlighter.highlight_char(line, pos, kind)
     }
 }
 

@@ -15,6 +15,8 @@ pub mod phase6b_continuation_pooling_tests;
 // Phase 6-B-Step3: Inline evaluation system tests
 pub mod phase6b_inline_evaluation_tests;
 pub mod phase6c_jit_loop_tests;
+// Runtime Executor JIT Integration tests
+pub mod runtime_executor_jit_tests;
 // Phase 6-D: Tail call optimization tests
 pub mod phase6d_tail_call_tests;
 // Phase 6-D: LLVM backend tests

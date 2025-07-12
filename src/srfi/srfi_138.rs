@@ -59,7 +59,7 @@ pub struct CompilationContext {
 
 impl CompilationContext {
     /// Create a new compilation context with default settings
-    pub fn new(target: CompilationTarget) -> Self {
+    #[must_use] pub fn new(target: CompilationTarget) -> Self {
         Self {
             target,
             optimization: OptimizationLevel::Standard,
@@ -71,25 +71,25 @@ impl CompilationContext {
     }
 
     /// Set optimization level
-    pub fn with_optimization(mut self, level: OptimizationLevel) -> Self {
+    #[must_use] pub fn with_optimization(mut self, level: OptimizationLevel) -> Self {
         self.optimization = level;
         self
     }
 
     /// Enable or disable debug information
-    pub fn with_debug_info(mut self, debug: bool) -> Self {
+    #[must_use] pub fn with_debug_info(mut self, debug: bool) -> Self {
         self.debug_info = debug;
         self
     }
 
     /// Set inline threshold
-    pub fn with_inline_threshold(mut self, threshold: usize) -> Self {
+    #[must_use] pub fn with_inline_threshold(mut self, threshold: usize) -> Self {
         self.inline_threshold = threshold;
         self
     }
 
     /// Add custom compilation flag
-    pub fn with_flag(mut self, key: String, value: String) -> Self {
+    #[must_use] pub fn with_flag(mut self, key: String, value: String) -> Self {
         self.flags.insert(key, value);
         self
     }
@@ -129,7 +129,7 @@ impl CompiledCode {
     }
 
     /// Get code size in bytes
-    pub fn size(&self) -> usize {
+    #[must_use] pub fn size(&self) -> usize {
         self.code.len()
     }
 
@@ -171,7 +171,7 @@ pub struct CompilationStats {
 
 impl SchemeCompiler {
     /// Create new compiler instance
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut contexts = HashMap::new();
         
         // Add default contexts for common targets
@@ -210,11 +210,11 @@ impl SchemeCompiler {
     pub fn compile_expression(&mut self, expr: &Value, context_name: &str) -> Result<CompiledCode> {
         let context = self.contexts.get(context_name)
             .ok_or_else(|| LambdustError::runtime_error(
-                format!("Unknown compilation context: {}", context_name)
+                format!("Unknown compilation context: {context_name}")
             ))?;
 
         // Generate cache key
-        let cache_key = format!("{:?}:{}", expr, context_name);
+        let cache_key = format!("{expr:?}:{context_name}");
         
         // Check cache first
         if let Some(cached) = self.compiled_cache.get(&cache_key) {
@@ -258,7 +258,7 @@ impl SchemeCompiler {
             }
             CompilationTarget::LlvmIr => {
                 // Mock LLVM IR as bytes (would normally be text)
-                let ir = format!("define i64 @expr() {{ ret i64 {:?} }}", expr);
+                let ir = format!("define i64 @expr() {{ ret i64 {expr:?} }}");
                 code.extend_from_slice(ir.as_bytes());
             }
             CompilationTarget::WebAssembly => {
@@ -267,7 +267,7 @@ impl SchemeCompiler {
                 code.extend_from_slice(&[0x01, 0x00, 0x00, 0x00]); // version
             }
             CompilationTarget::Custom(name) => {
-                let custom_code = format!("CUSTOM-{}-{:?}", name, expr);
+                let custom_code = format!("CUSTOM-{name}-{expr:?}");
                 code.extend_from_slice(custom_code.as_bytes());
             }
         }
@@ -275,13 +275,13 @@ impl SchemeCompiler {
         let mut compiled = CompiledCode::new(context.target.clone(), code, 0);
         compiled.add_metadata("optimization".to_string(), format!("{:?}", context.optimization));
         compiled.add_metadata("debug_info".to_string(), context.debug_info.to_string());
-        compiled.add_metadata("source_expr".to_string(), format!("{:?}", expr));
+        compiled.add_metadata("source_expr".to_string(), format!("{expr:?}"));
         
         Ok(compiled)
     }
 
     /// Get compilation statistics
-    pub fn get_stats(&self) -> &CompilationStats {
+    #[must_use] pub fn get_stats(&self) -> &CompilationStats {
         &self.stats
     }
 

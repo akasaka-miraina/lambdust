@@ -9,7 +9,7 @@ use crate::error::{LambdustError, Result};
 use std::collections::HashSet;
 
 /// Combinator expressions representing lambda calculus equivalents
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CombinatorExpr {
     /// S combinator: S x y z = x z (y z)
     S,
@@ -63,7 +63,7 @@ pub struct CombinatorStats {
 
 impl CombinatorExpr {
     /// Perform a single reduction step if possible
-    pub fn reduce_step(&self) -> Option<CombinatorExpr> {
+    #[must_use] pub fn reduce_step(&self) -> Option<CombinatorExpr> {
         match self {
             // S x y z → x z (y z)
             CombinatorExpr::App(f, arg) => {
@@ -136,11 +136,7 @@ impl CombinatorExpr {
                 // Recurse into subexpressions
                 if let Some(left_reduced) = f.reduce_step() {
                     Some(CombinatorExpr::App(Box::new(left_reduced), arg.clone()))
-                } else if let Some(right_reduced) = arg.reduce_step() {
-                    Some(CombinatorExpr::App(f.clone(), Box::new(right_reduced)))
-                } else {
-                    None
-                }
+                } else { arg.reduce_step().map(|right_reduced| CombinatorExpr::App(f.clone(), Box::new(right_reduced))) }
             }
 
             // Base combinators cannot be reduced further
@@ -178,12 +174,12 @@ impl CombinatorExpr {
     }
 
     /// Check if expression is in normal form (cannot be reduced further)
-    pub fn is_normal_form(&self) -> bool {
+    #[must_use] pub fn is_normal_form(&self) -> bool {
         self.reduce_step().is_none()
     }
 
     /// Count the number of applications in the expression
-    pub fn size(&self) -> usize {
+    #[must_use] pub fn size(&self) -> usize {
         match self {
             CombinatorExpr::App(left, right) => 1 + left.size() + right.size(),
             _ => 1,
@@ -191,7 +187,7 @@ impl CombinatorExpr {
     }
 
     /// Get all free variables in the combinator expression
-    pub fn free_variables(&self) -> HashSet<String> {
+    #[must_use] pub fn free_variables(&self) -> HashSet<String> {
         match self {
             CombinatorExpr::S
             | CombinatorExpr::K
@@ -209,6 +205,7 @@ impl CombinatorExpr {
             CombinatorExpr::Atomic(expr) => expr.free_variables(),
         }
     }
+
 }
 
 /// Lambda abstraction elimination (bracket abstraction)

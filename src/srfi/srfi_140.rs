@@ -44,7 +44,7 @@ pub enum IString {
 
 impl IString {
     /// Create a new immutable string from a regular string
-    pub fn from_string(s: String) -> Self {
+    #[must_use] pub fn from_string(s: String) -> Self {
         let byte_len = s.len();
         if byte_len <= 23 {
             // Small string optimization
@@ -66,12 +66,12 @@ impl IString {
     }
 
     /// Create a new immutable string from a &str
-    pub fn from_str(s: &str) -> Self {
+    #[must_use] pub fn from_str(s: &str) -> Self {
         Self::from_string(s.to_string())
     }
 
     /// Get the length of the string in characters (O(1))
-    pub fn length(&self) -> usize {
+    #[must_use] pub fn length(&self) -> usize {
         match self {
             IString::Small { len, .. } => {
                 // For small strings, count UTF-8 characters
@@ -84,7 +84,7 @@ impl IString {
     }
 
     /// Get a character at the specified index (O(1) for Small/Medium, O(log n) for Rope)
-    pub fn char_at(&self, index: usize) -> Option<char> {
+    #[must_use] pub fn char_at(&self, index: usize) -> Option<char> {
         match self {
             IString::Small { .. } => self.to_string().chars().nth(index),
             IString::Medium {
@@ -110,7 +110,7 @@ impl IString {
     }
 
     /// Convert to a regular String
-    pub fn to_string(&self) -> String {
+    #[must_use] pub fn to_string(&self) -> String {
         match self {
             IString::Small { data, len } => {
                 let bytes = &data[..*len as usize];
@@ -176,8 +176,8 @@ impl IString {
         }
     }
 
-    /// Append two immutable strings (returns new IString)
-    pub fn append(&self, other: &IString) -> IString {
+    /// Append two immutable strings (returns new `IString`)
+    #[must_use] pub fn append(&self, other: &IString) -> IString {
         let self_len = self.length();
         let other_len = other.length();
         let total_len = self_len + other_len;

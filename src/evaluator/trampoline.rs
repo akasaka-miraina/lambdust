@@ -4,8 +4,8 @@
 //! stack overflow in iterative constructs like do-loops.
 //!
 //! Architecture:
-//! - ContinuationThunk: Heap-allocated computation units
-//! - TrampolineEvaluator: Stack-safe evaluator using iterative unwinding
+//! - `ContinuationThunk`: Heap-allocated computation units
+//! - `TrampolineEvaluator`: Stack-safe evaluator using iterative unwinding
 //! - Bounce: Trampoline return type for continuation chaining
 
 use crate::ast::Expr;
@@ -425,7 +425,7 @@ impl TrampolineEvaluator {
                     env,
                     parent,
                 } => match env.set(&variable, current_value) {
-                    Ok(_) => {
+                    Ok(()) => {
                         current_value = Value::Undefined;
                         current_cont = *parent;
                     }

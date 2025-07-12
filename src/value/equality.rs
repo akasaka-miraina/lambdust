@@ -4,13 +4,19 @@ use super::Value;
 
 impl Value {
     /// Check if two values are equal
-    pub fn equal(&self, other: &Value) -> bool {
+    #[must_use] pub fn equal(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Boolean(a), Value::Boolean(b)) => a == b,
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::String(a), Value::String(b)) => a == b,
+            (Value::ShortString(a), Value::ShortString(b)) => a == b,
+            (Value::String(a), Value::ShortString(b)) => a == b.as_str(),
+            (Value::ShortString(a), Value::String(b)) => a.as_str() == b,
             (Value::Character(a), Value::Character(b)) => a == b,
             (Value::Symbol(a), Value::Symbol(b)) => a == b,
+            (Value::ShortSymbol(a), Value::ShortSymbol(b)) => a == b,
+            (Value::Symbol(a), Value::ShortSymbol(b)) => a == b.as_str(),
+            (Value::ShortSymbol(a), Value::Symbol(b)) => a.as_str() == b,
             (Value::Nil, Value::Nil) => true,
             (Value::Pair(pair1_ref), Value::Pair(pair2_ref)) => {
                 let pair1 = pair1_ref.borrow();
@@ -77,7 +83,7 @@ impl Value {
     }
 
     /// Check if two values are equivalent (eqv?)
-    pub fn eqv(&self, other: &Value) -> bool {
+    #[must_use] pub fn eqv(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Boolean(a), Value::Boolean(b)) => a == b,
             (Value::Number(a), Value::Number(b)) => a == b,
@@ -101,12 +107,15 @@ impl Value {
     }
 
     /// Check if two values are the same object (eq?)
-    pub fn scheme_eq(&self, other: &Value) -> bool {
+    #[must_use] pub fn scheme_eq(&self, other: &Value) -> bool {
         match (self, other) {
             (Value::Boolean(a), Value::Boolean(b)) => a == b,
             (Value::Number(a), Value::Number(b)) => a == b,
             (Value::Character(a), Value::Character(b)) => a == b,
             (Value::Symbol(a), Value::Symbol(b)) => a == b,
+            (Value::ShortSymbol(a), Value::ShortSymbol(b)) => a == b,
+            (Value::Symbol(a), Value::ShortSymbol(b)) => a == b.as_str(),
+            (Value::ShortSymbol(a), Value::Symbol(b)) => a.as_str() == b,
             (Value::Nil, Value::Nil) => true,
             (Value::Record(_), Value::Record(_)) | (Value::Values(_), Value::Values(_)) => {
                 std::ptr::eq(self, other)
@@ -122,8 +131,14 @@ impl PartialEq for Value {
             (Self::Boolean(l0), Self::Boolean(r0)) => l0 == r0,
             (Self::Number(l0), Self::Number(r0)) => l0 == r0,
             (Self::String(l0), Self::String(r0)) => l0 == r0,
+            (Self::ShortString(l0), Self::ShortString(r0)) => l0 == r0,
+            (Self::String(l0), Self::ShortString(r0)) => l0 == r0.as_str(),
+            (Self::ShortString(l0), Self::String(r0)) => l0.as_str() == r0,
             (Self::Character(l0), Self::Character(r0)) => l0 == r0,
             (Self::Symbol(l0), Self::Symbol(r0)) => l0 == r0,
+            (Self::ShortSymbol(l0), Self::ShortSymbol(r0)) => l0 == r0,
+            (Self::Symbol(l0), Self::ShortSymbol(r0)) => l0 == r0.as_str(),
+            (Self::ShortSymbol(l0), Self::Symbol(r0)) => l0.as_str() == r0,
             (Self::Pair(l_pair), Self::Pair(r_pair)) => {
                 let l_borrow = l_pair.borrow();
                 let r_borrow = r_pair.borrow();

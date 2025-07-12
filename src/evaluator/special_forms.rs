@@ -4,6 +4,7 @@
 
 use crate::ast::Expr;
 use crate::builtins::utils::make_boolean;
+use crate::debug::{DebugTracer, TraceLevel};
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{Continuation, Evaluator};
@@ -22,11 +23,25 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         match name {
-            "lambda" => self.eval_lambda(operands, env, cont),
+            "lambda" => {
+                // Check for typed syntax and dispatch accordingly
+                if self.is_typed_lambda(operands) {
+                    self.eval_typed_lambda(operands, env, cont)
+                } else {
+                    self.eval_lambda(operands, env, cont)
+                }
+            }
             "if" => self.eval_if(operands, env, cont),
             "set!" => self.eval_set(operands, env, cont),
             "quote" => self.eval_quote_special_form(operands, cont),
-            "define" => self.eval_define(operands, env, cont),
+            "define" => {
+                // Check for typed syntax and dispatch accordingly
+                if self.is_typed_define(operands) {
+                    self.eval_typed_define(operands, env, cont)
+                } else {
+                    self.eval_define(operands, env, cont)
+                }
+            }
             "begin" => self.eval_begin(operands, env, cont),
             "and" => self.eval_and(operands, env, cont),
             "or" => self.eval_or(operands, env, cont),
@@ -283,7 +298,6 @@ impl Evaluator {
         env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-        use crate::debug::{DebugTracer, TraceLevel};
 
         #[cfg(debug_assertions)]
         DebugTracer::trace(
@@ -314,7 +328,7 @@ impl Evaluator {
                 "eval_begin",
                 line!(),
                 TraceLevel::INFO,
-                format!("Begin expr[{}]", i),
+                format!("Begin expr[{i}]"),
                 expr,
             );
         }
@@ -443,7 +457,6 @@ impl Evaluator {
         env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-        use crate::debug::{DebugTracer, TraceLevel};
 
         #[cfg(debug_assertions)]
         DebugTracer::trace(
@@ -486,13 +499,12 @@ impl Evaluator {
                 "eval_sequence",
                 line!(),
                 TraceLevel::INFO,
-                format!("Calling eval with continuation: {:?}", cont),
+                format!("Calling eval with continuation: {cont:?}"),
             );
 
             #[cfg(debug_assertions)]
             {
-                use crate::debug::{DebugTracer, TraceLevel};
-                DebugTracer::trace_expr(
+                        DebugTracer::trace_expr(
                     "evaluator::special_forms",
                     "eval_sequence",
                     line!(),
@@ -506,8 +518,7 @@ impl Evaluator {
 
             #[cfg(debug_assertions)]
             {
-                use crate::debug::{DebugTracer, TraceLevel};
-                DebugTracer::trace(
+                        DebugTracer::trace(
                     "evaluator::special_forms",
                     "eval_sequence",
                     line!(),
@@ -518,13 +529,12 @@ impl Evaluator {
 
             #[cfg(debug_assertions)]
             {
-                use crate::debug::{DebugTracer, TraceLevel};
-                DebugTracer::trace(
+                        DebugTracer::trace(
                     "evaluator::special_forms",
                     "eval_sequence",
                     line!(),
                     TraceLevel::INFO,
-                    format!("eval() returned: {:?}", eval_result),
+                    format!("eval() returned: {eval_result:?}"),
                 );
             }
 
@@ -563,7 +573,7 @@ impl Evaluator {
         self.eval(first.clone(), env, begin_cont)
     }
 
-    /// Apply special form continuations (delegated from main apply_continuation)
+    /// Apply special form continuations (delegated from main `apply_continuation`)
     /// Apply special form continuations (called from mod.rs)
     pub fn apply_special_form_continuation(
         &mut self,
@@ -724,7 +734,6 @@ impl Evaluator {
         env: Rc<Environment>,
         parent: Continuation,
     ) -> Result<Value> {
-        use crate::debug::{DebugTracer, TraceLevel};
 
         #[cfg(debug_assertions)]
         DebugTracer::trace_value(
@@ -732,7 +741,7 @@ impl Evaluator {
             "apply_define_continuation",
             line!(),
             TraceLevel::ENTRY,
-            format!("Defining variable: {}", variable),
+            format!("Defining variable: {variable}"),
             &value,
         );
 
@@ -744,7 +753,7 @@ impl Evaluator {
             "apply_define_continuation",
             line!(),
             TraceLevel::INFO,
-            format!("Variable '{}' defined, returning Undefined", variable),
+            format!("Variable '{variable}' defined, returning Undefined"),
         );
 
         let result = self.apply_continuation(parent, Value::Undefined)?;
@@ -770,7 +779,6 @@ impl Evaluator {
         env: Rc<Environment>,
         parent: Continuation,
     ) -> Result<Value> {
-        use crate::debug::{DebugTracer, TraceLevel};
 
         #[cfg(debug_assertions)]
         DebugTracer::trace_value(
@@ -1145,20 +1153,20 @@ impl Evaluator {
                             return self.eval(exprs[1].clone(), env, Continuation::Identity);
                         }
                         // Nested quasiquote, decrease depth
-                        return self.expand_quasiquote_list(exprs, env, depth - 1);
+                        self.expand_quasiquote_list(exprs, env, depth - 1)
                     }
                     Expr::Variable(name) if name == "unquote-splicing" => {
-                        return Err(LambdustError::syntax_error(
+                        Err(LambdustError::syntax_error(
                             "unquote-splicing: can only appear within a list".to_string(),
-                        ));
+                        ))
                     }
                     Expr::Variable(name) if name == "quasiquote" => {
                         // Nested quasiquote, increase depth
-                        return self.expand_quasiquote_list(exprs, env, depth + 1);
+                        self.expand_quasiquote_list(exprs, env, depth + 1)
                     }
                     _ => {
                         // Regular list processing
-                        return self.expand_quasiquote_list(exprs, env, depth);
+                        self.expand_quasiquote_list(exprs, env, depth)
                     }
                 }
             }

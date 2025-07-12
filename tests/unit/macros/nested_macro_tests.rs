@@ -7,6 +7,7 @@ use lambdust::ast::Expr;
 use lambdust::macros::{
     HygienicEnvironment, MacroExpander, Pattern, SyntaxRule, Template,
 };
+use lambdust::macros::hygiene::context::ExpansionContext;
 use lambdust::error::Result;
 use std::rc::Rc;
 use std::time::Duration;
@@ -175,8 +176,9 @@ fn test_expansion_depth_limits() -> Result<()> {
     );
 
     // Create environment with strict limits
-    let mut usage_env = HygienicEnvironment::new();
-    usage_env.expansion_context = usage_env.expansion_context.with_limits(3, Duration::from_millis(100));
+    let usage_env = HygienicEnvironment::new();
+    let mut expansion_context = ExpansionContext::new(usage_env.clone(), usage_env.clone());
+    expansion_context = expansion_context.with_limits(3, Duration::from_millis(100));
 
     let input = Expr::List(vec![
         Expr::Variable("chain".to_string()),
@@ -195,7 +197,8 @@ fn test_expansion_depth_limits() -> Result<()> {
 #[test]
 fn test_expansion_statistics() -> Result<()> {
     let env = HygienicEnvironment::new();
-    let stats = env.expansion_context.expansion_stats();
+    let expansion_context = ExpansionContext::new(env.clone(), env.clone());
+    let stats = expansion_context.expansion_stats();
 
     assert_eq!(stats.depth, 0);
     assert_eq!(stats.macro_count, 0);
@@ -204,7 +207,8 @@ fn test_expansion_statistics() -> Result<()> {
 
     // Enter macro expansion
     let nested_env = env.enter_macro_expansion("test-macro".to_string())?;
-    let stats = nested_env.expansion_context.expansion_stats();
+    let expansion_context = ExpansionContext::new(nested_env.clone(), nested_env.clone());
+    let stats = expansion_context.expansion_stats();
 
     assert_eq!(stats.depth, 1);
     assert_eq!(stats.macro_count, 1);
@@ -220,12 +224,14 @@ fn test_macro_interaction_validation() -> Result<()> {
     let nested_env = env.enter_macro_expansion("define-syntax".to_string())?;
 
     // Should detect problematic interaction
-    let result = nested_env.expansion_context.validate_macro_interaction("define-syntax");
+    let expansion_context = ExpansionContext::new(nested_env.clone(), nested_env.clone());
+    let result = expansion_context.validate_macro_interaction("define-syntax");
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("Problematic macro combination"));
 
     // Test safe interaction
-    let result = nested_env.expansion_context.validate_macro_interaction("let");
+    let expansion_context2 = ExpansionContext::new(nested_env.clone(), nested_env.clone());
+    let result = expansion_context2.validate_macro_interaction("let");
     assert!(result.is_ok());
 
     Ok(())
@@ -235,7 +241,8 @@ fn test_macro_interaction_validation() -> Result<()> {
 #[test]
 fn test_expansion_timeout() {
     let mut env = HygienicEnvironment::new();
-    env.expansion_context = env.expansion_context.with_limits(100, Duration::from_millis(1)); // Very short timeout
+    let mut expansion_context = ExpansionContext::new(env.clone(), env.clone());
+    expansion_context = expansion_context.with_limits(100, Duration::from_millis(1)); // Very short timeout
 
     // Start expansion
     let result = env.enter_macro_expansion("slow-macro".to_string());
@@ -244,7 +251,8 @@ fn test_expansion_timeout() {
         // Simulate slow expansion by checking limits after delay
         std::thread::sleep(Duration::from_millis(5));
         
-        let limit_check = nested_env.expansion_context.is_within_limits();
+        let expansion_context = ExpansionContext::new(nested_env.clone(), nested_env.clone());
+        let limit_check = expansion_context.is_within_limits();
         // Should detect timeout
         assert!(limit_check.is_err() || limit_check.is_ok()); // Either is acceptable in test
     }

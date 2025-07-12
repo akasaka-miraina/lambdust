@@ -110,12 +110,12 @@ fn location_equal_function() -> Value {
 /// These functions are meant to be called from special forms or evaluator methods
 ///
 /// Get memory usage from evaluator
-pub fn get_memory_usage_from_evaluator(evaluator: &crate::evaluator::types::Evaluator) -> usize {
+#[must_use] pub fn get_memory_usage_from_evaluator(evaluator: &crate::evaluator::types::Evaluator) -> usize {
     evaluator.memory_usage()
 }
 
 /// Get memory statistics from evaluator
-pub fn get_memory_statistics_from_evaluator(
+#[must_use] pub fn get_memory_statistics_from_evaluator(
     evaluator: &crate::evaluator::types::Evaluator,
 ) -> StoreStatisticsWrapper {
     evaluator.store_statistics()
@@ -134,8 +134,8 @@ pub fn set_memory_limit_with_evaluator(
     evaluator.set_memory_limit(limit);
 }
 
-/// Convert StoreStatisticsWrapper to Scheme value
-pub fn statistics_to_scheme_value(stats: &StoreStatisticsWrapper) -> Value {
+/// Convert `StoreStatisticsWrapper` to Scheme value
+#[must_use] pub fn statistics_to_scheme_value(stats: &StoreStatisticsWrapper) -> Value {
     // Create an association list with statistics
     let pairs = vec![
         Value::cons(

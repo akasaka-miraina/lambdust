@@ -4,22 +4,36 @@
 //! data and optimization effect verification.
 
 use super::core_types::{MetricType, MetricValue};
-use super::benchmarking::{BenchmarkExecutionResult, BenchmarkStatistics};
-use crate::error::{LambdustError, Result};
+use super::benchmarking::BenchmarkExecutionResult;
+use crate::error::Result;
+// Removed unused imports: BenchmarkStatistics, LambdustError
 use crate::evaluator::RuntimeOptimizationLevel;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-/// 分析エンジン
+/// Analysis engine for performance data processing and optimization verification
+/// 
+/// The `AnalysisEngine` provides advanced statistical analysis capabilities
+/// for performance measurements and optimization effect verification.
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct AnalysisEngine {
-    /// 分析設定
+    /// Configuration settings for analysis operations
+    /// 
+    /// Controls analysis depth, statistical methods, confidence intervals,
+    /// and other analysis parameters.
     analysis_config: AnalysisConfiguration,
     
-    /// 分析履歴
+    /// Historical record of analysis results
+    /// 
+    /// Maintains a chronological log of all analysis operations performed,
+    /// enabling trend analysis and performance tracking over time.
     analysis_history: Vec<AnalysisResult>,
     
-    /// 統計モデル
+    /// Collection of statistical models indexed by name
+    /// 
+    /// Stores various statistical models used for different types of analysis,
+    /// allowing for model reuse and comparison across different datasets.
     statistical_models: HashMap<String, StatisticalModel>,
 }
 
@@ -563,9 +577,15 @@ pub struct StatisticalSignificance {
     pub confidence_interval: (f64, f64),
 }
 
+impl Default for AnalysisEngine {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AnalysisEngine {
     /// 新しい分析エンジンを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             analysis_config: AnalysisConfiguration::default(),
             analysis_history: Vec::new(),

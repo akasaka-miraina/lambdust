@@ -13,12 +13,12 @@ pub struct Location(usize);
 
 impl Location {
     /// Create a new location
-    pub fn new(id: usize) -> Self {
+    #[must_use] pub fn new(id: usize) -> Self {
         Location(id)
     }
 
     /// Get the raw location ID
-    pub fn id(&self) -> usize {
+    #[must_use] pub fn id(&self) -> usize {
         self.0
     }
 }
@@ -106,7 +106,7 @@ impl Default for Store {
 
 impl Store {
     /// Create a new store with default settings
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Store {
             locations: HashMap::new(),
             next_location: 0,
@@ -122,7 +122,7 @@ impl Store {
     }
 
     /// Create a new store with custom memory limit
-    pub fn with_memory_limit(memory_limit: usize) -> Self {
+    #[must_use] pub fn with_memory_limit(memory_limit: usize) -> Self {
         Store {
             locations: HashMap::new(),
             next_location: 0,
@@ -209,7 +209,7 @@ impl Store {
     }
 
     /// Get value at location
-    pub fn get(&self, location: Location) -> Option<&Value> {
+    #[must_use] pub fn get(&self, location: Location) -> Option<&Value> {
         self.locations.get(&location.id()).map(|cell| &cell.value)
     }
 
@@ -222,8 +222,7 @@ impl Store {
             self.estimate_value_size(&cell.value)
         } else {
             return Err(LambdustError::runtime_error(format!(
-                "Invalid location: {}",
-                location
+                "Invalid location: {location}"
             )));
         };
 
@@ -240,14 +239,13 @@ impl Store {
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
-                "Invalid location: {}",
-                location
+                "Invalid location: {location}"
             )))
         }
     }
 
     /// Check if location exists
-    pub fn contains(&self, location: Location) -> bool {
+    #[must_use] pub fn contains(&self, location: Location) -> bool {
         self.locations.contains_key(&location.id())
     }
 
@@ -258,8 +256,7 @@ impl Store {
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
-                "Invalid location for incref: {}",
-                location
+                "Invalid location for incref: {location}"
             )))
         }
     }
@@ -277,8 +274,7 @@ impl Store {
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
-                "Invalid location for decref: {}",
-                location
+                "Invalid location for decref: {location}"
             )))
         }
     }
@@ -322,7 +318,7 @@ impl Store {
     }
 
     /// Get current pool utilization for monitoring
-    pub fn get_pool_utilization(&self) -> (f64, f64) {
+    #[must_use] pub fn get_pool_utilization(&self) -> (f64, f64) {
         let cell_pool_util = self.cell_pool.len() as f64 / self.max_pool_size as f64;
         let location_pool_util = self.location_pool.len() as f64 / self.max_pool_size as f64;
         (cell_pool_util, location_pool_util)
@@ -393,7 +389,9 @@ impl Store {
             Value::Number(_) => 8,
             Value::Character(_) => 4,
             Value::String(s) => s.len() + 24, // String overhead
+            Value::ShortString(_) => 16, // Inline storage, no heap allocation
             Value::Symbol(s) => s.len() + 24,
+            Value::ShortSymbol(_) => 16, // Inline storage, no heap allocation
             Value::Pair(_) => 32,                 // Approximate size of pair
             Value::Vector(v) => v.len() * 8 + 24, // Vector overhead
             Value::HashTable(_) => 64,            // Approximate hash table overhead
@@ -432,12 +430,12 @@ impl Store {
     }
 
     /// Get current memory usage
-    pub fn memory_usage(&self) -> usize {
+    #[must_use] pub fn memory_usage(&self) -> usize {
         self.memory_usage
     }
 
     /// Get number of allocated locations
-    pub fn location_count(&self) -> usize {
+    #[must_use] pub fn location_count(&self) -> usize {
         self.locations.len()
     }
 
@@ -448,7 +446,7 @@ impl Store {
     }
 
     /// Get memory statistics
-    pub fn get_statistics(&self) -> &StoreStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &StoreStatistics {
         &self.stats
     }
 }

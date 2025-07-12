@@ -135,7 +135,7 @@ pub fn map_implementation(args: &[Value]) -> Result<Value> {
     let list_vectors = list_vectors?;
 
     // Find the minimum length (map stops at shortest list)
-    let min_length = list_vectors.iter().map(|v| v.len()).min().unwrap_or(0);
+    let min_length = list_vectors.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
     let mut results = Vec::new();
 
@@ -214,7 +214,7 @@ pub fn for_each_implementation(args: &[Value]) -> Result<Value> {
     let list_vectors = list_vectors?;
 
     // Find the minimum length
-    let min_length = list_vectors.iter().map(|v| v.len()).min().unwrap_or(0);
+    let min_length = list_vectors.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
     for i in 0..min_length {
         // Collect arguments for this iteration
@@ -427,7 +427,7 @@ pub fn fold_implementation(args: &[Value]) -> Result<Value> {
     let list_vectors = list_vectors?;
 
     // Find the minimum length
-    let min_length = list_vectors.iter().map(|v| v.len()).min().unwrap_or(0);
+    let min_length = list_vectors.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
     for i in 0..min_length {
         // Prepare arguments: accumulator + elements from each list
@@ -505,7 +505,7 @@ pub fn fold_right_implementation(args: &[Value]) -> Result<Value> {
     let list_vectors = list_vectors?;
 
     // Find the minimum length
-    let min_length = list_vectors.iter().map(|v| v.len()).min().unwrap_or(0);
+    let min_length = list_vectors.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
     // Process from right to left
     for i in (0..min_length).rev() {

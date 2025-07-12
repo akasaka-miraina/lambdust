@@ -31,8 +31,7 @@ impl SemanticEvaluator {
             "or" => self.eval_or_pure(operands, env, cont),
             "cond" => self.eval_cond_pure(operands, env, cont),
             _ => Err(LambdustError::syntax_error(format!(
-                "Special form '{}' not implemented in pure evaluator",
-                name
+                "Special form '{name}' not implemented in pure evaluator"
             ))),
         }
     }
@@ -167,12 +166,9 @@ impl SemanticEvaluator {
             ));
         }
         
-        let bindings = match &operands[0] {
-            Expr::List(bindings) => bindings,
-            _ => return Err(LambdustError::syntax_error(
+        let Expr::List(bindings) = &operands[0] else { return Err(LambdustError::syntax_error(
                 "let: bindings must be a list".to_string(),
-            )),
-        };
+            )) };
         
         let body = operands[1..].to_vec();
         

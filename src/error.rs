@@ -1,5 +1,6 @@
 //! Error types for the Lambdust interpreter
 
+use std::fmt::Write;
 use thiserror::Error;
 
 /// Result type alias for Lambdust operations
@@ -19,7 +20,7 @@ pub struct SourcePosition {
 
 impl SourcePosition {
     /// Create a new source position
-    pub fn new(line: usize, column: usize, offset: usize) -> Self {
+    #[must_use] pub fn new(line: usize, column: usize, offset: usize) -> Self {
         Self {
             line,
             column,
@@ -28,7 +29,7 @@ impl SourcePosition {
     }
 
     /// Default position for when position is unknown
-    pub fn unknown() -> Self {
+    #[must_use] pub fn unknown() -> Self {
         Self {
             line: 0,
             column: 0,
@@ -60,7 +61,7 @@ pub struct SourceSpan {
 
 impl SourceSpan {
     /// Create a new source span
-    pub fn new(start: SourcePosition, end: SourcePosition) -> Self {
+    #[must_use] pub fn new(start: SourcePosition, end: SourcePosition) -> Self {
         Self {
             start,
             end,
@@ -69,7 +70,7 @@ impl SourceSpan {
     }
 
     /// Create a source span with filename
-    pub fn with_filename(start: SourcePosition, end: SourcePosition, filename: String) -> Self {
+    #[must_use] pub fn with_filename(start: SourcePosition, end: SourcePosition, filename: String) -> Self {
         Self {
             start,
             end,
@@ -78,7 +79,7 @@ impl SourceSpan {
     }
 
     /// Create an unknown span
-    pub fn unknown() -> Self {
+    #[must_use] pub fn unknown() -> Self {
         Self {
             start: SourcePosition::unknown(),
             end: SourcePosition::unknown(),
@@ -87,7 +88,7 @@ impl SourceSpan {
     }
 
     /// Create a point span at a single position
-    pub fn point(pos: SourcePosition) -> Self {
+    #[must_use] pub fn point(pos: SourcePosition) -> Self {
         Self {
             start: pos.clone(),
             end: pos,
@@ -155,7 +156,7 @@ pub struct ErrorContext {
 
 impl ErrorContext {
     /// Create new error context
-    pub fn new(location: SourceSpan, stack_trace: Vec<StackFrame>) -> Self {
+    #[must_use] pub fn new(location: SourceSpan, stack_trace: Vec<StackFrame>) -> Self {
         Self {
             location,
             stack_trace,
@@ -163,7 +164,7 @@ impl ErrorContext {
     }
 
     /// Create error context with unknown location
-    pub fn unknown() -> Self {
+    #[must_use] pub fn unknown() -> Self {
         Self {
             location: SourceSpan::unknown(),
             stack_trace: Vec::new(),
@@ -292,44 +293,44 @@ impl LambdustError {
         }
     }
 
-    /// Legacy constructor for TypeError (for easier migration)
-    pub fn type_error_old(message: String) -> Self {
+    /// Legacy constructor for `TypeError` (for easier migration)
+    #[must_use] pub fn type_error_old(message: String) -> Self {
         Self::type_error(message)
     }
 
-    /// Legacy constructor for UndefinedVariable (for easier migration)
-    pub fn undefined_variable_old(variable: String) -> Self {
+    /// Legacy constructor for `UndefinedVariable` (for easier migration)
+    #[must_use] pub fn undefined_variable_old(variable: String) -> Self {
         Self::undefined_variable(variable)
     }
 
-    /// Legacy constructor for SyntaxError (for easier migration)
-    pub fn syntax_error_old(message: String) -> Self {
+    /// Legacy constructor for `SyntaxError` (for easier migration)
+    #[must_use] pub fn syntax_error_old(message: String) -> Self {
         Self::syntax_error(message)
     }
 
-    /// Legacy constructor for LexerError (for easier migration)
-    pub fn lexer_error_old(message: String) -> Self {
+    /// Legacy constructor for `LexerError` (for easier migration)
+    #[must_use] pub fn lexer_error_old(message: String) -> Self {
         Self::LexerError {
             message,
             location: SourceSpan::unknown(),
         }
     }
 
-    /// Legacy constructor for ParseError (for easier migration)
-    pub fn parse_error_old(message: String) -> Self {
+    /// Legacy constructor for `ParseError` (for easier migration)
+    #[must_use] pub fn parse_error_old(message: String) -> Self {
         Self::ParseError {
             message,
             location: SourceSpan::unknown(),
         }
     }
 
-    /// Legacy constructor for ArityError (for easier migration)
-    pub fn arity_error_old(expected: usize, actual: usize) -> Self {
+    /// Legacy constructor for `ArityError` (for easier migration)
+    #[must_use] pub fn arity_error_old(expected: usize, actual: usize) -> Self {
         Self::arity_error(expected, actual)
     }
 
-    /// Legacy struct-style constructor for ArityError
-    pub fn arity_error_struct(expected: usize, actual: usize) -> Self {
+    /// Legacy struct-style constructor for `ArityError`
+    #[must_use] pub fn arity_error_struct(expected: usize, actual: usize) -> Self {
         Self::ArityError {
             expected,
             actual,
@@ -338,30 +339,30 @@ impl LambdustError {
         }
     }
 
-    /// Legacy constructor for DivisionByZero (for easier migration)
-    pub fn division_by_zero_old() -> Self {
+    /// Legacy constructor for `DivisionByZero` (for easier migration)
+    #[must_use] pub fn division_by_zero_old() -> Self {
         Self::DivisionByZero {
             context: Box::new(ErrorContext::unknown()),
         }
     }
 
-    /// Legacy constructor for StackOverflow (for easier migration)
-    pub fn stack_overflow_old() -> Self {
+    /// Legacy constructor for `StackOverflow` (for easier migration)
+    #[must_use] pub fn stack_overflow_old() -> Self {
         Self::StackOverflow {
             context: Box::new(ErrorContext::unknown()),
         }
     }
 
-    /// Legacy constructor for MacroError (for easier migration)
-    pub fn macro_error_old(message: String) -> Self {
+    /// Legacy constructor for `MacroError` (for easier migration)
+    #[must_use] pub fn macro_error_old(message: String) -> Self {
         Self::MacroError {
             message,
             context: Box::new(ErrorContext::unknown()),
         }
     }
 
-    /// Legacy constructor for IoError (for easier migration)
-    pub fn io_error_old(message: String) -> Self {
+    /// Legacy constructor for `IoError` (for easier migration)
+    #[must_use] pub fn io_error_old(message: String) -> Self {
         Self::IoError {
             message,
             location: None,
@@ -377,7 +378,7 @@ impl LambdustError {
     }
 
     /// Create a simple arity error without location info (for backward compatibility)
-    pub fn arity_error(expected: usize, actual: usize) -> Self {
+    #[must_use] pub fn arity_error(expected: usize, actual: usize) -> Self {
         Self::ArityError {
             expected,
             actual,
@@ -387,21 +388,21 @@ impl LambdustError {
     }
 
     /// Create an arity error for a range of acceptable argument counts
-    pub fn arity_error_range(min: usize, max: usize, actual: usize) -> Self {
+    #[must_use] pub fn arity_error_range(min: usize, max: usize, actual: usize) -> Self {
         Self::ArityError {
             expected: min, // Use min as the primary expected value
             actual,
-            function: format!("expected {}-{} arguments", min, max),
+            function: format!("expected {min}-{max} arguments"),
             context: Box::new(ErrorContext::unknown()),
         }
     }
 
     /// Create an arity error for a minimum number of arguments
-    pub fn arity_error_min(min: usize, actual: usize) -> Self {
+    #[must_use] pub fn arity_error_min(min: usize, actual: usize) -> Self {
         Self::ArityError {
             expected: min,
             actual,
-            function: format!("expected at least {} arguments", min),
+            function: format!("expected at least {min} arguments"),
             context: Box::new(ErrorContext::unknown()),
         }
     }
@@ -447,21 +448,21 @@ impl LambdustError {
     }
 
     /// Create a simple division by zero error without location info (for backward compatibility)
-    pub fn division_by_zero() -> Self {
+    #[must_use] pub fn division_by_zero() -> Self {
         Self::DivisionByZero {
             context: Box::new(ErrorContext::unknown()),
         }
     }
 
     /// Create a simple stack overflow error without location info (for backward compatibility)
-    pub fn stack_overflow() -> Self {
+    #[must_use] pub fn stack_overflow() -> Self {
         Self::StackOverflow {
             context: Box::new(ErrorContext::unknown()),
         }
     }
 
     /// Add a stack frame to the error's stack trace
-    pub fn with_stack_frame(mut self, frame: StackFrame) -> Self {
+    #[must_use] pub fn with_stack_frame(mut self, frame: StackFrame) -> Self {
         match &mut self {
             Self::RuntimeError { context, .. }
             | Self::TypeError { context, .. }
@@ -478,7 +479,7 @@ impl LambdustError {
     }
 
     /// Set the location for errors that support it
-    pub fn with_location(mut self, location: SourceSpan) -> Self {
+    #[must_use] pub fn with_location(mut self, location: SourceSpan) -> Self {
         match &mut self {
             Self::LexerError { location: loc, .. }
             | Self::ParseError { location: loc, .. }
@@ -502,11 +503,11 @@ impl LambdustError {
     }
 
     /// Generate a detailed error report with stack trace
-    pub fn format_detailed(&self) -> String {
+    #[must_use] pub fn format_detailed(&self) -> String {
         let mut output = String::new();
 
         // Main error message
-        output.push_str(&format!("Error: {}\n", self));
+        writeln!(output, "Error: {self}").unwrap();
 
         // Add location information
         match self {
@@ -514,7 +515,7 @@ impl LambdustError {
             | Self::ParseError { location, .. }
             | Self::SyntaxError { location, .. } => {
                 if *location != SourceSpan::unknown() {
-                    output.push_str(&format!("  at {}\n", location));
+                    writeln!(output, "  at {location}").unwrap();
                 }
             }
             Self::RuntimeError { context, .. }
@@ -525,16 +526,16 @@ impl LambdustError {
             | Self::StackOverflow { context, .. }
             | Self::MacroError { context, .. } => {
                 if context.location != SourceSpan::unknown() {
-                    output.push_str(&format!("  at {}\n", context.location));
+                    writeln!(output, "  at {}", context.location).unwrap();
                 }
             }
             Self::IoError {
                 location: Some(location),
                 ..
             } => {
-                output.push_str(&format!("  at {}\n", location));
+                writeln!(output, "  at {location}").unwrap();
             }
-            _ => {}
+            Self::IoError{ .. } => {}
         }
 
         // Add stack trace
@@ -552,7 +553,7 @@ impl LambdustError {
         if !stack_trace.is_empty() {
             output.push_str("\nStack trace:\n");
             for frame in stack_trace {
-                output.push_str(&format!("{}\n", frame));
+                writeln!(output, "{frame}").unwrap();
             }
         }
 

@@ -46,7 +46,7 @@ impl Default for DependencyGraph {
 
 impl DependencyGraph {
     /// Create a new empty dependency graph
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
             edges: HashMap::new(),
@@ -68,7 +68,7 @@ impl DependencyGraph {
     }
 
     /// Get all nodes that depend on the given node
-    pub fn get_dependents(&self, name: &str) -> Vec<String> {
+    #[must_use] pub fn get_dependents(&self, name: &str) -> Vec<String> {
         let mut dependents = Vec::new();
         for (node_name, deps) in &self.edges {
             if deps.contains(&name.to_string()) {
@@ -79,7 +79,7 @@ impl DependencyGraph {
     }
 
     /// Check if there's a direct dependency between two nodes
-    pub fn has_direct_dependency(&self, from: &str, to: &str) -> bool {
+    #[must_use] pub fn has_direct_dependency(&self, from: &str, to: &str) -> bool {
         if let Some(deps) = self.edges.get(from) {
             deps.contains(&to.to_string())
         } else {
@@ -88,12 +88,12 @@ impl DependencyGraph {
     }
 
     /// Get all nodes
-    pub fn get_nodes(&self) -> &HashMap<String, DependencyNode> {
+    #[must_use] pub fn get_nodes(&self) -> &HashMap<String, DependencyNode> {
         &self.nodes
     }
 
     /// Get all edges
-    pub fn get_edges(&self) -> &HashMap<String, Vec<String>> {
+    #[must_use] pub fn get_edges(&self) -> &HashMap<String, Vec<String>> {
         &self.edges
     }
 }
@@ -109,7 +109,7 @@ pub struct DependencyAnalyzer {
 
 impl DependencyAnalyzer {
     /// Create a new dependency analyzer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             graph: DependencyGraph::new(),
             context_stack: Vec::new(),
@@ -310,7 +310,7 @@ impl DependencyAnalyzer {
     }
 
     /// Get the final dependency graph
-    pub fn get_graph(&self) -> &DependencyGraph {
+    #[must_use] pub fn get_graph(&self) -> &DependencyGraph {
         &self.graph
     }
 }

@@ -4,14 +4,18 @@
 //! for optimized expressions and strategies.
 
 use super::optimization_manager::OptimizationResult;
-use crate::ast::Expr;
-use crate::error::{LambdustError, Result};
+use crate::error::Result;
+// Removed unused imports:
+// use crate::ast::Expr;
+// use crate::error::LambdustError;
 use std::collections::{HashMap, HashSet};
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+// Removed unused import: Hasher
 use std::time::{Duration, Instant};
 
 /// 最適化結果キャッシュ
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct OptimizationCache {
     /// キャッシュエントリ
     cache_entries: HashMap<String, CacheEntry>,
@@ -80,25 +84,42 @@ pub struct CacheMetadata {
 #[derive(Debug, Clone)]
 pub enum CacheStrategy {
     /// LRU (Least Recently Used)
-    Lru { max_size: usize },
+    Lru { 
+        /// Maximum size of the LRU cache
+        max_size: usize 
+    },
 
     /// LFU (Least Frequently Used)
-    Lfu { max_size: usize },
+    Lfu { 
+        /// Maximum size of the LFU cache
+        max_size: usize 
+    },
 
     /// TTL (Time To Live)
-    Ttl { default_ttl: Duration },
+    Ttl { 
+        /// Default time-to-live for cache entries
+        default_ttl: Duration 
+    },
 
     /// サイズベース
-    SizeBased { max_total_size: usize },
+    SizeBased { 
+        /// Maximum total size of the cache
+        max_total_size: usize 
+    },
 
     /// 適応戦略
     Adaptive {
+        /// Base cache strategy to adapt from
         base_strategy: Box<CacheStrategy>,
+        /// Interval for strategy adaptation
         adaptation_interval: Duration,
     },
 
     /// カスタム戦略
-    Custom { strategy_name: String },
+    Custom { 
+        /// Name of the custom cache strategy
+        strategy_name: String 
+    },
 }
 
 /// キャッシュ統計
@@ -242,13 +263,19 @@ pub enum CircularDependencySeverity {
 #[derive(Debug, Clone)]
 pub enum CircularDependencyResolution {
     /// 依存関係を破る
-    BreakDependency { edge_to_remove: (String, String) },
+    BreakDependency { 
+        /// Edge to remove from dependency graph
+        edge_to_remove: (String, String) 
+    },
 
     /// 実行順序を調整
     AdjustExecutionOrder,
 
     /// 戦略を分割
-    SplitStrategy { strategy_to_split: String },
+    SplitStrategy { 
+        /// Strategy to split for resolving circular dependency
+        strategy_to_split: String 
+    },
 
     /// エラーとして報告
     ReportAsError,
@@ -326,6 +353,7 @@ pub struct ResourceRequirements {
 
 /// 最適化スケジューラー
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct OptimizationScheduler {
     /// 実行キュー
     execution_queue: Vec<ScheduledOptimization>,
@@ -488,6 +516,7 @@ pub struct SchedulingStatistics {
 
 /// 競合解決器
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ConflictResolver {
     /// 競合検出ルール
     conflict_detection_rules: Vec<ConflictDetectionRule>,
@@ -633,9 +662,15 @@ pub enum ResolutionResult {
     Pending,
 }
 
+impl Default for OptimizationCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationCache {
     /// 新しいキャッシュを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             cache_entries: HashMap::new(),
             cache_strategy: CacheStrategy::Lru { max_size: 1000 },
@@ -687,7 +722,7 @@ impl OptimizationCache {
     }
 
     /// 統計を取得
-    pub fn get_statistics(&self) -> &CacheStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &CacheStatistics {
         &self.cache_statistics
     }
 
@@ -739,9 +774,15 @@ impl OptimizationCache {
     }
 }
 
+impl Default for OptimizationDependencyGraph {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationDependencyGraph {
     /// 新しい依存関係グラフを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             nodes: HashMap::new(),
             edges: HashMap::new(),
@@ -758,8 +799,8 @@ impl OptimizationDependencyGraph {
 
     /// 依存関係を追加
     pub fn add_dependency(&mut self, from: &str, to: &str) {
-        self.edges.entry(from.to_string()).or_insert_with(HashSet::new).insert(to.to_string());
-        self.reverse_edges.entry(to.to_string()).or_insert_with(HashSet::new).insert(from.to_string());
+        self.edges.entry(from.to_string()).or_default().insert(to.to_string());
+        self.reverse_edges.entry(to.to_string()).or_default().insert(from.to_string());
     }
 
     /// トポロジカルソートを実行
@@ -804,7 +845,8 @@ impl Default for ResourceRequirements {
 // Placeholder implementations for missing structures
 
 impl OptimizationScheduler {
-    pub fn new() -> Self {
+    /// Creates a new optimization scheduler
+    #[must_use] pub fn new() -> Self {
         Self {
             execution_queue: Vec::new(),
             running_optimizations: HashMap::new(),
@@ -822,7 +864,8 @@ impl Default for OptimizationScheduler {
 }
 
 impl ConflictResolver {
-    pub fn new() -> Self {
+    /// Creates a new conflict resolver
+    #[must_use] pub fn new() -> Self {
         Self {
             conflict_detection_rules: Vec::new(),
             resolution_strategies: HashMap::new(),

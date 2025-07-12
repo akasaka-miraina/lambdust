@@ -271,11 +271,11 @@ fn test_shared_environment_iter_all_bindings() {
 
 #[test]
 fn test_environment_factory() {
-    let traditional = EnvironmentFactory::new_traditional();
-    let shared = EnvironmentFactory::new_shared();
+    let shared = EnvironmentFactory::new();
+    let shared2 = EnvironmentFactory::new();
 
-    assert_eq!(traditional.depth(), 0);
     assert_eq!(shared.depth(), 0);
+    assert_eq!(shared2.depth(), 0);
 }
 
 #[test]

@@ -24,7 +24,7 @@ pub enum VectorStorage {
         size: usize,
         /// Fill value for uninitialized elements
         fill_value: Value,
-        /// Materialized segments (segment_index -> values)
+        /// Materialized segments (`segment_index` -> values)
         materialized_segments: HashMap<usize, Vec<Value>>,
         /// Size of each segment
         segment_size: usize,
@@ -52,7 +52,7 @@ impl VectorStorage {
     }
 
     /// Get the length of the vector
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         match self {
             VectorStorage::Materialized(vec) => vec.len(),
             VectorStorage::Lazy { size, .. } => *size,
@@ -60,7 +60,7 @@ impl VectorStorage {
     }
 
     /// Check if the vector is empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
@@ -152,8 +152,7 @@ impl VectorStorage {
                 let estimated_bytes = size * std::mem::size_of::<Value>();
                 if estimated_bytes > IMMEDIATE_ALLOCATION_THRESHOLD * 4 {
                     return Err(LambdustError::runtime_error(format!(
-                        "Cannot materialize vector of size {} (estimated {} bytes): too large",
-                        size, estimated_bytes
+                        "Cannot materialize vector of size {size} (estimated {estimated_bytes} bytes): too large"
                     )));
                 }
 
@@ -176,7 +175,7 @@ impl VectorStorage {
     }
 
     /// Get memory usage statistics
-    pub fn memory_stats(&self) -> MemoryStats {
+    #[must_use] pub fn memory_stats(&self) -> MemoryStats {
         match self {
             VectorStorage::Materialized(vec) => MemoryStats {
                 logical_size: vec.len(),
@@ -247,7 +246,7 @@ pub struct MemoryStats {
 
 impl MemoryStats {
     /// Calculate materialization ratio (0.0 to 1.0)
-    pub fn materialization_ratio(&self) -> f64 {
+    #[must_use] pub fn materialization_ratio(&self) -> f64 {
         if self.logical_size == 0 {
             1.0
         } else {
@@ -256,7 +255,7 @@ impl MemoryStats {
     }
 
     /// Check if the vector is efficiently utilizing memory
-    pub fn is_efficient(&self) -> bool {
+    #[must_use] pub fn is_efficient(&self) -> bool {
         self.materialization_ratio() < 0.1 || self.logical_size <= SEGMENT_SIZE
     }
 }

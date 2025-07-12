@@ -20,14 +20,11 @@ pub fn expand_let(args: &[Expr]) -> Result<Expr> {
     let body = &args[1..];
 
     // Parse bindings
-    let binding_list = match bindings {
-        Expr::List(bindings) => bindings,
-        _ => {
+    let Expr::List(binding_list) = bindings else {
             return Err(LambdustError::syntax_error(
                 "let: bindings must be a list".to_string(),
             ));
-        }
-    };
+        };
 
     let mut variables = Vec::new();
     let mut values = Vec::new();
@@ -78,14 +75,11 @@ pub fn expand_let_star(args: &[Expr]) -> Result<Expr> {
     let bindings = &args[0];
     let body = &args[1..];
 
-    let binding_list = match bindings {
-        Expr::List(bindings) => bindings,
-        _ => {
+    let Expr::List(binding_list) = bindings else {
             return Err(LambdustError::syntax_error(
                 "let*: bindings must be a list".to_string(),
             ));
-        }
-    };
+        };
 
     if binding_list.is_empty() {
         // No bindings, just return begin
@@ -126,14 +120,11 @@ pub fn expand_letrec(args: &[Expr]) -> Result<Expr> {
     let bindings = &args[0];
     let body = &args[1..];
 
-    let binding_list = match bindings {
-        Expr::List(bindings) => bindings,
-        _ => {
+    let Expr::List(binding_list) = bindings else {
             return Err(LambdustError::syntax_error(
                 "letrec: bindings must be a list".to_string(),
             ));
-        }
-    };
+        };
 
     let mut variables = Vec::new();
     let mut assignments = Vec::new();

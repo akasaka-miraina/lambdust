@@ -13,6 +13,7 @@ pub struct EvaluationModeSelector {
     performance_history: HashMap<ExpressionType, PerformanceStats>,
 
     /// Optimization effectiveness tracking
+    #[allow(dead_code)]
     optimization_effectiveness: HashMap<RuntimeOptimizationLevel, f64>,
 
     /// Expression complexity threshold for mode switching
@@ -28,16 +29,27 @@ pub struct EvaluationModeSelector {
 /// Expression type classification for performance tracking
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExpressionType {
+    /// Simple literal values (numbers, strings, booleans)
     Literal,
+    /// Variable lookups
     Variable,
+    /// Basic arithmetic operations (+, -, *, /)
     SimpleArithmetic,
+    /// Complex mathematical operations
     ComplexArithmetic,
+    /// Function call expressions
     FunctionCall,
+    /// Lambda expressions and closures
     Lambda,
+    /// Conditional expressions (if, cond, case)
     ConditionalExpression,
+    /// List processing operations
     ListProcessing,
+    /// Recursive function calls
     RecursiveFunction,
+    /// Complex nested expressions
     ComplexNested,
+    /// Unknown or unclassified expression type
     Unknown,
 }
 
@@ -62,6 +74,7 @@ pub struct PerformanceStats {
 
 /// Mode selection decision record
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct ModeDecision {
     /// Expression type that was evaluated
     expression_type: ExpressionType,
@@ -133,15 +146,19 @@ pub struct EvaluationContext {
 /// Performance trend indicator
 #[derive(Debug, Clone)]
 pub enum PerformanceTrend {
+    /// Performance metrics are showing consistent improvement over time
     Improving,
+    /// Performance metrics remain stable with minimal fluctuation
     Stable,
+    /// Performance metrics are showing degradation or decline
     Degrading,
+    /// Performance trend cannot be determined due to insufficient data
     Unknown,
 }
 
 impl EvaluationModeSelector {
     /// Create new evaluation mode selector
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             performance_history: HashMap::new(),
             optimization_effectiveness: Self::init_optimization_effectiveness(),
@@ -435,7 +452,7 @@ impl EvaluationModeSelector {
     }
 
     /// Get performance statistics for an expression type
-    pub fn get_performance_stats(
+    #[must_use] pub fn get_performance_stats(
         &self,
         expression_type: &ExpressionType,
     ) -> Option<&PerformanceStats> {
@@ -443,7 +460,7 @@ impl EvaluationModeSelector {
     }
 
     /// Get recent decision history
-    pub fn get_decision_history(&self) -> &[ModeDecision] {
+    #[must_use] pub fn get_decision_history(&self) -> &[ModeDecision] {
         &self.decision_history
     }
 
@@ -454,7 +471,7 @@ impl EvaluationModeSelector {
     }
 
     /// Get mode selection recommendations
-    pub fn get_recommendations(&self, expression_type: &ExpressionType) -> Vec<String> {
+    #[must_use] pub fn get_recommendations(&self, expression_type: &ExpressionType) -> Vec<String> {
         let mut recommendations = Vec::new();
 
         if let Some(stats) = self.performance_history.get(expression_type) {

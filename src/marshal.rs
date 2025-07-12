@@ -47,7 +47,7 @@ pub trait Marshallable: 'static {
     /// Convert from Rust type to Scheme value
     fn to_scheme(&self) -> Result<Value>;
 
-    /// Get the corresponding ValueType for this Rust type
+    /// Get the corresponding `ValueType` for this Rust type
     fn value_type() -> crate::host::ValueType;
 }
 
@@ -73,7 +73,7 @@ impl std::fmt::Debug for TypeSafeMarshaller {
 
 impl TypeSafeMarshaller {
     /// Create a new marshaller with default converters
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut marshaller = Self {
             type_registry: HashMap::new(),
         };
@@ -308,7 +308,7 @@ pub fn scheme_string_to_c(value: &Value) -> Result<*mut c_char> {
 
 /// Convert C integer to Scheme number
 pub fn c_int_to_scheme(value: c_int) -> Result<Value> {
-    Ok(Value::Number(SchemeNumber::Integer(value as i64)))
+    Ok(Value::Number(SchemeNumber::Integer(i64::from(value))))
 }
 
 /// Convert Scheme number to C integer
@@ -326,10 +326,10 @@ pub fn scheme_to_c_int(value: &Value) -> Result<c_int> {
     }
 }
 
-/// Free C string allocated by scheme_string_to_c
+/// Free C string allocated by `scheme_string_to_c`
 ///
 /// # Safety
-/// The pointer must have been allocated by scheme_string_to_c
+/// The pointer must have been allocated by `scheme_string_to_c`
 pub unsafe fn free_c_string(ptr: *mut c_char) {
     if !ptr.is_null() {
         let _ = unsafe { CString::from_raw(ptr) };

@@ -18,7 +18,7 @@ pub struct Parser {
 
 impl Parser {
     /// Create a new parser with the given tokens
-    pub fn new(tokens: Vec<Token>) -> Self {
+    #[must_use] pub fn new(tokens: Vec<Token>) -> Self {
         Parser {
             tokens,
             position: 0,
@@ -27,7 +27,7 @@ impl Parser {
     }
 
     /// Create a new parser with custom loop detection configuration
-    pub fn with_loop_detection_config(tokens: Vec<Token>, config: LoopDetectionConfig) -> Self {
+    #[must_use] pub fn with_loop_detection_config(tokens: Vec<Token>, config: LoopDetectionConfig) -> Self {
         Parser {
             tokens,
             position: 0,

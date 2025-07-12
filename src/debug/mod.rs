@@ -10,9 +10,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 /// Global trace counter for unique step IDs
+#[allow(dead_code)]
 static TRACE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Global trace log storage (protected by mutex)
+#[allow(dead_code)]
 static TRACE_LOG: Mutex<Vec<TraceEntry>> = Mutex::new(Vec::new());
 
 /// Single trace entry with complete context information
@@ -20,7 +22,7 @@ static TRACE_LOG: Mutex<Vec<TraceEntry>> = Mutex::new(Vec::new());
 pub struct TraceEntry {
     /// Unique step ID
     pub step_id: usize,
-    /// Module/class name (e.g., "evaluator::mod", "special_forms")
+    /// Module/class name (e.g., "`evaluator::mod`", "`special_forms`")
     pub module: &'static str,
     /// Method/function name
     pub method: &'static str,
@@ -57,7 +59,7 @@ pub enum TraceLevel {
 
 impl TraceLevel {
     /// Convert trace level to string representation
-    pub fn as_str(&self) -> &'static str {
+    #[must_use] pub fn as_str(&self) -> &'static str {
         match self {
             TraceLevel::ENTRY => "ENTRY",
             TraceLevel::EXIT => "EXIT",
@@ -128,7 +130,7 @@ impl DebugTracer {
             method,
             line,
             level,
-            rust_value: Some(format!("{:?}", value)),
+            rust_value: Some(format!("{value:?}")),
             s_expr: Some(Self::value_to_sexpr(value)),
             message: message.clone(),
             continuation_type: None,
@@ -169,7 +171,7 @@ impl DebugTracer {
             method,
             line,
             level,
-            rust_value: Some(format!("{:?}", expr)),
+            rust_value: Some(format!("{expr:?}")),
             s_expr: Some(Self::expr_to_sexpr(expr)),
             message: message.clone(),
             continuation_type: None,
@@ -280,7 +282,7 @@ impl DebugTracer {
     }
 
     /// Convert Value to readable S-expression
-    fn value_to_sexpr(value: &Value) -> String {
+    pub fn value_to_sexpr(value: &Value) -> String {
         match value {
             Value::Undefined => "#<undefined>".to_string(),
             Value::Boolean(b) => {
@@ -290,9 +292,9 @@ impl DebugTracer {
                     "#f".to_string()
                 }
             }
-            Value::Number(n) => format!("{}", n),
-            Value::String(s) => format!("\"{}\"", s),
-            Value::Character(c) => format!("#\\{}", c),
+            Value::Number(n) => format!("{n}"),
+            Value::String(s) => format!("\"{s}\""),
+            Value::Character(c) => format!("#\\{c}"),
             Value::Symbol(s) => s.clone(),
             Value::Nil => "()".to_string(),
             Value::Vector(v) => {
@@ -310,12 +312,12 @@ impl DebugTracer {
     }
 
     /// Convert Expr to readable S-expression
-    fn expr_to_sexpr(expr: &Expr) -> String {
+    pub fn expr_to_sexpr(expr: &Expr) -> String {
         match expr {
             Expr::Literal(lit) => match lit {
-                crate::ast::Literal::Number(n) => format!("{}", n),
-                crate::ast::Literal::String(s) => format!("\"{}\"", s),
-                crate::ast::Literal::Character(c) => format!("#\\{}", c),
+                crate::ast::Literal::Number(n) => format!("{n}"),
+                crate::ast::Literal::String(s) => format!("\"{s}\""),
+                crate::ast::Literal::Character(c) => format!("#\\{c}"),
                 crate::ast::Literal::Boolean(b) => {
                     if *b {
                         "#t".to_string()
@@ -385,19 +387,19 @@ impl DebugTracer {
             )?;
 
             if let Some(ref rust_val) = entry.rust_value {
-                writeln!(file, "    Rust: {}", rust_val)?;
+                writeln!(file, "    Rust: {rust_val}")?;
             }
 
             if let Some(ref sexpr) = entry.s_expr {
-                writeln!(file, "    S-expr: {}", sexpr)?;
+                writeln!(file, "    S-expr: {sexpr}")?;
             }
 
             if let Some(ref cont_type) = entry.continuation_type {
-                writeln!(file, "    Continuation: {}", cont_type)?;
+                writeln!(file, "    Continuation: {cont_type}")?;
             }
 
             if let Some(depth) = entry.env_depth {
-                writeln!(file, "    Env depth: {}", depth)?;
+                writeln!(file, "    Env depth: {depth}")?;
             }
 
             writeln!(file, "")?;

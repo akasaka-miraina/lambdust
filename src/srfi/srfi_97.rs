@@ -64,8 +64,7 @@ impl SrfiModule for Srfi97 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "Unknown SRFI 97 part: {}",
-                        part
+                        "Unknown SRFI 97 part: {part}"
                     )));
                 }
             }
@@ -162,8 +161,7 @@ fn srfi_name_function() -> Value {
                         97 => "SRFI Libraries",
                         _ => {
                             return Err(LambdustError::runtime_error(format!(
-                                "Unknown SRFI: {}",
-                                id
+                                "Unknown SRFI: {id}"
                             )));
                         }
                     };
@@ -204,8 +202,7 @@ fn srfi_parts_function() -> Value {
                         97 => vec!["inquiry", "available"],
                         _ => {
                             return Err(LambdustError::runtime_error(format!(
-                                "Unknown SRFI: {}",
-                                id
+                                "Unknown SRFI: {id}"
                             )));
                         }
                     };

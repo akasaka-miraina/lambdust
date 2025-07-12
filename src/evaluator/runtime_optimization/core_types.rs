@@ -3,8 +3,9 @@
 //! This module defines the fundamental data structures and optimization
 //! strategies used throughout the runtime optimization system.
 
-use crate::ast::Expr;
-use crate::error::{LambdustError, Result};
+// Removed unused imports:
+// use crate::ast::Expr;
+// use crate::error::{LambdustError, Result};
 use crate::evaluator::RuntimeOptimizationLevel;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -39,49 +40,65 @@ pub struct OptimizationStrategy {
 pub enum OptimizationStrategyType {
     /// 継続プール最適化
     ContinuationPooling {
+        /// Size of the continuation pool
         pool_size: usize,
+        /// Allocation strategy for the pool
         allocation_strategy: String,
     },
 
     /// インライン評価最適化
     InlineEvaluation {
+        /// Threshold for inlining decisions
         inline_threshold: usize,
+        /// Maximum complexity allowed for inlining
         complexity_limit: usize,
     },
 
     /// JIT最適化
     JitOptimization {
+        /// Threshold for JIT compilation
         compilation_threshold: usize,
+        /// JIT optimization level
         optimization_level: String,
     },
 
     /// 末尾呼び出し最適化
     TailCallOptimization {
+        /// Depth for tail call detection
         detection_depth: usize,
+        /// Strategy for tail call transformation
         transformation_strategy: String,
     },
 
     /// メモリ最適化
     MemoryOptimization {
+        /// Garbage collection strategy
         gc_strategy: String,
+        /// Threshold for memory compaction
         compaction_threshold: f64,
     },
 
     /// 並列化最適化
     ParallelizationOptimization {
+        /// Size of the thread pool
         thread_pool_size: usize,
+        /// Whether to enable work stealing
         work_stealing: bool,
     },
 
     /// キャッシュ最適化
     CacheOptimization {
+        /// Size of the cache
         cache_size: usize,
+        /// Cache eviction policy
         eviction_policy: String,
     },
 
     /// カスタム最適化
     Custom {
+        /// Name of the custom strategy
         strategy_name: String,
+        /// Parameters for the custom strategy
         parameters: HashMap<String, OptimizationParameter>,
     },
 }
@@ -107,32 +124,43 @@ pub struct ApplicabilityCondition {
 pub enum ConditionType {
     /// 式複雑度条件
     ExpressionComplexity {
+        /// Predicate for comparison
         predicate: ConditionPredicate,
+        /// Threshold value for comparison
         value: f64,
     },
 
     /// メモリ使用量条件
     MemoryUsage {
+        /// Predicate for memory usage comparison
         predicate: ConditionPredicate,
+        /// Memory threshold in bytes
         threshold_bytes: usize,
     },
 
     /// 実行頻度条件
     ExecutionFrequency {
+        /// Predicate for frequency comparison
         predicate: ConditionPredicate,
+        /// Frequency threshold
         frequency: f64,
     },
 
     /// パフォーマンス条件
     Performance {
+        /// Performance metric name
         metric: String,
+        /// Predicate for performance comparison
         predicate: ConditionPredicate,
+        /// Performance threshold value
         value: f64,
     },
 
     /// コンテキスト条件
     Context {
+        /// Type of context to check
         context_type: String,
+        /// Expected value for the context
         expected_value: String,
     },
 }
@@ -153,9 +181,19 @@ pub enum ConditionPredicate {
     /// 等しくない
     NotEqual,
     /// 範囲内
-    Between { min: f64, max: f64 },
+    Between { 
+        /// Minimum value of the range
+        min: f64, 
+        /// Maximum value of the range
+        max: f64 
+    },
     /// 範囲外
-    Outside { min: f64, max: f64 },
+    Outside { 
+        /// Minimum value of the excluded range
+        min: f64, 
+        /// Maximum value of the excluded range
+        max: f64 
+    },
 }
 
 /// 論理演算子
@@ -199,13 +237,22 @@ pub struct OptimizationImpact {
 #[derive(Debug, Clone)]
 pub enum MemoryImpact {
     /// メモリ削減
-    Reduction { estimated_bytes: usize },
+    Reduction { 
+        /// Estimated bytes to be reduced
+        estimated_bytes: usize 
+    },
     /// メモリ増加
-    Increase { estimated_bytes: usize },
+    Increase { 
+        /// Estimated bytes to be increased
+        estimated_bytes: usize 
+    },
     /// メモリ使用量不変
     Neutral,
     /// 動的変化
-    Dynamic { function: String },
+    Dynamic { 
+        /// Function describing the dynamic memory change
+        function: String 
+    },
 }
 
 /// リスクレベル
@@ -276,7 +323,10 @@ pub enum ConstraintType {
     /// デッドロック防止
     DeadlockPrevention,
     /// カスタム制約
-    Custom { name: String },
+    Custom { 
+        /// Name of the custom constraint
+        name: String 
+    },
 }
 
 /// 制約値
@@ -319,7 +369,10 @@ pub enum ViolationHandling {
     /// エラーを発生
     Error,
     /// 代替戦略を試行
-    FallbackStrategy { strategy_name: String },
+    FallbackStrategy { 
+        /// Name of the fallback strategy
+        strategy_name: String 
+    },
     /// 最適化を無効化
     DisableOptimization,
 }

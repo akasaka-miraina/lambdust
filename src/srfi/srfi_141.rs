@@ -75,8 +75,7 @@ impl SrfiModule for Srfi141 {
                 "balanced" => exports.extend(self.balanced_division_exports()),
                 _ => {
                     return Err(crate::error::LambdustError::runtime_error(format!(
-                        "SRFI 141: Unknown part '{}'",
-                        part
+                        "SRFI 141: Unknown part '{part}'"
                     )));
                 }
             }
@@ -94,7 +93,7 @@ impl Default for Srfi141 {
 
 impl Srfi141 {
     /// Create a new SRFI 141 module instance
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self
     }
 

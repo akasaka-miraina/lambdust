@@ -15,6 +15,14 @@ pub mod generator;
 pub use symbol::{HygienicSymbol, SymbolId, MacroSite, EnvironmentId};
 pub use environment::HygienicEnvironment;
 pub use context::ExpansionContext;
-pub use transformer::HygienicSyntaxRulesTransformer;
-pub use renaming::{RenamingStrategy, RenamingRule};
-pub use generator::SymbolGenerator;
+pub use transformer::{
+    HygienicSyntaxRulesTransformer, OptimizationLevel, TransformerMetrics
+};
+pub use renaming::{
+    RenamingStrategy, RenamingRule, SymbolRenamer, CustomRenamingRule, 
+    RenamingPattern, PatternMatcher, RenamingAction, DefaultAction, 
+    BuiltInPredicate, PredicateFunction
+};
+pub use generator::{
+    SymbolGenerator, GenerationStrategy, UseCase, PerformanceStats, SymbolCache
+};

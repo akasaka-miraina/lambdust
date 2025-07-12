@@ -47,7 +47,7 @@ impl Value {
             Procedure::Continuation { .. } => write!(f, "#<continuation>"),
             Procedure::CapturedContinuation { .. } => write!(f, "#<continuation>"),
             Procedure::ReusableContinuation { reuse_id, .. } => {
-                write!(f, "#<reusable-continuation:{}>", reuse_id)
+                write!(f, "#<reusable-continuation:{reuse_id}>")
             }
         }
     }
@@ -93,7 +93,7 @@ impl Value {
                 if i > 0 {
                     write!(f, " ")?;
                 }
-                write!(f, "{}", value)?;
+                write!(f, "{value}")?;
             }
             write!(f, ")")
         }
@@ -107,6 +107,7 @@ impl fmt::Display for Value {
             Value::Boolean(b) => write!(f, "#{}", if *b { "t" } else { "f" }),
             Value::Number(n) => write!(f, "{n}"),
             Value::String(s) => write!(f, "\"{s}\""),
+            Value::ShortString(s) => write!(f, "\"{}\"", s.as_str()),
             Value::Character(c) => match c {
                 ' ' => write!(f, "#\\space"),
                 '\n' => write!(f, "#\\newline"),
@@ -114,6 +115,7 @@ impl fmt::Display for Value {
                 _ => write!(f, "#\\{c}"),
             },
             Value::Symbol(s) => write!(f, "{s}"),
+            Value::ShortSymbol(s) => write!(f, "{}", s.as_str()),
             Value::Pair(pair_ref) => self.display_pair(f, pair_ref),
             Value::Nil => write!(f, "()"),
             Value::Procedure(proc) => self.display_procedure(f, proc),
@@ -136,7 +138,7 @@ impl fmt::Display for Value {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    write!(f, "{}", field)?;
+                    write!(f, "{field}")?;
                 }
                 write!(f, ">")
             }
@@ -145,7 +147,7 @@ impl fmt::Display for Value {
             Value::Promise(promise) => match &promise.state {
                 crate::value::PromiseState::Lazy { .. } => write!(f, "#<promise:lazy>"),
                 crate::value::PromiseState::Eager { value } => {
-                    write!(f, "#<promise:eager:{}>", value)
+                    write!(f, "#<promise:eager:{value}>")
                 }
             },
             Value::HashTable(ht) => {
@@ -170,7 +172,7 @@ impl fmt::Display for Value {
                 write!(f, "#<ideque")?;
                 let elements = ideque.to_list();
                 for element in elements {
-                    write!(f, " {}", element)?;
+                    write!(f, " {element}")?;
                 }
                 write!(f, ">")
             }
@@ -194,8 +196,10 @@ impl std::fmt::Debug for Value {
             Self::Boolean(arg0) => f.debug_tuple("Boolean").field(arg0).finish(),
             Self::Number(arg0) => f.debug_tuple("Number").field(arg0).finish(),
             Self::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
+            Self::ShortString(arg0) => f.debug_tuple("ShortString").field(&arg0.as_str()).finish(),
             Self::Character(arg0) => f.debug_tuple("Character").field(arg0).finish(),
             Self::Symbol(arg0) => f.debug_tuple("Symbol").field(arg0).finish(),
+            Self::ShortSymbol(arg0) => f.debug_tuple("ShortSymbol").field(&arg0.as_str()).finish(),
             Self::Pair(pair_ref) => {
                 let pair = pair_ref.borrow();
                 f.debug_tuple("Pair")

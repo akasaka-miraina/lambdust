@@ -10,7 +10,7 @@ use crate::value::Procedure;
 use crate::value::Value;
 use std::collections::HashMap;
 
-/// Compare two SchemeNumbers for sorting
+/// Compare two `SchemeNumbers` for sorting
 fn compare_numbers(a: &SchemeNumber, b: &SchemeNumber) -> std::cmp::Ordering {
     use std::cmp::Ordering;
 
@@ -31,7 +31,7 @@ fn compare_numbers(a: &SchemeNumber, b: &SchemeNumber) -> std::cmp::Ordering {
     a_val.partial_cmp(&b_val).unwrap_or(Ordering::Equal)
 }
 
-/// Check if two SchemeNumbers are in order (<= relation)
+/// Check if two `SchemeNumbers` are in order (<= relation)
 fn numbers_lte(a: &SchemeNumber, b: &SchemeNumber) -> bool {
     use std::cmp::Ordering;
     matches!(compare_numbers(a, b), Ordering::Less | Ordering::Equal)
@@ -68,9 +68,7 @@ impl super::SrfiModule for Srfi132 {
 
                 // Convert list to vector for sorting
                 let list = &args[1];
-                let mut values = if let Some(vec) = list.to_vector() {
-                    vec
-                } else {
+                let Some(mut values) = list.to_vector() else {
                     return Err(LambdustError::type_error("Expected list".to_string()));
                 };
 
@@ -140,9 +138,7 @@ impl super::SrfiModule for Srfi132 {
                 let _comparator = &args[0];
                 let list = &args[1];
 
-                let values = if let Some(vec) = list.to_vector() {
-                    vec
-                } else {
+                let Some(values) = list.to_vector() else {
                     return Err(LambdustError::type_error("Expected list".to_string()));
                 };
 

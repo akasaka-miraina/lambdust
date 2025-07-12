@@ -16,7 +16,7 @@ use std::collections::HashMap;
 pub struct AnalysisResult {
     /// Whether the expression is a constant that can be folded
     pub is_constant: bool,
-    /// Pre-computed constant value (if is_constant is true)
+    /// Pre-computed constant value (if `is_constant` is true)
     pub constant_value: Option<Value>,
     /// Inferred type information
     pub type_hint: TypeHint,
@@ -70,6 +70,19 @@ pub enum EvaluationComplexity {
     High,
 }
 
+impl EvaluationComplexity {
+    /// Convert complexity enum to numeric score (0-100)
+    pub fn complexity_score(&self) -> u32 {
+        match self {
+            EvaluationComplexity::Constant => 0,
+            EvaluationComplexity::Variable => 10,
+            EvaluationComplexity::Simple => 25,
+            EvaluationComplexity::Moderate => 50,
+            EvaluationComplexity::High => 75,
+        }
+    }
+}
+
 /// Optimization hints for expressions
 #[derive(Debug, Clone, PartialEq)]
 pub enum OptimizationHint {
@@ -108,7 +121,7 @@ impl Default for ExpressionAnalyzer {
 
 impl ExpressionAnalyzer {
     /// Create a new expression analyzer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut analyzer = ExpressionAnalyzer {
             constants: HashMap::new(),
             type_env: HashMap::new(),
@@ -166,14 +179,14 @@ impl ExpressionAnalyzer {
         ];
 
         for func in &pure_funcs {
-            self.pure_functions.insert(func.to_string());
+            self.pure_functions.insert((*func).to_string());
         }
     }
 
     /// Analyze an expression for optimization opportunities
     pub fn analyze(&mut self, expr: &Expr, env: Option<&Environment>) -> Result<AnalysisResult> {
         // Check cache first
-        let cache_key = format!("{:?}", expr);
+        let cache_key = format!("{expr:?}");
         if let Some(cached) = self.cache.get(&cache_key) {
             return Ok(cached.clone());
         }
@@ -833,21 +846,19 @@ impl ExpressionAnalyzer {
 
         Ok(AnalysisResult {
             is_constant: !has_side_effects && last_result.is_constant,
-            constant_value: if !has_side_effects {
-                last_result.constant_value.clone()
-            } else {
+            constant_value: if has_side_effects {
                 None
+            } else {
+                last_result.constant_value.clone()
             },
             type_hint: last_result.type_hint,
             complexity,
             has_side_effects,
             dependencies,
-            optimizations: if !has_side_effects {
-                if let Some(value) = &last_result.constant_value {
-                    vec![OptimizationHint::ConstantFold(value.clone())]
-                } else {
-                    Vec::new()
-                }
+            optimizations: if has_side_effects {
+                Vec::new()
+            } else if let Some(value) = &last_result.constant_value {
+                vec![OptimizationHint::ConstantFold(value.clone())]
             } else {
                 Vec::new()
             },
@@ -922,8 +933,7 @@ impl ExpressionAnalyzer {
             "cdr" => self.fold_cdr(args),
             "length" => self.fold_length(args),
             _ => Err(LambdustError::runtime_error(format!(
-                "Cannot constant fold {}",
-                func_name
+                "Cannot constant fold {func_name}"
             ))),
         }
     }
@@ -1230,7 +1240,7 @@ impl ExpressionAnalyzer {
     }
 
     /// Get optimization statistics
-    pub fn optimization_stats(&self) -> OptimizationStats {
+    #[must_use] pub fn optimization_stats(&self) -> OptimizationStats {
         let mut constant_folds = 0;
         let mut dead_code_eliminations = 0;
         let mut specializations = 0;
@@ -1270,12 +1280,15 @@ pub struct OptimizationStats {
 
 impl OptimizationStats {
     /// Calculate optimization ratio
-    pub fn optimization_ratio(&self) -> f64 {
+    #[must_use] pub fn optimization_ratio(&self) -> f64 {
         if self.total_analyses == 0 {
             0.0
         } else {
-            (self.constant_folds + self.dead_code_eliminations + self.specializations) as f64
-                / self.total_analyses as f64
+            #[allow(clippy::cast_precision_loss)]
+            {
+                (self.constant_folds + self.dead_code_eliminations + self.specializations) as f64
+                    / self.total_analyses as f64
+            }
         }
     }
 }

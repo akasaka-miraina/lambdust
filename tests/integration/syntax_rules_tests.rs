@@ -283,4 +283,188 @@ mod tests {
         let result = transformer.transform(&input);
         assert!(result.is_ok());
     }
+
+    #[test]
+    fn test_vector_pattern_matching() {
+        let literals = vec![];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("vector-test".to_string()),
+                Pattern::Vector(vec![
+                    Pattern::Variable("x".to_string()),
+                    Pattern::Variable("y".to_string()),
+                ]),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("vector-result".to_string()),
+                Template::Vector(vec![
+                    Template::Variable("y".to_string()),
+                    Template::Variable("x".to_string()),
+                ]),
+            ]),
+        }];
+
+        let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
+
+        let input = Expr::List(vec![
+            create_test_expr("vector-test"),
+            Expr::Vector(vec![
+                create_test_expr("first"),
+                create_test_expr("second"),
+            ]),
+        ]);
+
+        let result = transformer.transform(&input);
+        assert!(result.is_ok());
+
+        match result.unwrap() {
+            Expr::List(exprs) => {
+                assert_eq!(exprs.len(), 2);
+                assert_eq!(exprs[0], create_test_expr("vector-result"));
+                
+                // Check that the vector result has swapped elements
+                match &exprs[1] {
+                    Expr::Vector(vec_exprs) => {
+                        assert_eq!(vec_exprs.len(), 2);
+                        assert_eq!(vec_exprs[0], create_test_expr("second"));
+                        assert_eq!(vec_exprs[1], create_test_expr("first"));
+                    }
+                    _ => panic!("Expected vector result"),
+                }
+            }
+            _ => panic!("Expected list result"),
+        }
+    }
+
+    #[test]
+    fn test_vector_pattern_length_mismatch() {
+        let literals = vec![];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("vector-test".to_string()),
+                Pattern::Vector(vec![
+                    Pattern::Variable("x".to_string()),
+                    Pattern::Variable("y".to_string()),
+                ]),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("vector-result".to_string()),
+                Template::Variable("x".to_string()),
+            ]),
+        }];
+
+        let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
+
+        // Vector with wrong length
+        let input = Expr::List(vec![
+            create_test_expr("vector-test"),
+            Expr::Vector(vec![
+                create_test_expr("only-one"),
+            ]),
+        ]);
+
+        let result = transformer.transform(&input);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_dotted_pattern_matching() {
+        let literals = vec![];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("dotted-test".to_string()),
+                Pattern::Dotted(
+                    vec![Pattern::Variable("first".to_string())],
+                    Box::new(Pattern::Variable("rest".to_string()))
+                ),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("dotted-result".to_string()),
+                Template::Variable("first".to_string()),
+                Template::Variable("rest".to_string()),
+            ]),
+        }];
+
+        let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
+
+        let input = Expr::List(vec![
+            create_test_expr("dotted-test"),
+            Expr::List(vec![
+                create_test_expr("first-item"),
+                create_test_expr("second-item"),
+                create_test_expr("third-item"),
+            ]),
+        ]);
+
+        let result = transformer.transform(&input);
+        assert!(result.is_ok());
+
+        match result.unwrap() {
+            Expr::List(exprs) => {
+                assert_eq!(exprs.len(), 3);
+                assert_eq!(exprs[0], create_test_expr("dotted-result"));
+                assert_eq!(exprs[1], create_test_expr("first-item"));
+                
+                // Check that rest is a list of remaining items
+                match &exprs[2] {
+                    Expr::List(rest_exprs) => {
+                        assert_eq!(rest_exprs.len(), 2);
+                        assert_eq!(rest_exprs[0], create_test_expr("second-item"));
+                        assert_eq!(rest_exprs[1], create_test_expr("third-item"));
+                    }
+                    _ => panic!("Expected list for rest pattern"),
+                }
+            }
+            _ => panic!("Expected list result"),
+        }
+    }
+
+    #[test]
+    fn test_dotted_pattern_empty_rest() {
+        let literals = vec![];
+        let rules = vec![SyntaxRule {
+            pattern: Pattern::List(vec![
+                Pattern::Literal("dotted-test".to_string()),
+                Pattern::Dotted(
+                    vec![Pattern::Variable("first".to_string())],
+                    Box::new(Pattern::Variable("rest".to_string()))
+                ),
+            ]),
+            template: Template::List(vec![
+                Template::Literal("dotted-result".to_string()),
+                Template::Variable("first".to_string()),
+                Template::Variable("rest".to_string()),
+            ]),
+        }];
+
+        let transformer = lambdust::macros::SyntaxRulesTransformer::new(literals, rules);
+
+        // Only one item, so rest should be empty
+        let input = Expr::List(vec![
+            create_test_expr("dotted-test"),
+            Expr::List(vec![
+                create_test_expr("only-item"),
+            ]),
+        ]);
+
+        let result = transformer.transform(&input);
+        assert!(result.is_ok());
+
+        match result.unwrap() {
+            Expr::List(exprs) => {
+                assert_eq!(exprs.len(), 3);
+                assert_eq!(exprs[0], create_test_expr("dotted-result"));
+                assert_eq!(exprs[1], create_test_expr("only-item"));
+                
+                // Check that rest is empty list
+                match &exprs[2] {
+                    Expr::List(rest_exprs) => {
+                        assert_eq!(rest_exprs.len(), 0);
+                    }
+                    _ => panic!("Expected empty list for rest pattern"),
+                }
+            }
+            _ => panic!("Expected list result"),
+        }
+    }
 }

@@ -5,9 +5,9 @@
 //! for functional programming patterns.
 //!
 //! Architecture:
-//! - TailCallAnalyzer: Detects tail call contexts and optimization opportunities
-//! - TailCallOptimizer: Implements direct jump optimization for tail calls
-//! - TailCallContext: Tracks tail call state and continuation management
+//! - `TailCallAnalyzer`: Detects tail call contexts and optimization opportunities
+//! - `TailCallOptimizer`: Implements direct jump optimization for tail calls
+//! - `TailCallContext`: Tracks tail call state and continuation management
 //! - Integration with existing trampoline evaluator for stack safety
 
 use crate::ast::Expr;
@@ -36,7 +36,7 @@ pub struct TailCallContext {
 
 impl TailCallContext {
     /// Create a new tail call context
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         TailCallContext {
             is_tail_position: true, // Start in tail position
             current_function: None,
@@ -47,7 +47,7 @@ impl TailCallContext {
     }
 
     /// Create child context for non-tail position
-    pub fn non_tail(&self) -> Self {
+    #[must_use] pub fn non_tail(&self) -> Self {
         TailCallContext {
             is_tail_position: false,
             current_function: self.current_function.clone(),
@@ -58,7 +58,7 @@ impl TailCallContext {
     }
 
     /// Create child context for function entry
-    pub fn enter_function(&self, function_name: Option<String>) -> Self {
+    #[must_use] pub fn enter_function(&self, function_name: Option<String>) -> Self {
         TailCallContext {
             is_tail_position: true,
             current_function: function_name.clone(),
@@ -73,14 +73,14 @@ impl TailCallContext {
     }
 
     /// Check if this is a self-recursive tail call
-    pub fn is_self_recursive_tail_call(&self, function_name: &str) -> bool {
+    #[must_use] pub fn is_self_recursive_tail_call(&self, function_name: &str) -> bool {
         self.is_tail_position
             && self.current_function.as_ref() == Some(&function_name.to_string())
             && self.optimization_enabled
     }
 
     /// Check if optimization should be applied based on recursion depth
-    pub fn should_optimize(&self) -> bool {
+    #[must_use] pub fn should_optimize(&self) -> bool {
         self.optimization_enabled && self.is_tail_position && self.recursion_depth > 0
     }
 }
@@ -128,7 +128,7 @@ pub struct TailCallStats {
 
 impl TailCallAnalyzer {
     /// Create a new tail call analyzer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         TailCallAnalyzer {
             function_signatures: HashMap::new(),
             analysis_stats: TailCallStats::default(),
@@ -407,7 +407,7 @@ impl TailCallAnalyzer {
     }
 
     /// Get tail call optimization statistics
-    pub fn get_stats(&self) -> &TailCallStats {
+    #[must_use] pub fn get_stats(&self) -> &TailCallStats {
         &self.analysis_stats
     }
 
@@ -490,7 +490,7 @@ pub struct TailCallOptimizerStats {
 
 impl TailCallOptimizer {
     /// Create a new tail call optimizer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         TailCallOptimizer {
             analyzer: TailCallAnalyzer::new(),
             optimization_cache: HashMap::new(),
@@ -768,12 +768,12 @@ impl TailCallOptimizer {
     }
 
     /// Get optimization statistics
-    pub fn get_stats(&self) -> &TailCallOptimizerStats {
+    #[must_use] pub fn get_stats(&self) -> &TailCallOptimizerStats {
         &self.optimizer_stats
     }
 
     /// Get analyzer statistics
-    pub fn get_analyzer_stats(&self) -> &TailCallStats {
+    #[must_use] pub fn get_analyzer_stats(&self) -> &TailCallStats {
         self.analyzer.get_stats()
     }
 

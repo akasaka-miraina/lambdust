@@ -71,7 +71,7 @@ impl crate::srfi::SrfiModule for Srfi13 {
                         "string-suffix-ci?",
                     ] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -79,7 +79,7 @@ impl crate::srfi::SrfiModule for Srfi13 {
                     // String search functions
                     for name in &["string-contains", "string-contains-ci"] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -93,7 +93,7 @@ impl crate::srfi::SrfiModule for Srfi13 {
                         "string-concatenate",
                     ] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -101,7 +101,7 @@ impl crate::srfi::SrfiModule for Srfi13 {
                     // Hash functions
                     for name in &["string-hash", "string-hash-ci"] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -109,7 +109,7 @@ impl crate::srfi::SrfiModule for Srfi13 {
                     // Higher-order functions (placeholder for future implementation)
                     for name in &["string-every", "string-any"] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -121,8 +121,7 @@ impl crate::srfi::SrfiModule for Srfi13 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "SRFI 13: unknown part '{}'",
-                        part
+                        "SRFI 13: unknown part '{part}'"
                     )));
                 }
             }

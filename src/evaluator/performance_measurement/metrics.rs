@@ -4,8 +4,10 @@
 //! performance metrics across the evaluation system.
 
 use super::core_types::{MetricCollector, MetricData, MetricType, MetricValue, RealtimeStatistics};
-use super::configuration::MeasurementConfiguration;
-use crate::error::{LambdustError, Result};
+use crate::error::Result;
+// Removed unused imports:
+// use super::configuration::MeasurementConfiguration;
+// use crate::error::LambdustError;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -69,11 +71,20 @@ pub enum StoragePolicy {
     /// メモリ内保持
     InMemory,
     /// ディスク永続化
-    Persistent { path: String },
+    Persistent { 
+        /// ファイルパス
+        path: String 
+    },
     /// 時系列データベース
-    TimeSeries { connection: String },
+    TimeSeries { 
+        /// データベース接続文字列
+        connection: String 
+    },
     /// 外部ストレージ
-    External { endpoint: String },
+    External { 
+        /// エンドポイントURL
+        endpoint: String 
+    },
 }
 
 /// 圧縮設定
@@ -138,9 +149,15 @@ pub struct MetricStatistics {
     pub percentiles: HashMap<u8, f64>,
 }
 
+impl Default for MetricsManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsManager {
     /// 新しいメトリクス管理システムを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             tracked_metrics: vec![
                 MetricType::ExecutionTime,
@@ -156,7 +173,7 @@ impl MetricsManager {
     }
 
     /// 設定付きで作成
-    pub fn with_config(config: MetricsConfiguration) -> Self {
+    #[must_use] pub fn with_config(config: MetricsConfiguration) -> Self {
         Self {
             tracked_metrics: vec![
                 MetricType::ExecutionTime,
@@ -189,9 +206,9 @@ impl MetricsManager {
     pub fn stop_collection(&mut self) -> Result<HashMap<MetricType, f64>> {
         let mut final_metrics = HashMap::new();
         
-        for (metric_type, collector) in &self.collectors {
+        for metric_type in self.collectors.keys() {
             // 最終統計を計算
-            let final_value = self.calculate_final_metric_value(metric_type, collector)?;
+            let final_value = self.calculate_final_metric_value(metric_type)?;
             final_metrics.insert(metric_type.clone(), final_value);
         }
         
@@ -215,19 +232,21 @@ impl MetricsManager {
             metadata: HashMap::new(),
         };
         
-        self.store_metric_data(data)?;
-        self.update_realtime_stats(metric_type)?;
+        // TODO: Store the actual data instead of using generic store_metric_data
+        drop(data); // Temporarily unused until store implementation is completed
+        self.store_metric_data()?;
+        self.update_realtime_stats()?;
         
         Ok(())
     }
 
     /// 収集されたメトリクスを取得
-    pub fn get_collected_metrics(&self) -> &HashMap<MetricType, MetricCollector> {
+    #[must_use] pub fn get_collected_metrics(&self) -> &HashMap<MetricType, MetricCollector> {
         &self.collectors
     }
 
     /// リアルタイム統計を取得
-    pub fn get_realtime_stats(&self) -> &RealtimeStatistics {
+    #[must_use] pub fn get_realtime_stats(&self) -> &RealtimeStatistics {
         &self.realtime_stats
     }
 
@@ -250,7 +269,7 @@ impl MetricsManager {
     }
 
     /// 特定メトリクスの統計を取得
-    pub fn get_metric_statistics(&self, metric_type: &MetricType) -> Option<MetricStatistics> {
+    #[must_use] pub fn get_metric_statistics(&self, metric_type: &MetricType) -> Option<MetricStatistics> {
         self.collectors.get(metric_type).map(|_| {
             // 実際の統計計算ロジックはここに実装
             MetricStatistics {
@@ -266,7 +285,7 @@ impl MetricsManager {
     }
 
     /// メトリクスデータを保存
-    fn store_metric_data(&mut self, data: MetricData) -> Result<()> {
+    fn store_metric_data(&mut self) -> Result<()> {
         // 設定に基づいてデータを保存
         match self.metrics_config.storage_policy() {
             StoragePolicy::InMemory => {
@@ -282,7 +301,7 @@ impl MetricsManager {
     }
 
     /// リアルタイム統計を更新
-    fn update_realtime_stats(&mut self, metric_type: MetricType) -> Result<()> {
+    fn update_realtime_stats(&mut self) -> Result<()> {
         self.realtime_stats.total_measurements += 1;
         self.realtime_stats.last_measurement_time = Some(Instant::now());
         
@@ -301,7 +320,6 @@ impl MetricsManager {
     fn calculate_final_metric_value(
         &self,
         metric_type: &MetricType,
-        _collector: &MetricCollector,
     ) -> Result<f64> {
         // 実際の計算ロジックはここに実装
         match metric_type {
@@ -327,7 +345,7 @@ impl Default for MetricsConfiguration {
 
 impl MetricsConfiguration {
     /// ストレージポリシーを取得
-    pub fn storage_policy(&self) -> StoragePolicy {
+    #[must_use] pub fn storage_policy(&self) -> StoragePolicy {
         StoragePolicy::InMemory // デフォルト実装
     }
 }

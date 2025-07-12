@@ -5,7 +5,7 @@
 
 use crate::ast::Expr;
 use crate::environment::Environment;
-use crate::error::{LambdustError, Result};
+use crate::error::Result;
 use crate::evaluator::Continuation;
 use crate::value::Value;
 use std::rc::Rc;

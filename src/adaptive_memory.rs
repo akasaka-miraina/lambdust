@@ -160,12 +160,12 @@ pub struct MemoryDecisionStats {
 
 impl AdaptiveMemoryManager {
     /// Create a new adaptive memory manager
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::with_config(MemoryConfig::default())
     }
 
     /// Create with custom configuration
-    pub fn with_config(config: MemoryConfig) -> Self {
+    #[must_use] pub fn with_config(config: MemoryConfig) -> Self {
         Self {
             pressure_level: MemoryPressure::Low,
             strategy: AllocationStrategy::Standard,
@@ -213,7 +213,7 @@ impl AdaptiveMemoryManager {
     }
 
     /// Estimate total memory usage from various sources
-    pub fn estimate_total_memory(
+    #[must_use] pub fn estimate_total_memory(
         &self,
         pool_stats: &PoolStats,
         continuation_stats: &ContinuationPoolStats,
@@ -321,7 +321,7 @@ impl AdaptiveMemoryManager {
     }
 
     /// Get optimization recommendations based on current state
-    pub fn get_optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
+    #[must_use] pub fn get_optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
         let mut recommendations = Vec::new();
 
         match self.pressure_level {
@@ -347,7 +347,7 @@ impl AdaptiveMemoryManager {
     }
 
     /// Get allocation parameters for current strategy
-    pub fn allocation_parameters(&self) -> AllocationParameters {
+    #[must_use] pub fn allocation_parameters(&self) -> AllocationParameters {
         match self.strategy {
             AllocationStrategy::Standard => AllocationParameters {
                 pool_size_multiplier: 1.0,
@@ -377,7 +377,7 @@ impl AdaptiveMemoryManager {
     }
 
     /// Get current state information
-    pub fn state_info(&self) -> AdaptiveMemoryState {
+    #[must_use] pub fn state_info(&self) -> AdaptiveMemoryState {
         AdaptiveMemoryState {
             pressure_level: self.pressure_level,
             strategy: self.strategy,
@@ -385,8 +385,7 @@ impl AdaptiveMemoryManager {
             total_memory: self
                 .usage_history
                 .back()
-                .map(|s| s.total_memory)
-                .unwrap_or(0),
+                .map_or(0, |s| s.total_memory),
             decisions: self.decisions.clone(),
         }
     }

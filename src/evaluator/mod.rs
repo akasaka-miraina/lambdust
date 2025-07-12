@@ -11,6 +11,8 @@ pub mod continuation;
 pub mod continuation_pooling;
 pub mod control_flow;
 pub mod evaluation;
+// Execution context for Evaluator-Executor communication bridge
+pub mod execution_context;
 pub mod expression_analyzer;
 pub mod higher_order;
 pub mod imports;
@@ -18,6 +20,8 @@ pub mod imports;
 pub mod inline_evaluation;
 // JIT loop optimization system for iterative constructs
 pub mod jit_loop_optimization;
+// Advanced hot path analysis system for multi-dimensional profiling
+pub mod hotpath_analysis;
 pub mod memory;
 #[cfg(test)]
 pub mod memory_tests;
@@ -29,11 +33,19 @@ pub mod llvm_backend;
 pub mod raii_store;
 // Pure R7RS semantic evaluator for formal semantics reference
 pub mod semantic;
+// R7RS-pico ultra-minimal evaluator for embedded systems
+#[cfg(feature = "pico")]
+pub mod pico_evaluator;
+// R7RS-pico initial environment setup
+#[cfg(feature = "pico")]
+pub mod pico_environment;
 // Semantic evaluator correctness proofs and verification
 pub mod semantic_correctness;
 // Runtime executor for optimized evaluation with performance tuning
 pub mod runtime_executor;
 pub mod special_forms;
+// Typed special forms for type-annotated lambda and define expressions
+pub mod typed_special_forms;
 // Theorem proving support system for formal verification
 pub mod theorem_proving;
 // External prover integration for advanced verification
@@ -52,6 +64,16 @@ pub mod migration_strategy;
 pub mod formal_verification;
 // Church-Rosser property and confluence formal proofs
 pub mod church_rosser_proof;
+// Static semantic optimizer with formal proof guarantees
+pub mod static_semantic_optimizer;
+// Theorem derivation engine for advanced static optimization
+pub mod theorem_derivation_engine;
+// Adaptive theorem learning system for knowledge accumulation
+pub mod adaptive_theorem_learning;
+// Complete formal verification system for mathematical correctness guarantees
+pub mod complete_formal_verification;
+// Advanced JIT compilation system with formal verification
+pub mod advanced_jit_system;
 // Runtime optimization integration system for performance tuning
 pub mod runtime_optimization_integration;
 // Modular runtime optimization system (new architecture)
@@ -82,6 +104,14 @@ pub use continuation_pooling::{
     TypedContinuationPool,
 };
 pub use evaluation::{EvalOrder, ExceptionHandlerInfo};
+// Execution context exports for Evaluator-Executor communication
+pub use execution_context::{
+    ExecutionContext, ExecutionContextBuilder, ExecutionMetadata, ExecutionPriority,
+    HotPathIndicator, MacroExpansionState, MemoryConstraints, MemoryEstimates, OptimizationHints,
+    OptimizationLevel as ContextOptimizationLevel, OptimizationStrategy as ContextOptimizationStrategy,
+    StaticAnalysisResult, StaticCallPattern, SynchronizationLevel, ThreadSafetyRequirements,
+    VariableTypeHint, VariableUsage,
+};
 pub use expression_analyzer::{
     AnalysisResult, EvaluationComplexity, ExpressionAnalyzer, OptimizationHint, OptimizationStats,
     TypeHint,
@@ -110,7 +140,14 @@ pub use jit_loop_optimization::{
 pub use combinators::{BracketAbstraction, CombinatorExpr, CombinatorStats};
 // Pure semantic evaluator exports
 pub use semantic::SemanticEvaluator;
+// R7RS-pico ultra-minimal evaluator exports
+#[cfg(feature = "pico")]
+pub use pico_evaluator::PicoEvaluator;
+// R7RS-pico initial environment exports
+#[cfg(feature = "pico")]
+pub use pico_environment::{create_pico_initial_environment, get_pico_features, is_pico_builtin, PicoFeatures};
 // Semantic correctness exports
+// Temporarily disabled due to compilation issues
 pub use semantic_correctness::{CorrectnessProof, CorrectnessProperty, SemanticCorrectnessProver};
 // Runtime executor exports
 pub use runtime_executor::{RuntimeExecutor, RuntimeOptimizationLevel, RuntimeStats};
@@ -158,6 +195,27 @@ pub use church_rosser_proof::{
     ChurchRosserProof, ChurchRosserProofEngine, ConfluenceProof, ConfluenceVerifier,
     NormalizationProof, NormalizationVerifier, TerminationProof, TerminationVerifier,
 };
+// Static semantic optimizer with formal proof guarantees exports
+pub use static_semantic_optimizer::{
+    StaticSemanticOptimizer, ProvenOptimization, FormalProof as OptimizerFormalProof,
+    ProofMethod, ProofStep, TypeInferenceEngine, InferredType, ConstantPropagationEngine,
+    DeadCodeEliminationEngine, CommonSubexpressionEngine, LoopOptimizationEngine,
+    StaticOptimizerConfiguration, OptimizationStatistics as OptimizerStatistics,
+};
+// Theorem derivation engine for advanced static optimization exports
+pub use theorem_derivation_engine::{
+    TheoremDerivationEngine, DerivedTheoremDatabase, FundamentalTheorem, MathematicalStatement,
+    DerivedOptimizationRule, OptimizationPattern, OptimizationReplacement, DerivationProof,
+    OptimizationTheorem, PerformanceCharacteristics, TheoremCategory, TheoremComplexity,
+    ApplicabilityCondition, CompositionTheorem, PreservationTheorem, PerformanceTheorem,
+    AdvancedProofTactics, TheoremDerivationConfig, DerivationStatistics,
+};
+// Adaptive theorem learning system exports
+pub use adaptive_theorem_learning::{
+    AdaptiveTheoremLearningSystem, TheoremKnowledgeBase, DiscoveredPattern, LearnedOptimizationPattern,
+    PatternStructure, SchemeCorpusAnalyzer, PerformanceAnalyzer, LearningSession, LearningInsights,
+    AdaptiveLearningConfig, CodeSample, PatternDiscoveryEngine, LearnedTheoremGenerator,
+};
 // Runtime optimization integration system exports
 pub use runtime_optimization_integration::{
     CorrectnessGuarantor, IntegratedOptimizationManager, OptimizationCache, OptimizationResult,
@@ -171,6 +229,12 @@ pub use performance_measurement_system::{
 // Also re-export from the new modular system
 pub use performance_measurement::{
     ComprehensiveMeasurementResult as PerformanceMeasurementResult,
+};
+// Advanced hot path analysis system exports
+pub use hotpath_analysis::{
+    AdvancedHotPathDetector, HotPathAnalysis, HotPathCategory, PerformanceOptimizationReport,
+    OptimizationRecommendation, OptimizationType, ExecutionRecord, LoopCharacteristics,
+    CallGraphComplexity, MemoryAccessPattern, BranchHistory, DynamicThresholds,
 };
 #[cfg(test)]
 pub mod theorem_proving_tests;
@@ -222,7 +286,7 @@ impl Evaluator {
                         "eval",
                         line!(),
                         TraceLevel::INFO,
-                        format!("Processing Variable: {}", name),
+                        format!("Processing Variable: {name}"),
                     );
                 }
 
@@ -307,35 +371,32 @@ impl Evaluator {
             "eval_variable",
             line!(),
             TraceLevel::ENTRY,
-            format!("Looking up variable: {}", name),
+            format!("Looking up variable: {name}"),
         );
 
-        match env.get(&name) {
-            Some(value) => {
-                #[cfg(debug_assertions)]
-                DebugTracer::trace_value(
-                    "evaluator::mod",
-                    "eval_variable",
-                    line!(),
-                    TraceLevel::INFO,
-                    format!("Variable '{}' found", name),
-                    &value,
-                );
+        if let Some(value) = env.get(&name) {
+            #[cfg(debug_assertions)]
+            DebugTracer::trace_value(
+                "evaluator::mod",
+                "eval_variable",
+                line!(),
+                TraceLevel::INFO,
+                format!("Variable '{name}' found"),
+                &value,
+            );
 
-                self.apply_continuation(cont, value)
-            }
-            None => {
-                #[cfg(debug_assertions)]
-                DebugTracer::trace(
-                    "evaluator::mod",
-                    "eval_variable",
-                    line!(),
-                    TraceLevel::ERROR,
-                    format!("Variable '{}' not found", name),
-                );
+            self.apply_continuation(cont, value)
+        } else {
+            #[cfg(debug_assertions)]
+            DebugTracer::trace(
+                "evaluator::mod",
+                "eval_variable",
+                line!(),
+                TraceLevel::ERROR,
+                format!("Variable '{name}' not found"),
+            );
 
-                Err(LambdustError::undefined_variable(name))
-            }
+            Err(LambdustError::undefined_variable(name))
         }
     }
 
@@ -1112,6 +1173,52 @@ impl Evaluator {
     ) -> Result<AnalysisResult> {
         self.expression_analyzer_mut().analyze(expr, Some(env))
     }
+    
+    /// Apply static semantic optimization with formal proof guarantees
+    fn apply_static_semantic_optimization(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>
+    ) -> Result<ProvenOptimization> {
+        use crate::evaluator::static_semantic_optimizer::StaticSemanticOptimizer;
+        let mut optimizer = StaticSemanticOptimizer::new();
+        optimizer.optimize_with_proof(expr, env)
+    }
+    
+    /// Evaluate with static semantic optimization pre-processing
+    pub fn eval_with_static_optimization(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        // Apply static semantic optimization first
+        match self.apply_static_semantic_optimization(expr.clone(), env.clone()) {
+            Ok(proven_optimization) => {
+                #[cfg(debug_assertions)]
+                {
+                    use crate::debug::{DebugTracer, TraceLevel};
+                    DebugTracer::trace(
+                        "evaluator::mod",
+                        "eval_with_static_optimization",
+                        line!(),
+                        TraceLevel::INFO,
+                        format!(
+                            "Applied optimization with {:.2}% performance gain",
+                            proven_optimization.performance_gain * 100.0
+                        ),
+                    );
+                }
+                
+                // Use optimized expression for evaluation
+                self.eval(proven_optimization.optimized, env, cont)
+            }
+            Err(_) => {
+                // Fallback to original expression if optimization fails
+                self.eval(expr, env, cont)
+            }
+        }
+    }
 
     /// Try to apply optimizations based on analysis result
     #[allow(dead_code)]
@@ -1189,7 +1296,7 @@ impl Evaluator {
     }
 
     /// Get optimization statistics from expression analyzer
-    pub fn get_optimization_statistics(&self) -> OptimizationStats {
+    #[must_use] pub fn get_optimization_statistics(&self) -> OptimizationStats {
         self.expression_analyzer().optimization_stats()
     }
 
@@ -1199,7 +1306,7 @@ impl Evaluator {
     }
 
     /// Get tail call optimization statistics
-    pub fn get_tail_call_stats(
+    #[must_use] pub fn get_tail_call_stats(
         &self,
     ) -> (
         crate::evaluator::TailCallStats,
@@ -1348,4 +1455,69 @@ impl Evaluator {
 pub fn eval_with_formal_semantics(expr: Expr, env: Rc<Environment>) -> Result<Value> {
     let mut evaluator = Evaluator::new();
     evaluator.eval(expr, env, Continuation::Identity)
+}
+
+impl Evaluator {
+    /// Evaluate expression with theorem-derived optimizations
+    /// 
+    /// This method applies advanced optimization theorems derived from mathematical
+    /// foundations to achieve maximum performance while maintaining correctness.
+    pub fn eval_with_theorem_derivation(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        use theorem_derivation_engine::TheoremDerivationEngine;
+        use formal_verification::FormalVerificationEngine;
+        use theorem_proving::TheoremProvingSupport;
+        use semantic::SemanticEvaluator;
+
+        // Create theorem derivation engine
+        let semantic_evaluator = SemanticEvaluator::new();
+        let theorem_prover = TheoremProvingSupport::new(semantic_evaluator.clone());
+        let verification_engine = FormalVerificationEngine::new();
+        let semantic_evaluator_for_engine = SemanticEvaluator::new();
+        
+        let mut derivation_engine = TheoremDerivationEngine::new(
+            theorem_prover,
+            verification_engine,
+            semantic_evaluator_for_engine,
+        );
+
+        // Derive new optimization theorems
+        match derivation_engine.derive_optimization_theorems() {
+            Ok(theorems) => {
+                for theorem in &theorems {
+                    println!("🔬 Derived theorem: {} ({}% improvement)", 
+                             theorem.id, 
+                             theorem.optimization_rule.performance_gain.quantitative_gain * 100.0);
+                }
+            }
+            Err(e) => {
+                eprintln!("⚠️ Theorem derivation failed: {}", e);
+            }
+        }
+
+        // Apply derived optimizations to the expression
+        match derivation_engine.apply_derived_optimizations(expr.clone(), env.clone()) {
+            Ok((optimized_expr, applied_theorems)) => {
+                if !applied_theorems.is_empty() {
+                    println!("🚀 Applied {} theorem-derived optimizations: {:?}", 
+                             applied_theorems.len(), applied_theorems);
+                    
+                    // Use the optimized expression for evaluation
+                    self.eval(optimized_expr, env, cont)
+                } else {
+                    // No optimizations applicable, use original expression
+                    self.eval(expr, env, cont)
+                }
+            }
+            Err(e) => {
+                eprintln!("⚠️ Theorem-based optimization failed: {}", e);
+                // Fallback to original expression
+                self.eval(expr, env, cont)
+            }
+        }
+    }
 }

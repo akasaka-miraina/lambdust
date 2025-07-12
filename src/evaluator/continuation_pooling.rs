@@ -19,7 +19,7 @@ pub enum ContinuationType {
     Simple,
     /// Application continuations for function calls
     Application,
-    /// DoLoop continuations for iteration
+    /// `DoLoop` continuations for iteration
     DoLoop,
     /// Control flow continuations (if, cond, etc.)
     ControlFlow,
@@ -31,7 +31,7 @@ pub enum ContinuationType {
 
 impl ContinuationType {
     /// Determine continuation type from actual continuation
-    pub fn from_continuation(cont: &Continuation) -> Self {
+    #[must_use] pub fn from_continuation(cont: &Continuation) -> Self {
         match cont {
             Continuation::Identity => ContinuationType::Simple,
             Continuation::Values { .. } => ContinuationType::Simple,
@@ -58,7 +58,7 @@ impl ContinuationType {
     }
 
     /// Get optimal pool size for this continuation type
-    pub fn optimal_pool_size(&self) -> usize {
+    #[must_use] pub fn optimal_pool_size(&self) -> usize {
         match self {
             ContinuationType::Simple => 50,      // High frequency, small size
             ContinuationType::Application => 30, // Medium frequency, medium size
@@ -70,7 +70,7 @@ impl ContinuationType {
     }
 
     /// Get memory priority for this continuation type
-    pub fn memory_priority(&self) -> u8 {
+    #[must_use] pub fn memory_priority(&self) -> u8 {
         match self {
             ContinuationType::DoLoop => 10, // Highest priority (most benefit from pooling)
             ContinuationType::Application => 8, // High priority
@@ -101,7 +101,7 @@ pub struct PoolStatistics {
 
 impl PoolStatistics {
     /// Create new empty statistics
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         PoolStatistics {
             total_allocations: 0,
             total_reuses: 0,
@@ -138,7 +138,7 @@ impl PoolStatistics {
     }
 
     /// Get reuse efficiency percentage
-    pub fn reuse_efficiency(&self) -> f64 {
+    #[must_use] pub fn reuse_efficiency(&self) -> f64 {
         self.utilization_rate * 100.0
     }
 }
@@ -164,7 +164,7 @@ pub struct TypedContinuationPool {
 
 impl TypedContinuationPool {
     /// Create new typed continuation pool
-    pub fn new(continuation_type: ContinuationType) -> Self {
+    #[must_use] pub fn new(continuation_type: ContinuationType) -> Self {
         let max_size = continuation_type.optimal_pool_size();
         TypedContinuationPool {
             pool: Vec::with_capacity(max_size),
@@ -208,7 +208,7 @@ impl TypedContinuationPool {
     }
 
     /// Get pool statistics
-    pub fn statistics(&self) -> &PoolStatistics {
+    #[must_use] pub fn statistics(&self) -> &PoolStatistics {
         &self.statistics
     }
 
@@ -219,17 +219,17 @@ impl TypedContinuationPool {
     }
 
     /// Get current pool size
-    pub fn size(&self) -> usize {
+    #[must_use] pub fn size(&self) -> usize {
         self.pool.len()
     }
 
     /// Check if pool is empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.pool.is_empty()
     }
 
     /// Get pool capacity utilization
-    pub fn capacity_utilization(&self) -> f64 {
+    #[must_use] pub fn capacity_utilization(&self) -> f64 {
         if self.max_size > 0 {
             self.pool.len() as f64 / self.max_size as f64
         } else {
@@ -238,7 +238,7 @@ impl TypedContinuationPool {
     }
 
     /// Get maximum pool size
-    pub fn max_size(&self) -> usize {
+    #[must_use] pub fn max_size(&self) -> usize {
         self.max_size
     }
 }
@@ -261,7 +261,7 @@ pub struct ContinuationPoolManager {
 
 impl ContinuationPoolManager {
     /// Create new global continuation pool manager
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut pools = HashMap::new();
 
         // Initialize all continuation type pools
@@ -313,7 +313,7 @@ impl ContinuationPoolManager {
     }
 
     /// Get global statistics
-    pub fn global_statistics(&self) -> (usize, usize, usize, f64) {
+    #[must_use] pub fn global_statistics(&self) -> (usize, usize, usize, f64) {
         let global_efficiency = if self.global_allocations > 0 {
             self.global_reuses as f64 / self.global_allocations as f64 * 100.0
         } else {
@@ -329,12 +329,12 @@ impl ContinuationPoolManager {
     }
 
     /// Get statistics for specific continuation type
-    pub fn type_statistics(&self, cont_type: ContinuationType) -> Option<&PoolStatistics> {
-        self.pools.get(&cont_type).map(|pool| pool.statistics())
+    #[must_use] pub fn type_statistics(&self, cont_type: ContinuationType) -> Option<&PoolStatistics> {
+        self.pools.get(&cont_type).map(TypedContinuationPool::statistics)
     }
 
     /// Get all pool statistics
-    pub fn all_statistics(&self) -> HashMap<ContinuationType, &PoolStatistics> {
+    #[must_use] pub fn all_statistics(&self) -> HashMap<ContinuationType, &PoolStatistics> {
         self.pools
             .iter()
             .map(|(cont_type, pool)| (*cont_type, pool.statistics()))
@@ -359,9 +359,9 @@ impl ContinuationPoolManager {
     }
 
     /// Check if memory fragmentation prevention is needed
-    pub fn needs_defragmentation(&self) -> bool {
+    #[must_use] pub fn needs_defragmentation(&self) -> bool {
         let total_capacity: usize = self.pools.values().map(|p| p.max_size).sum();
-        let total_used: usize = self.pools.values().map(|p| p.size()).sum();
+        let total_used: usize = self.pools.values().map(TypedContinuationPool::size).sum();
 
         if total_capacity > 0 {
             let utilization = total_used as f64 / total_capacity as f64;
@@ -398,13 +398,13 @@ impl ContinuationPoolManager {
     }
 
     /// Get memory usage summary
-    pub fn memory_usage_summary(&self) -> (usize, usize, f64) {
+    #[must_use] pub fn memory_usage_summary(&self) -> (usize, usize, f64) {
         let total_pools = self.pools.len();
         let active_pools = self.pools.values().filter(|p| !p.is_empty()).count();
         let avg_utilization = self
             .pools
             .values()
-            .map(|p| p.capacity_utilization())
+            .map(TypedContinuationPool::capacity_utilization)
             .sum::<f64>()
             / total_pools as f64;
 
@@ -432,14 +432,14 @@ pub struct SharedContinuationPoolManager {
 
 impl SharedContinuationPoolManager {
     /// Create new shared continuation pool manager
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         SharedContinuationPoolManager {
             inner: Arc::new(Mutex::new(ContinuationPoolManager::new())),
         }
     }
 
     /// Allocate continuation with thread safety
-    pub fn allocate(&self, cont_type: ContinuationType) -> Option<Continuation> {
+    #[must_use] pub fn allocate(&self, cont_type: ContinuationType) -> Option<Continuation> {
         if let Ok(mut manager) = self.inner.lock() {
             manager.allocate(cont_type)
         } else {
@@ -448,7 +448,7 @@ impl SharedContinuationPoolManager {
     }
 
     /// Deallocate continuation with thread safety
-    pub fn deallocate(&self, cont: Continuation) -> bool {
+    #[must_use] pub fn deallocate(&self, cont: Continuation) -> bool {
         if let Ok(mut manager) = self.inner.lock() {
             manager.deallocate(cont)
         } else {
@@ -457,7 +457,7 @@ impl SharedContinuationPoolManager {
     }
 
     /// Get global statistics with thread safety
-    pub fn global_statistics(&self) -> Option<(usize, usize, usize, f64)> {
+    #[must_use] pub fn global_statistics(&self) -> Option<(usize, usize, usize, f64)> {
         if let Ok(manager) = self.inner.lock() {
             Some(manager.global_statistics())
         } else {
@@ -473,7 +473,7 @@ impl SharedContinuationPoolManager {
     }
 
     /// Check if defragmentation is needed
-    pub fn needs_defragmentation(&self) -> bool {
+    #[must_use] pub fn needs_defragmentation(&self) -> bool {
         if let Ok(manager) = self.inner.lock() {
             manager.needs_defragmentation()
         } else {

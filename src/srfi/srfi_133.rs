@@ -234,9 +234,7 @@ impl super::SrfiModule for Srfi133 {
                     let list_of_vectors = &args[0];
 
                     // Convert list to vector of vectors
-                    let vectors_list = if let Some(vec) = list_of_vectors.to_vector() {
-                        vec
-                    } else {
+                    let Some(vectors_list) = list_of_vectors.to_vector() else {
                         return Err(LambdustError::type_error(
                             "Expected list of vectors".to_string(),
                         ));

@@ -1,24 +1,29 @@
 //! Runtime最適化統合システム（モジュール化版）
 //!
 //! この巨大ファイルは保守性向上のため、複数のモジュールに分割されました。
-//! 新しいモジュール構造については runtime_optimization/ ディレクトリを参照してください。
+//! 新しいモジュール構造については `runtime_optimization`/ ディレクトリを参照してください。
 
 // Re-export the modular runtime optimization system
 pub use super::runtime_optimization::*;
 
 // Backwards compatibility - deprecated but maintained for transition
+/// Legacy type alias for `IntegratedOptimizationManager` (deprecated)
 #[deprecated(note = "Use the modular structure in runtime_optimization module instead")]
 pub type LegacyIntegratedOptimizationManager = IntegratedOptimizationManager;
 
+/// Legacy type alias for `OptimizationStrategySelector` (deprecated)
 #[deprecated(note = "Use OptimizationStrategySelector from runtime_optimization::optimization_manager instead")]
 pub type LegacyOptimizationStrategySelector = OptimizationStrategySelector;
 
+/// Legacy type alias for `OptimizationPerformanceMonitor` (deprecated)
 #[deprecated(note = "Use OptimizationPerformanceMonitor from runtime_optimization::performance_monitoring instead")]
 pub type LegacyOptimizationPerformanceMonitor = OptimizationPerformanceMonitor;
 
+/// Legacy type alias for `OptimizationCache` (deprecated)
 #[deprecated(note = "Use OptimizationCache from runtime_optimization::caching_and_dependencies instead")]
 pub type LegacyOptimizationCache = OptimizationCache;
 
+/// Legacy type alias for `CorrectnessGuarantor` (deprecated)
 #[deprecated(note = "Use CorrectnessGuarantor from runtime_optimization module instead")]
 pub type LegacyCorrectnessGuarantor = CorrectnessGuarantor;
 
@@ -60,14 +65,14 @@ pub type LegacyCorrectnessGuarantor = CorrectnessGuarantor;
 /// 
 /// ### `core_types`
 /// - Optimization strategy definitions and types
-/// - Core data structures (ApplicabilityCondition, OptimizationImpact, etc.)
+/// - Core data structures (`ApplicabilityCondition`, `OptimizationImpact`, etc.)
 /// - Strategy type enumerations and parameter definitions
 /// - Dynamic adjustment systems
 /// 
 /// ### `optimization_manager`
-/// - IntegratedOptimizationManager (main orchestrator)
-/// - OptimizationStrategySelector (strategy selection logic)
-/// - OptimizationResult and performance improvement tracking
+/// - `IntegratedOptimizationManager` (main orchestrator)
+/// - `OptimizationStrategySelector` (strategy selection logic)
+/// - `OptimizationResult` and performance improvement tracking
 /// - Strategy execution and coordination
 /// 
 /// ### `performance_monitoring`

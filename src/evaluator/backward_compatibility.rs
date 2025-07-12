@@ -1,7 +1,7 @@
-//! Backward compatibility system for gradual migration to EvaluatorInterface
+//! Backward compatibility system for gradual migration to `EvaluatorInterface`
 //!
 //! This module provides compatibility layers that allow existing evaluator code
-//! to work seamlessly with the new EvaluatorInterface architecture while
+//! to work seamlessly with the new `EvaluatorInterface` architecture while
 //! enabling gradual migration without breaking existing functionality.
 
 use crate::ast::Expr;
@@ -75,13 +75,13 @@ pub struct CompatibilityMode {
 /// Error handling strategy for compatibility issues
 #[derive(Debug, Clone)]
 pub enum ErrorHandlingStrategy {
-    /// Strict: fail on any compatibility issue
+    /// Strict: fail immediately on any compatibility issue without attempting recovery
     Strict,
-    /// Graceful: log warnings and continue
+    /// Graceful: log warnings and continue operation with degraded functionality
     Graceful,
-    /// Fallback: attempt fallback to legacy behavior
+    /// Fallback: attempt automatic fallback to legacy behavior when issues occur
     Fallback,
-    /// Silent: ignore compatibility issues
+    /// Silent: ignore compatibility issues and continue without notification
     Silent,
 }
 
@@ -110,36 +110,43 @@ pub struct MigrationRecommendation {
 /// Type of migration
 #[derive(Debug, Clone)]
 pub enum MigrationType {
-    /// Replace legacy API calls with new interface
+    /// Replace legacy API calls with new `EvaluatorInterface` methods
     ApiReplacement,
 
-    /// Update configuration to use new features
+    /// Update configuration to use new `EvaluationConfig` features
     ConfigurationUpdate,
 
-    /// Enable advanced verification
+    /// Enable advanced verification and correctness checking
     VerificationUpgrade,
 
-    /// Optimize evaluation modes
+    /// Optimize evaluation modes for better performance
     ModeOptimization,
 
-    /// Complete migration to new system
+    /// Complete migration from legacy system to new architecture
     FullMigration,
 }
 
-/// Risk level assessment
+/// Risk level assessment for migration operations
 #[derive(Debug, Clone)]
 pub enum RiskLevel {
+    /// Low risk - minimal impact on system stability and performance
     Low,
+    /// Medium risk - moderate impact requiring careful monitoring
     Medium,
+    /// High risk - significant impact requiring extensive validation
     High,
 }
 
-/// Priority level
+/// Priority level for migration tasks and recommendations
 #[derive(Debug, Clone)]
 pub enum Priority {
+    /// Low priority - can be addressed in future releases
     Low,
+    /// Medium priority - should be addressed in next major update
     Medium,
+    /// High priority - should be addressed soon for optimal performance
     High,
+    /// Critical priority - requires immediate attention
     Critical,
 }
 
@@ -161,7 +168,7 @@ pub struct CompatibilityResult<T> {
 
 impl LegacyEvaluatorAdapter {
     /// Create new legacy evaluator adapter
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             evaluator_interface: Arc::new(Mutex::new(EvaluatorInterface::new())),
             legacy_config_mapping: Self::init_legacy_config_mapping(),
@@ -171,7 +178,7 @@ impl LegacyEvaluatorAdapter {
     }
 
     /// Create with custom compatibility mode
-    pub fn with_compatibility_mode(mode: CompatibilityMode) -> Self {
+    #[must_use] pub fn with_compatibility_mode(mode: CompatibilityMode) -> Self {
         Self {
             evaluator_interface: Arc::new(Mutex::new(EvaluatorInterface::new())),
             legacy_config_mapping: Self::init_legacy_config_mapping(),
@@ -277,7 +284,7 @@ impl LegacyEvaluatorAdapter {
             Err(e) => match self.compatibility_mode.error_handling {
                 ErrorHandlingStrategy::Strict => result,
                 ErrorHandlingStrategy::Graceful => {
-                    warnings.push(format!("Evaluation error (graceful): {}", e));
+                    warnings.push(format!("Evaluation error (graceful): {e}"));
                     result
                 }
                 ErrorHandlingStrategy::Fallback => {
@@ -294,7 +301,7 @@ impl LegacyEvaluatorAdapter {
                             fallback_used: true,
                         }),
                         Err(fallback_err) => {
-                            warnings.push(format!("Fallback also failed: {}", fallback_err));
+                            warnings.push(format!("Fallback also failed: {fallback_err}"));
                             result
                         }
                     }
@@ -373,8 +380,7 @@ impl LegacyEvaluatorAdapter {
                 match env.get(name) {
                     Some(value) => Ok(value),
                     None => Err(LambdustError::runtime_error(format!(
-                        "Unbound variable: {}",
-                        name
+                        "Unbound variable: {name}"
                     ))),
                 }
             }
@@ -478,12 +484,12 @@ impl LegacyEvaluatorAdapter {
     }
 
     /// Get migration statistics
-    pub fn get_migration_statistics(&self) -> &MigrationStatistics {
+    #[must_use] pub fn get_migration_statistics(&self) -> &MigrationStatistics {
         &self.migration_stats
     }
 
     /// Get migration recommendations summary
-    pub fn get_migration_recommendations(&self) -> Vec<MigrationRecommendation> {
+    #[must_use] pub fn get_migration_recommendations(&self) -> Vec<MigrationRecommendation> {
         let mut recommendations = Vec::new();
 
         // Overall migration recommendation based on usage
@@ -515,7 +521,7 @@ impl LegacyEvaluatorAdapter {
     }
 
     /// Get compatibility mode
-    pub fn get_compatibility_mode(&self) -> &CompatibilityMode {
+    #[must_use] pub fn get_compatibility_mode(&self) -> &CompatibilityMode {
         &self.compatibility_mode
     }
 
@@ -530,7 +536,7 @@ impl LegacyEvaluatorAdapter {
     }
 
     /// Get available legacy configurations
-    pub fn get_legacy_configs(&self) -> Vec<String> {
+    #[must_use] pub fn get_legacy_configs(&self) -> Vec<String> {
         self.legacy_config_mapping.keys().cloned().collect()
     }
 }
@@ -555,7 +561,7 @@ impl Default for LegacyEvaluatorAdapter {
 
 /// Migration helper functions
 pub mod migration_helpers {
-    use super::*;
+    use super::{Continuation, Environment, EvaluationConfig, EvaluationResult, Expr, LegacyEvaluatorAdapter, Rc, Result};
 
     /// Convert legacy evaluation call to new API
     pub fn migrate_eval_call(
@@ -591,7 +597,7 @@ pub mod migration_helpers {
     }
 
     /// Generate migration report
-    pub fn generate_migration_report(adapter: &LegacyEvaluatorAdapter) -> String {
+    #[must_use] pub fn generate_migration_report(adapter: &LegacyEvaluatorAdapter) -> String {
         let stats = adapter.get_migration_statistics();
         let recommendations = adapter.get_migration_recommendations();
 

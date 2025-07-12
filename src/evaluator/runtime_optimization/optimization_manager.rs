@@ -4,12 +4,12 @@
 //! and execution coordination for the runtime optimization system.
 
 use super::core_types::{
-    OptimizationStrategy, OptimizationStrategyType, ExpressionType, DynamicStrategyAdjustment,
-    ApplicabilityCondition, OptimizationParameter
+    OptimizationStrategy, ExpressionType, DynamicStrategyAdjustment,
+    OptimizationParameter
 };
 use crate::ast::Expr;
 use crate::environment::Environment;
-use crate::error::{LambdustError, Result};
+use crate::error::Result;
 use crate::evaluator::{FormalVerificationEngine, RuntimeOptimizationLevel};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -41,6 +41,7 @@ pub struct IntegratedOptimizationManager {
 
 /// 最適化戦略選択器
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct OptimizationStrategySelector {
     /// 戦略データベース
     strategies: HashMap<String, OptimizationStrategy>,
@@ -60,6 +61,7 @@ pub struct OptimizationStrategySelector {
 
 /// 最適化実行器
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct OptimizationExecutor {
     /// 実行コンテキスト
     execution_context: OptimizationExecutionContext,
@@ -130,6 +132,7 @@ pub struct PerformanceImprovement {
 
 /// 最適化統計
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct OptimizationStatistics {
     /// 最適化ステップ数
     pub optimization_steps: usize,
@@ -146,6 +149,7 @@ pub struct OptimizationStatistics {
 
 /// メモリ統計
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct MemoryStatistics {
     /// 最大メモリ使用量
     pub peak_memory_usage: usize,
@@ -339,7 +343,7 @@ pub enum TrendDirection {
 
 impl IntegratedOptimizationManager {
     /// 新しい統合最適化管理システムを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             strategy_selector: OptimizationStrategySelector::new(),
             performance_monitor: OptimizationPerformanceMonitor::new(),
@@ -401,7 +405,7 @@ impl IntegratedOptimizationManager {
     }
 
     /// 統計を取得
-    pub fn get_statistics(&self) -> &IntegratedOptimizationStats {
+    #[must_use] pub fn get_statistics(&self) -> &IntegratedOptimizationStats {
         &self.optimization_stats
     }
 
@@ -420,15 +424,21 @@ impl IntegratedOptimizationManager {
         for strategy in &result.applied_strategies {
             let stats = self.optimization_stats.strategy_stats
                 .entry(strategy.clone())
-                .or_insert_with(StrategyStatistics::default);
+                .or_default();
             stats.usage_count += 1;
         }
     }
 }
 
+impl Default for OptimizationStrategySelector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationStrategySelector {
     /// 新しい戦略選択器を作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             strategies: HashMap::new(),
             type_based_mapping: HashMap::new(),
@@ -549,44 +559,45 @@ impl Default for PerformanceImprovement {
     }
 }
 
-impl Default for OptimizationStatistics {
-    fn default() -> Self {
-        Self {
-            optimization_steps: 0,
-            strategy_execution_times: HashMap::new(),
-            memory_statistics: MemoryStatistics::default(),
-            diagnostics: Vec::new(),
-        }
-    }
-}
 
-impl Default for MemoryStatistics {
-    fn default() -> Self {
-        Self {
-            peak_memory_usage: 0,
-            average_memory_usage: 0,
-            allocation_count: 0,
-            gc_count: 0,
-        }
-    }
-}
 
 // Placeholder implementations for the other required types
+/// Performance monitoring system for optimization tracking
 pub struct OptimizationPerformanceMonitor;
+/// Orchestrator for managing optimization execution order
 pub struct OptimizationOrchestrator;
+/// Cache for storing optimization results
 pub struct OptimizationCache;
+/// System for ensuring correctness of optimizations
 pub struct CorrectnessGuarantor;
 
+impl Default for OptimizationPerformanceMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationPerformanceMonitor {
-    pub fn new() -> Self { Self }
+    /// Creates a new performance monitor
+    #[must_use] pub fn new() -> Self { Self }
+    /// Records execution of an optimization
     pub fn record_execution(&mut self, _result: &OptimizationResult, _time: Duration) {}
 }
 
+impl Default for OptimizationOrchestrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationOrchestrator {
-    pub fn new() -> Self { Self }
+    /// Creates a new optimization orchestrator
+    #[must_use] pub fn new() -> Self { Self }
+    /// Creates an execution plan for the given strategies
     pub fn create_execution_plan(&self, _strategies: &[String]) -> Result<String> {
         Ok("ExecutionPlan".to_string())
     }
+    /// Executes the optimization plan
     pub fn execute_plan(&self, _plan: String, expr: Expr, _env: Rc<Environment>) -> Result<OptimizationResult> {
         Ok(OptimizationResult {
             optimized_expr: expr,
@@ -595,17 +606,36 @@ impl OptimizationOrchestrator {
     }
 }
 
+impl Default for OptimizationCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationCache {
-    pub fn new() -> Self { Self }
-    pub fn get(&self, _key: &str) -> Option<CachedOptimizationResult> { None }
+    /// Creates a new optimization cache
+    #[must_use] pub fn new() -> Self { Self }
+    /// Retrieves a cached optimization result
+    #[must_use] pub fn get(&self, _key: &str) -> Option<CachedOptimizationResult> { None }
+    /// Stores an optimization result in the cache
     pub fn store(&mut self, _key: &str, _result: &OptimizationResult) {}
 }
 
+/// Cached optimization result wrapper
 pub struct CachedOptimizationResult {
+    /// The cached optimization result
     pub optimization_result: OptimizationResult,
 }
 
+impl Default for CorrectnessGuarantor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CorrectnessGuarantor {
-    pub fn new() -> Self { Self }
+    /// Creates a new correctness guarantor
+    #[must_use] pub fn new() -> Self { Self }
+    /// Verifies the correctness of an optimization
     pub fn verify_optimization(&self, _result: &OptimizationResult) -> Result<()> { Ok(()) }
 }

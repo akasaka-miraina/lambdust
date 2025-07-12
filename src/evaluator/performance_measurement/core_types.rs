@@ -4,7 +4,7 @@
 //! the performance measurement system.
 
 use crate::ast::Expr;
-use crate::error::{LambdustError, Result};
+// Removed unused import: use crate::error::{LambdustError, Result};
 use crate::evaluator::{EvaluationMode, RuntimeOptimizationLevel};
 use crate::value::Value;
 use std::collections::HashMap;
@@ -118,11 +118,22 @@ pub enum SamplingStrategy {
     /// 固定間隔サンプリング
     FixedInterval(Duration),
     /// 適応サンプリング
-    Adaptive { min_interval: Duration, max_interval: Duration },
+    Adaptive { 
+        /// 最小サンプリング間隔
+        min_interval: Duration, 
+        /// 最大サンプリング間隔
+        max_interval: Duration 
+    },
     /// 統計的サンプリング
-    Statistical { confidence_level: f64 },
+    Statistical { 
+        /// 信頼度レベル (0.0-1.0)
+        confidence_level: f64 
+    },
     /// 負荷ベースサンプリング
-    LoadBased { threshold: f64 },
+    LoadBased { 
+        /// 負荷閾値
+        threshold: f64 
+    },
 }
 
 /// 測定精度設定
@@ -212,6 +223,7 @@ pub struct MemoryInfo {
 
 /// リアルタイム統計
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct RealtimeStatistics {
     /// アクティブメトリクス数
     pub active_metrics_count: usize,
@@ -317,14 +329,3 @@ impl Default for MemoryInfo {
     }
 }
 
-impl Default for RealtimeStatistics {
-    fn default() -> Self {
-        Self {
-            active_metrics_count: 0,
-            total_measurements: 0,
-            last_measurement_time: None,
-            average_measurement_interval: None,
-            measurement_overhead: None,
-        }
-    }
-}

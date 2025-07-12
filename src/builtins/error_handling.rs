@@ -26,7 +26,7 @@ fn error_function() -> Value {
             let message = match &args[0] {
                 Value::String(s) => s.clone(),
                 Value::Symbol(s) => s.clone(),
-                other => format!("{}", other),
+                other => format!("{other}"),
             };
 
             // Additional arguments are irritants (values that provide context)
@@ -37,7 +37,7 @@ fn error_function() -> Value {
                     if i > 0 {
                         full_message.push_str(", ");
                     }
-                    full_message.push_str(&format!("{}", irritant));
+                    full_message.push_str(&format!("{irritant}"));
                 }
             }
 

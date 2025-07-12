@@ -1,6 +1,6 @@
 //! Syntax-rules transformer implementation for Scheme macros
 //!
-//! This module provides the SyntaxRulesTransformer which implements the core
+//! This module provides the `SyntaxRulesTransformer` which implements the core
 //! syntax-rules macro system defined in R7RS. It handles pattern matching
 //! against input expressions and template expansion with variable substitution.
 //!
@@ -30,7 +30,7 @@ pub struct SyntaxRulesTransformer {
 
 impl SyntaxRulesTransformer {
     /// Create a new syntax-rules transformer
-    pub fn new(literals: Vec<String>, rules: Vec<SyntaxRule>) -> Self {
+    #[must_use] pub fn new(literals: Vec<String>, rules: Vec<SyntaxRule>) -> Self {
         Self { literals, rules }
     }
 
@@ -103,7 +103,12 @@ impl SyntaxRulesTransformer {
                 self.match_list_patterns(patterns, exprs, bindings)
             }
 
-            // Vector patterns (SRFI 46) - treating as lists for now
+            // Vector patterns (SRFI 46) - match against vectors
+            (Pattern::Vector(patterns), Expr::Vector(exprs)) => {
+                self.match_vector_patterns(patterns, exprs, bindings)
+            }
+            
+            // Vector patterns can also match against lists for compatibility
             (Pattern::Vector(patterns), Expr::List(exprs)) => {
                 self.match_vector_patterns(patterns, exprs, bindings)
             }
@@ -130,10 +135,9 @@ impl SyntaxRulesTransformer {
             }
 
             // Advanced patterns are not supported in syntax-rules
-            (Pattern::Conditional { .. }, _) | (Pattern::TypeGuard { .. }, _) 
-            | (Pattern::And(_), _) | (Pattern::Or(_), _) | (Pattern::Not(_), _)
-            | (Pattern::Range { .. }, _) | (Pattern::Regex(_), _)
-            | (Pattern::HygienicVariable(_), _) | (Pattern::SyntaxObject(_), _) | (Pattern::Any, _) => {
+            (Pattern::Conditional { .. } | Pattern::TypeGuard { .. } | Pattern::And(_) |
+Pattern::Or(_) | Pattern::Not(_) | Pattern::Range { .. } | Pattern::Regex(_) |
+Pattern::HygienicVariable(_) | Pattern::SyntaxObject(_) | Pattern::Any, _) => {
                 Err(LambdustError::macro_error_old(
                     "Advanced patterns not supported in syntax-rules".to_string(),
                 ))
@@ -181,14 +185,9 @@ impl SyntaxRulesTransformer {
                     pattern_idx += 1;
                 }
 
-                Pattern::NestedEllipsis(ellipsis_pattern, level) => {
+                Pattern::NestedEllipsis(_ellipsis_pattern, _level) => {
                     // Handle nested ellipsis (SRFI 46)
-                    self.match_nested_ellipsis(
-                        ellipsis_pattern,
-                        *level,
-                        &exprs[expr_idx..],
-                        bindings,
-                    )?;
+                    self.match_nested_ellipsis()?;
                     // For now, consume all remaining expressions
                     expr_idx = exprs.len();
                     pattern_idx += 1;
@@ -222,7 +221,20 @@ impl SyntaxRulesTransformer {
         exprs: &[Expr],
         bindings: &mut VariableBindings,
     ) -> Result<()> {
-        // For vectors, we can reuse list pattern matching logic
+        // Vector patterns match exactly like list patterns but with vector semantics
+        // They require exact length match unless ellipsis is used
+        if !patterns.iter().any(|p| matches!(p, Pattern::Ellipsis(_) | Pattern::NestedEllipsis(_, _))) {
+            // No ellipsis - exact length match required
+            if patterns.len() != exprs.len() {
+                return Err(LambdustError::macro_error_old(format!(
+                    "Vector pattern length mismatch: expected {}, got {}",
+                    patterns.len(),
+                    exprs.len()
+                )));
+            }
+        }
+        
+        // Delegate to list pattern matching for the actual matching logic
         self.match_list_patterns(patterns, exprs, bindings)
     }
 
@@ -235,20 +247,29 @@ impl SyntaxRulesTransformer {
         bindings: &mut VariableBindings,
     ) -> Result<()> {
         if exprs.len() < patterns.len() {
-            return Err(LambdustError::macro_error_old(
-                "Not enough expressions for dotted pattern".to_string(),
-            ));
+            return Err(LambdustError::macro_error_old(format!(
+                "Not enough expressions for dotted pattern: expected at least {}, got {}",
+                patterns.len(),
+                exprs.len()
+            )));
         }
 
-        // Match fixed patterns
+        // Match fixed patterns at the beginning
         for (i, pattern) in patterns.iter().enumerate() {
             self.pattern_match_impl(pattern, &exprs[i], bindings)?;
         }
 
         // Match rest pattern with remaining expressions
         let rest_exprs = &exprs[patterns.len()..];
-        let rest_list = Expr::List(rest_exprs.to_vec());
-        self.pattern_match_impl(rest_pattern, &rest_list, bindings)?;
+        if rest_exprs.is_empty() {
+            // Handle empty rest - match against empty list
+            let empty_list = Expr::List(vec![]);
+            self.pattern_match_impl(rest_pattern, &empty_list, bindings)?;
+        } else {
+            // Match against list of remaining expressions
+            let rest_list = Expr::List(rest_exprs.to_vec());
+            self.pattern_match_impl(rest_pattern, &rest_list, bindings)?;
+        }
 
         Ok(())
     }
@@ -287,13 +308,7 @@ impl SyntaxRulesTransformer {
     }
 
     /// Handle nested ellipsis patterns (SRFI 46)
-    fn match_nested_ellipsis(
-        &self,
-        _pattern: &Pattern,
-        _level: usize,
-        _exprs: &[Expr],
-        _bindings: &mut VariableBindings,
-    ) -> Result<()> {
+    fn match_nested_ellipsis(&self) -> Result<()> {
         // Placeholder for nested ellipsis implementation
         // This is a complex feature that requires careful handling of nesting levels
         Ok(())
@@ -325,16 +340,13 @@ impl SyntaxRulesTransformer {
                 let mut result_exprs = Vec::new();
 
                 for template in templates {
-                    match template {
-                        Template::Ellipsis(ellipsis_template) => {
-                            let expanded =
-                                self.expand_ellipsis_template(ellipsis_template, bindings)?;
-                            result_exprs.extend(expanded);
-                        }
-                        _ => {
-                            let expanded = self.template_expand(template, bindings)?;
-                            result_exprs.push(expanded);
-                        }
+                    if let Template::Ellipsis(ellipsis_template) = template {
+                        let expanded =
+                            self.expand_ellipsis_template(ellipsis_template, bindings)?;
+                        result_exprs.extend(expanded);
+                    } else {
+                        let expanded = self.template_expand(template, bindings)?;
+                        result_exprs.push(expanded);
                     }
                 }
 
@@ -349,7 +361,8 @@ impl SyntaxRulesTransformer {
                     result_exprs.push(expanded);
                 }
 
-                Ok(Expr::List(result_exprs)) // Vector support pending AST update
+                // Return proper vector expression
+                Ok(Expr::Vector(result_exprs))
             }
 
             Template::Dotted(templates, rest_template) => {
@@ -436,28 +449,25 @@ impl SyntaxRulesTransformer {
                     let mut iter_exprs = Vec::new();
 
                     for template in templates {
-                        match template {
-                            Template::Variable(var) => {
-                                if let Some(binding) = bindings.get(var) {
-                                    match binding {
-                                        BindingValue::Multiple(exprs) => {
-                                            if i < exprs.len() {
-                                                iter_exprs.push(exprs[i].clone());
-                                            }
+                        if let Template::Variable(var) = template {
+                            if let Some(binding) = bindings.get(var) {
+                                match binding {
+                                    BindingValue::Multiple(exprs) => {
+                                        if i < exprs.len() {
+                                            iter_exprs.push(exprs[i].clone());
                                         }
-                                        BindingValue::Single(expr) => {
-                                            iter_exprs.push(expr.clone());
-                                        }
-                                        BindingValue::Nested(_) => {} // Placeholder
                                     }
-                                } else {
-                                    iter_exprs.push(Expr::Variable(var.clone()));
+                                    BindingValue::Single(expr) => {
+                                        iter_exprs.push(expr.clone());
+                                    }
+                                    BindingValue::Nested(_) => {} // Placeholder
                                 }
+                            } else {
+                                iter_exprs.push(Expr::Variable(var.clone()));
                             }
-                            _ => {
-                                let expanded = self.template_expand(template, bindings)?;
-                                iter_exprs.push(expanded);
-                            }
+                        } else {
+                            let expanded = self.template_expand(template, bindings)?;
+                            iter_exprs.push(expanded);
                         }
                     }
 

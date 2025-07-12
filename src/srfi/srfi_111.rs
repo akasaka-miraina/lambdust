@@ -20,14 +20,14 @@ pub struct Box {
 
 impl Box {
     /// Create a new box with the given value
-    pub fn new(value: Value) -> Self {
+    #[must_use] pub fn new(value: Value) -> Self {
         Self {
             value: Rc::new(RefCell::new(value)),
         }
     }
 
     /// Get the value from the box
-    pub fn unbox(&self) -> Value {
+    #[must_use] pub fn unbox(&self) -> Value {
         self.value.borrow().clone()
     }
 

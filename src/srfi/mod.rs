@@ -62,7 +62,7 @@ pub struct SrfiImport {
 
 impl SrfiImport {
     /// Create a new SRFI import for entire SRFI
-    pub fn new(id: u32) -> Self {
+    #[must_use] pub fn new(id: u32) -> Self {
         Self {
             id,
             parts: Vec::new(),
@@ -70,12 +70,12 @@ impl SrfiImport {
     }
 
     /// Create a new SRFI import with specific parts
-    pub fn with_parts(id: u32, parts: Vec<String>) -> Self {
+    #[must_use] pub fn with_parts(id: u32, parts: Vec<String>) -> Self {
         Self { id, parts }
     }
 
     /// Check if importing all parts
-    pub fn imports_all(&self) -> bool {
+    #[must_use] pub fn imports_all(&self) -> bool {
         self.parts.is_empty()
     }
 }

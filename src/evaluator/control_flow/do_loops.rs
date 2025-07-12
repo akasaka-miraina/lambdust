@@ -185,8 +185,7 @@ fn eval_do_iterative(
 
     // If we reach here, the loop didn't terminate within the limit
     Err(LambdustError::runtime_error(format!(
-        "do loop exceeded maximum iterations ({})",
-        MAX_ITERATIONS
+        "do loop exceeded maximum iterations ({MAX_ITERATIONS})"
     )))
 }
 
@@ -438,7 +437,7 @@ impl Evaluator {
 impl Continuation {
     /// Helper method to extract test from Do continuation
     /// Returns None if not a Do continuation (type-safe alternative to panic)
-    pub fn test(&self) -> Option<&Expr> {
+    #[must_use] pub fn test(&self) -> Option<&Expr> {
         match self {
             Continuation::Do { test, .. } => Some(test),
             _ => None,
@@ -447,7 +446,7 @@ impl Continuation {
 
     /// Helper method to extract test from Do continuation (unsafe but fast)
     /// Only use when you are certain the continuation is a Do continuation
-    pub fn test_unchecked(&self) -> &Expr {
+    #[must_use] pub fn test_unchecked(&self) -> &Expr {
         match self {
             Continuation::Do { test, .. } => test,
             _ => unreachable!("test_unchecked() called on non-Do continuation"),

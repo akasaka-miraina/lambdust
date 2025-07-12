@@ -412,8 +412,7 @@ fn numeric_gcd() -> Value {
                     }
                     _ => {
                         return Err(LambdustError::type_error(format!(
-                            "gcd: expected integer, got {}",
-                            arg
+                            "gcd: expected integer, got {arg}"
                         )));
                     }
                 }
@@ -443,8 +442,7 @@ fn numeric_lcm() -> Value {
                     }
                     _ => {
                         return Err(LambdustError::type_error(format!(
-                            "lcm: expected integer, got {}",
-                            arg
+                            "lcm: expected integer, got {arg}"
                         )));
                     }
                 }
@@ -600,34 +598,31 @@ fn numeric_expt() -> Value {
                 LambdustError::type_error(format!("expt: expected number, got {}", args[1]))
             })?;
 
-            match (base, exp) {
-                (SchemeNumber::Integer(b), SchemeNumber::Integer(e)) => {
-                    if *e >= 0 {
-                        let result = (*b as f64).powi(*e as i32);
-                        if result.fract() == 0.0 && result.is_finite() {
-                            Ok(Value::Number(SchemeNumber::Integer(result as i64)))
-                        } else {
-                            Ok(Value::Number(SchemeNumber::Real(result)))
-                        }
+            if let (SchemeNumber::Integer(b), SchemeNumber::Integer(e)) = (base, exp) {
+                if *e >= 0 {
+                    let result = (*b as f64).powi(*e as i32);
+                    if result.fract() == 0.0 && result.is_finite() {
+                        Ok(Value::Number(SchemeNumber::Integer(result as i64)))
                     } else {
-                        let result = (*b as f64).powf(*e as f64);
                         Ok(Value::Number(SchemeNumber::Real(result)))
                     }
-                }
-                _ => {
-                    let b_f = match base {
-                        SchemeNumber::Integer(n) => *n as f64,
-                        SchemeNumber::Real(n) => *n,
-                        _ => unreachable!(),
-                    };
-                    let e_f = match exp {
-                        SchemeNumber::Integer(n) => *n as f64,
-                        SchemeNumber::Real(n) => *n,
-                        _ => unreachable!(),
-                    };
-                    let result = b_f.powf(e_f);
+                } else {
+                    let result = (*b as f64).powf(*e as f64);
                     Ok(Value::Number(SchemeNumber::Real(result)))
                 }
+            } else {
+                let b_f = match base {
+                    SchemeNumber::Integer(n) => *n as f64,
+                    SchemeNumber::Real(n) => *n,
+                    _ => unreachable!(),
+                };
+                let e_f = match exp {
+                    SchemeNumber::Integer(n) => *n as f64,
+                    SchemeNumber::Real(n) => *n,
+                    _ => unreachable!(),
+                };
+                let result = b_f.powf(e_f);
+                Ok(Value::Number(SchemeNumber::Real(result)))
             }
         },
     })
@@ -651,7 +646,7 @@ fn numeric_min() -> Value {
 
             for arg in &args[1..] {
                 let num = arg.as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!("min: expected number, got {}", arg))
+                    LambdustError::type_error(format!("min: expected number, got {arg}"))
                 })?;
 
                 if number_less_than(num, &min_val) {
@@ -682,7 +677,7 @@ fn numeric_max() -> Value {
 
             for arg in &args[1..] {
                 let num = arg.as_number().ok_or_else(|| {
-                    LambdustError::type_error(format!("max: expected number, got {}", arg))
+                    LambdustError::type_error(format!("max: expected number, got {arg}"))
                 })?;
 
                 if number_less_than(&max_val, num) {
@@ -734,9 +729,7 @@ fn lcm_helper(a: i64, b: i64) -> i64 {
 
 /// Helper function to perform floor division
 fn floor_division(x: i64, y: i64) -> (i64, i64) {
-    if y == 0 {
-        panic!("Division by zero");
-    }
+    assert!((y != 0), "Division by zero");
 
     let q = x / y;
     let r = x % y;
@@ -760,17 +753,13 @@ fn ceiling_division(x: i64, y: i64) -> (i64, i64) {
 
 /// Helper function to perform truncate division (same as built-in / and %)
 fn truncate_division(x: i64, y: i64) -> (i64, i64) {
-    if y == 0 {
-        panic!("Division by zero");
-    }
+    assert!((y != 0), "Division by zero");
     (x / y, x % y)
 }
 
 /// Helper function to perform round division
 fn round_division(x: i64, y: i64) -> (i64, i64) {
-    if y == 0 {
-        panic!("Division by zero");
-    }
+    assert!((y != 0), "Division by zero");
 
     let (q, r) = floor_division(x, y);
 
@@ -796,9 +785,7 @@ fn round_division(x: i64, y: i64) -> (i64, i64) {
 
 /// Helper function to perform Euclidean division
 fn euclidean_division(x: i64, y: i64) -> (i64, i64) {
-    if y == 0 {
-        panic!("Division by zero");
-    }
+    assert!((y != 0), "Division by zero");
 
     let (q, r) = floor_division(x, y);
 
@@ -813,9 +800,7 @@ fn euclidean_division(x: i64, y: i64) -> (i64, i64) {
 
 /// Helper function to perform balanced division
 fn balanced_division(x: i64, y: i64) -> (i64, i64) {
-    if y == 0 {
-        panic!("Division by zero");
-    }
+    assert!((y != 0), "Division by zero");
 
     let (q, r) = euclidean_division(x, y);
     let half_y = y.abs() / 2;

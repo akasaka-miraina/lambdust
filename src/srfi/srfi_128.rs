@@ -48,7 +48,7 @@ impl Comparator {
     }
 
     /// Test if the comparator can handle the given object
-    pub fn test_type(&self, obj: &Value) -> bool {
+    #[must_use] pub fn test_type(&self, obj: &Value) -> bool {
         match &self.type_test {
             Some(test) => test(obj),
             None => true, // Accept all types if no test provided
@@ -56,7 +56,7 @@ impl Comparator {
     }
 
     /// Test equality of two objects
-    pub fn equal(&self, obj1: &Value, obj2: &Value) -> bool {
+    #[must_use] pub fn equal(&self, obj1: &Value, obj2: &Value) -> bool {
         (self.equality)(obj1, obj2)
     }
 
@@ -81,12 +81,12 @@ impl Comparator {
     }
 
     /// Check if comparator supports comparison
-    pub fn has_comparison(&self) -> bool {
+    #[must_use] pub fn has_comparison(&self) -> bool {
         self.comparison.is_some()
     }
 
     /// Check if comparator supports hashing
-    pub fn has_hash(&self) -> bool {
+    #[must_use] pub fn has_hash(&self) -> bool {
         self.hash_fn.is_some()
     }
 }
@@ -109,7 +109,7 @@ impl std::fmt::Debug for Comparator {
 }
 
 /// Standard number comparator
-pub fn default_number_comparator() -> Comparator {
+#[must_use] pub fn default_number_comparator() -> Comparator {
     Comparator::new(
         "number-comparator".to_string(),
         Some(Rc::new(|obj| matches!(obj, Value::Number(_)))),
@@ -146,7 +146,7 @@ pub fn default_number_comparator() -> Comparator {
 }
 
 /// Standard string comparator
-pub fn default_string_comparator() -> Comparator {
+#[must_use] pub fn default_string_comparator() -> Comparator {
     Comparator::new(
         "string-comparator".to_string(),
         Some(Rc::new(|obj| matches!(obj, Value::String(_)))),
@@ -168,7 +168,7 @@ pub fn default_string_comparator() -> Comparator {
             if let Value::String(s) = obj {
                 let mut hash: i64 = 0;
                 for byte in s.bytes() {
-                    hash = hash.wrapping_mul(31).wrapping_add(byte as i64);
+                    hash = hash.wrapping_mul(31).wrapping_add(i64::from(byte));
                 }
                 Ok(hash)
             } else {
@@ -179,7 +179,7 @@ pub fn default_string_comparator() -> Comparator {
 }
 
 /// Standard symbol comparator  
-pub fn default_symbol_comparator() -> Comparator {
+#[must_use] pub fn default_symbol_comparator() -> Comparator {
     Comparator::new(
         "symbol-comparator".to_string(),
         Some(Rc::new(|obj| matches!(obj, Value::Symbol(_)))),
@@ -201,7 +201,7 @@ pub fn default_symbol_comparator() -> Comparator {
             if let Value::Symbol(s) = obj {
                 let mut hash: i64 = 0;
                 for byte in s.bytes() {
-                    hash = hash.wrapping_mul(31).wrapping_add(byte as i64);
+                    hash = hash.wrapping_mul(31).wrapping_add(i64::from(byte));
                 }
                 Ok(hash)
             } else {
@@ -382,7 +382,7 @@ impl super::SrfiModule for Srfi128 {
                         // Check if all objects are in increasing order
                         for i in 1..args.len() - 1 {
                             match comp.compare(&args[i], &args[i + 1])? {
-                                -1 => continue,                        // Less than, good
+                                -1 => {},                              // Less than, good
                                 _ => return Ok(Value::Boolean(false)), // Not less than
                             }
                         }

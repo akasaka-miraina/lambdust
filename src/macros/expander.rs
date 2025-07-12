@@ -1,4 +1,4 @@
-//! MacroExpander: Core macro expansion engine for Scheme macros
+//! `MacroExpander`: Core macro expansion engine for Scheme macros
 //!
 //! This module implements the macro expansion system for Lambdust, providing:
 //! - Built-in macro expansion (let, let*, letrec, cond, case, when, unless, define-record-type)
@@ -6,7 +6,7 @@
 //! - Recursive macro expansion throughout expression trees
 //! - Proper handling of quasiquote contexts and ellipsis patterns
 //!
-//! The MacroExpander maintains a registry of available macros and provides
+//! The `MacroExpander` maintains a registry of available macros and provides
 //! methods for detecting macro calls, expanding individual macros, and
 //! recursively expanding entire expressions.
 
@@ -15,7 +15,7 @@ use crate::error::{LambdustError, Result};
 use std::collections::HashMap;
 
 // Import from the new modular structure
-use super::builtin::*;
+use super::builtin::{expand_case, expand_cond, expand_define_record_type, expand_let, expand_let_star, expand_letrec, expand_unless, expand_when};
 use super::pattern_matching::{Pattern, Template, SyntaxCaseClause};
 use super::syntax_case::SyntaxCaseTransformer;
 use super::syntax_rules::SyntaxRulesTransformer;
@@ -23,7 +23,7 @@ use super::types::{Macro, MacroTransformer};
 
 /// Macro expansion context
 ///
-/// The MacroExpander maintains a registry of available macros and provides
+/// The `MacroExpander` maintains a registry of available macros and provides
 /// the core functionality for macro detection and expansion. It supports
 /// both built-in macros (implemented as functions) and syntax-rules macros
 /// (implemented as pattern-template transformers).
@@ -37,7 +37,7 @@ impl MacroExpander {
     /// Create a new macro expander
     ///
     /// Initializes the expander with all built-in macros automatically registered.
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut expander = MacroExpander {
             macros: HashMap::new(),
         };
@@ -187,7 +187,7 @@ impl MacroExpander {
     /// Check if an expression is a macro call
     ///
     /// Returns true if the expression is a list starting with a registered macro name.
-    pub fn is_macro_call(&self, expr: &Expr) -> bool {
+    #[must_use] pub fn is_macro_call(&self, expr: &Expr) -> bool {
         match expr {
             Expr::List(exprs) if !exprs.is_empty() => match &exprs[0] {
                 Expr::Variable(name) => self.macros.contains_key(name),
@@ -262,7 +262,7 @@ impl MacroExpander {
                                     transformer.transform(&expr)
                                 }
                                 Macro::HygienicSyntaxRules { transformer, .. } => {
-                                    self.expand_hygienic_syntax_rules(transformer, name, &exprs[1..], usage_env)
+                                    self.expand_hygienic_syntax_rules(transformer, &exprs[1..], usage_env)
                                 }
                                 Macro::SyntaxCase { transformer, .. } => {
                                     // For syntax-case, we pass the entire expression including the macro name
@@ -286,7 +286,6 @@ impl MacroExpander {
     fn expand_hygienic_syntax_rules(
         &self,
         transformer: &super::hygiene::HygienicSyntaxRulesTransformer,
-        name: &str,
         args: &[Expr],
         usage_env: &super::hygiene::HygienicEnvironment,
     ) -> Result<Expr> {
@@ -297,6 +296,7 @@ impl MacroExpander {
     ///
     /// This method safely handles nested macro expansion while checking for
     /// circular dependencies and respecting safety limits.
+    #[allow(dead_code)]
     fn expand_nested_macros(
         &self,
         expr: Expr,

@@ -4,7 +4,7 @@
 //! while enabling mathematical simplification and optimization opportunities.
 
 use crate::ast::{Expr, Literal};
-use crate::error::{LambdustError, Result};
+use crate::error::Result;
 use crate::evaluator::combinators::BracketAbstraction;
 use crate::lexer::SchemeNumber;
 
@@ -219,10 +219,9 @@ impl SemanticEvaluator {
                                 // (if #f then else) → else
                                 if exprs.len() >= 4 {
                                     return Ok(exprs[3].clone());
-                                } else {
-                                    // (if #f then) → #<undefined>
-                                    return Ok(Expr::Variable("undefined".to_string()));
                                 }
+                                // (if #f then) → #<undefined>
+                                return Ok(Expr::Variable("undefined".to_string()));
                             }
                             _ => {}
                         }
@@ -296,7 +295,7 @@ impl SemanticEvaluator {
     }
     
     /// Get current reduction statistics
-    pub fn get_reduction_stats(&self) -> ReductionStats {
+    #[must_use] pub fn get_reduction_stats(&self) -> ReductionStats {
         ReductionStats::default()
         // Future implementation will track actual reduction statistics
     }

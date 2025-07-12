@@ -87,8 +87,7 @@ pub fn hash_table_ref(args: &[Value]) -> Result<Value> {
     match hash_table_ref.get(&key) {
         Some(value) => Ok(value.clone()),
         None => Err(LambdustError::runtime_error(format!(
-            "Key not found in hash table: {:?}",
-            key
+            "Key not found in hash table: {key:?}"
         ))),
     }
 }

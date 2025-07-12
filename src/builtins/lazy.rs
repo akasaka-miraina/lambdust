@@ -36,7 +36,7 @@ fn force_function() -> Value {
 }
 
 /// Implements the `promise?` predicate
-pub fn promise_predicate() -> Value {
+#[must_use] pub fn promise_predicate() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "promise?".to_string(),
         arity: Some(1),
@@ -51,14 +51,14 @@ pub fn promise_predicate() -> Value {
 }
 
 /// Create a lazy promise from expression and environment
-pub fn make_lazy_promise(expr: Expr, env: Rc<Environment>) -> Value {
+#[must_use] pub fn make_lazy_promise(expr: Expr, env: Rc<Environment>) -> Value {
     Value::Promise(Promise {
         state: PromiseState::Lazy { expr, env },
     })
 }
 
 /// Create an eager promise from a value
-pub fn make_eager_promise(value: Value) -> Value {
+#[must_use] pub fn make_eager_promise(value: Value) -> Value {
     Value::Promise(Promise {
         state: PromiseState::Eager {
             value: Box::new(value),
@@ -66,7 +66,7 @@ pub fn make_eager_promise(value: Value) -> Value {
     })
 }
 
-/// Force a promise, returning the evaluated value (for FormalEvaluator)
+/// Force a promise, returning the evaluated value (for `FormalEvaluator`)
 /// This requires evaluator integration for complete implementation
 pub fn force_promise(
     promise: &Promise,

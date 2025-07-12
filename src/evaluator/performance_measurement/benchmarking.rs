@@ -3,12 +3,13 @@
 //! This module provides comprehensive benchmarking capabilities
 //! for evaluating system performance across different scenarios.
 
-use super::core_types::{MeasurementTarget, MeasurementTargetType, MetricType, MetricValue};
+use super::core_types::{MeasurementTarget, MetricType, MetricValue};
 use super::configuration::MeasurementConfiguration;
 use crate::ast::Expr;
-use crate::error::{LambdustError, Result};
+use crate::error::Result;
 use crate::evaluator::{EvaluationMode, RuntimeOptimizationLevel};
-use crate::value::Value;
+// Removed unused imports:
+// use crate::value::Value;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -69,13 +70,29 @@ pub enum BenchmarkType {
     /// マイクロベンチマーク
     Micro(MicroBenchmark),
     /// マクロベンチマーク
-    Macro { duration: Duration },
+    Macro { 
+        /// 実行時間
+        duration: Duration 
+    },
     /// 負荷テスト
-    LoadTest { concurrent_users: usize, duration: Duration },
+    LoadTest { 
+        /// 同時ユーザー数
+        concurrent_users: usize, 
+        /// テスト継続時間
+        duration: Duration 
+    },
     /// ストレステスト
-    StressTest { max_load: f64, ramp_up_time: Duration },
+    StressTest { 
+        /// 最大負荷量
+        max_load: f64, 
+        /// ランプアップ時間
+        ramp_up_time: Duration 
+    },
     /// 回帰テスト
-    RegressionTest { baseline: String },
+    RegressionTest { 
+        /// ベースライン識別子
+        baseline: String 
+    },
 }
 
 /// ベンチマークスイート設定
@@ -245,9 +262,15 @@ pub enum BenchmarkStatus {
     Cancelled,
 }
 
+impl Default for BenchmarkSuite {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BenchmarkSuite {
     /// 新しいベンチマークスイートを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             benchmarks: Vec::new(),
             suite_config: BenchmarkSuiteConfiguration::default(),
@@ -256,7 +279,7 @@ impl BenchmarkSuite {
     }
 
     /// 設定付きで作成
-    pub fn with_config(config: BenchmarkSuiteConfiguration) -> Self {
+    #[must_use] pub fn with_config(config: BenchmarkSuiteConfiguration) -> Self {
         Self {
             benchmarks: Vec::new(),
             suite_config: config,
@@ -330,7 +353,7 @@ impl BenchmarkSuite {
     }
 
     /// ベンチマーク実行履歴を取得
-    pub fn get_execution_history(&self) -> &[BenchmarkExecutionResult] {
+    #[must_use] pub fn get_execution_history(&self) -> &[BenchmarkExecutionResult] {
         &self.execution_history
     }
 
@@ -390,14 +413,14 @@ impl BenchmarkSuite {
         BenchmarkStatistics {
             metric_statistics,
             total_execution_time: Duration::from_millis(100), // ダミー値
-            successful_iterations: measurements.values().map(|v| v.len()).min().unwrap_or(0),
+            successful_iterations: measurements.values().map(std::vec::Vec::len).min().unwrap_or(0),
             failed_iterations: 0,
             throughput: Some(1000.0), // ダミー値
         }
     }
 
     /// メトリクス統計を計算
-    fn calculate_metric_statistics(&self, values: &[MetricValue]) -> MetricStatistics {
+    fn calculate_metric_statistics(&self, _values: &[MetricValue]) -> MetricStatistics {
         // 簡略化された統計計算
         MetricStatistics {
             mean: 1.0,

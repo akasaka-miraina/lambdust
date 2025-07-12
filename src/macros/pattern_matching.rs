@@ -55,12 +55,16 @@ pub enum Pattern {
     Any,
     /// Conditional pattern with guard expression
     Conditional {
+        /// The pattern to match
         pattern: Box<Pattern>,
+        /// Guard expression that must evaluate to true
         guard: crate::ast::Expr,
     },
     /// Type guard pattern
     TypeGuard {
+        /// The pattern to match
         pattern: Box<Pattern>,
+        /// Expected type that must match
         expected_type: TypePattern,
     },
     /// AND pattern - all sub-patterns must match
@@ -71,8 +75,11 @@ pub enum Pattern {
     Not(Box<Pattern>),
     /// Range pattern for numeric values
     Range {
+        /// Start of the range (inclusive if present)
         start: Option<i64>,
+        /// End of the range
         end: Option<i64>,
+        /// Whether the end is inclusive
         inclusive: bool,
     },
     /// Regex pattern for string matching
@@ -102,20 +109,29 @@ pub enum Template {
     SyntaxObject(Box<Template>),
     /// Conditional template expansion
     Conditional {
+        /// Condition expression to evaluate
         condition: Expr,
+        /// Template to use if condition is true
         then_template: Box<Template>,
+        /// Optional template to use if condition is false
         else_template: Option<Box<Template>>,
     },
     /// Repeated template with separator
     Repeat {
+        /// Template to repeat
         template: Box<Template>,
+        /// Optional separator between repetitions
         separator: Option<String>,
+        /// Minimum number of repetitions
         min_count: usize,
+        /// Maximum number of repetitions
         max_count: Option<usize>,
     },
     /// Transform template (apply function to bound values)
     Transform {
+        /// Template to transform
         template: Box<Template>,
+        /// Function name to apply to bound values
         function: String,
     },
 }
@@ -158,6 +174,7 @@ pub enum SyntaxCaseBody {
 
 /// Pattern matching result
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct MatchResult {
     /// Variable bindings from pattern matching
     pub bindings: HashMap<String, BindingValue>,
@@ -209,12 +226,12 @@ pub struct PatternMatcher {
 
 impl PatternMatcher {
     /// Create a new pattern matcher
-    pub fn new(literals: Vec<String>) -> Self {
+    #[must_use] pub fn new(literals: Vec<String>) -> Self {
         Self { literals }
     }
 
     /// Create a pattern matcher with advanced features enabled
-    pub fn with_advanced_features(literals: Vec<String>) -> Self {
+    #[must_use] pub fn with_advanced_features(literals: Vec<String>) -> Self {
         Self { literals }
     }
 
@@ -310,7 +327,7 @@ impl PatternMatcher {
                 }
 
                 // Then evaluate the guard condition
-                self.evaluate_guard_expression(guard, bindings, context)
+                self.evaluate_guard_expression(guard, bindings)
             }
 
             // Type guard patterns
@@ -574,7 +591,6 @@ impl PatternMatcher {
         &self,
         guard: &Expr,
         bindings: &HashMap<String, BindingValue>,
-        _context: &ExpansionContext,
     ) -> Result<bool> {
         // Substitute variables in guard expression
         let substituted = self.substitute_variables_in_expr(guard, bindings)?;
@@ -633,7 +649,7 @@ impl PatternMatcher {
         // Simplified regex matching - in production would use regex crate
         match regex_str {
             ".*" => Ok(true),
-            "^[a-zA-Z]+$" => Ok(string.chars().all(|c| c.is_alphabetic())),
+            "^[a-zA-Z]+$" => Ok(string.chars().all(char::is_alphabetic)),
             "^[0-9]+$" => Ok(string.chars().all(|c| c.is_ascii_digit())),
             _ => {
                 // Basic literal matching for now
@@ -676,19 +692,10 @@ impl PatternMatcher {
     }
 }
 
-impl Default for MatchResult {
-    fn default() -> Self {
-        Self {
-            bindings: HashMap::new(),
-            hygienic_bindings: HashMap::new(),
-            success: false,
-        }
-    }
-}
 
 impl SyntaxObject {
     /// Create a new syntax object
-    pub fn new(expression: Expr, context: ExpansionContext) -> Self {
+    #[must_use] pub fn new(expression: Expr, context: ExpansionContext) -> Self {
         Self {
             expression,
             context,
@@ -697,7 +704,7 @@ impl SyntaxObject {
     }
 
     /// Create a syntax object with source information
-    pub fn with_source_info(
+    #[must_use] pub fn with_source_info(
         expression: Expr,
         context: ExpansionContext,
         source_info: SourceInfo,

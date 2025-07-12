@@ -4,7 +4,7 @@ use crate::lexer::SchemeNumber;
 use std::fmt;
 
 /// AST node representing a Scheme expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Expr {
     /// Literal values
     Literal(Literal),
@@ -29,7 +29,7 @@ pub enum Expr {
 }
 
 /// Literal values in Scheme
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Literal {
     /// Boolean values
     Boolean(bool),
@@ -48,7 +48,7 @@ impl fmt::Display for Expr {
         match self {
             Self::Literal(lit) => write!(f, "{lit}"),
             Self::Variable(name) => write!(f, "{name}"),
-            Self::HygienicVariable(symbol) => write!(f, "{}", symbol),
+            Self::HygienicVariable(symbol) => write!(f, "{symbol}"),
             Self::List(exprs) => {
                 write!(f, "(")?;
                 for (i, expr) in exprs.iter().enumerate() {
@@ -143,7 +143,7 @@ impl Expr {
     }
 
     /// Get the symbol name if this is a variable
-    pub fn as_symbol(&self) -> Option<&str> {
+    #[must_use] pub fn as_symbol(&self) -> Option<&str> {
         match self {
             Expr::Variable(name) => Some(name),
             Expr::HygienicVariable(symbol) => Some(symbol.original_name()),
@@ -152,7 +152,7 @@ impl Expr {
     }
     
     /// Get the hygienic symbol if this is a hygienic variable
-    pub fn as_hygienic_symbol(&self) -> Option<&crate::macros::hygiene::HygienicSymbol> {
+    #[must_use] pub fn as_hygienic_symbol(&self) -> Option<&crate::macros::hygiene::HygienicSymbol> {
         match self {
             Expr::HygienicVariable(symbol) => Some(symbol),
             _ => None,
@@ -160,7 +160,7 @@ impl Expr {
     }
 
     /// Get the list elements if this is a list
-    pub fn as_list(&self) -> Option<&[Expr]> {
+    #[must_use] pub fn as_list(&self) -> Option<&[Expr]> {
         match self {
             Expr::List(exprs) => Some(exprs),
             _ => None,
@@ -168,7 +168,7 @@ impl Expr {
     }
 
     /// Convert to a proper list if this is a dotted list
-    pub fn to_proper_list(&self) -> Option<Vec<Expr>> {
+    #[must_use] pub fn to_proper_list(&self) -> Option<Vec<Expr>> {
         match self {
             Expr::List(exprs) => Some(exprs.clone()),
             Expr::DottedList(exprs, tail) => {
@@ -185,7 +185,7 @@ impl Expr {
     }
 
     /// Check if this is a special form (list starting with a known special form symbol)
-    pub fn is_special_form(&self) -> bool {
+    #[must_use] pub fn is_special_form(&self) -> bool {
         match self {
             Expr::List(exprs) if !exprs.is_empty() => match &exprs[0] {
                 Expr::Variable(name) | Expr::HygienicVariable(crate::macros::hygiene::HygienicSymbol { name, .. }) => matches!(
@@ -216,7 +216,7 @@ impl Expr {
     }
 
     /// Get the operator of a list expression
-    pub fn get_operator(&self) -> Option<&str> {
+    #[must_use] pub fn get_operator(&self) -> Option<&str> {
         match self {
             Expr::List(exprs) if !exprs.is_empty() => exprs[0].as_symbol(),
             _ => None,
@@ -224,7 +224,7 @@ impl Expr {
     }
 
     /// Get the operands of a list expression
-    pub fn get_operands(&self) -> Option<&[Expr]> {
+    #[must_use] pub fn get_operands(&self) -> Option<&[Expr]> {
         match self {
             Expr::List(exprs) if !exprs.is_empty() => Some(&exprs[1..]),
             _ => None,

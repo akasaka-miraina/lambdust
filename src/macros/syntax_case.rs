@@ -9,15 +9,18 @@ use crate::ast::{Expr, Literal};
 use crate::error::{LambdustError, Result};
 use super::pattern_matching::{
     Pattern, SyntaxCaseClause, SyntaxCaseBody, MatchResult, BindingValue,
-    PatternMatcher, SyntaxObject, SourceInfo,
+    PatternMatcher,
+    // Removed unused imports: SyntaxObject, SourceInfo,
 };
-use super::hygiene::{ExpansionContext, HygienicEnvironment, HygienicSymbol};
+use super::hygiene::{ExpansionContext, HygienicEnvironment};
+// Removed unused import: HygienicSymbol
 use std::collections::HashMap;
 
 /// Syntax-case macro transformer
 #[derive(Debug, Clone)]
 pub struct SyntaxCaseTransformer {
     /// Literal identifiers
+    #[allow(dead_code)]
     literals: Vec<String>,
     /// Pattern matching clauses
     clauses: Vec<SyntaxCaseClause>,
@@ -158,7 +161,7 @@ impl SyntaxCaseTransformer {
                 if let Some(binding) = bindings.get(var) {
                     match binding {
                         BindingValue::Single(expr) => Ok(expr.clone()),
-                        BindingValue::List(exprs) => {
+                        BindingValue::List(_exprs) => {
                             // Single variable bound to list - error in this context
                             Err(LambdustError::syntax_error(format!(
                                 "template variable {var} bound to list but used as single value"
@@ -174,20 +177,17 @@ impl SyntaxCaseTransformer {
             Template::List(templates) => {
                 let mut result_exprs = Vec::new();
                 for tmpl in templates {
-                    match tmpl {
-                        Template::Ellipsis(ellipsis_template) => {
-                            // Expand ellipsis template
-                            let expanded = self.expand_ellipsis_template(
-                                ellipsis_template,
-                                bindings,
-                                context,
-                            )?;
-                            result_exprs.extend(expanded);
-                        }
-                        _ => {
-                            let expanded = self.expand_template(tmpl, bindings, context)?;
-                            result_exprs.push(expanded);
-                        }
+                    if let Template::Ellipsis(ellipsis_template) = tmpl {
+                        // Expand ellipsis template
+                        let expanded = self.expand_ellipsis_template(
+                            ellipsis_template,
+                            bindings,
+                            context,
+                        )?;
+                        result_exprs.extend(expanded);
+                    } else {
+                        let expanded = self.expand_template(tmpl, bindings, context)?;
+                        result_exprs.push(expanded);
                     }
                 }
                 Ok(Expr::List(result_exprs))
@@ -301,10 +301,10 @@ impl SyntaxCaseTransformer {
         &self,
         condition: &Expr,
         bindings: &HashMap<String, BindingValue>,
-        _context: &ExpansionContext,
+        context: &ExpansionContext,
     ) -> Result<bool> {
         // Substitute variables in condition
-        let substituted = self.substitute_pattern_variables(condition, bindings, _context)?;
+        let substituted = self.substitute_pattern_variables(condition, bindings, context)?;
         
         // Simple evaluation
         match substituted {
@@ -523,7 +523,7 @@ impl SyntaxCaseTransformer {
         &self,
         expr: &Expr,
         bindings: &HashMap<String, BindingValue>,
-        _context: &ExpansionContext,
+        context: &ExpansionContext,
     ) -> Result<Expr> {
         match expr {
             Expr::Variable(var) => {
@@ -547,7 +547,7 @@ impl SyntaxCaseTransformer {
                     substituted.push(self.substitute_pattern_variables(
                         sub_expr,
                         bindings,
-                        _context,
+                        context,
                     )?);
                 }
                 Ok(Expr::List(substituted))
@@ -558,7 +558,7 @@ impl SyntaxCaseTransformer {
                     substituted.push(self.substitute_pattern_variables(
                         sub_expr,
                         bindings,
-                        _context,
+                        context,
                     )?);
                 }
                 Ok(Expr::Vector(substituted))
@@ -569,13 +569,13 @@ impl SyntaxCaseTransformer {
                     substituted_exprs.push(self.substitute_pattern_variables(
                         sub_expr,
                         bindings,
-                        _context,
+                        context,
                     )?);
                 }
                 let substituted_tail = Box::new(self.substitute_pattern_variables(
                     tail,
                     bindings,
-                    _context,
+                    context,
                 )?);
                 Ok(Expr::DottedList(substituted_exprs, substituted_tail))
             }
@@ -627,7 +627,6 @@ impl SyntaxCaseMacro {
 }
 
 /// Helper functions for syntax-case pattern and template construction
-
 /// Parse an expression into a syntax-case pattern
 pub fn parse_syntax_case_pattern(expr: &Expr, literals: &[String]) -> Result<Pattern> {
     match expr {

@@ -38,7 +38,7 @@ fn test_symbol_resolution_cache_performance() {
     println!("First pass (cache miss): {:?}", first_pass_time);
     println!("Second pass (cache hit): {:?}", second_pass_time);
 
-    let (_hits, misses) = env.get_cache_stats();
+    let (hits, misses) = env.get_cache_stats();
     println!("Cache hits: {}, misses: {}", hits, misses);
 
     // Verify cache effectiveness
@@ -63,7 +63,7 @@ fn test_cache_invalidation() {
 
     // Resolve to populate cache
     let _result = env.resolve_symbol("test");
-    let (_hits, misses) = env.get_cache_stats();
+    let (hits, misses) = env.get_cache_stats();
     assert_eq!(misses, 1);
 
     // Clear cache
@@ -71,7 +71,7 @@ fn test_cache_invalidation() {
 
     // Resolve again - should be cache miss
     let _result = env.resolve_symbol("test");
-    let (_hits, misses) = env.get_cache_stats();
+    let (hits, misses) = env.get_cache_stats();
     assert_eq!(misses, 1); // Only one miss after clear
     assert_eq!(hits, 0);   // No hits after clear
 }
@@ -224,7 +224,7 @@ fn test_memory_efficiency() {
         env.resolve_symbol(symbol.original_name());
     }
 
-    let (_hits, misses) = env.get_cache_stats();
+    let (hits, misses) = env.get_cache_stats();
     assert_eq!(misses, 500);
 
     // Clear cache to test memory reclamation

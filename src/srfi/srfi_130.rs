@@ -24,7 +24,7 @@ pub struct StringCursor {
 
 impl StringCursor {
     /// Create a new string cursor for the entire string
-    pub fn new(string: String) -> Self {
+    #[must_use] pub fn new(string: String) -> Self {
         let end = string.len();
         Self {
             string,
@@ -50,32 +50,32 @@ impl StringCursor {
     }
 
     /// Get the string this cursor references
-    pub fn string(&self) -> &str {
+    #[must_use] pub fn string(&self) -> &str {
         &self.string
     }
 
     /// Get current position
-    pub fn position(&self) -> usize {
+    #[must_use] pub fn position(&self) -> usize {
         self.position
     }
 
     /// Get start bound
-    pub fn start(&self) -> usize {
+    #[must_use] pub fn start(&self) -> usize {
         self.start
     }
 
     /// Get end bound
-    pub fn end(&self) -> usize {
+    #[must_use] pub fn end(&self) -> usize {
         self.end
     }
 
     /// Check if at start of bounds
-    pub fn at_start(&self) -> bool {
+    #[must_use] pub fn at_start(&self) -> bool {
         self.position == self.start
     }
 
     /// Check if at end of bounds
-    pub fn at_end(&self) -> bool {
+    #[must_use] pub fn at_end(&self) -> bool {
         self.position >= self.end
     }
 
@@ -130,17 +130,17 @@ impl StringCursor {
     }
 
     /// Get substring from current position to end of bounds
-    pub fn rest(&self) -> &str {
+    #[must_use] pub fn rest(&self) -> &str {
         &self.string[self.position..self.end]
     }
 
     /// Get substring from start of bounds to current position
-    pub fn prefix(&self) -> &str {
+    #[must_use] pub fn prefix(&self) -> &str {
         &self.string[self.start..self.position]
     }
 
     /// Clone cursor
-    pub fn clone_cursor(&self) -> Self {
+    #[must_use] pub fn clone_cursor(&self) -> Self {
         self.clone()
     }
 }

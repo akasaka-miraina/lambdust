@@ -57,19 +57,19 @@ pub fn hash_value(args: &[Value]) -> Result<Value> {
         Value::Boolean(false) => 0,
         _ => {
             // For complex objects, use their string representation
-            let s = format!("{:?}", object);
+            let s = format!("{object:?}");
             calculate_string_hash(&s)
         }
     };
 
-    let result = if bound != u32::MAX {
-        hash_value % bound
-    } else {
+    let result = if bound == u32::MAX {
         hash_value
+    } else {
+        hash_value % bound
     };
 
     Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
-        result as i64,
+        i64::from(result),
     )))
 }
 
@@ -88,14 +88,11 @@ pub fn string_hash_impl(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(1, args.len()));
     }
 
-    let string = match &args[0] {
-        Value::String(s) => s,
-        _ => {
+    let Value::String(string) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
 
     let bound = if args.len() == 2 {
         match &args[1] {
@@ -112,14 +109,14 @@ pub fn string_hash_impl(args: &[Value]) -> Result<Value> {
     };
 
     let hash_value = calculate_string_hash(string);
-    let result = if bound != u32::MAX {
-        hash_value % bound
-    } else {
+    let result = if bound == u32::MAX {
         hash_value
+    } else {
+        hash_value % bound
     };
 
     Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
-        result as i64,
+        i64::from(result),
     )))
 }
 
@@ -162,14 +159,14 @@ pub fn string_ci_hash_impl(args: &[Value]) -> Result<Value> {
     };
 
     let hash_value = calculate_string_hash(&string);
-    let result = if bound != u32::MAX {
-        hash_value % bound
-    } else {
+    let result = if bound == u32::MAX {
         hash_value
+    } else {
+        hash_value % bound
     };
 
     Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
-        result as i64,
+        i64::from(result),
     )))
 }
 

@@ -6,19 +6,29 @@ pub mod expander;
 pub mod hygiene;
 #[cfg(test)]
 pub mod mod_tests;
-#[cfg(test)]
-pub mod syntax_case_tests;
+// Tests moved to tests/ directory
+// #[cfg(test)]
+// pub mod syntax_case_tests;
+// #[cfg(test)]
+// pub mod srfi46_tests;
 pub mod pattern_matching;
+pub mod srfi46_ellipsis;
 pub mod syntax_case;
 pub mod syntax_rules;
 pub mod types;
+pub mod do_notation;
 
 // Re-export public types for convenience
 pub use expander::MacroExpander;
 pub use hygiene::{HygienicSyntaxRulesTransformer, HygienicEnvironment, HygienicSymbol};
+pub use do_notation::{DoNotationExpander, DoBlock, DoBinding, MonadInstance};
 pub use pattern_matching::{
     Pattern, SyntaxRule, Template, SyntaxCaseClause, SyntaxCaseBody,
     MatchResult, BindingValue, SyntaxObject, PatternMatcher, TypePattern
+};
+pub use srfi46_ellipsis::{
+    NestedEllipsisProcessor, EllipsisContext, MultiDimBinding, MultiDimValue,
+    EllipsisMetrics
 };
 pub use syntax_case::{SyntaxCaseTransformer, SyntaxCaseMacro};
 pub use syntax_rules::SyntaxRulesTransformer;
@@ -28,7 +38,7 @@ use crate::ast::Expr;
 use crate::error::{LambdustError, Result};
 
 // Import builtin macro functions
-use builtin::*;
+use builtin::{expand_case, expand_let, expand_let_star, expand_letrec, expand_unless, expand_when};
 
 /// Public helper function for expanding macros by name
 pub fn expand_macro(name: &str, args: &[Expr]) -> Result<Expr> {

@@ -1,0 +1,107 @@
+# Clippy Error and Warning Report
+# Generated: 2025-07-10
+
+## =¨ COMPILATION ERRORS (High Priority)
+
+### 1. PatternMatcher Ambiguity Errors (src/macros/syntax_case_tests.rs)
+```
+error[E0659]: `PatternMatcher` is ambiguous
+  --> src/macros/syntax_case_tests.rs:20:23
+   |
+20 |         let matcher = PatternMatcher::new(literals);
+   |                       ^^^^^^^^^^^^^^ ambiguous name
+   |
+   = note: ambiguous because of multiple glob imports of a name in the same module
+note: `PatternMatcher` could refer to the struct imported here
+  --> src/macros/syntax_case_tests.rs:9:9
+   |
+9  |     use pattern_matching::*;
+   |         ^^^^^^^^^^^^^^^^^^^
+note: `PatternMatcher` could also refer to the enum imported here
+  --> src/macros/syntax_case_tests.rs:10:9
+   |
+10 |     use hygiene::*;
+   |         ^^^^^^^^^^
+```
+**Affected lines**: 20, 48, 77, 162, 271, 292, 317, 360, 385, 406
+**Solution**: Use explicit imports instead of glob imports for PatternMatcher
+
+### 2. ExpansionContext Constructor Errors
+```
+error[E0061]: this function takes 2 arguments but 1 was given
+   --> src/macros/srfi46_tests.rs:16:9
+    |
+16  |         ExpansionContext::new(env.clone())
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected 2 arguments
+```
+**Solution**: Update ExpansionContext::new() calls to match current signature
+
+### 3. Missing Methods/Fields Errors
+```
+error[E0599]: no function or associated item named `new_traditional` found for struct `lambdust::environment::EnvironmentFactory`
+error[E0609]: no field `expansion_context` on type `lambdust::macros::HygienicEnvironment`
+error[E0616]: field `max_nesting_depth` of struct `macros::srfi46_ellipsis::NestedEllipsisProcessor` is private
+```
+
+##   CLIPPY WARNINGS (Medium Priority)
+
+### 1. Needless Raw String Hashes (47 instances)
+**Files**: src/evaluator/performance_measurement/practical_benchmarks.rs
+**Pattern**: r#"..."# should be r"..."
+**Auto-fixable**: Yes
+
+### 2. Unused Variables (33 warnings)
+**Common patterns**:
+- `let env = create_test_environment();` (unused)
+- `let stats = interface.get_verification_statistics();` (unused)
+- `let _hits, misses = env.get_cache_stats(); println!("hits: {}", hits);` (underscore prefix issue)
+
+### 3. Unnecessary Mutability (2 warnings)
+```
+warning: variable does not need to be mutable
+   --> src/environment/mod.rs:169:17
+    |
+169 |         let mut env = EnvironmentFactory::new();
+```
+
+### 4. Performance Warnings
+- Casting precision loss (usize to f64)
+- Cast possible truncation (usize to u32)
+- Match arms with identical bodies
+
+### 5. Documentation Warnings
+- Missing `# Errors` section for functions returning Result
+- Missing `#[must_use]` attributes
+
+## =Ê SUMMARY
+
+**Total Issues**: ~2428 warnings + 25 compilation errors
+**Auto-fixable**: 145 suggestions available via `cargo clippy --fix`
+**Critical**: Compilation errors preventing build
+**Quality**: Clippy warnings for code improvement
+
+## <¯ PRIORITY FIXES
+
+### Immediate (Compilation Errors)
+1. Fix PatternMatcher import ambiguity in syntax_case_tests.rs
+2. Update ExpansionContext constructor calls
+3. Fix missing method/field access errors
+
+### Next (High-impact Warnings)
+1. Apply auto-fixes: `cargo clippy --fix --lib -p lambdust`
+2. Fix unused variable warnings
+3. Remove unnecessary mut declarations
+
+### Future (Code Quality)
+1. Add missing documentation
+2. Optimize performance-related warnings
+3. Improve match arm patterns
+
+## =' RECOMMENDED ACTIONS
+
+1. **First**: Fix compilation errors to restore build
+2. **Second**: Apply auto-fixes for easy wins
+3. **Third**: Address remaining warnings systematically
+4. **Fourth**: Consider raising clippy lint levels after cleanup
+
+This represents the current state of code quality issues as of SRFI 46 implementation completion.

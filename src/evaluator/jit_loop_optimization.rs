@@ -4,10 +4,10 @@
 //! CPS stack overhead through native iteration code generation.
 //!
 //! Architecture:
-//! - LoopPattern: Detection and classification of loop structures
-//! - NativeCodeGenerator: Rust for-loop generation from Scheme constructs
-//! - JitCompiler: Hot path identification and compile-time optimization
-//! - IterativeCodeCache: Compiled native code caching and reuse
+//! - `LoopPattern`: Detection and classification of loop structures
+//! - `NativeCodeGenerator`: Rust for-loop generation from Scheme constructs
+//! - `JitCompiler`: Hot path identification and compile-time optimization
+//! - `IterativeCodeCache`: Compiled native code caching and reuse
 
 use crate::ast::Expr;
 use crate::environment::Environment;
@@ -89,11 +89,6 @@ pub enum IterationStrategy {
         step: i64,
     },
 
-    /// Iterator-based iteration
-    IteratorBased {
-        /// Type of iterator to use
-        iterator_type: IteratorType,
-    },
 
     /// Manual loop with exit conditions
     ManualLoop {
@@ -101,8 +96,6 @@ pub enum IterationStrategy {
         max_iterations: usize,
     },
 
-    /// Fallback to CPS continuation
-    CpsFallback,
 }
 
 /// Iterator type for native iteration
@@ -152,7 +145,7 @@ pub struct CompiledLoop {
 
 impl JitHotPathDetector {
     /// Create new JIT hot path detector
-    pub fn new(compilation_threshold: usize) -> Self {
+    #[must_use] pub fn new(compilation_threshold: usize) -> Self {
         JitHotPathDetector {
             execution_counts: HashMap::new(),
             compilation_threshold,
@@ -193,12 +186,12 @@ impl JitHotPathDetector {
     }
 
     /// Get compiled loop if available
-    pub fn get_compiled_loop(&self, pattern_id: &str) -> Option<&CompiledLoop> {
+    #[must_use] pub fn get_compiled_loop(&self, pattern_id: &str) -> Option<&CompiledLoop> {
         self.compiled_patterns.get(pattern_id)
     }
 
     /// Get compilation statistics
-    pub fn compilation_statistics(&self) -> (usize, usize, f64) {
+    #[must_use] pub fn compilation_statistics(&self) -> (usize, usize, f64) {
         let total_patterns = self.execution_counts.len();
         let compiled_count = self.compiled_patterns.len();
         let compilation_rate = if total_patterns > 0 {
@@ -234,7 +227,7 @@ pub struct LoopPatternAnalyzer {
 
 impl LoopPatternAnalyzer {
     /// Create new loop pattern analyzer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         LoopPatternAnalyzer {
             detection_stats: HashMap::new(),
             pattern_cache: HashMap::new(),
@@ -242,42 +235,42 @@ impl LoopPatternAnalyzer {
     }
 
     /// Analyze do-loop for pattern detection
-    pub fn analyze_do_loop(&mut self, operands: &[Expr]) -> Result<LoopPattern> {
+    pub fn analyze_do_loop(&mut self, operands: &[Expr]) -> Result<Option<LoopPattern>> {
         if operands.len() < 2 {
-            return Ok(LoopPattern::ComplexLoop);
+            return Ok(Some(LoopPattern::ComplexLoop));
         }
 
         // Parse variable bindings
         let bindings = match &operands[0] {
             Expr::List(var_clauses) => self.parse_variable_bindings(var_clauses)?,
-            _ => return Ok(LoopPattern::ComplexLoop),
+            _ => return Ok(Some(LoopPattern::ComplexLoop)),
         };
 
         // Parse test clause
         let test_expr = match &operands[1] {
             Expr::List(test_clause) if !test_clause.is_empty() => &test_clause[0],
-            _ => return Ok(LoopPattern::ComplexLoop),
+            _ => return Ok(Some(LoopPattern::ComplexLoop)),
         };
 
         // Detect specific patterns
         if let Some(pattern) = self.detect_counting_loop(&bindings, test_expr)? {
             self.record_pattern_detection("counting_loop");
-            return Ok(pattern);
+            return Ok(Some(pattern));
         }
 
         if let Some(pattern) = self.detect_list_iteration(&bindings, test_expr)? {
             self.record_pattern_detection("list_iteration");
-            return Ok(pattern);
+            return Ok(Some(pattern));
         }
 
         if let Some(pattern) = self.detect_accumulation_loop(&bindings, test_expr)? {
             self.record_pattern_detection("accumulation_loop");
-            return Ok(pattern);
+            return Ok(Some(pattern));
         }
 
         // Default to complex loop
         self.record_pattern_detection("complex_loop");
-        Ok(LoopPattern::ComplexLoop)
+        Ok(Some(LoopPattern::ComplexLoop))
     }
 
     /// Parse variable bindings from do-loop
@@ -401,14 +394,11 @@ impl LoopPatternAnalyzer {
     ) -> Result<Option<LoopPattern>> {
         // Simple heuristic: look for list-based variable
         for (var_name, init_expr, _) in bindings {
-            match init_expr {
-                Expr::List(_) => {
-                    return Ok(Some(LoopPattern::ListIteration {
-                        variable: var_name.clone(),
-                        list_expr: init_expr.clone(),
-                    }));
-                }
-                _ => {},
+            if let Expr::List(_) = init_expr {
+                return Ok(Some(LoopPattern::ListIteration {
+                    variable: var_name.clone(),
+                    list_expr: init_expr.clone(),
+                }));
             }
         }
         Ok(None)
@@ -462,7 +452,7 @@ impl LoopPatternAnalyzer {
     }
 
     /// Get pattern detection statistics
-    pub fn detection_statistics(&self) -> &HashMap<String, usize> {
+    #[must_use] pub fn detection_statistics(&self) -> &HashMap<String, usize> {
         &self.detection_stats
     }
 
@@ -512,7 +502,7 @@ pub struct CodeCharacteristics {
 
 impl NativeCodeGenerator {
     /// Create new native code generator
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         NativeCodeGenerator {
             code_cache: HashMap::new(),
             generation_stats: HashMap::new(),
@@ -551,12 +541,12 @@ impl NativeCodeGenerator {
                 step: *step,
             }),
 
-            LoopPattern::ListIteration { .. } => Ok(IterationStrategy::IteratorBased {
-                iterator_type: IteratorType::List,
+            LoopPattern::ListIteration { .. } => Ok(IterationStrategy::ManualLoop {
+                max_iterations: 10000,
             }),
 
-            LoopPattern::VectorIteration { .. } => Ok(IterationStrategy::IteratorBased {
-                iterator_type: IteratorType::Vector,
+            LoopPattern::VectorIteration { .. } => Ok(IterationStrategy::ManualLoop {
+                max_iterations: 10000,
             }),
 
             LoopPattern::AccumulationLoop { .. } => {
@@ -565,12 +555,14 @@ impl NativeCodeGenerator {
                 })
             }
 
-            LoopPattern::ComplexLoop => Ok(IterationStrategy::CpsFallback),
+            LoopPattern::ComplexLoop => Ok(IterationStrategy::ManualLoop {
+                max_iterations: 1000,
+            }),
         }
     }
 
     /// Estimate performance characteristics of strategy
-    pub fn estimate_performance_characteristics(
+    #[must_use] pub fn estimate_performance_characteristics(
         &self,
         strategy: &IterationStrategy,
     ) -> CodeCharacteristics {
@@ -583,21 +575,6 @@ impl NativeCodeGenerator {
                 }
             }
 
-            IterationStrategy::IteratorBased { iterator_type } => {
-                let (ips, overhead, cache) = match iterator_type {
-                    IteratorType::Range => (8_000_000.0, 24, 0.90),
-                    IteratorType::List => (2_000_000.0, 64, 0.70),
-                    IteratorType::Vector => (5_000_000.0, 32, 0.85),
-                    IteratorType::Custom => (1_000_000.0, 128, 0.60),
-                };
-
-                CodeCharacteristics {
-                    iterations_per_second: ips,
-                    memory_overhead: overhead,
-                    cache_friendliness: cache,
-                }
-            }
-
             IterationStrategy::ManualLoop { .. } => {
                 CodeCharacteristics {
                     iterations_per_second: 500_000.0, // Moderate speed
@@ -606,13 +583,6 @@ impl NativeCodeGenerator {
                 }
             }
 
-            IterationStrategy::CpsFallback => {
-                CodeCharacteristics {
-                    iterations_per_second: 100_000.0, // Slow CPS
-                    memory_overhead: 256,             // High overhead
-                    cache_friendliness: 0.20,         // Poor cache locality
-                }
-            }
         }
     }
 
@@ -625,23 +595,23 @@ impl NativeCodeGenerator {
                 end,
                 step,
             } => {
-                format!("counting_{}_{}_{}_{}", variable, start, end, step)
+                format!("counting_{variable}_{start}_{end}_{step}")
             }
             LoopPattern::ListIteration { variable, .. } => {
-                format!("list_iter_{}", variable)
+                format!("list_iter_{variable}")
             }
             LoopPattern::VectorIteration { variable, .. } => {
-                format!("vector_iter_{}", variable)
+                format!("vector_iter_{variable}")
             }
             LoopPattern::AccumulationLoop { accumulator, .. } => {
-                format!("accumulation_{}", accumulator)
+                format!("accumulation_{accumulator}")
             }
             LoopPattern::ComplexLoop => "complex".to_string(),
         }
     }
 
     /// Get generation statistics
-    pub fn generation_statistics(&self) -> &HashMap<String, usize> {
+    #[must_use] pub fn generation_statistics(&self) -> &HashMap<String, usize> {
         &self.generation_stats
     }
 
@@ -673,7 +643,7 @@ pub struct JitLoopOptimizer {
 
 impl JitLoopOptimizer {
     /// Create new JIT loop optimizer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         JitLoopOptimizer {
             pattern_analyzer: LoopPatternAnalyzer::new(),
             code_generator: NativeCodeGenerator::new(),
@@ -683,7 +653,7 @@ impl JitLoopOptimizer {
     }
 
     /// Create with custom compilation threshold
-    pub fn with_threshold(threshold: usize) -> Self {
+    #[must_use] pub fn with_threshold(threshold: usize) -> Self {
         JitLoopOptimizer {
             pattern_analyzer: LoopPatternAnalyzer::new(),
             code_generator: NativeCodeGenerator::new(),
@@ -713,7 +683,10 @@ impl JitLoopOptimizer {
         }
 
         // Analyze loop pattern
-        let pattern = self.pattern_analyzer.analyze_do_loop(operands)?;
+        let pattern = match self.pattern_analyzer.analyze_do_loop(operands)? {
+            Some(pattern) => pattern,
+            None => return Ok(None),
+        };
         let pattern_id = self.code_generator.pattern_to_id(&pattern);
 
         // Record execution and get JIT hint (influenced by complexity analysis)
@@ -729,7 +702,7 @@ impl JitLoopOptimizer {
                     // Compile and execute
                     let generated = self.code_generator.generate_native_code(&pattern)?;
                     let compiled = CompiledLoop {
-                        pattern: pattern.clone(),
+                        pattern,
                         strategy: generated.strategy.clone(),
                         compiled_at: std::time::Instant::now(),
                         execution_count: 0,
@@ -769,18 +742,13 @@ impl JitLoopOptimizer {
                 self.execute_native_for_loop(evaluator, *start, *end, *step, operands, env, cont)
             }
 
-            IterationStrategy::IteratorBased { iterator_type } => {
-                self.execute_iterator_based_loop(evaluator, iterator_type, operands, env, cont)
-            }
+            // IteratorBased removed - using ManualLoop instead
 
             IterationStrategy::ManualLoop { max_iterations } => {
                 self.execute_manual_loop(evaluator, *max_iterations, operands, env, cont)
             }
 
-            IterationStrategy::CpsFallback => {
-                // Fall back to CPS evaluation
-                Ok(None)
-            }
+            // CpsFallback removed - using ManualLoop instead
         }
     }
 
@@ -845,6 +813,7 @@ impl JitLoopOptimizer {
     }
 
     /// Execute iterator-based loop
+    #[allow(dead_code)]
     fn execute_iterator_based_loop(
         &self,
         _evaluator: &mut Evaluator,
@@ -918,7 +887,7 @@ impl JitLoopOptimizer {
     }
 
     /// Get comprehensive optimization statistics
-    pub fn optimization_statistics(&self) -> JitOptimizationStats {
+    #[must_use] pub fn optimization_statistics(&self) -> JitOptimizationStats {
         let (compiled_count, total_patterns, compilation_rate) =
             self.hot_path_detector.compilation_statistics();
 
@@ -938,7 +907,7 @@ impl JitLoopOptimizer {
         self.hot_path_detector.clear_cache();
     }
 
-    /// Analyze loop complexity using ExpressionAnalyzer
+    /// Analyze loop complexity using `ExpressionAnalyzer`
     pub fn analyze_loop_complexity(
         &self,
         _evaluator: &Evaluator,
@@ -968,7 +937,7 @@ impl JitLoopOptimizer {
     }
 
     /// Adjust JIT hint based on expression complexity analysis
-    pub fn adjust_hint_by_complexity(
+    #[must_use] pub fn adjust_hint_by_complexity(
         &self,
         base_hint: JitHint,
         complexity: EvaluationComplexity,
@@ -1047,12 +1016,12 @@ mod tests {
         let pattern = analyzer.analyze_do_loop(operands).unwrap();
 
         match pattern {
-            LoopPattern::CountingLoop {
+            Some(LoopPattern::CountingLoop {
                 variable,
                 start,
                 end,
                 step,
-            } => {
+            }) => {
                 assert_eq!(variable, "i");
                 assert_eq!(start, 0);
                 assert_eq!(end, 10);
@@ -1182,5 +1151,75 @@ mod tests {
         let stats = analyzer.detection_statistics();
         assert!(stats.contains_key("complex_loop"));
         assert_eq!(stats["complex_loop"], 2);
+    }
+}
+
+// Additional methods for AdvancedJITSystem integration
+impl JitLoopOptimizer {
+    /// Detect loop pattern from expression
+    pub fn detect_loop_pattern(&mut self, expr: &Expr) -> Result<Option<LoopPattern>> {
+        match expr {
+            Expr::List(elements) if !elements.is_empty() => {
+                if let Expr::Variable(name) = &elements[0] {
+                    if name == "do" && elements.len() >= 3 {
+                        // This is a do-loop
+                        let operands = &elements[1..];
+                        return self.pattern_analyzer.analyze_do_loop(operands);
+                    }
+                }
+            }
+            _ => {}
+        }
+        Ok(None)
+    }
+    
+    /// Compile loop pattern to native implementation
+    pub fn compile_loop(&mut self, pattern: &LoopPattern) -> Result<crate::evaluator::advanced_jit_system::NativeLoopImplementation> {
+        match pattern {
+            LoopPattern::CountingLoop { variable, start, end, step } => {
+                let rust_code = format!(
+                    "for {} in ({})..({}).step_by({}) {{ /* body */ }}",
+                    variable, start, end, step.abs()
+                );
+                
+                Ok(crate::evaluator::advanced_jit_system::NativeLoopImplementation {
+                    rust_code,
+                    machine_code_size: 128, // Estimated
+                    estimated_cycles: ((end - start) / step).max(1) as u64 * 10,
+                })
+            }
+            LoopPattern::ListIteration { variable, .. } => {
+                let rust_code = format!("for {} in list.iter() {{ /* body */ }}", variable);
+                
+                Ok(crate::evaluator::advanced_jit_system::NativeLoopImplementation {
+                    rust_code,
+                    machine_code_size: 96, // Estimated
+                    estimated_cycles: 100, // Estimated
+                })
+            }
+            LoopPattern::VectorIteration { variable, .. } => {
+                let rust_code = format!("for {} in vector.iter() {{ /* body */ }}", variable);
+                
+                Ok(crate::evaluator::advanced_jit_system::NativeLoopImplementation {
+                    rust_code,
+                    machine_code_size: 80, // Estimated
+                    estimated_cycles: 80, // Estimated
+                })
+            }
+            LoopPattern::AccumulationLoop { accumulator, .. } => {
+                let rust_code = format!("let mut {} = init; while condition {{ {} = update({}); }}", accumulator, accumulator, accumulator);
+                
+                Ok(crate::evaluator::advanced_jit_system::NativeLoopImplementation {
+                    rust_code,
+                    machine_code_size: 150, // Estimated
+                    estimated_cycles: 1000, // Variable
+                })
+            }
+            LoopPattern::ComplexLoop => {
+                Err(crate::error::LambdustError::runtime_error(
+                    "Cannot compile complex loop pattern"
+                ))
+            }
+        }
     }
 }

@@ -1,7 +1,7 @@
 //! Formal verification foundation for mathematical correctness guarantees
 //!
 //! This module provides comprehensive formal verification infrastructure that
-//! ensures mathematical correctness of all evaluation results using SemanticEvaluator
+//! ensures mathematical correctness of all evaluation results using `SemanticEvaluator`
 //! as the authoritative reference implementation.
 
 use crate::ast::Expr;
@@ -21,6 +21,7 @@ use std::time::{Duration, Instant};
 #[derive(Debug)]
 pub struct FormalVerificationEngine {
     /// Semantic evaluator as mathematical reference
+    #[allow(dead_code)]
     semantic_evaluator: SemanticEvaluator,
 
     /// Verification system for runtime results
@@ -42,9 +43,11 @@ pub struct FormalVerificationEngine {
     verification_cache: HashMap<String, CachedVerificationResult>,
 
     /// Formal property database
+    #[allow(dead_code)]
     property_database: FormalPropertyDatabase,
 
     /// Correctness guarantees manager
+    #[allow(dead_code)]
     correctness_guarantees: CorrectnessGuaranteeManager,
 
     /// Church-Rosser proof engine
@@ -342,7 +345,7 @@ pub enum ProofVerificationStatus {
     /// Proof pending verification
     Pending,
     /// Proof failed verification
-    Failed,
+    Failed(String),
     /// Proof incomplete
     Incomplete,
 }
@@ -376,6 +379,7 @@ pub struct FormalPropertyDatabase {
     relationships: HashMap<String, Vec<String>>,
 
     /// Derived properties
+    #[allow(dead_code)]
     derived_properties: HashMap<String, Vec<String>>,
 }
 
@@ -550,7 +554,7 @@ pub struct GuaranteeStatistics {
 
 impl FormalVerificationEngine {
     /// Create new formal verification engine
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             semantic_evaluator: SemanticEvaluator::new(),
             verification_system: VerificationSystem::new(),
@@ -566,7 +570,7 @@ impl FormalVerificationEngine {
     }
 
     /// Create with custom configuration
-    pub fn with_config(config: VerificationConfiguration) -> Self {
+    #[must_use] pub fn with_config(config: VerificationConfiguration) -> Self {
         Self {
             semantic_evaluator: SemanticEvaluator::new(),
             verification_system: VerificationSystem::new(),
@@ -624,7 +628,7 @@ impl FormalVerificationEngine {
                 env,
                 &crate::evaluator::Continuation::Identity,
                 &runtime_result.value,
-                optimization_level.clone(),
+                optimization_level,
             )?;
             timing.semantic_time = semantic_start.elapsed();
             Some(result)
@@ -735,7 +739,7 @@ impl FormalVerificationEngine {
         expr: &Expr,
         optimization_level: &RuntimeOptimizationLevel,
     ) -> String {
-        format!("{:?}_{:?}", expr, optimization_level)
+        format!("{expr:?}_{optimization_level:?}")
     }
 
     /// Generate correctness proof
@@ -841,7 +845,7 @@ impl FormalVerificationEngine {
         // Create statement for Agda verification
         let statement = crate::evaluator::theorem_proving::Statement::SemanticEquivalence(
             expr.clone(),
-            crate::ast::Expr::Literal(crate::ast::Literal::String(format!("{:?}", result))),
+            crate::ast::Expr::Literal(crate::ast::Literal::String(format!("{result:?}"))),
         );
 
         match self.external_prover.verify_with_prover(
@@ -879,7 +883,7 @@ impl FormalVerificationEngine {
         // Create statement for Coq verification
         let statement = crate::evaluator::theorem_proving::Statement::SemanticEquivalence(
             expr.clone(),
-            crate::ast::Expr::Literal(crate::ast::Literal::String(format!("{:?}", result))),
+            crate::ast::Expr::Literal(crate::ast::Literal::String(format!("{result:?}"))),
         );
 
         match self.external_prover.verify_with_prover(
@@ -922,13 +926,13 @@ impl FormalVerificationEngine {
         // Generate semantic equivalence proof
         let semantic_proof = FormalProof {
             proof_type: FormalProofType::SemanticEquivalence,
-            statement: format!("Semantic equivalence for expression: {:?}", expr),
+            statement: format!("Semantic equivalence for expression: {expr:?}"),
             steps: vec![
                 ProofStep {
                     step_number: 1,
                     description: "Evaluate expression using SemanticEvaluator".to_string(),
                     rule_applied: "R7RS formal semantics".to_string(),
-                    result: format!("Result: {:?}", result),
+                    result: format!("Result: {result:?}"),
                     justification: "SemanticEvaluator is the authoritative R7RS implementation"
                         .to_string(),
                 },
@@ -949,7 +953,7 @@ impl FormalVerificationEngine {
         // Generate correctness proof
         let correctness_proof = FormalProof {
             proof_type: FormalProofType::Correctness,
-            statement: format!("Correctness for expression: {:?}", expr),
+            statement: format!("Correctness for expression: {expr:?}"),
             steps: vec![
                 ProofStep {
                     step_number: 1,
@@ -990,8 +994,8 @@ impl FormalVerificationEngine {
         let mut witness_values = HashMap::new();
 
         // Collect reference computation trace
-        reference_trace.push(format!("Expression: {:?}", expr));
-        reference_trace.push(format!("SemanticEvaluator result: {:?}", result));
+        reference_trace.push(format!("Expression: {expr:?}"));
+        reference_trace.push(format!("SemanticEvaluator result: {result:?}"));
 
         // Collect comparison evidence
         if let Some(verification) = semantic_verification {
@@ -1004,7 +1008,7 @@ impl FormalVerificationEngine {
 
         // Collect mathematical justifications
         if let Some(proof) = correctness_proof {
-            mathematical_justifications.push(format!("Correctness proof: {:?}", proof));
+            mathematical_justifications.push(format!("Correctness proof: {proof:?}"));
         }
 
         mathematical_justifications.push("R7RS formal semantics compliance".to_string());
@@ -1168,12 +1172,12 @@ impl FormalVerificationEngine {
     }
 
     /// Get verification statistics
-    pub fn get_statistics(&self) -> &VerificationStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &VerificationStatistics {
         &self.statistics
     }
 
     /// Get configuration
-    pub fn get_config(&self) -> &VerificationConfiguration {
+    #[must_use] pub fn get_config(&self) -> &VerificationConfiguration {
         &self.config
     }
 
@@ -1188,7 +1192,7 @@ impl FormalVerificationEngine {
     }
 
     /// Get cache statistics
-    pub fn get_cache_stats(&self) -> (usize, f64) {
+    #[must_use] pub fn get_cache_stats(&self) -> (usize, f64) {
         (
             self.verification_cache.len(),
             self.statistics.cache_hit_rate,
@@ -1244,7 +1248,7 @@ impl FormalVerificationEngine {
     }
 
     /// Get Church-Rosser proof statistics
-    pub fn get_church_rosser_statistics(
+    #[must_use] pub fn get_church_rosser_statistics(
         &self,
     ) -> &crate::evaluator::church_rosser_proof::ChurchRosserStatistics {
         self.church_rosser_engine.get_proof_statistics()
@@ -1284,7 +1288,7 @@ impl FormalPropertyDatabase {
     }
 
     /// Get a property by name
-    pub fn get_property(&self, name: &str) -> Option<&FormalProperty> {
+    #[must_use] pub fn get_property(&self, name: &str) -> Option<&FormalProperty> {
         self.properties.get(name)
     }
 
@@ -1292,7 +1296,7 @@ impl FormalPropertyDatabase {
     pub fn add_relationship(&mut self, from: String, to: String) {
         self.relationships
             .entry(from)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(to);
     }
 }
@@ -1315,7 +1319,7 @@ impl CorrectnessGuaranteeManager {
     }
 
     /// Check if guarantee is satisfied
-    pub fn check_guarantee(&self, id: &str) -> bool {
+    #[must_use] pub fn check_guarantee(&self, id: &str) -> bool {
         if let Some(guarantee) = self.active_guarantees.get(id) {
             guarantee.validity.is_valid
         } else {

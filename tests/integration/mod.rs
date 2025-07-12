@@ -12,6 +12,7 @@ pub mod evaluator_tests;
 pub mod exception_handling_tests;
 pub mod expression_analyzer_integration_tests;
 pub mod integration_tests;
+pub mod module_system_integration_tests;
 pub mod r7rs_compliance_tests;
 pub mod syntax_rules_tests;
 
@@ -21,3 +22,6 @@ pub mod srfi_1_tests;
 pub mod srfi_69_tests;
 pub mod srfi_97_tests;
 pub mod srfi_tests;
+
+// ExecutionContext integration tests
+pub mod execution_context_integration_tests;

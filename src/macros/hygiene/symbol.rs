@@ -13,12 +13,12 @@ pub struct SymbolId(pub u64);
 
 impl SymbolId {
     /// Create new symbol ID
-    pub fn new(id: u64) -> Self {
+    #[must_use] pub fn new(id: u64) -> Self {
         Self(id)
     }
     
     /// Get raw ID value
-    pub fn id(&self) -> u64 {
+    #[must_use] pub fn id(&self) -> u64 {
         self.0
     }
 }
@@ -35,18 +35,18 @@ pub struct EnvironmentId(pub u64);
 
 impl EnvironmentId {
     /// Create new environment ID
-    pub fn new(id: u64) -> Self {
+    #[must_use] pub fn new(id: u64) -> Self {
         Self(id)
     }
     
     /// Get raw ID value
-    pub fn id(&self) -> u64 {
+    #[must_use] pub fn id(&self) -> u64 {
         self.0
     }
 }
 
 /// Information about macro expansion site
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct MacroSite {
     /// Name of the macro that introduced this symbol
     pub macro_name: String,
@@ -60,7 +60,7 @@ pub struct MacroSite {
 
 impl MacroSite {
     /// Create new macro site
-    pub fn new(
+    #[must_use] pub fn new(
         macro_name: String,
         depth: usize,
         environment_id: EnvironmentId,
@@ -74,7 +74,7 @@ impl MacroSite {
     }
     
     /// Create macro site with source location
-    pub fn with_location(
+    #[must_use] pub fn with_location(
         macro_name: String,
         depth: usize,
         environment_id: EnvironmentId,
@@ -90,7 +90,7 @@ impl MacroSite {
 }
 
 /// Source code location information
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SourceLocation {
     /// File name or identifier
     pub file: String,
@@ -117,7 +117,7 @@ pub struct HygienicSymbol {
 
 impl HygienicSymbol {
     /// Create new hygienic symbol
-    pub fn new(
+    #[must_use] pub fn new(
         name: String,
         id: SymbolId,
         definition_site: MacroSite,
@@ -132,7 +132,7 @@ impl HygienicSymbol {
     }
     
     /// Create hygienic symbol from user code (not macro-introduced)
-    pub fn from_user_code(
+    #[must_use] pub fn from_user_code(
         name: String,
         id: SymbolId,
         environment_id: EnvironmentId,
@@ -153,18 +153,18 @@ impl HygienicSymbol {
     }
     
     /// Set usage site information
-    pub fn with_usage_site(mut self, usage_site: MacroSite) -> Self {
+    #[must_use] pub fn with_usage_site(mut self, usage_site: MacroSite) -> Self {
         self.usage_site = Some(usage_site);
         self
     }
     
     /// Get the original name without hygiene decorations
-    pub fn original_name(&self) -> &str {
+    #[must_use] pub fn original_name(&self) -> &str {
         &self.name
     }
     
     /// Get unique name with hygiene information
-    pub fn unique_name(&self) -> String {
+    #[must_use] pub fn unique_name(&self) -> String {
         if self.is_macro_introduced {
             format!("λ${}#{}", self.name, self.id.0)
         } else {
@@ -173,12 +173,12 @@ impl HygienicSymbol {
     }
     
     /// Check if this symbol is the same as another (ignoring usage sites)
-    pub fn is_same_symbol(&self, other: &HygienicSymbol) -> bool {
+    #[must_use] pub fn is_same_symbol(&self, other: &HygienicSymbol) -> bool {
         self.id == other.id && self.name == other.name
     }
     
     /// Check if this symbol can reference the same binding as another
-    pub fn can_reference_same_binding(&self, other: &HygienicSymbol) -> bool {
+    #[must_use] pub fn can_reference_same_binding(&self, other: &HygienicSymbol) -> bool {
         // Same symbol ID means same binding
         if self.id == other.id {
             return true;

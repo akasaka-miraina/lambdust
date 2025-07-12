@@ -40,12 +40,12 @@ pub struct CycleDetector {
 
 impl CycleDetector {
     /// Create a new cycle detector
-    pub fn new(graph: DependencyGraph) -> Self {
+    #[must_use] pub fn new(graph: DependencyGraph) -> Self {
         Self { graph }
     }
 
     /// Detect all cycles in the dependency graph
-    pub fn detect_cycles(&self) -> CycleDetectionResult {
+    #[must_use] pub fn detect_cycles(&self) -> CycleDetectionResult {
         let mut result = CycleDetectionResult {
             cycles: Vec::new(),
             strongly_connected_components: Vec::new(),
@@ -91,7 +91,7 @@ impl CycleDetector {
     }
 
     /// Check if a specific path forms a cycle
-    pub fn has_cycle_in_path(&self, path: &[String]) -> bool {
+    #[must_use] pub fn has_cycle_in_path(&self, path: &[String]) -> bool {
         if path.len() < 2 {
             return false;
         }
@@ -104,7 +104,7 @@ impl CycleDetector {
     }
 
     /// Find the shortest cycle containing a given node
-    pub fn find_shortest_cycle(&self, start_node: &str) -> Option<Vec<String>> {
+    #[must_use] pub fn find_shortest_cycle(&self, start_node: &str) -> Option<Vec<String>> {
         let mut visited = HashSet::new();
         let mut path = Vec::new();
 
@@ -230,12 +230,12 @@ impl<'a> TarjanSCC<'a> {
 /// Utility functions for cycle analysis
 impl CycleDetectionResult {
     /// Check if any cycles were found
-    pub fn has_cycles(&self) -> bool {
+    #[must_use] pub fn has_cycles(&self) -> bool {
         !self.cycles.is_empty()
     }
 
     /// Get cycles of a specific type
-    pub fn get_cycles_of_type(&self, cycle_type: CycleType) -> Vec<&Cycle> {
+    #[must_use] pub fn get_cycles_of_type(&self, cycle_type: CycleType) -> Vec<&Cycle> {
         self.cycles
             .iter()
             .filter(|cycle| cycle.cycle_type == cycle_type)
@@ -243,12 +243,12 @@ impl CycleDetectionResult {
     }
 
     /// Get the total number of cycles
-    pub fn cycle_count(&self) -> usize {
+    #[must_use] pub fn cycle_count(&self) -> usize {
         self.cycles.len()
     }
 
     /// Get all nodes involved in cycles
-    pub fn get_cyclic_nodes(&self) -> HashSet<String> {
+    #[must_use] pub fn get_cyclic_nodes(&self) -> HashSet<String> {
         let mut nodes = HashSet::new();
         for cycle in &self.cycles {
             for node in &cycle.nodes {
@@ -261,7 +261,7 @@ impl CycleDetectionResult {
 
 impl Cycle {
     /// Get a human-readable representation of the cycle
-    pub fn to_string(&self) -> String {
+    #[must_use] pub fn to_string(&self) -> String {
         match self.cycle_type {
             CycleType::SelfReference => {
                 format!("{} → {}", self.nodes[0], self.nodes[0])
@@ -276,7 +276,7 @@ impl Cycle {
     }
 
     /// Get the length of the cycle
-    pub fn length(&self) -> usize {
+    #[must_use] pub fn length(&self) -> usize {
         self.nodes.len()
     }
 }

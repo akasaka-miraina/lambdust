@@ -3,13 +3,15 @@
 //! This module provides comprehensive performance monitoring and analysis
 //! capabilities for tracking optimization effectiveness.
 
-use super::optimization_manager::{OptimizationResult, PerformanceImprovement};
-use crate::error::{LambdustError, Result};
+use super::optimization_manager::OptimizationResult;
+// Removed unused imports:
+// use crate::error::{LambdustError, Result};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 /// 最適化パフォーマンス監視システム
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct OptimizationPerformanceMonitor {
     /// 実行履歴
     execution_history: Vec<ExecutionRecord>,
@@ -135,16 +137,25 @@ pub struct AlertConfiguration {
 #[derive(Debug, Clone)]
 pub enum AlertDestination {
     /// ログファイル
-    LogFile { path: String },
+    LogFile { 
+        /// Path to the log file
+        path: String 
+    },
 
     /// コンソール出力
     Console,
 
     /// メール
-    Email { address: String },
+    Email { 
+        /// Email address for alerts
+        address: String 
+    },
 
     /// Webhook
-    Webhook { url: String },
+    Webhook { 
+        /// URL for webhook alerts
+        url: String 
+    },
 
     /// システム通知
     SystemNotification,
@@ -218,23 +229,29 @@ pub struct AnomalyDetector {
 pub enum AnomalyDetectionMethod {
     /// 統計的異常検出
     Statistical {
+        /// Multiplier for statistical threshold
         threshold_multiplier: f64,
     },
 
     /// 機械学習ベース
     MachineLearning {
+        /// Type of machine learning model
         model_type: String,
+        /// Size of training data
         training_data_size: usize,
     },
 
     /// パターンベース
     PatternBased {
+        /// Anomaly patterns to detect
         patterns: Vec<AnomalyPattern>,
     },
 
     /// 時系列異常検出
     TimeSeries {
+        /// Size of the time series window
         window_size: usize,
+        /// Whether to apply seasonal adjustment
         seasonal_adjustment: bool,
     },
 }
@@ -331,7 +348,10 @@ pub enum AnomalyType {
     ResourceExhaustion,
 
     /// カスタム異常
-    Custom { type_name: String },
+    Custom { 
+        /// Name of the custom anomaly type
+        type_name: String 
+    },
 }
 
 /// 影響度評価
@@ -397,7 +417,10 @@ pub enum ActionType {
     SendAlert,
 
     /// カスタムアクション
-    Custom { action_name: String },
+    Custom { 
+        /// Name of the custom action
+        action_name: String 
+    },
 }
 
 /// アクション優先度
@@ -429,9 +452,15 @@ pub struct ActionCost {
     pub disruption_cost: f64,
 }
 
+impl Default for OptimizationPerformanceMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationPerformanceMonitor {
     /// 新しいパフォーマンス監視システムを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             execution_history: Vec::new(),
             realtime_stats: RealtimePerformanceStats::default(),
@@ -443,7 +472,7 @@ impl OptimizationPerformanceMonitor {
     }
 
     /// 設定付きで作成
-    pub fn with_config(config: MonitoringConfiguration) -> Self {
+    #[must_use] pub fn with_config(config: MonitoringConfiguration) -> Self {
         Self {
             execution_history: Vec::new(),
             realtime_stats: RealtimePerformanceStats::default(),
@@ -467,7 +496,7 @@ impl OptimizationPerformanceMonitor {
 
         self.execution_history.push(record);
         self.update_realtime_stats(&execution_time);
-        self.check_thresholds(&result, &execution_time);
+        self.check_thresholds(result, &execution_time);
         self.detect_anomalies();
 
         // 履歴サイズ制限
@@ -475,17 +504,17 @@ impl OptimizationPerformanceMonitor {
     }
 
     /// リアルタイム統計を取得
-    pub fn get_realtime_stats(&self) -> &RealtimePerformanceStats {
+    #[must_use] pub fn get_realtime_stats(&self) -> &RealtimePerformanceStats {
         &self.realtime_stats
     }
 
     /// 実行履歴を取得
-    pub fn get_execution_history(&self) -> &[ExecutionRecord] {
+    #[must_use] pub fn get_execution_history(&self) -> &[ExecutionRecord] {
         &self.execution_history
     }
 
     /// パフォーマンスレポートを生成
-    pub fn generate_performance_report(&self) -> PerformanceReport {
+    #[must_use] pub fn generate_performance_report(&self) -> PerformanceReport {
         PerformanceReport {
             summary: self.calculate_summary_statistics(),
             detailed_metrics: self.calculate_detailed_metrics(),
@@ -558,7 +587,7 @@ impl OptimizationPerformanceMonitor {
     fn send_alert(&self, alert_type: AlertType, value: f64) {
         if self.alert_config.performance_degradation_alert {
             // 実際の実装では、設定された送信先にアラートを送信
-            println!("Alert: {:?} with value: {}", alert_type, value);
+            println!("Alert: {alert_type:?} with value: {value}");
         }
     }
 
@@ -647,41 +676,57 @@ impl OptimizationPerformanceMonitor {
 /// アラートタイプ
 #[derive(Debug)]
 pub enum AlertType {
+    /// Execution time threshold exceeded
     ExecutionTimeThresholdExceeded,
+    /// Improvement rate below threshold
     ImprovementRateBelowThreshold,
+    /// High memory usage
     MemoryUsageHigh,
+    /// High CPU usage
     CpuUsageHigh,
 }
 
 /// パフォーマンスレポート
 #[derive(Debug, Clone)]
 pub struct PerformanceReport {
+    /// Summary statistics
     pub summary: SummaryStatistics,
+    /// Detailed performance metrics
     pub detailed_metrics: DetailedMetrics,
+    /// Summary of detected anomalies
     pub anomaly_summary: AnomalySummary,
+    /// Recommended actions
     pub recommendations: Vec<RecommendedAction>,
+    /// Timestamp when report was generated
     pub report_timestamp: Instant,
 }
 
 /// サマリー統計（簡略化）
 #[derive(Debug, Clone, Default)]
 pub struct SummaryStatistics {
+    /// Total number of executions
     pub total_executions: usize,
+    /// Average execution time
     pub average_execution_time: Duration,
+    /// Success rate of executions
     pub success_rate: f64,
 }
 
 /// 詳細メトリクス（簡略化）
 #[derive(Debug, Clone, Default)]
 pub struct DetailedMetrics {
+    /// Distribution of execution times
     pub execution_time_distribution: HashMap<String, Duration>,
+    /// Trends in memory usage
     pub memory_usage_trends: Vec<f64>,
 }
 
 /// 異常サマリー（簡略化）
 #[derive(Debug, Clone, Default)]
 pub struct AnomalySummary {
+    /// Total number of anomalies detected
     pub total_anomalies: usize,
+    /// Count of anomalies by type
     pub anomalies_by_type: HashMap<String, usize>,
 }
 

@@ -42,12 +42,13 @@ use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{FormalVerificationEngine, RuntimeOptimizationLevel};
-use std::collections::HashMap;
+// Removed unused import: use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 /// 正当性保証システム
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct CorrectnessGuarantor {
     /// 検証エンジン
     verification_engine: Option<FormalVerificationEngine>,
@@ -234,6 +235,7 @@ pub struct VerificationStatistics {
 
 /// オーケストレーター
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct OptimizationOrchestrator {
     /// 実行プランナー
     execution_planner: ExecutionPlanner,
@@ -253,6 +255,7 @@ pub struct OptimizationOrchestrator {
 
 /// 実行プランナー
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct ExecutionPlanner {
     /// プランニング戦略
     planning_strategy: PlanningStrategy,
@@ -548,9 +551,15 @@ pub enum ImplementationEffort {
     VeryHigh,
 }
 
+impl Default for CorrectnessGuarantor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CorrectnessGuarantor {
     /// 新しい正当性保証システムを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             verification_engine: None,
             verification_config: VerificationConfiguration::default(),
@@ -627,9 +636,15 @@ impl CorrectnessGuarantor {
     }
 }
 
+impl Default for OptimizationOrchestrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationOrchestrator {
     /// 新しいオーケストレーターを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             execution_planner: ExecutionPlanner::new(),
             scheduler: OptimizationScheduler::new(),
@@ -659,9 +674,15 @@ impl OptimizationOrchestrator {
     }
 }
 
+impl Default for ExecutionPlanner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ExecutionPlanner {
     /// 新しい実行プランナーを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             planning_strategy: PlanningStrategy::Greedy,
             resource_estimator: ResourceEstimator::new(),
@@ -670,9 +691,15 @@ impl ExecutionPlanner {
     }
 }
 
+impl Default for ResourceEstimator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ResourceEstimator {
     /// 新しいリソース見積もり器を作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             historical_data: Vec::new(),
             estimation_model: EstimationModel::LinearRegression,
@@ -681,9 +708,15 @@ impl ResourceEstimator {
     }
 }
 
+impl Default for OptimizationOrdering {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationOrdering {
     /// 新しい最適化順序決定を作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             ordering_strategy: OrderingStrategy::Topological,
             dependency_aware: true,

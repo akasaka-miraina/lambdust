@@ -40,7 +40,7 @@ fn syntax_parameter_value_proc(args: &[Value]) -> Result<Value> {
     match &args[0] {
         Value::Symbol(name) => {
             // Return a placeholder value
-            Ok(Value::String(format!("placeholder-value-for-{}", name)))
+            Ok(Value::String(format!("placeholder-value-for-{name}")))
         }
         _ => Err(LambdustError::type_error("Expected symbol".to_string())),
     }

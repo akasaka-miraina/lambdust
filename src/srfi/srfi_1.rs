@@ -446,7 +446,7 @@ impl crate::srfi::SrfiModule for Srfi1 {
                     // List manipulation functions
                     for name in &["take", "drop", "concatenate", "delete-duplicates"] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -462,7 +462,7 @@ impl crate::srfi::SrfiModule for Srfi1 {
                         "every",
                     ] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -474,8 +474,7 @@ impl crate::srfi::SrfiModule for Srfi1 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "SRFI 1: unknown part '{}'",
-                        part
+                        "SRFI 1: unknown part '{part}'"
                     )));
                 }
             }

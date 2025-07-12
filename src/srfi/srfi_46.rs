@@ -46,8 +46,7 @@ impl SrfiModule for Srfi46 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "Unknown SRFI 46 part: {}",
-                        part
+                        "Unknown SRFI 46 part: {part}"
                     )));
                 }
             }

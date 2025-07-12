@@ -717,6 +717,7 @@ mod expand_case_tests {
 #[cfg(test)]
 mod expand_define_record_type_tests {
     use super::*;
+    use crate::macros::builtin::expand_define_record_type;
 
     #[test]
     fn test_expand_define_record_type_simple() {

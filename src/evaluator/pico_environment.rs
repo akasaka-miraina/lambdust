@@ -1,0 +1,243 @@
+//! R7RS-pico Initial Environment Setup
+//!
+//! This module provides functions to create the initial environment for R7RS-pico
+//! with the minimal set of built-in procedures required by the specification.
+
+#[cfg(feature = "pico")]
+use crate::environment::Environment;
+#[cfg(feature = "pico")]
+use crate::value::{Procedure, Value};
+#[cfg(feature = "pico")]
+use std::rc::Rc;
+
+/// Create the initial R7RS-pico environment with built-in procedures
+///
+/// This function creates an environment containing the minimal set of
+/// built-in procedures required by the R7RS-pico specification:
+///
+/// - Arithmetic: +, -, *, =, <, >
+/// - List operations: cons, car, cdr
+/// - Predicates: null?, pair?, number?, boolean?, symbol?, procedure?
+/// - Equivalence: eqv?
+#[cfg(feature = "pico")]
+pub fn create_pico_initial_environment() -> Rc<Environment> {
+    let env = Environment::new();
+    
+    // Arithmetic operations
+    add_builtin(&env, "+", "Addition of two numbers");
+    add_builtin(&env, "-", "Subtraction or negation");
+    add_builtin(&env, "*", "Multiplication of two numbers");
+    add_builtin(&env, "=", "Numeric equality");
+    add_builtin(&env, "<", "Numeric less than");
+    add_builtin(&env, ">", "Numeric greater than");
+    
+    // List operations
+    add_builtin(&env, "cons", "Construct a pair");
+    add_builtin(&env, "car", "First element of a pair");
+    add_builtin(&env, "cdr", "Second element of a pair");
+    
+    // Type predicates
+    add_builtin(&env, "null?", "Test for empty list");
+    add_builtin(&env, "pair?", "Test for pair");
+    add_builtin(&env, "number?", "Test for number");
+    add_builtin(&env, "boolean?", "Test for boolean");
+    add_builtin(&env, "symbol?", "Test for symbol");
+    add_builtin(&env, "procedure?", "Test for procedure");
+    
+    // Equivalence
+    add_builtin(&env, "eqv?", "Test for equivalence");
+    
+    Rc::new(env)
+}
+
+/// Add a built-in procedure to the environment
+#[cfg(feature = "pico")]
+fn add_builtin(env: &Environment, name: &str, _description: &str) {
+    let procedure = Value::Procedure(Procedure::Builtin {
+        name: name.to_string(),
+        arity: None, // Will be checked by PicoEvaluator
+        func: pico_builtin_placeholder,
+    });
+    
+    env.define(name.to_string(), procedure);
+}
+
+/// Placeholder function for pico built-ins
+/// The actual implementation is handled by PicoEvaluator::apply_builtin
+#[cfg(feature = "pico")]
+pub fn pico_builtin_placeholder(_args: &[Value]) -> crate::error::Result<Value> {
+    Ok(Value::Undefined)
+}
+
+/// Get the list of all built-in procedure names in R7RS-pico
+#[cfg(feature = "pico")]
+pub fn get_pico_builtin_names() -> Vec<&'static str> {
+    vec![
+        // Arithmetic
+        "+", "-", "*", "=", "<", ">",
+        // List operations
+        "cons", "car", "cdr",
+        // Predicates
+        "null?", "pair?", "number?", "boolean?", "symbol?", "procedure?",
+        // Equivalence
+        "eqv?",
+    ]
+}
+
+/// Check if a name is a built-in procedure in R7RS-pico
+#[cfg(feature = "pico")]
+pub fn is_pico_builtin(name: &str) -> bool {
+    get_pico_builtin_names().contains(&name)
+}
+
+/// Get R7RS-pico language feature summary
+#[cfg(feature = "pico")]
+pub fn get_pico_features() -> PicoFeatures {
+    PicoFeatures {
+        semantic_model: "U -> E (Environment to Expressed value)".to_string(),
+        supported_types: vec![
+            "boolean".to_string(),
+            "number (integer only)".to_string(),
+            "symbol".to_string(),
+            "pair".to_string(),
+            "procedure".to_string(),
+            "null".to_string(),
+        ],
+        special_forms: vec![
+            "lambda".to_string(),
+            "if".to_string(),
+            "define".to_string(),
+            "quote".to_string(),
+        ],
+        excluded_features: vec![
+            "Side effects (set!)".to_string(),
+            "Continuations (call/cc)".to_string(),
+            "Complex numbers".to_string(),
+            "Vectors".to_string(),
+            "Strings (limited support)".to_string(),
+            "Input/output procedures".to_string(),
+            "Macros".to_string(),
+        ],
+        builtin_procedures: get_pico_builtin_names().len(),
+        memory_model: "No side effects, implementations may use any storage model".to_string(),
+        tail_recursion: "Required to be properly tail-recursive".to_string(),
+    }
+}
+
+/// R7RS-pico language feature summary
+#[cfg(feature = "pico")]
+#[derive(Debug, Clone)]
+pub struct PicoFeatures {
+    /// Semantic evaluation model
+    pub semantic_model: String,
+    /// Supported data types
+    pub supported_types: Vec<String>,
+    /// Special forms supported
+    pub special_forms: Vec<String>,
+    /// Features excluded from full R7RS
+    pub excluded_features: Vec<String>,
+    /// Number of built-in procedures
+    pub builtin_procedures: usize,
+    /// Memory model description
+    pub memory_model: String,
+    /// Tail recursion requirement
+    pub tail_recursion: String,
+}
+
+#[cfg(test)]
+#[cfg(feature = "pico")]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_create_pico_initial_environment() {
+        let env = create_pico_initial_environment();
+        
+        // Test that all required built-ins are present
+        for builtin_name in get_pico_builtin_names() {
+            let value = env.get(builtin_name);
+            assert!(value.is_some(), "Built-in {} not found", builtin_name);
+            
+            if let Some(Value::Procedure(Procedure::Builtin { name, .. })) = value {
+                assert_eq!(name, builtin_name);
+            } else {
+                panic!("Built-in {} is not a procedure", builtin_name);
+            }
+        }
+    }
+    
+    #[test]
+    fn test_builtin_name_checking() {
+        // Test positive cases
+        assert!(is_pico_builtin("+"));
+        assert!(is_pico_builtin("cons"));
+        assert!(is_pico_builtin("eqv?"));
+        
+        // Test negative cases
+        assert!(!is_pico_builtin("set!"));
+        assert!(!is_pico_builtin("call/cc"));
+        assert!(!is_pico_builtin("vector"));
+        assert!(!is_pico_builtin("unknown-proc"));
+    }
+    
+    #[test]
+    fn test_pico_features() {
+        let features = get_pico_features();
+        
+        // Check semantic model
+        assert_eq!(features.semantic_model, "U -> E (Environment to Expressed value)");
+        
+        // Check supported types
+        assert!(features.supported_types.contains(&"boolean".to_string()));
+        assert!(features.supported_types.contains(&"number (integer only)".to_string()));
+        assert!(features.supported_types.contains(&"symbol".to_string()));
+        assert!(features.supported_types.contains(&"pair".to_string()));
+        assert!(features.supported_types.contains(&"procedure".to_string()));
+        
+        // Check special forms
+        assert!(features.special_forms.contains(&"lambda".to_string()));
+        assert!(features.special_forms.contains(&"if".to_string()));
+        assert!(features.special_forms.contains(&"define".to_string()));
+        assert!(features.special_forms.contains(&"quote".to_string()));
+        
+        // Check excluded features
+        assert!(features.excluded_features.contains(&"Side effects (set!)".to_string()));
+        assert!(features.excluded_features.contains(&"Continuations (call/cc)".to_string()));
+        
+        // Check builtin count
+        assert_eq!(features.builtin_procedures, get_pico_builtin_names().len());
+        
+        // Check tail recursion requirement
+        assert!(features.tail_recursion.contains("properly tail-recursive"));
+    }
+    
+    #[test]
+    fn test_builtin_procedures_count() {
+        let builtin_names = get_pico_builtin_names();
+        
+        // R7RS-pico should have exactly these built-ins
+        assert_eq!(builtin_names.len(), 16); // 6 arithmetic + 3 list + 6 predicates + 1 equivalence
+        
+        // Check specific categories
+        let arithmetic = vec!["+", "-", "*", "=", "<", ">"];
+        let list_ops = vec!["cons", "car", "cdr"];
+        let predicates = vec!["null?", "pair?", "number?", "boolean?", "symbol?", "procedure?"];
+        let equivalence = vec!["eqv?"];
+        
+        for op in arithmetic {
+            assert!(builtin_names.contains(&op), "Missing arithmetic op: {}", op);
+        }
+        
+        for op in list_ops {
+            assert!(builtin_names.contains(&op), "Missing list op: {}", op);
+        }
+        
+        for pred in predicates {
+            assert!(builtin_names.contains(&pred), "Missing predicate: {}", pred);
+        }
+        
+        for eq in equivalence {
+            assert!(builtin_names.contains(&eq), "Missing equivalence: {}", eq);
+        }
+    }
+}

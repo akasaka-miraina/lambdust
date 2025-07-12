@@ -5,7 +5,7 @@
 //! preserving backward compatibility.
 
 use super::symbol::{HygienicSymbol, SymbolId, EnvironmentId};
-use super::context::ExpansionContext;
+// Removed unused import: use super::context::ExpansionContext;
 use crate::environment::Environment;
 use crate::value::Value;
 use crate::macros::Macro;
@@ -23,11 +23,19 @@ pub struct SymbolCache {
     lookup_cache: RefCell<HashMap<SymbolId, Option<Value>>>,
     /// Cache statistics
     pub cache_hits: RefCell<usize>,
+    /// Number of cache misses
     pub cache_misses: RefCell<usize>,
 }
 
+impl Default for SymbolCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SymbolCache {
-    pub fn new() -> Self {
+    /// Creates a new symbol cache
+    #[must_use] pub fn new() -> Self {
         Self {
             resolution_cache: RefCell::new(HashMap::new()),
             lookup_cache: RefCell::new(HashMap::new()),
@@ -36,6 +44,7 @@ impl SymbolCache {
         }
     }
 
+    /// Clears all caches and resets statistics
     pub fn clear(&self) {
         self.resolution_cache.borrow_mut().clear();
         self.lookup_cache.borrow_mut().clear();
@@ -43,6 +52,7 @@ impl SymbolCache {
         *self.cache_misses.borrow_mut() = 0;
     }
 
+    /// Returns cache statistics as (hits, misses)
     pub fn get_cache_stats(&self) -> (usize, usize) {
         (*self.cache_hits.borrow(), *self.cache_misses.borrow())
     }
@@ -57,7 +67,7 @@ pub struct HygienicEnvironment {
     pub inner: Rc<Environment>,
     /// Mapping from symbol names to hygienic symbols
     pub symbol_map: HashMap<String, HygienicSymbol>,
-    /// Hygienic symbol bindings (symbol_id -> value)
+    /// Hygienic symbol bindings (`symbol_id` -> value)
     pub hygienic_bindings: HashMap<SymbolId, Value>,
     /// Hygienic macro definitions
     pub hygienic_macros: HashMap<String, HygienicMacro>,
@@ -81,7 +91,7 @@ pub struct HygienicMacro {
 
 impl HygienicEnvironment {
     /// Create new hygienic environment
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let env_id = super::generator::SymbolGenerator::generate_environment_id();
         
         Self {
@@ -195,8 +205,8 @@ impl HygienicEnvironment {
     
     /// Set hygienic symbol
     pub fn set_hygienic(&mut self, symbol: &HygienicSymbol, value: Value) -> Result<()> {
-        if self.hygienic_bindings.contains_key(&symbol.id) {
-            self.hygienic_bindings.insert(symbol.id, value);
+        if let std::collections::hash_map::Entry::Occupied(mut e) = self.hygienic_bindings.entry(symbol.id) {
+            e.insert(value);
             Ok(())
         } else if let Some(ref mut _parent) = self.parent {
             // Try to modify parent (need Rc::get_mut which might fail)
@@ -263,7 +273,7 @@ impl HygienicEnvironment {
     }
     
     /// Enter macro expansion context with safety checks
-    pub fn enter_macro_expansion(&self, macro_name: String) -> Result<Self> {
+    pub fn enter_macro_expansion(&self, _macro_name: String) -> Result<Self> {
         let env = self.clone();
         // TODO: Re-implement expansion context tracking
         // match env.expansion_context.enter_macro(macro_name) {
@@ -354,7 +364,7 @@ pub enum SymbolResolution {
 
 impl SymbolResolution {
     /// Get the name regardless of resolution type
-    pub fn name(&self) -> &str {
+    #[must_use] pub fn name(&self) -> &str {
         match self {
             SymbolResolution::Hygienic(symbol) => symbol.original_name(),
             SymbolResolution::Traditional(name) => name,
@@ -363,12 +373,12 @@ impl SymbolResolution {
     }
     
     /// Check if symbol is bound
-    pub fn is_bound(&self) -> bool {
+    #[must_use] pub fn is_bound(&self) -> bool {
         !matches!(self, SymbolResolution::Unbound(_))
     }
     
     /// Check if symbol is hygienic
-    pub fn is_hygienic(&self) -> bool {
+    #[must_use] pub fn is_hygienic(&self) -> bool {
         matches!(self, SymbolResolution::Hygienic(_))
     }
 }
@@ -464,7 +474,7 @@ mod tests {
     #[test]
     fn test_macro_expansion_context() {
         let env = HygienicEnvironment::new();
-        let expanded_env = env.enter_macro_expansion("test-macro".to_string()).unwrap();
+        let _expanded_env = env.enter_macro_expansion("test-macro".to_string()).unwrap();
         
         // TODO: Re-implement expansion context tests
         // assert_eq!(expanded_env.expansion_context.current_macro(), Some("test-macro"));

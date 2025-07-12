@@ -52,7 +52,7 @@ impl ExpansionContext {
     /// Create new expansion context from definition and usage environments
     pub fn new(
         definition_environment: super::environment::HygienicEnvironment,
-        usage_environment: super::environment::HygienicEnvironment,
+        _usage_environment: super::environment::HygienicEnvironment,
     ) -> Self {
         // Combine environment IDs or create a new one
         let environment_id = definition_environment.environment_id();
@@ -72,7 +72,7 @@ impl ExpansionContext {
     }
     
     /// Create new expansion context with environment ID
-    pub fn with_environment_id(environment_id: EnvironmentId) -> Self {
+    #[must_use] pub fn with_environment_id(environment_id: EnvironmentId) -> Self {
         Self {
             depth: 0,
             macro_stack: Vec::new(),
@@ -94,7 +94,7 @@ impl ExpansionContext {
     }
     
     /// Create context for macro definition
-    pub fn for_definition(environment_id: EnvironmentId) -> Self {
+    #[must_use] pub fn for_definition(environment_id: EnvironmentId) -> Self {
         let mut context = Self::with_environment_id(environment_id);
         context.is_definition_context = true;
         context
@@ -174,12 +174,12 @@ impl ExpansionContext {
     }
     
     /// Get current macro name (if any)
-    pub fn current_macro(&self) -> Option<&str> {
-        self.macro_stack.last().map(|s| s.as_str())
+    #[must_use] pub fn current_macro(&self) -> Option<&str> {
+        self.macro_stack.last().map(std::string::String::as_str)
     }
     
     /// Check if we're currently expanding a specific macro
-    pub fn is_expanding_macro(&self, macro_name: &str) -> bool {
+    #[must_use] pub fn is_expanding_macro(&self, macro_name: &str) -> bool {
         self.macro_stack.iter().any(|name| name == macro_name)
     }
     
@@ -207,12 +207,12 @@ impl ExpansionContext {
     }
     
     /// Lookup symbol binding in current context
-    pub fn lookup_symbol(&self, name: &str) -> Option<&HygienicSymbol> {
+    #[must_use] pub fn lookup_symbol(&self, name: &str) -> Option<&HygienicSymbol> {
         self.symbol_bindings.get(name)
     }
     
     /// Create macro site for current context
-    pub fn current_macro_site(&self) -> MacroSite {
+    #[must_use] pub fn current_macro_site(&self) -> MacroSite {
         let macro_name = self.current_macro()
             .unwrap_or("<top-level>")
             .to_string();
@@ -221,12 +221,12 @@ impl ExpansionContext {
     }
     
     /// Check if we're in a recursive macro expansion
-    pub fn is_recursive_expansion(&self, macro_name: &str) -> bool {
+    #[must_use] pub fn is_recursive_expansion(&self, macro_name: &str) -> bool {
         self.macro_stack.iter().filter(|&name| name == macro_name).count() > 1
     }
     
     /// Get expansion path as string (for debugging)
-    pub fn expansion_path(&self) -> String {
+    #[must_use] pub fn expansion_path(&self) -> String {
         if self.macro_stack.is_empty() {
             "<top-level>".to_string()
         } else {
@@ -240,14 +240,14 @@ impl ExpansionContext {
     }
     
     /// Create child context with fresh bindings
-    pub fn child_context(&self) -> Self {
+    #[must_use] pub fn child_context(&self) -> Self {
         let mut child = self.clone();
         child.symbol_bindings.clear();
         child
     }
     
     /// Configure expansion limits for safety
-    pub fn with_limits(mut self, max_depth: usize, timeout: Duration) -> Self {
+    #[must_use] pub fn with_limits(mut self, max_depth: usize, timeout: Duration) -> Self {
         self.max_expansion_depth = max_depth;
         self.expansion_timeout = timeout;
         self
@@ -269,10 +269,9 @@ impl ExpansionContext {
     }
     
     /// Get expansion statistics
-    pub fn expansion_stats(&self) -> ExpansionStats {
+    #[must_use] pub fn expansion_stats(&self) -> ExpansionStats {
         let elapsed = self.expansion_start
-            .map(|start| start.elapsed())
-            .unwrap_or(Duration::ZERO);
+            .map_or(Duration::ZERO, |start| start.elapsed());
             
         ExpansionStats {
             depth: self.depth,
@@ -284,7 +283,7 @@ impl ExpansionContext {
     }
     
     /// Check if there are any recursive macro calls in the stack
-    pub fn has_recursive_macro(&self) -> bool {
+    #[must_use] pub fn has_recursive_macro(&self) -> bool {
         let mut seen = HashSet::new();
         for macro_name in &self.macro_stack {
             if !seen.insert(macro_name) {
@@ -300,8 +299,7 @@ impl ExpansionContext {
         if let Some(current) = self.current_macro() {
             if self.is_problematic_combination(current, new_macro) {
                 return Err(format!(
-                    "Problematic macro combination detected: {} -> {}",
-                    current, new_macro
+                    "Problematic macro combination detected: {current} -> {new_macro}"
                 ));
             }
         }
@@ -314,8 +312,7 @@ impl ExpansionContext {
             
         if same_macro_count >= 10 { // Configurable threshold
             return Err(format!(
-                "Excessive nesting of macro '{}' detected ({}x)",
-                new_macro, same_macro_count
+                "Excessive nesting of macro '{new_macro}' detected ({same_macro_count}x)"
             ));
         }
         
@@ -345,7 +342,7 @@ pub struct ExpansionStack {
 
 impl ExpansionStack {
     /// Create new expansion stack with initial context
-    pub fn new(initial_context: ExpansionContext) -> Self {
+    #[must_use] pub fn new(initial_context: ExpansionContext) -> Self {
         Self {
             contexts: vec![initial_context],
             current: 0,
@@ -370,7 +367,7 @@ impl ExpansionStack {
     }
     
     /// Get current context
-    pub fn current(&self) -> &ExpansionContext {
+    #[must_use] pub fn current(&self) -> &ExpansionContext {
         &self.contexts[self.current]
     }
     
@@ -380,12 +377,12 @@ impl ExpansionStack {
     }
     
     /// Get depth of context stack
-    pub fn depth(&self) -> usize {
+    #[must_use] pub fn depth(&self) -> usize {
         self.contexts.len()
     }
     
     /// Check if stack is at top level
-    pub fn is_top_level(&self) -> bool {
+    #[must_use] pub fn is_top_level(&self) -> bool {
         self.contexts.len() == 1
     }
 }
@@ -416,7 +413,7 @@ mod tests {
     #[test]
     fn test_macro_expansion_nesting() {
         let env_id = EnvironmentId::new(1);
-        let context = ExpansionContext::new(env_id);
+        let context = ExpansionContext::with_environment_id(env_id);
         
         let nested = context.enter_macro("test-macro".to_string()).unwrap();
         assert_eq!(nested.depth, 1);
@@ -433,7 +430,7 @@ mod tests {
     #[test]
     fn test_symbol_generation() {
         let env_id = EnvironmentId::new(1);
-        let context = ExpansionContext::new(env_id);
+        let context = ExpansionContext::with_environment_id(env_id);
         let mut nested = context.enter_macro("test-macro".to_string()).unwrap();
         
         let symbol1 = nested.generate_pattern_variable("temp");
@@ -448,7 +445,7 @@ mod tests {
     #[test]
     fn test_symbol_binding_and_lookup() {
         let env_id = EnvironmentId::new(1);
-        let mut context = ExpansionContext::new(env_id);
+        let mut context = ExpansionContext::with_environment_id(env_id);
         
         let symbol = context.generate_pattern_variable("x");
         assert!(context.lookup_symbol("x").is_some());
@@ -461,7 +458,7 @@ mod tests {
     #[test]
     fn test_recursive_expansion_detection() {
         let env_id = EnvironmentId::new(1);
-        let context = ExpansionContext::new(env_id);
+        let context = ExpansionContext::with_environment_id(env_id);
         
         let nested = context.enter_macro("recursive".to_string()).unwrap();
         assert!(!nested.is_recursive_expansion("recursive"));
@@ -475,7 +472,7 @@ mod tests {
     #[test]
     fn test_expansion_path() {
         let env_id = EnvironmentId::new(1);
-        let context = ExpansionContext::new(env_id);
+        let context = ExpansionContext::with_environment_id(env_id);
         
         assert_eq!(context.expansion_path(), "<top-level>");
         
@@ -489,7 +486,7 @@ mod tests {
     #[test]
     fn test_expansion_stack() {
         let env_id = EnvironmentId::new(1);
-        let initial = ExpansionContext::new(env_id);
+        let initial = ExpansionContext::with_environment_id(env_id);
         let mut stack = ExpansionStack::new(initial);
         
         assert_eq!(stack.depth(), 1);
@@ -510,7 +507,7 @@ mod tests {
     #[test]
     fn test_expansion_safety_limits() {
         let env_id = EnvironmentId::new(1);
-        let context = ExpansionContext::new(env_id)
+        let context = ExpansionContext::with_environment_id(env_id)
             .with_limits(2, Duration::from_millis(100));
         
         // Should succeed within limits
@@ -526,7 +523,7 @@ mod tests {
     #[test]
     fn test_expansion_stats() {
         let env_id = EnvironmentId::new(1);
-        let context = ExpansionContext::new(env_id);
+        let context = ExpansionContext::with_environment_id(env_id);
         
         let stats = context.expansion_stats();
         assert_eq!(stats.depth, 0);
@@ -547,7 +544,7 @@ mod tests {
     #[test]
     fn test_macro_interaction_validation() {
         let env_id = EnvironmentId::new(1);
-        let context = ExpansionContext::new(env_id);
+        let context = ExpansionContext::with_environment_id(env_id);
         
         let nested = context.enter_macro("define-syntax".to_string()).unwrap();
         
@@ -558,8 +555,16 @@ mod tests {
     }
 }
 
-// Helper trait for testing
+/// Helper trait for testing `ExpansionContext` mutations
+/// 
+/// This trait provides utility methods for testing scenarios where
+/// `ExpansionContext` needs to be converted to a mutable form.
+#[allow(dead_code)]
 trait ExpansionContextExt {
+    /// Converts an `ExpansionContext` into a mutable version of itself
+    /// 
+    /// This method is primarily used in testing scenarios where
+    /// mutation of the context is required for test setup.
     fn into_mut(self) -> Self;
 }
 

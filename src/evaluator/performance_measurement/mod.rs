@@ -18,6 +18,18 @@ pub mod benchmarking;
 // Analysis and verification
 pub mod analysis;
 
+// Practical benchmarks
+pub mod practical_benchmarks;
+
+// Evaluator comparison framework
+pub mod evaluator_comparison;
+
+// Regression detection system
+pub mod regression_detection;
+
+// Performance reports and visualization
+pub mod performance_reports;
+
 // Re-export main types for convenience
 pub use core_types::{
     MetricType, MetricValue, MetricData, MeasurementTarget, MeasurementEnvironment,
@@ -44,7 +56,29 @@ pub use analysis::{
     OptimizationEffectResult, Insight, Recommendation
 };
 
-use crate::error::{LambdustError, Result};
+pub use practical_benchmarks::{
+    PracticalBenchmarkSuite, BenchmarkResult, ComprehensiveBenchmarkResults,
+    OverallPerformanceStats
+};
+
+pub use evaluator_comparison::{
+    EvaluatorComparison, ComparisonResult, EvaluationMetrics, CorrectnessCheck,
+    PerformanceComparison, PerformanceCategory, OptimizationEffectiveness,
+    ComparisonAnalysis, TrendAnalysis, TrendDirection
+};
+
+pub use regression_detection::{
+    RegressionDetector, PerformanceBaseline, PerformanceMeasurement, RegressionAlert,
+    AlertSeverity, PerformanceDegradation, DetectionConfig
+};
+
+pub use performance_reports::{
+    PerformanceReportGenerator, PerformanceReport, ReportConfig, ReportFormat,
+    ReportType, PerformanceDataPoint, PerformanceMetrics as ReportMetrics
+};
+
+use crate::error::Result;
+// Removed unused import: LambdustError
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -91,7 +125,7 @@ pub struct SystemStatistics {
 
 impl PerformanceMeasurementSystem {
     /// 新しいパフォーマンス測定システムを作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             metrics_manager: MetricsManager::new(),
             benchmark_suite: BenchmarkSuite::new(),
@@ -103,7 +137,7 @@ impl PerformanceMeasurementSystem {
     }
 
     /// 設定付きで作成
-    pub fn with_config(config: MeasurementConfiguration) -> Self {
+    #[must_use] pub fn with_config(config: MeasurementConfiguration) -> Self {
         Self {
             metrics_manager: MetricsManager::with_config(MetricsConfiguration::default()),
             benchmark_suite: BenchmarkSuite::new(),
@@ -123,7 +157,7 @@ impl PerformanceMeasurementSystem {
 
     /// システムを終了
     pub fn shutdown(&mut self) -> Result<()> {
-        let _final_metrics = self.metrics_manager.stop_collection()?;
+        self.metrics_manager.stop_collection()?;
         Ok(())
     }
 
@@ -157,23 +191,91 @@ impl PerformanceMeasurementSystem {
         })
     }
 
+    /// Run practical benchmarks and generate comprehensive report
+    pub fn run_practical_benchmarks(&mut self) -> Result<IntegratedPerformanceReport> {
+        let start_time = Instant::now();
+        
+        // Run practical benchmark suite
+        let mut practical_suite = PracticalBenchmarkSuite::new();
+        let benchmark_results = practical_suite.run_all_benchmarks()?;
+        
+        // Run evaluator comparison
+        let mut evaluator_comparison = EvaluatorComparison::new();
+        let mut comparison_results = Vec::new();
+        
+        // Compare different optimization levels on sample expressions
+        let test_expressions = self.get_test_expressions();
+        for expr in test_expressions {
+            let env = std::rc::Rc::new(crate::environment::Environment::new());
+            let results = evaluator_comparison.run_comprehensive_comparison(expr, env)?;
+            comparison_results.extend(results);
+        }
+        
+        // Initialize regression detector
+        let mut regression_detector = RegressionDetector::new();
+        regression_detector.process_comparison_results(&comparison_results)?;
+        
+        // Generate comprehensive report
+        let mut report_generator = PerformanceReportGenerator::new();
+        report_generator.add_comparison_results(&comparison_results);
+        
+        let executive_summary = report_generator.generate_executive_summary();
+        let technical_analysis = report_generator.generate_technical_analysis();
+        
+        let end_time = Instant::now();
+        
+        Ok(IntegratedPerformanceReport {
+            execution_duration: end_time.duration_since(start_time),
+            benchmark_results,
+            comparison_results,
+            executive_summary,
+            technical_analysis,
+            regression_alerts: regression_detector.get_active_alerts().into_iter().cloned().collect(),
+            generated_at: end_time,
+        })
+    }
+
+    /// Get test expressions for evaluation comparison
+    fn get_test_expressions(&self) -> Vec<crate::ast::Expr> {
+        use crate::ast::{Expr, Literal};
+        use crate::lexer::SchemeNumber;
+        
+        vec![
+            // Simple arithmetic
+            Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
+            // List operations
+            Expr::List(vec![
+                Expr::Variable("cons".to_string()),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+                Expr::Literal(Literal::Nil),
+            ]),
+            // Function application
+            Expr::List(vec![
+                Expr::Variable("+".to_string()),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
+                Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
+            ]),
+        ]
+    }
+
     /// メトリクス管理器への参照を取得
-    pub fn metrics_manager(&self) -> &MetricsManager {
+    #[must_use] pub fn metrics_manager(&self) -> &MetricsManager {
         &self.metrics_manager
     }
 
     /// ベンチマークスイートへの参照を取得
-    pub fn benchmark_suite(&self) -> &BenchmarkSuite {
+    #[must_use] pub fn benchmark_suite(&self) -> &BenchmarkSuite {
         &self.benchmark_suite
     }
 
     /// 分析エンジンへの参照を取得
-    pub fn analysis_engine(&self) -> &AnalysisEngine {
+    #[must_use] pub fn analysis_engine(&self) -> &AnalysisEngine {
         &self.analysis_engine
     }
 
     /// システム統計を取得
-    pub fn get_system_stats(&self) -> &SystemStatistics {
+    #[must_use] pub fn get_system_stats(&self) -> &SystemStatistics {
         &self.system_stats
     }
 
@@ -202,9 +304,40 @@ pub struct ComprehensiveMeasurementResult {
     pub system_stats: SystemStatistics,
 }
 
+/// 統合パフォーマンスレポート
+#[derive(Debug)]
+pub struct IntegratedPerformanceReport {
+    /// 実行期間
+    pub execution_duration: Duration,
+    
+    /// 実用ベンチマーク結果
+    pub benchmark_results: ComprehensiveBenchmarkResults,
+    
+    /// 評価器比較結果
+    pub comparison_results: Vec<ComparisonResult>,
+    
+    /// エグゼクティブサマリー
+    pub executive_summary: PerformanceReport,
+    
+    /// 技術分析レポート
+    pub technical_analysis: PerformanceReport,
+    
+    /// 回帰検出アラート
+    pub regression_alerts: Vec<RegressionAlert>,
+    
+    /// レポート生成時刻
+    pub generated_at: Instant,
+}
+
+impl Default for OptimizationEffectVerifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl OptimizationEffectVerifier {
     /// 新しい検証器を作成
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             verification_config: analysis::VerificationConfiguration::default(),
             baseline_measurements: HashMap::new(),
@@ -215,7 +348,7 @@ impl OptimizationEffectVerifier {
     /// 最適化効果を検証
     pub fn verify_optimization_effects(
         &mut self,
-        benchmark_results: &[BenchmarkExecutionResult],
+        _benchmark_results: &[BenchmarkExecutionResult],
         _config: &MeasurementConfiguration,
     ) -> Result<OptimizationEffectResult> {
         // 簡略化された検証ロジック
@@ -278,7 +411,7 @@ mod tests {
 
     #[test]
     fn test_modular_structure() {
-        // Test that all modules are properly accessible
+        // Test that all modules are properly accessible and compile without errors
         let _config = MeasurementConfiguration::default();
         let _metrics = MetricsManager::new();
         let _benchmark = BenchmarkSuite::new();

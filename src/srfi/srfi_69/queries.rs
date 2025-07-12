@@ -104,7 +104,7 @@ pub fn hash_table_keys(args: &[Value]) -> Result<Value> {
         }
     };
 
-    let keys: Vec<Value> = hash_table_ref.keys().iter().map(|k| k.to_value()).collect();
+    let keys: Vec<Value> = hash_table_ref.keys().iter().map(super::types::HashKey::to_value).collect();
     let mut result = Value::Nil;
     for key in keys.into_iter().rev() {
         result = Value::cons(key, result);

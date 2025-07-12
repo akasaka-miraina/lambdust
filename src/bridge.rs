@@ -165,7 +165,7 @@ impl std::fmt::Debug for ObjectRegistry {
 
 impl ObjectRegistry {
     /// Create a new object registry
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         ObjectRegistry {
             next_id: 1,
             objects: HashMap::new(),
@@ -211,12 +211,12 @@ impl ObjectRegistry {
     }
 
     /// Get an external object by ID
-    pub fn get_object(&self, id: u64) -> Option<&ExternalObject> {
+    #[must_use] pub fn get_object(&self, id: u64) -> Option<&ExternalObject> {
         self.objects.get(&id)
     }
 
     /// Get an external function by name
-    pub fn get_function(&self, name: &str) -> Option<&Arc<dyn Callable>> {
+    #[must_use] pub fn get_function(&self, name: &str) -> Option<&Arc<dyn Callable>> {
         self.functions.get(name)
     }
 
@@ -231,17 +231,17 @@ impl ObjectRegistry {
     }
 
     /// Check if objects registry is empty
-    pub fn objects_is_empty(&self) -> bool {
+    #[must_use] pub fn objects_is_empty(&self) -> bool {
         self.objects.is_empty()
     }
 
     /// Check if functions registry is empty  
-    pub fn functions_is_empty(&self) -> bool {
+    #[must_use] pub fn functions_is_empty(&self) -> bool {
         self.functions.is_empty()
     }
 
     /// Check if a function is registered
-    pub fn has_function(&self, name: &str) -> bool {
+    #[must_use] pub fn has_function(&self, name: &str) -> bool {
         self.functions.contains_key(name)
     }
 }
@@ -338,7 +338,7 @@ impl LambdustBridge {
     /// let bridge = LambdustBridge::new();
     /// // Bridge is ready for function registration and Scheme evaluation
     /// ```
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut evaluator = Evaluator::new();
         let registry = Arc::new(Mutex::new(ObjectRegistry::new()));
 
@@ -500,7 +500,7 @@ impl std::fmt::Debug for CallableFunction {
 
 impl ToScheme for i32 {
     fn to_scheme(&self) -> Result<Value> {
-        Ok(Value::from(*self as i64))
+        Ok(Value::from(i64::from(*self)))
     }
 }
 

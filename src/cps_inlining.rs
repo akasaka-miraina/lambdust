@@ -74,12 +74,12 @@ pub struct InliningStats {
 
 impl CpsInliner {
     /// Create a new CPS inliner
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::with_config(InliningConfig::default())
     }
 
     /// Create with custom configuration
-    pub fn with_config(config: InliningConfig) -> Self {
+    #[must_use] pub fn with_config(config: InliningConfig) -> Self {
         Self {
             stats: InliningStats {
                 inlined_operations: 0,
@@ -185,7 +185,7 @@ impl CpsInliner {
     }
 
     /// Generate a pattern string for a continuation (for caching)
-    pub fn continuation_pattern(&self, cont: &Continuation) -> String {
+    #[must_use] pub fn continuation_pattern(&self, cont: &Continuation) -> String {
         match cont {
             Continuation::Identity => "Identity".to_string(),
             Continuation::Assignment { .. } => "Assignment".to_string(),
@@ -338,12 +338,12 @@ impl CpsInliner {
     }
 
     /// Get current inlining statistics
-    pub fn statistics(&self) -> &InliningStats {
+    #[must_use] pub fn statistics(&self) -> &InliningStats {
         &self.stats
     }
 
     /// Get cache efficiency
-    pub fn cache_efficiency(&self) -> f64 {
+    #[must_use] pub fn cache_efficiency(&self) -> f64 {
         let total_requests = self.stats.cache_hits + self.stats.cache_misses;
         if total_requests > 0 {
             self.stats.cache_hits as f64 / total_requests as f64
@@ -353,7 +353,7 @@ impl CpsInliner {
     }
 
     /// Get inlining efficiency (percentage of operations that were optimized)
-    pub fn inlining_efficiency(&self) -> f64 {
+    #[must_use] pub fn inlining_efficiency(&self) -> f64 {
         let total_operations = self.stats.inlined_operations
             + self.stats.light_continuations
             + self.stats.full_continuations

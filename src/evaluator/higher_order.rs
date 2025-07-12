@@ -57,7 +57,7 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         // Find minimum length
-        let min_length = lists.iter().map(|v| v.len()).min().unwrap_or(0);
+        let min_length = lists.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
         let mut results = Vec::new();
 
@@ -181,7 +181,7 @@ impl Evaluator {
         }
 
         // Apply fold logic
-        let min_length = lists.iter().map(|v| v.len()).min().unwrap_or(0);
+        let min_length = lists.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
         for i in 0..min_length {
             // Prepare arguments: accumulator + elements from each list
@@ -239,7 +239,7 @@ impl Evaluator {
         }
 
         // Apply fold-right logic (process from right to left)
-        let min_length = lists.iter().map(|v| v.len()).min().unwrap_or(0);
+        let min_length = lists.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
         for i in (0..min_length).rev() {
             // Prepare arguments: elements from each list + accumulator
@@ -363,7 +363,7 @@ impl Evaluator {
                     } else {
                         for (param, arg) in params.iter().zip(args.iter()) {
                             #[cfg(debug_assertions)]
-                            eprintln!("DEBUG: binding param '{}' to value {:?}", param, arg);
+                            eprintln!("DEBUG: binding param '{param}' to value {arg:?}");
                             lambda_env.define(param.clone(), arg.clone());
                         }
                     }
@@ -373,7 +373,7 @@ impl Evaluator {
                         self.eval_sequence(body, Rc::new(lambda_env), Continuation::Identity)?;
 
                     #[cfg(debug_assertions)]
-                    eprintln!("DEBUG: lambda eval_sequence result: {:?}", result);
+                    eprintln!("DEBUG: lambda eval_sequence result: {result:?}");
 
                     self.apply_continuation(cont, result)
                 }
@@ -453,21 +453,18 @@ impl Evaluator {
 
         // Evaluate hash table
         let table_value = self.eval(table_expr, env.clone(), Continuation::Identity)?;
-        let hash_table = match &table_value {
-            Value::HashTable(ht) => ht,
-            _ => {
+        let Value::HashTable(hash_table) = &table_value else {
                 return Err(LambdustError::type_error(
                     "hash-table-walk: first argument must be a hash table".to_string(),
                 ));
-            }
-        };
+            };
 
         // Evaluate procedure
         let proc_value = self.eval(proc_expr, env.clone(), Continuation::Identity)?;
 
         // Apply procedure to each key-value pair
         let ht = hash_table.borrow();
-        for (key, value) in ht.table.iter() {
+        for (key, value) in &ht.table {
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone()];
 
@@ -500,14 +497,11 @@ impl Evaluator {
 
         // Evaluate hash table
         let table_value = self.eval(table_expr, env.clone(), Continuation::Identity)?;
-        let hash_table = match &table_value {
-            Value::HashTable(ht) => ht,
-            _ => {
+        let Value::HashTable(hash_table) = &table_value else {
                 return Err(LambdustError::type_error(
                     "hash-table-fold: first argument must be a hash table".to_string(),
                 ));
-            }
-        };
+            };
 
         // Evaluate procedure
         let proc_value = self.eval(proc_expr, env.clone(), Continuation::Identity)?;
@@ -527,15 +521,14 @@ impl Evaluator {
         for (i, (key, value)) in ht.table.iter().enumerate() {
             #[cfg(debug_assertions)]
             eprintln!(
-                "DEBUG: fold iteration {}: key={:?}, value={:?}, acc={:?}",
-                i, key, value, accumulator
+                "DEBUG: fold iteration {i}: key={key:?}, value={value:?}, acc={accumulator:?}"
             );
 
             let key_value = key.to_value();
             let call_args = vec![key_value, value.clone(), accumulator];
 
             #[cfg(debug_assertions)]
-            eprintln!("DEBUG: about to call lambda with args: {:?}", call_args);
+            eprintln!("DEBUG: about to call lambda with args: {call_args:?}");
 
             // Apply procedure to key, value, and accumulator
             let lambda_result = self.apply_procedure_with_evaluator(
@@ -547,14 +540,13 @@ impl Evaluator {
 
             #[cfg(debug_assertions)]
             eprintln!(
-                "DEBUG: apply_procedure_with_evaluator returned: {:?}",
-                lambda_result
+                "DEBUG: apply_procedure_with_evaluator returned: {lambda_result:?}"
             );
 
             accumulator = lambda_result;
 
             #[cfg(debug_assertions)]
-            eprintln!("DEBUG: fold result {}: new_acc={:?}", i, accumulator);
+            eprintln!("DEBUG: fold result {i}: new_acc={accumulator:?}");
         }
 
         self.apply_continuation(cont, accumulator)
@@ -705,10 +697,10 @@ impl Evaluator {
         let value_expr = operands[0].clone();
         let value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
 
-        let _location_handle = self.allocate(value);
+        let location_handle = self.allocate(value);
         // For now, return the location handle's ID as a number
         // In a full implementation, we'd need a Location value type
-        let location_id = _location_handle.id();
+        let location_id = location_handle.id();
         let result = Value::Number(crate::lexer::SchemeNumber::Integer(location_id as i64));
         self.apply_continuation(cont, result)
     }
@@ -727,7 +719,7 @@ impl Evaluator {
         let location_expr = operands[0].clone();
         let location_value = self.eval(location_expr, env.clone(), Continuation::Identity)?;
 
-        let _location_id = match &location_value {
+        let location_id = match &location_value {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
             _ => {
                 return Err(LambdustError::type_error(
@@ -738,6 +730,8 @@ impl Evaluator {
 
         // Phase 5-Step2: location-ref placeholder - RAII locations are managed automatically
         // TODO: Implement location registry for stable location references
+        // TODO: Use location_id to retrieve value from location registry
+        drop(location_id); // Temporarily unused until location registry is implemented
         Err(LambdustError::runtime_error(
             "location-ref not yet implemented for RAII store".to_string(),
         ))
@@ -758,9 +752,9 @@ impl Evaluator {
         let value_expr = operands[1].clone();
 
         let location_value = self.eval(location_expr, env.clone(), Continuation::Identity)?;
-        let _new_value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
+        let new_value = self.eval(value_expr, env.clone(), Continuation::Identity)?;
 
-        let _location_id = match &location_value {
+        let location_id = match &location_value {
             Value::Number(crate::lexer::SchemeNumber::Integer(i)) => *i as usize,
             _ => {
                 return Err(LambdustError::type_error(
@@ -771,6 +765,8 @@ impl Evaluator {
 
         // Phase 5-Step2: location-set! placeholder - RAII locations are managed automatically
         // TODO: Implement location registry for stable location references
+        // TODO: Use location_id and new_value to update location in registry
+        drop((location_id, new_value)); // Temporarily unused until location registry is implemented
         Err(LambdustError::runtime_error(
             "location-set! not yet implemented for RAII store".to_string(),
         ))

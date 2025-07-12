@@ -1,4 +1,4 @@
-//! Comprehensive verification system using SemanticEvaluator as reference
+//! Comprehensive verification system using `SemanticEvaluator` as reference
 //!
 //! This module implements automatic verification of runtime execution results
 //! against the pure R7RS semantic evaluation. It serves as a correctness
@@ -56,7 +56,7 @@ pub enum VerificationStatus {
 pub struct VerificationResult {
     /// Overall verification status
     pub status: VerificationStatus,
-    /// Reference result from SemanticEvaluator
+    /// Reference result from `SemanticEvaluator`
     pub reference_result: Option<Value>,
     /// Actual result from optimized execution
     pub actual_result: Option<Value>,
@@ -144,7 +144,7 @@ pub struct VerificationSystem {
 
 impl VerificationSystem {
     /// Create new verification system
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             config: VerificationConfig::default(),
             semantic_evaluator: SemanticEvaluator::new(),
@@ -157,7 +157,7 @@ impl VerificationSystem {
     }
 
     /// Create with custom configuration
-    pub fn with_config(config: VerificationConfig) -> Self {
+    #[must_use] pub fn with_config(config: VerificationConfig) -> Self {
         Self {
             config,
             semantic_evaluator: SemanticEvaluator::new(),
@@ -293,7 +293,7 @@ impl VerificationSystem {
     /// Verify semantic equivalence between two values
     fn verify_semantic_equivalence(&mut self, reference: &Value, actual: &Value) -> Result<bool> {
         // Check cache first
-        let cache_key = format!("{:?}||{:?}", reference, actual);
+        let cache_key = format!("{reference:?}||{actual:?}");
         if let Some(&cached_result) = self.comparison_cache.get(&cache_key) {
             return Ok(cached_result);
         }
@@ -471,8 +471,7 @@ impl VerificationSystem {
 
         if ref_type != actual_type {
             discrepancies.push(format!(
-                "Type mismatch: expected {}, got {}",
-                ref_type, actual_type
+                "Type mismatch: expected {ref_type}, got {actual_type}"
             ));
         }
 
@@ -480,16 +479,14 @@ impl VerificationSystem {
             (Value::Number(n1), Value::Number(n2)) => {
                 if n1 != n2 {
                     discrepancies.push(format!(
-                        "Numerical value mismatch: expected {:?}, got {:?}",
-                        n1, n2
+                        "Numerical value mismatch: expected {n1:?}, got {n2:?}"
                     ));
                 }
             }
             (Value::String(s1), Value::String(s2)) => {
                 if s1 != s2 {
                     discrepancies.push(format!(
-                        "String content mismatch: expected '{}', got '{}'",
-                        s1, s2
+                        "String content mismatch: expected '{s1}', got '{s2}'"
                     ));
                 }
             }
@@ -625,12 +622,12 @@ impl VerificationSystem {
     }
 
     /// Get verification statistics
-    pub fn get_statistics(&self) -> &VerificationStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &VerificationStatistics {
         &self.statistics
     }
 
     /// Get verification history
-    pub fn get_history(&self) -> &[VerificationHistoryEntry] {
+    #[must_use] pub fn get_history(&self) -> &[VerificationHistoryEntry] {
         &self.history
     }
 
@@ -645,7 +642,7 @@ impl VerificationSystem {
     }
 
     /// Get reference to semantic evaluator for direct access
-    pub fn get_semantic_evaluator(&self) -> &SemanticEvaluator {
+    #[must_use] pub fn get_semantic_evaluator(&self) -> &SemanticEvaluator {
         &self.semantic_evaluator
     }
 
@@ -684,7 +681,7 @@ impl VerificationSystem {
     }
 
     /// Get configuration
-    pub fn get_config(&self) -> &VerificationConfig {
+    #[must_use] pub fn get_config(&self) -> &VerificationConfig {
         &self.config
     }
 
@@ -699,7 +696,7 @@ impl VerificationSystem {
     }
 
     /// Get cache statistics
-    pub fn get_cache_stats(&self) -> (usize, usize) {
+    #[must_use] pub fn get_cache_stats(&self) -> (usize, usize) {
         (
             self.comparison_cache.len(),
             self.comparison_cache.capacity(),

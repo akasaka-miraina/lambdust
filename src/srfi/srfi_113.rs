@@ -13,7 +13,7 @@ use std::sync::Arc;
 /// Set data structure
 #[derive(Debug, Clone, PartialEq)]
 pub struct Set {
-    /// Internal storage using HashSet for uniqueness
+    /// Internal storage using `HashSet` for uniqueness
     elements: HashSet<String>, // Using string representation for simplicity
     /// Value mapping for proper retrieval
     values: HashMap<String, Value>,
@@ -27,7 +27,7 @@ impl Default for Set {
 
 impl Set {
     /// Create a new empty set
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             elements: HashSet::new(),
             values: HashMap::new(),
@@ -35,7 +35,7 @@ impl Set {
     }
 
     /// Create a set from a vector of values
-    pub fn from_values(values: Vec<Value>) -> Self {
+    #[must_use] pub fn from_values(values: Vec<Value>) -> Self {
         let mut set = Self::new();
         for value in values {
             set.insert(value);
@@ -45,7 +45,7 @@ impl Set {
 
     /// Insert a value into the set
     pub fn insert(&mut self, value: Value) -> bool {
-        let key = format!("{}", value);
+        let key = format!("{value}");
         let was_new = self.elements.insert(key.clone());
         if was_new {
             self.values.insert(key, value);
@@ -54,14 +54,14 @@ impl Set {
     }
 
     /// Check if the set contains a value
-    pub fn contains(&self, value: &Value) -> bool {
-        let key = format!("{}", value);
+    #[must_use] pub fn contains(&self, value: &Value) -> bool {
+        let key = format!("{value}");
         self.elements.contains(&key)
     }
 
     /// Remove a value from the set
     pub fn remove(&mut self, value: &Value) -> bool {
-        let key = format!("{}", value);
+        let key = format!("{value}");
         if self.elements.remove(&key) {
             self.values.remove(&key);
             true
@@ -71,22 +71,22 @@ impl Set {
     }
 
     /// Get the size of the set
-    pub fn size(&self) -> usize {
+    #[must_use] pub fn size(&self) -> usize {
         self.elements.len()
     }
 
     /// Check if the set is empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.elements.is_empty()
     }
 
     /// Convert to vector of values
-    pub fn to_vector(&self) -> Vec<Value> {
+    #[must_use] pub fn to_vector(&self) -> Vec<Value> {
         self.values.values().cloned().collect()
     }
 
     /// Union with another set
-    pub fn union(&self, other: &Set) -> Set {
+    #[must_use] pub fn union(&self, other: &Set) -> Set {
         let mut result = self.clone();
         for value in other.values.values() {
             result.insert(value.clone());
@@ -95,7 +95,7 @@ impl Set {
     }
 
     /// Intersection with another set
-    pub fn intersection(&self, other: &Set) -> Set {
+    #[must_use] pub fn intersection(&self, other: &Set) -> Set {
         let mut result = Set::new();
         for (key, value) in &self.values {
             if other.elements.contains(key) {
@@ -106,7 +106,7 @@ impl Set {
     }
 
     /// Difference with another set
-    pub fn difference(&self, other: &Set) -> Set {
+    #[must_use] pub fn difference(&self, other: &Set) -> Set {
         let mut result = Set::new();
         for (key, value) in &self.values {
             if !other.elements.contains(key) {
@@ -138,7 +138,7 @@ impl Default for Bag {
 
 impl Bag {
     /// Create a new empty bag
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             counts: HashMap::new(),
             values: HashMap::new(),
@@ -146,7 +146,7 @@ impl Bag {
     }
 
     /// Create a bag from a vector of values
-    pub fn from_values(values: Vec<Value>) -> Self {
+    #[must_use] pub fn from_values(values: Vec<Value>) -> Self {
         let mut bag = Self::new();
         for value in values {
             bag.insert(value);
@@ -156,20 +156,20 @@ impl Bag {
 
     /// Insert a value into the bag
     pub fn insert(&mut self, value: Value) {
-        let key = format!("{}", value);
+        let key = format!("{value}");
         *self.counts.entry(key.clone()).or_insert(0) += 1;
         self.values.entry(key).or_insert(value);
     }
 
     /// Get the count of a value in the bag
-    pub fn count(&self, value: &Value) -> usize {
-        let key = format!("{}", value);
+    #[must_use] pub fn count(&self, value: &Value) -> usize {
+        let key = format!("{value}");
         self.counts.get(&key).copied().unwrap_or(0)
     }
 
     /// Remove one instance of a value from the bag
     pub fn remove_one(&mut self, value: &Value) -> bool {
-        let key = format!("{}", value);
+        let key = format!("{value}");
         if let Some(count) = self.counts.get_mut(&key) {
             if *count > 1 {
                 *count -= 1;
@@ -184,17 +184,17 @@ impl Bag {
     }
 
     /// Get the total size of the bag
-    pub fn size(&self) -> usize {
+    #[must_use] pub fn size(&self) -> usize {
         self.counts.values().sum()
     }
 
     /// Check if the bag is empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.counts.is_empty()
     }
 
     /// Convert to vector of values (with duplicates)
-    pub fn to_vector(&self) -> Vec<Value> {
+    #[must_use] pub fn to_vector(&self) -> Vec<Value> {
         let mut result = Vec::new();
         for (key, &count) in &self.counts {
             if let Some(value) = self.values.get(key) {

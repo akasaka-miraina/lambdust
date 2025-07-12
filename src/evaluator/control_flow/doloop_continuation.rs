@@ -1,4 +1,4 @@
-//! DoLoop specialized continuation implementation
+//! `DoLoop` specialized continuation implementation
 //!
 //! This module implements optimized do-loop continuation handling with:
 //! - State machine optimization for iteration tracking
@@ -14,7 +14,7 @@ use crate::value::Value;
 use crate::ast::Expr;
 
 impl Evaluator {
-    /// Apply DoLoop specialized continuation
+    /// Apply `DoLoop` specialized continuation
     /// High-performance iteration handling with memory pool integration
     pub fn apply_doloop_continuation(
         &mut self,
@@ -175,7 +175,7 @@ impl Evaluator {
         }
     }
 
-    /// Record DoLoop optimization for statistics
+    /// Record `DoLoop` optimization for statistics
     fn record_doloop_optimization(&mut self, _iteration_state: &DoLoopState) {
         // Update expression analyzer with optimization information
         // Note: Using placeholder implementation since record_optimization is not available
@@ -204,7 +204,7 @@ impl Evaluator {
     }
 }
 
-/// DoLoop continuation pool for memory optimization
+/// `DoLoop` continuation pool for memory optimization
 /// Continuation reuse system
 #[derive(Debug)]
 pub struct DoLoopContinuationPool {
@@ -220,7 +220,7 @@ pub struct DoLoopContinuationPool {
 
 impl DoLoopContinuationPool {
     /// Create new continuation pool
-    pub fn new(max_size: usize) -> Self {
+    #[must_use] pub fn new(max_size: usize) -> Self {
         DoLoopContinuationPool {
             pool: Vec::with_capacity(max_size),
             max_size,
@@ -287,7 +287,7 @@ impl DoLoopContinuationPool {
     }
 
     /// Get pool statistics
-    pub fn statistics(&self) -> (usize, usize, f64) {
+    #[must_use] pub fn statistics(&self) -> (usize, usize, f64) {
         let reuse_rate = if self.allocations > 0 {
             self.reuses as f64 / self.allocations as f64
         } else {

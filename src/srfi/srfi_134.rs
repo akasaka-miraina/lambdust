@@ -23,7 +23,7 @@ pub struct Ideque {
 
 impl Ideque {
     /// Create a new empty ideque
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             front: Vec::new(),
             rear: Vec::new(),
@@ -32,7 +32,7 @@ impl Ideque {
     }
 
     /// Create ideque from elements
-    pub fn from_elements(elements: Vec<Value>) -> Self {
+    #[must_use] pub fn from_elements(elements: Vec<Value>) -> Self {
         let length = elements.len();
         Self {
             front: elements,
@@ -42,12 +42,12 @@ impl Ideque {
     }
 
     /// Check if ideque is empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.length == 0
     }
 
     /// Get length of ideque
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.length
     }
 
@@ -59,11 +59,11 @@ impl Ideque {
             ));
         }
 
-        if !self.front.is_empty() {
-            Ok(self.front[0].clone())
-        } else {
+        if self.front.is_empty() {
             // Front is empty, so the element must be at the rear end
             Ok(self.rear[self.rear.len() - 1].clone())
+        } else {
+            Ok(self.front[0].clone())
         }
     }
 
@@ -75,16 +75,16 @@ impl Ideque {
             ));
         }
 
-        if !self.rear.is_empty() {
-            Ok(self.rear[0].clone())
-        } else {
+        if self.rear.is_empty() {
             // Rear is empty, so the element must be at the front end
             Ok(self.front[self.front.len() - 1].clone())
+        } else {
+            Ok(self.rear[0].clone())
         }
     }
 
     /// Add element to front
-    pub fn add_front(&self, element: Value) -> Self {
+    #[must_use] pub fn add_front(&self, element: Value) -> Self {
         let mut new_front = Vec::with_capacity(self.front.len() + 1);
         new_front.push(element);
         new_front.extend_from_slice(&self.front);
@@ -97,7 +97,7 @@ impl Ideque {
     }
 
     /// Add element to back
-    pub fn add_back(&self, element: Value) -> Self {
+    #[must_use] pub fn add_back(&self, element: Value) -> Self {
         let mut new_rear = Vec::with_capacity(self.rear.len() + 1);
         new_rear.push(element);
         new_rear.extend_from_slice(&self.rear);
@@ -117,20 +117,20 @@ impl Ideque {
             ));
         }
 
-        if !self.front.is_empty() {
-            // Remove from front list
-            let new_front = self.front[1..].to_vec();
-            Ok(Self {
-                front: new_front,
-                rear: self.rear.clone(),
-                length: self.length - 1,
-            })
-        } else {
+        if self.front.is_empty() {
             // Front is empty, remove from rear (which means last element)
             let new_rear = self.rear[..self.rear.len() - 1].to_vec();
             Ok(Self {
                 front: self.front.clone(),
                 rear: new_rear,
+                length: self.length - 1,
+            })
+        } else {
+            // Remove from front list
+            let new_front = self.front[1..].to_vec();
+            Ok(Self {
+                front: new_front,
+                rear: self.rear.clone(),
                 length: self.length - 1,
             })
         }
@@ -144,15 +144,7 @@ impl Ideque {
             ));
         }
 
-        if !self.rear.is_empty() {
-            // Remove from rear list
-            let new_rear = self.rear[1..].to_vec();
-            Ok(Self {
-                front: self.front.clone(),
-                rear: new_rear,
-                length: self.length - 1,
-            })
-        } else {
+        if self.rear.is_empty() {
             // Rear is empty, remove from front (which means last element)
             let new_front = self.front[..self.front.len() - 1].to_vec();
             Ok(Self {
@@ -160,11 +152,19 @@ impl Ideque {
                 rear: self.rear.clone(),
                 length: self.length - 1,
             })
+        } else {
+            // Remove from rear list
+            let new_rear = self.rear[1..].to_vec();
+            Ok(Self {
+                front: self.front.clone(),
+                rear: new_rear,
+                length: self.length - 1,
+            })
         }
     }
 
     /// Convert to list for iteration
-    pub fn to_list(&self) -> Vec<Value> {
+    #[must_use] pub fn to_list(&self) -> Vec<Value> {
         let mut result = Vec::with_capacity(self.length);
         result.extend_from_slice(&self.front);
         result.extend(self.rear.iter().rev().cloned());
@@ -481,9 +481,6 @@ mod tests {
 
     #[test]
     fn test_list_ideque_conversion() {
-        use crate::value::PairData;
-        use std::cell::RefCell;
-        use std::rc::Rc;
 
         let srfi = Srfi134;
         let exports = srfi.exports();

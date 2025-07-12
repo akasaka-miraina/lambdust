@@ -12,7 +12,7 @@
 use std::rc::Rc;
 
 /// A slice reference that avoids copying Vec elements
-/// Provides efficient slicing operations without Vec::clone()
+/// Provides efficient slicing operations without `Vec::clone()`
 #[derive(Debug, Clone)]
 pub struct SliceRef<T> {
     /// Reference to the source vector
@@ -25,7 +25,7 @@ pub struct SliceRef<T> {
 
 impl<T> SliceRef<T> {
     /// Create a new slice reference from a vector
-    pub fn new(source: Vec<T>) -> Self {
+    #[must_use] pub fn new(source: Vec<T>) -> Self {
         let len = source.len();
         Self {
             source: Rc::new(source),
@@ -35,7 +35,7 @@ impl<T> SliceRef<T> {
     }
 
     /// Create a slice reference from an existing Rc<Vec<T>>
-    pub fn from_rc(source: Rc<Vec<T>>) -> Self {
+    #[must_use] pub fn from_rc(source: Rc<Vec<T>>) -> Self {
         let len = source.len();
         Self {
             source,
@@ -45,7 +45,7 @@ impl<T> SliceRef<T> {
     }
 
     /// Create a slice of this slice (zero-copy operation)
-    pub fn slice(&self, start: usize, end: usize) -> Self {
+    #[must_use] pub fn slice(&self, start: usize, end: usize) -> Self {
         let actual_start = self.start + start.min(self.len());
         let actual_end = self.start + end.min(self.len());
 
@@ -57,42 +57,42 @@ impl<T> SliceRef<T> {
     }
 
     /// Get a slice starting from index (equivalent to [start..])
-    pub fn slice_from(&self, start: usize) -> Self {
+    #[must_use] pub fn slice_from(&self, start: usize) -> Self {
         self.slice(start, self.len())
     }
 
     /// Get a slice up to index (equivalent to [..end])
-    pub fn slice_to(&self, end: usize) -> Self {
+    #[must_use] pub fn slice_to(&self, end: usize) -> Self {
         self.slice(0, end)
     }
 
     /// Drop the first element (equivalent to [1..])
-    pub fn tail(&self) -> Self {
+    #[must_use] pub fn tail(&self) -> Self {
         self.slice_from(1)
     }
 
     /// Take the first n elements (equivalent to [..n])
-    pub fn take(&self, n: usize) -> Self {
+    #[must_use] pub fn take(&self, n: usize) -> Self {
         self.slice_to(n)
     }
 
     /// Drop the first n elements (equivalent to [n..])
-    pub fn drop(&self, n: usize) -> Self {
+    #[must_use] pub fn drop(&self, n: usize) -> Self {
         self.slice_from(n)
     }
 
     /// Get the length of this slice
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.end.saturating_sub(self.start)
     }
 
     /// Check if the slice is empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Get an element by index
-    pub fn get(&self, index: usize) -> Option<&T> {
+    #[must_use] pub fn get(&self, index: usize) -> Option<&T> {
         if index < self.len() {
             self.source.get(self.start + index)
         } else {
@@ -101,12 +101,12 @@ impl<T> SliceRef<T> {
     }
 
     /// Get the first element
-    pub fn first(&self) -> Option<&T> {
+    #[must_use] pub fn first(&self) -> Option<&T> {
         self.get(0)
     }
 
     /// Get the last element  
-    pub fn last(&self) -> Option<&T> {
+    #[must_use] pub fn last(&self) -> Option<&T> {
         if self.is_empty() {
             None
         } else {
@@ -115,7 +115,7 @@ impl<T> SliceRef<T> {
     }
 
     /// Convert to a Vec (clones elements)
-    pub fn to_vec(&self) -> Vec<T>
+    #[must_use] pub fn to_vec(&self) -> Vec<T>
     where
         T: Clone,
     {
@@ -128,12 +128,12 @@ impl<T> SliceRef<T> {
     }
 
     /// Get underlying vector reference (for compatibility)
-    pub fn as_vec_ref(&self) -> &Vec<T> {
+    #[must_use] pub fn as_vec_ref(&self) -> &Vec<T> {
         &self.source
     }
 
     /// Check if this slice references the entire source vector
-    pub fn is_whole_vector(&self) -> bool {
+    #[must_use] pub fn is_whole_vector(&self) -> bool {
         self.start == 0 && self.end == self.source.len()
     }
 }
@@ -161,8 +161,8 @@ pub struct CowVec<T> {
 }
 
 impl<T> CowVec<T> {
-    /// Create a new CowVec from a vector
-    pub fn new(vec: Vec<T>) -> Self {
+    /// Create a new `CowVec` from a vector
+    #[must_use] pub fn new(vec: Vec<T>) -> Self {
         Self {
             data: Rc::new(vec),
             unique: true,
@@ -170,7 +170,7 @@ impl<T> CowVec<T> {
     }
 
     /// Create from an existing Rc<Vec<T>>
-    pub fn from_rc(rc: Rc<Vec<T>>) -> Self {
+    #[must_use] pub fn from_rc(rc: Rc<Vec<T>>) -> Self {
         Self {
             data: rc,
             unique: false,
@@ -179,7 +179,7 @@ impl<T> CowVec<T> {
 
     /// Get shared reference to the vector
     #[allow(clippy::should_implement_trait)]
-    pub fn as_ref(&self) -> &Vec<T> {
+    #[must_use] pub fn as_ref(&self) -> &Vec<T> {
         &self.data
     }
 
@@ -215,22 +215,22 @@ impl<T> CowVec<T> {
     }
 
     /// Get length
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.data.len()
     }
 
     /// Check if empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 
-    /// Convert to SliceRef for efficient slicing
-    pub fn as_slice_ref(&self) -> SliceRef<T> {
+    /// Convert to `SliceRef` for efficient slicing
+    #[must_use] pub fn as_slice_ref(&self) -> SliceRef<T> {
         SliceRef::from_rc(self.data.clone())
     }
 
     /// Convert to owned Vec
-    pub fn into_vec(self) -> Vec<T>
+    #[must_use] pub fn into_vec(self) -> Vec<T>
     where
         T: Clone,
     {
@@ -271,7 +271,7 @@ pub use smallvec;
 /// Most Scheme function calls have few arguments, so this is optimized for that case
 pub type ArgVec<T> = SmallVec<T, 4>;
 
-/// Optimized expression vector for small expression lists  
+/// Optimized expression vector for small expression lists\
 /// Most expression lists are small, so this avoids allocation in common cases
 pub type ExprVec<T> = SmallVec<T, 8>;
 

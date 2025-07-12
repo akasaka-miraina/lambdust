@@ -23,8 +23,8 @@ fn io_display() -> Value {
     make_builtin_procedure("display", Some(1), |args| {
         check_arity(args, 1)?;
         match &args[0] {
-            Value::String(s) => print!("{}", s),
-            other => print!("{}", other),
+            Value::String(s) => print!("{s}"),
+            other => print!("{other}"),
         }
         std::io::Write::flush(&mut std::io::stdout()).ok();
         Ok(Value::Undefined)
@@ -84,7 +84,7 @@ fn io_write_char() -> Value {
 
         match &args[0] {
             Value::Character(c) => {
-                print!("{}", c);
+                print!("{c}");
                 std::io::Write::flush(&mut std::io::stdout()).ok();
                 Ok(Value::Undefined)
             }
