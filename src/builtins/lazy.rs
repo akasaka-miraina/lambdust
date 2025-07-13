@@ -76,7 +76,7 @@ pub fn force_promise(
         PromiseState::Eager { value } => Ok((**value).clone()),
         PromiseState::Lazy { expr, env } => {
             // Evaluate the expression in the stored environment using formal evaluator
-            let result = evaluator.eval(
+            let result = evaluator.eval_with_continuation(
                 expr.clone(),
                 env.clone(),
                 crate::evaluator::Continuation::Identity,

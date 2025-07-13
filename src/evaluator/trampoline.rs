@@ -477,7 +477,7 @@ impl TrampolineEvaluator {
                 | Continuation::DoLoop { .. }
                 | Continuation::Captured { .. } => {
                     // Apply once through evaluator then return to trampoline
-                    match evaluator.apply_continuation(current_cont, current_value) {
+                    match evaluator.apply_evaluator_continuation(current_cont, current_value) {
                         Ok(result) => return Ok(Bounce::Done(result)),
                         Err(err) => return Ok(Bounce::Error(err)),
                     }
@@ -522,7 +522,7 @@ impl TrampolineEvaluator {
                                     // For complex expressions, evaluate them
                                     _ => {
                                         // Simple evaluation for now - delegate complex cases
-                                        evaluator.eval(
+                                        evaluator.eval_with_continuation(
                                             init_expr.clone(),
                                             env.clone(),
                                             Continuation::Identity,
@@ -661,7 +661,7 @@ impl TrampolineEvaluator {
                         ),
                         _ => {
                             // Complex expression - evaluate with evaluator
-                            match evaluator.eval(
+                            match evaluator.eval_with_continuation(
                                 test_expr.clone(),
                                 loop_env.clone(),
                                 Continuation::Identity,
@@ -676,7 +676,7 @@ impl TrampolineEvaluator {
                     }
                 } else {
                     // Complex expression
-                    match evaluator.eval(
+                    match evaluator.eval_with_continuation(
                         test_expr.clone(),
                         loop_env.clone(),
                         Continuation::Identity,
@@ -689,7 +689,7 @@ impl TrampolineEvaluator {
 
             // Other complex expressions
             _ => {
-                match evaluator.eval(test_expr.clone(), loop_env.clone(), Continuation::Identity) {
+                match evaluator.eval_with_continuation(test_expr.clone(), loop_env.clone(), Continuation::Identity) {
                     Ok(value) => Ok(value.is_truthy()),
                     Err(_) => Self::fallback_test_heuristics(variables),
                 }
@@ -705,8 +705,8 @@ impl TrampolineEvaluator {
         right_expr: &Expr,
         env: &Rc<Environment>,
     ) -> Result<bool> {
-        let left_val = evaluator.eval(left_expr.clone(), env.clone(), Continuation::Identity)?;
-        let right_val = evaluator.eval(right_expr.clone(), env.clone(), Continuation::Identity)?;
+        let left_val = evaluator.eval_with_continuation(left_expr.clone(), env.clone(), Continuation::Identity)?;
+        let right_val = evaluator.eval_with_continuation(right_expr.clone(), env.clone(), Continuation::Identity)?;
 
         if let (Value::Number(left_num), Value::Number(right_num)) = (&left_val, &right_val) {
             let left_f = left_num.to_f64();
@@ -804,7 +804,7 @@ impl TrampolineEvaluator {
         for (i, (name, value)) in variables.into_iter().enumerate() {
             let next_value = if let Some(step_expr) = &step_exprs.get(i).unwrap_or(&None) {
                 // Evaluate step expression in the current loop environment
-                match evaluator.eval(step_expr.clone(), loop_env.clone(), Continuation::Identity) {
+                match evaluator.eval_with_continuation(step_expr.clone(), loop_env.clone(), Continuation::Identity) {
                     Ok(new_val) => new_val,
                     Err(_) => {
                         // Fallback: simple increment for numbers

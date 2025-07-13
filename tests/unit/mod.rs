@@ -11,6 +11,7 @@ pub mod bridge_tests;
 pub mod environment;
 pub mod environment_tests;
 pub mod error_handling_tests;
+pub mod error_tests;
 pub mod evaluator;
 pub mod evaluator_import_tests;
 pub mod evaluator_tests;

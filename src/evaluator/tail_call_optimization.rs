@@ -842,7 +842,7 @@ impl Evaluator {
                 // Evaluate body directly using continuation-based evaluation
                 let new_env_rc = Rc::new(new_env);
                 if body.len() == 1 {
-                    self.eval(body[0].clone(), new_env_rc, Continuation::Identity)
+                    self.eval_with_continuation(body[0].clone(), new_env_rc, Continuation::Identity)
                 } else {
                     // Multiple body expressions - evaluate as begin
                     self.eval_begin(body, new_env_rc, Continuation::Identity)

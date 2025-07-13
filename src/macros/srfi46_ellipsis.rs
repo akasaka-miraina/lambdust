@@ -817,6 +817,44 @@ impl EllipsisContext {
             *count += 1;
         }
     }
+    
+    /// Match nested pattern (placeholder implementation)
+    pub fn match_nested_pattern(
+        &self,
+        _pattern: &crate::macros::Pattern,
+        _expr: &crate::ast::Expr,
+        _level: u32,
+    ) -> crate::error::Result<std::collections::HashMap<String, crate::macros::BindingValue>> {
+        // TODO: Implement proper nested pattern matching
+        Ok(std::collections::HashMap::new())
+    }
+    
+    /// Alternative match nested pattern with all parameters (placeholder implementation)
+    pub fn match_nested_pattern_full(
+        &self,
+        _pattern: &crate::macros::Pattern,
+        _expr: &crate::ast::Expr,
+        _level: u32,
+        _bindings: &mut std::collections::HashMap<String, crate::ast::Expr>,
+        _usage_env: &crate::environment::Environment,
+    ) -> crate::error::Result<()> {
+        // TODO: Implement proper nested pattern matching
+        Ok(())
+    }
+    
+    /// Expand nested template (placeholder implementation)
+    pub fn expand_nested_template(
+        &self,
+        _template: &crate::macros::Template,
+        _bindings: &std::collections::HashMap<String, crate::macros::BindingValue>,
+        _level: u32,
+        _context: &crate::macros::hygiene::ExpansionContext,
+        _usage_env: &crate::environment::Environment,
+        _literals: &std::collections::HashSet<String>,
+    ) -> crate::error::Result<crate::ast::Expr> {
+        // TODO: Implement proper nested template expansion
+        Ok(crate::ast::Expr::Literal(crate::ast::Literal::Nil))
+    }
 }
 
 impl Default for EllipsisContext {

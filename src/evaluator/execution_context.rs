@@ -726,6 +726,7 @@ impl Default for ExecutionContext {
 }
 
 /// Builder pattern for constructing ExecutionContext
+#[derive(Debug)]
 pub struct ExecutionContextBuilder {
     context: ExecutionContext,
 }
@@ -972,5 +973,15 @@ mod tests {
         let total_benefit = context.estimated_static_benefit();
         assert_eq!(total_benefit.time_savings_micros, 50);
         assert_eq!(total_benefit.memory_savings_bytes, 32);
+    }
+}
+
+impl Default for ExecutionContextBuilder {
+    fn default() -> Self {
+        // Create a default context with placeholder values
+        let expr = Expr::Literal(crate::ast::Literal::Boolean(true));
+        let env = Rc::new(Environment::new());
+        let cont = Continuation::Identity;
+        Self::new(expr, env, cont)
     }
 }

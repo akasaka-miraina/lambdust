@@ -4,8 +4,7 @@
 pub mod builtin;
 pub mod expander;
 pub mod hygiene;
-#[cfg(test)]
-pub mod mod_tests;
+// Tests moved to tests/unit/macros/ directory
 // Tests moved to tests/ directory
 // #[cfg(test)]
 // pub mod syntax_case_tests;

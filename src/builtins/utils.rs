@@ -247,6 +247,19 @@ where
     operation(x, y)
 }
 
+/// Compare two numbers and return Ordering
+pub fn compare_numbers_ordering(a: &SchemeNumber, b: &SchemeNumber) -> std::cmp::Ordering {
+    let (x, y) = match (a, b) {
+        (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => (*x as f64, *y as f64),
+        (SchemeNumber::Real(x), SchemeNumber::Real(y)) => (*x, *y),
+        (SchemeNumber::Integer(x), SchemeNumber::Real(y)) => (*x as f64, *y),
+        (SchemeNumber::Real(x), SchemeNumber::Integer(y)) => (*x, *y as f64),
+        _ => return std::cmp::Ordering::Equal, // fallback for complex numbers
+    };
+    
+    x.partial_cmp(&y).unwrap_or(std::cmp::Ordering::Equal)
+}
+
 /// Convert a list Value to a vector of Values with error handling
 pub fn expect_list_to_vector(value: &Value, func_name: &str) -> Result<Vec<Value>, LambdustError> {
     if !value.is_list() {

@@ -3,8 +3,7 @@
 // Re-export all submodules
 pub mod continuation;
 pub mod conversions;
-#[cfg(test)]
-pub mod conversions_tests;
+// Tests moved to tests/unit/value/conversions_tests.rs
 pub mod custom_predicates;
 pub mod display;
 pub mod equality;

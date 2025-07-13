@@ -87,8 +87,7 @@
 // ===== Core Modules (Always Included) =====
 pub mod ast;
 pub mod error;
-#[cfg(test)]
-pub mod error_tests;
+// Tests moved to tests/unit/error_tests.rs
 pub mod lexer;
 pub mod parser;
 
@@ -443,7 +442,8 @@ pub mod formal_verification;
 
 // Language Server Protocol support
 #[cfg(feature = "language-server")]
-pub mod lsp;
+// LSP module temporarily disabled due to missing dependencies
+// pub mod lsp;
 
 // Platform-Specific
 #[cfg(feature = "wasm")]
@@ -459,6 +459,7 @@ pub mod wasm;
 // pub mod repl;
 
 // ===== Core Exports =====
+use std::rc::Rc;
 pub use error::{LambdustError, Result};
 
 // Standard API (not available in embedded mode)
@@ -628,8 +629,18 @@ impl Interpreter {
     /// let result = interpreter.eval("(+ 1 2)").unwrap();
     /// ```
     #[must_use] pub fn with_shared_environment(environment: std::sync::Arc<Environment>) -> Self {
+        // Convert Arc to Rc efficiently without cloning the Environment itself
+        let rc_env = match std::sync::Arc::try_unwrap(environment) {
+            Ok(env) => Rc::new(env),
+            Err(arc_env) => {
+                // Still shared, we need to clone the Environment content
+                // TODO: Consider using Arc<Environment> throughout for true sharing
+                Rc::new((*arc_env).clone())
+            }
+        };
+        
         Self {
-            evaluator: Evaluator::with_environment(environment),
+            evaluator: Evaluator::with_environment(rc_env),
         }
     }
 

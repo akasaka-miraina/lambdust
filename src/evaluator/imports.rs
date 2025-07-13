@@ -30,7 +30,7 @@ impl Evaluator {
         }
 
         // Import returns unspecified value
-        self.apply_continuation(cont, Value::Undefined)
+        self.apply_evaluator_continuation(cont, Value::Undefined)
     }
 
     /// Process a single import specification

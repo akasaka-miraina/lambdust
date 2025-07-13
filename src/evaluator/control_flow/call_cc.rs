@@ -39,7 +39,7 @@ pub fn eval_call_cc(
         parent: Box::new(cont),
     };
 
-    evaluator.eval(proc_expr, env, call_cc_cont)
+    evaluator.eval_with_continuation(proc_expr, env, call_cc_cont)
 }
 
 // Additional functions for Evaluator impl
@@ -53,7 +53,7 @@ impl Evaluator {
         parent: Continuation,
     ) -> Result<Value> {
         // Apply the procedure with the captured continuation as argument
-        self.apply_procedure(procedure, vec![captured_cont], env, parent)
+        self.apply_procedure_with_continuation(procedure, vec![captured_cont], env, parent)
     }
 
     /// Apply captured continuation with complete non-local exit
@@ -77,7 +77,7 @@ impl Evaluator {
         // and jump directly to the captured point
         match captured_cont {
             // For CallCc continuation, skip to its parent (the capture point)
-            Continuation::CallCc { parent, .. } => self.apply_continuation(*parent, escape_value),
+            Continuation::CallCc { parent, .. } => self.apply_evaluator_continuation(*parent, escape_value),
             // For intermediate computation continuations, skip them entirely
             cont if cont.is_intermediate_computation() => {
                 if let Some(parent) = cont.parent() {
@@ -91,7 +91,7 @@ impl Evaluator {
                 }
             }
             // For non-intermediate continuations, apply normally
-            _ => self.apply_continuation(captured_cont, escape_value),
+            _ => self.apply_evaluator_continuation(captured_cont, escape_value),
         }
     }
 }

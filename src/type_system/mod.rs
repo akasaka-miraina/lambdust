@@ -45,6 +45,7 @@ use crate::value::Value;
 use crate::error::LambdustError;
 
 /// Main type system interface
+#[derive(Debug)]
 pub struct PolynomialUniverseSystem {
     /// Type checker instance
     type_checker: TypeChecker,

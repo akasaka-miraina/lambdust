@@ -84,6 +84,35 @@ impl SemanticEvaluator {
     /// - ρ: environment (variable bindings)  
     /// - κ: continuation
     /// - σ: store (implicit in Rust's memory model)
+    /// Purely functional evaluation without side effects
+    pub fn eval_pure_functional(
+        &self,
+        expr: Expr,
+        env: Rc<Environment>,
+        cont: Continuation,
+        recursion_depth: usize,
+    ) -> Result<Value> {
+        // Stack overflow protection (functional approach)
+        if recursion_depth > self.max_recursion_depth {
+            return Err(LambdustError::StackOverflow);
+        }
+
+        #[cfg(debug_assertions)]
+        if self.debug_tracer {
+            DebugTracer::trace_expr(
+                "evaluator::semantic",
+                "eval_pure_functional",
+                line!(),
+                TraceLevel::INFO,
+                "Evaluating expression".to_string(),
+                &expr,
+            );
+        }
+
+        // Continue with pure evaluation using recursion_depth parameter
+        self.eval_pure_internal(expr, env, cont, recursion_depth)
+    }
+
     pub fn eval_pure(
         &mut self,
         expr: Expr,

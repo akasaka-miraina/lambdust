@@ -52,6 +52,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 4. **形式証明に基づいた実装**: SemanticEvaluatorを基準とした正当性証明基盤
 5. **品質管理方針その１**: **「隠す」ではなく「直す」**・linter/コンパイラ警告の根本解決・Warning Free実現（詳細は[DEVELOPMENT_FLOW.md](docs/development/DEVELOPMENT_FLOW.md#品質管理方針)）
 6. **品質管理方針その２**: **「テスト失敗」でテストを直すな，実装を直せ**・技術的後退の防止・製品品質第一主義
+7. **品質管理方針その３**: **一括修正の禁止**．必ず作業ごとに確認し，影響範囲を怠らない．
+8. **品質管理方針その４**: **新旧のコード混在の禁止**．なるべくモジュール化を図り，インタフェースをシンプルに保つ．
 
 ### 🧪 技術的コンテキスト（🏆 世界最先端Scheme処理系完成）
 - **評価器**: R7RS準拠CPS評価器 + SemanticEvaluator pure reference + RuntimeExecutor + EvaluatorInterface統合完成

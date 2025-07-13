@@ -148,6 +148,7 @@ impl Default for IncrementalConfig {
 }
 
 /// Incremental Type Inference Engine
+#[derive(Debug)]
 pub struct IncrementalTypeInference {
     /// Base type inference engine
     base_inference: TypeInference,

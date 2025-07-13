@@ -248,6 +248,7 @@ pub enum TransformerJustification {
 }
 
 /// Monad transformer registry
+#[derive(Debug)]
 pub struct MonadTransformerRegistry {
     /// Registered transformers
     transformers: RwLock<HashMap<String, MonadTransformer>>,
@@ -260,6 +261,7 @@ pub struct MonadTransformerRegistry {
 }
 
 /// Stack builder for transformer combinations
+#[derive(Debug)]
 pub struct TransformerStackBuilder {
     /// Stack cache
     stack_cache: RwLock<HashMap<String, TransformerStack>>,
@@ -306,6 +308,7 @@ pub enum CommutativityConstraint {
 }
 
 /// Composition analyzer
+#[derive(Debug)]
 pub struct CompositionAnalyzer {
     /// Analysis cache
     analysis_cache: RwLock<HashMap<String, CompositionAnalysis>>,
@@ -362,6 +365,7 @@ pub enum TypeSafetyGuarantee {
 }
 
 /// Commutation detector
+#[derive(Debug)]
 pub struct CommutationDetector {
     /// Known commutation relationships
     commutation_cache: RwLock<HashMap<(String, String), bool>>,

@@ -275,7 +275,7 @@ impl LegacyEvaluatorAdapter {
         let result = {
             let mut evaluator = self.evaluator_interface.lock().unwrap();
             evaluator.set_config(legacy_config);
-            evaluator.eval(expr, env, cont)
+            evaluator.eval_with_continuation(expr, env, cont)
         };
 
         // Handle compatibility issues based on strategy
@@ -302,7 +302,7 @@ impl LegacyEvaluatorAdapter {
                         }),
                         Err(fallback_err) => {
                             warnings.push(format!("Fallback also failed: {fallback_err}"));
-                            result
+                            Err(fallback_err)
                         }
                     }
                 }
@@ -343,7 +343,7 @@ impl LegacyEvaluatorAdapter {
             if let Some(config) = config {
                 evaluator.set_config(config);
             }
-            evaluator.eval(expr, env, cont)
+            evaluator.eval_with_continuation(expr, env, cont)
         };
 
         let evaluation_time = start_time.elapsed().as_micros() as f64 / 1000.0;
@@ -352,7 +352,7 @@ impl LegacyEvaluatorAdapter {
         self.update_migration_progress();
 
         CompatibilityResult {
-            value: result,
+            value: result.map(|eval_result| eval_result.value),
             warnings,
             recommendations,
             performance_impact: Some(evaluation_time),

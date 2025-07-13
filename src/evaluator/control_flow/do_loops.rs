@@ -52,15 +52,15 @@ fn evaluate_expression_directly(
 
                 // If it's not a builtin, fall back to regular evaluation
                 // This might still cause trampoline issues, but it's our best option
-                evaluator.eval(expr.clone(), env, Continuation::Identity)
+                evaluator.eval_with_continuation(expr.clone(), env, Continuation::Identity)
             } else {
                 // Non-variable function calls - fall back to regular evaluation
-                evaluator.eval(expr.clone(), env, Continuation::Identity)
+                evaluator.eval_with_continuation(expr.clone(), env, Continuation::Identity)
             }
         }
 
         // For other expressions, fall back to regular evaluation
-        _ => evaluator.eval(expr.clone(), env, Continuation::Identity),
+        _ => evaluator.eval_with_continuation(expr.clone(), env, Continuation::Identity),
     }
 }
 
@@ -135,12 +135,12 @@ fn eval_do_iterative(
         if test_result.is_truthy() {
             // Test passed - evaluate result expressions
             if result_exprs.is_empty() {
-                return evaluator.apply_continuation(cont, Value::Undefined);
+                return evaluator.apply_evaluator_continuation(cont, Value::Undefined);
             }
             if result_exprs.len() == 1 {
                 let result =
                     evaluate_expression_directly(evaluator, &result_exprs[0], loop_env_rc)?;
-                return evaluator.apply_continuation(cont, result);
+                return evaluator.apply_evaluator_continuation(cont, result);
             }
             // Multiple result expressions - evaluate in sequence
             let last_idx = result_exprs.len() - 1;
@@ -148,7 +148,7 @@ fn eval_do_iterative(
                 if i == last_idx {
                     // Last expression uses original continuation
                     let result = evaluate_expression_directly(evaluator, expr, loop_env_rc)?;
-                    return evaluator.apply_continuation(cont, result);
+                    return evaluator.apply_evaluator_continuation(cont, result);
                 }
                 // Intermediate expressions use Identity continuation
                 evaluate_expression_directly(evaluator, expr, loop_env_rc.clone())?;
@@ -228,7 +228,7 @@ fn eval_do_fallback(
 
     // Initialize variables
     for (var, init_expr, _) in &bindings {
-        let init_value = evaluator.eval(init_expr.clone(), env.clone(), Continuation::Identity)?;
+        let init_value = evaluator.eval_with_continuation(init_expr.clone(), env.clone(), Continuation::Identity)?;
         loop_env.define(var.clone(), init_value);
     }
 
@@ -239,7 +239,7 @@ fn eval_do_fallback(
 
     for _ in 0..MAX_ITERATIONS {
         // Evaluate test condition
-        let test_result = evaluator.eval(
+        let test_result = evaluator.eval_with_continuation(
             test_expr.clone(),
             loop_env_rc.clone(),
             Continuation::Identity,
@@ -248,20 +248,20 @@ fn eval_do_fallback(
         if test_result.is_truthy() {
             // Test passed - evaluate result expressions
             if result_exprs.is_empty() {
-                return evaluator.apply_continuation(cont, Value::Undefined);
+                return evaluator.apply_evaluator_continuation(cont, Value::Undefined);
             }
             if result_exprs.len() == 1 {
-                return evaluator.eval(result_exprs[0].clone(), loop_env_rc, cont);
+                return evaluator.eval_with_continuation(result_exprs[0].clone(), loop_env_rc, cont);
             }
             // Multiple result expressions - evaluate in sequence
             let last_idx = result_exprs.len() - 1;
             for (i, expr) in result_exprs.iter().enumerate() {
                 if i == last_idx {
                     // Last expression uses original continuation
-                    return evaluator.eval(expr.clone(), loop_env_rc, cont);
+                    return evaluator.eval_with_continuation(expr.clone(), loop_env_rc, cont);
                 }
                 // Intermediate expressions use Identity continuation
-                evaluator.eval(
+                evaluator.eval_with_continuation(
                     expr.clone(),
                     loop_env_rc.clone(),
                     Continuation::Identity,
@@ -271,14 +271,14 @@ fn eval_do_fallback(
 
         // Execute body expressions
         for expr in &body_exprs {
-            evaluator.eval(expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+            evaluator.eval_with_continuation(expr.clone(), loop_env_rc.clone(), Continuation::Identity)?;
         }
 
         // Update variables with step expressions
         for (var, _, step_expr) in &bindings {
             if let Some(step) = step_expr {
                 let new_value =
-                    evaluator.eval(step.clone(), loop_env_rc.clone(), Continuation::Identity)?;
+                    evaluator.eval_with_continuation(step.clone(), loop_env_rc.clone(), Continuation::Identity)?;
                 loop_env_rc.set(var, new_value)?;
             }
         }
@@ -381,10 +381,10 @@ impl Evaluator {
             // Test succeeded, evaluate result expressions and exit loop
             if result_exprs.is_empty() {
                 // No result expressions, return undefined
-                self.apply_continuation(parent, Value::Undefined)
+                self.apply_evaluator_continuation(parent, Value::Undefined)
             } else if result_exprs.len() == 1 {
                 // Single result expression
-                self.eval(result_exprs[0].clone(), env, parent)
+                self.eval_with_continuation(result_exprs[0].clone(), env, parent)
             } else {
                 // Multiple result expressions, evaluate as sequence
                 self.eval_sequence(result_exprs, env, parent)
@@ -394,7 +394,7 @@ impl Evaluator {
             // 1. Execute body expressions (side effects)
             if !body_exprs.is_empty() {
                 for body_expr in &body_exprs {
-                    self.eval(body_expr.clone(), env.clone(), Continuation::Identity)?;
+                    self.eval_with_continuation(body_expr.clone(), env.clone(), Continuation::Identity)?;
                 }
             }
 
@@ -403,7 +403,7 @@ impl Evaluator {
             for (var, _init, step_opt) in &bindings {
                 if let Some(step_expr) = step_opt {
                     let step_value =
-                        self.eval(step_expr.clone(), env.clone(), Continuation::Identity)?;
+                        self.eval_with_continuation(step_expr.clone(), env.clone(), Continuation::Identity)?;
                     step_values.push((var.clone(), step_value));
                 } else {
                     // If no step expression, keep current value
@@ -429,7 +429,7 @@ impl Evaluator {
                 parent: Box::new(parent),
             };
 
-            self.eval(test, env, next_do_cont)
+            self.eval_with_continuation(test, env, next_do_cont)
         }
     }
 }

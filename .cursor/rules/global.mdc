@@ -1,0 +1,212 @@
+---
+alwaysApply: true
+---
+Users are Japanese speakers. Responses to users should preferably be in Japanese.
+
+You are an AI assistant with advanced problem-solving skills. Follow the instructions below to perform tasks efficiently and accurately.
+
+First, confirm the instructions received from the user:
+<instructions>
+{{instructions}}
+<!-- This template variable will be automatically replaced with the user's input prompt. The prompt is sent in Japanese, so translate it into English as appropriate before processing. -->
+</instructions>
+
+Based on these instructions, proceed with the following process:
+
+---
+
+1. Analysis and planning of instructions
+<Task analysis>
+- Summarize the main tasks concisely.
+- Confirm the technical stack described and consider how to implement it within the constraints.
+**Note: Do not change the versions listed in the technical stack. If necessary, be sure to obtain approval.**
+- Identify important requirements and constraints.
+- List potential issues.
+- List specific steps for executing the task in detail.
+- Determine the optimal order for executing those steps.
+
+### Preventing duplicate implementation
+Before implementation, check the following:
+- Existence of similar existing functions
+  - For methods that may already be implemented, refer to `docs/CODE_INDEX.md` for information on all function signatures and structures. Be sure to refer to this document.
+- Functions or components with the same or similar names
+- Duplicate API endpoints
+- Common processing
+
+This section will guide the entire subsequent process, so take the time to perform a detailed and comprehensive analysis.
+</Task Analysis>
+
+---
+
+2. Task Execution
+- Execute each of the identified steps one by one.
+- **Do not** use batch processing in order to prioritize efficiency.
+- Report progress concisely after each step is completed.
+- Keep the following points in mind during implementation:
+- Adherence to the appropriate directory structure
+- Consistency in naming conventions
+- Appropriate placement of common processing
+- Be sure to write tests for functions.
+  - Even if they are placeholder implementations, be sure to write dummy tests.
+  - Carefully describe not only normal cases but also edge cases, abnormal cases, and other tests.
+
+---
+
+3. Quality control and problem response
+- **Do not** complete tasks with compile errors.
+- For stub implementations only, dead code designation using the allow directive is permitted. Otherwise, code that is no longer used should be deleted within the task.
+- Quickly verify the results of each task.
+- If errors or inconsistencies occur, respond using the following process:
+a. Isolate the problem and identify the cause (log analysis, debug information confirmation)
+b. Create and implement countermeasures
+c. Verify that the corrections work
+d. Check and analyze the debug logs
+
+- Record the verification results in the following format:
+a. Verification items and expected results
+b. Actual results and differences
+c. Necessary countermeasures (if applicable)
+
+- Update `docs/CODE_INDEX.md`. This will be executed by `make index`.
+
+---
+
+4. Final confirmation
+- Once all tasks are complete, evaluate the entire deliverable.
+- Confirm consistency with the initial instructions and make adjustments as necessary.
+- Make a final confirmation that there are no duplicates in the implemented functions.
+
+---
+
+5. Report results
+Report the final results in the following format, Japanese:
+```markdown
+# 実行結果レポート
+
+## 概略
+[Briefly summarize the overall results]
+
+## 実行ステップ
+1. [Description and results of step 1]
+2. [Description and results of step 2]
+...
+
+## 最終成果物
+[Details of deliverables and links, if applicable]
+
+## 課題対応 (該当する場合)
+- Problems that occurred and how they were addressed
+- Points to note for the future
+
+## 注意点・改善提案
+- [Describe any points you noticed or suggestions for improvement]
+```
+
+---
+
+## Important notes
+
+- If you have any questions, be sure to confirm them before starting work.
+- If an important decision needs to be made, report it immediately and obtain approval.
+- If an unexpected problem occurs, report it immediately and propose a solution.
+- **Do not make any changes that are not explicitly instructed.** If you think a change is necessary, report it as a proposal first, obtain approval, and then implement it.
+- **UI/UX design changes (layout, colors, fonts, spacing, etc.) are prohibited.** If changes are necessary, be sure to provide a reason in advance and obtain approval before making any changes.
+- **Do not change the versions listed in the technology stack (APIs, frameworks, libraries, etc.) without permission.** If changes are necessary, do not make any changes until you have obtained approval with a clear explanation of the reasons.
+
+---
+
+# Technology Stack
+
+## core technology
+
+- rustc(latest)
+
+## binding for
+
+- C/C++
+- LLVM Infrastructure
+
+## development tool
+
+- cargo
+- clippy
+- make
+  - understand contents on Makefile
+
+---
+
+# Directory Structure
+
+lambdust/
+  ├── agda/                              # Formal verification (Agda proofs)
+  │   ├── Optimizations/
+  │   ├── Properties/
+  │   ├── R7RS/
+  │   └── Utils/
+  ├── benches/                           # Performance benchmarks
+  ├── cmake/                             # CMake build configuration
+  ├── coverage/                          # Code coverage reports
+  ├── docs/                              # Comprehensive documentation
+  │   ├── archive/                       # Historical documentation
+  │   ├── core/                          # Core project documentation
+  │   ├── development/                   # Development guides
+  │   ├── implementation/                # Implementation details
+  │   ├── research/                      # Research papers & theory
+  │   └── user/                          # User guides & API docs
+  ├── examples/                          # Example code & integrations
+  │   ├── c_integration/                 # C language bindings
+  │   └── cpp_integration/               # C++ language bindings
+  ├── images/                            # Project logos & graphics
+  ├── include/                           # C/C++ header files
+  ├── scripts/                           # Build & deployment scripts
+  ├── src/                               # Main source code
+  │   ├── benchmarks/                    # Performance testing
+  │   ├── bin/                           # Binary executables (REPL)
+  │   ├── builtins/                      # Built-in functions
+  │   │   └── arithmetic/                # Arithmetic operations
+  │   ├── debug/                         # Debug utilities
+  │   ├── evaluator/                     # Core evaluation engine
+  │   │   ├── adaptive_theorem_learning/ # AI-based theorem learning
+  │   │   ├── church_rosser_proof/       # Confluence proofs
+  │   │   ├── complete_formal_verification/ # Formal verification
+  │   │   ├── control_flow/              # Control flow constructs
+  │   │   ├── expression_analyzer/       # Expression analysis
+  │   │   ├── formal_verification/       # Verification engine
+  │   │   ├── hotpath_analysis/          # Performance hotpath detection
+  │   │   ├── jit_loop_optimization/     # JIT compilation
+  │   │   ├── performance_measurement/   # Performance metrics
+  │   │   ├── runtime_executor/          # Runtime execution
+  │   │   ├── runtime_optimization/      # Runtime optimizations
+  │   │   ├── semantic/                  # Semantic evaluation
+  │   │   ├── static_semantic_optimizer/ # Static optimizations
+  │   │   ├── theorem_derivation_engine/ # Theorem proving
+  │   │   ├── theorem_proving/           # Proof systems
+  │   │   └── types/                     # Type system
+  │   ├── formal_verification/           # Verification components
+  │   ├── lsp/                           # Language Server Protocol
+  │   ├── macros/                        # Macro system
+  │   │   └── hygiene/                   # Hygienic macros
+  │   ├── optimization/                  # Code optimizations
+  │   ├── parser/                        # Parser components
+  │   ├── srfi/                          # Scheme Request for Implementation
+  │   │   ├── srfi_13/                   # String library
+  │   │   └── srfi_69/                   # Hash tables
+  │   ├── type_system/                   # Advanced type system
+  │   └── value/                         # Value representations
+  ├── temp/                              # Temporary files
+  ├── tests/                             # Test suites
+  │   ├── integration/                   # Integration tests
+  │   └── unit/                          # Unit tests
+  │       ├── builtins/                  # Built-in function tests
+  │       ├── environment/               # Environment tests
+  │       ├── evaluator/                 # Evaluator tests
+  │       ├── lsp/                       # LSP tests
+  │       ├── macros/                    # Macro tests
+  │       ├── memory_safety/             # Memory safety tests
+  │       ├── srfi/                      # SRFI compliance tests
+  │       ├── type_system/               # Type system tests
+  │       └── value/                     # Value system tests
+  ├── tools/                             # Development tools
+  └── wasm/                              # WebAssembly build
+
+We will follow the above instructions to ensure reliable and high-quality implementation. We will only perform tasks within the scope of the instructions and will not perform any unnecessary additional implementation. We will confirm any unclear points or important decisions.

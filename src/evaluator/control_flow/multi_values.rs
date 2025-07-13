@@ -18,12 +18,12 @@ pub fn eval_values(
     cont: Continuation,
 ) -> Result<Value> {
     if operands.is_empty() {
-        return evaluator.apply_continuation(cont, Value::Values(Vec::new()));
+        return evaluator.apply_evaluator_continuation(cont, Value::Values(Vec::new()));
     }
 
     if operands.len() == 1 {
         let (first_expr, _) = operands.split_first().unwrap();
-        return evaluator.eval(first_expr.clone(), env, cont);
+        return evaluator.eval_with_continuation(first_expr.clone(), env, cont);
     }
 
     // Evaluate multiple values in left-to-right order
@@ -37,7 +37,7 @@ pub fn eval_values(
         parent: Box::new(cont),
     };
 
-    evaluator.eval(first.clone(), env, first_cont)
+    evaluator.eval_with_continuation(first.clone(), env, first_cont)
 }
 
 /// Evaluate call-with-values special form
@@ -60,7 +60,7 @@ pub fn eval_call_with_values(
         parent: Box::new(cont),
     };
 
-    evaluator.eval(consumer_expr.clone(), env, cwv_cont)
+    evaluator.eval_with_continuation(consumer_expr.clone(), env, cwv_cont)
 }
 
 // Additional functions for Evaluator impl
@@ -80,7 +80,7 @@ impl Evaluator {
             parent: Box::new(parent),
         };
 
-        self.eval(producer_expr, env, cwv_step2_cont)
+        self.eval_with_continuation(producer_expr, env, cwv_step2_cont)
     }
 
     /// Apply call-with-values step 2 continuation
@@ -94,7 +94,7 @@ impl Evaluator {
         // Both consumer and producer are evaluated
         // Apply producer (should be a procedure with no arguments)
         let producer_result =
-            self.apply_procedure(producer, Vec::new(), env.clone(), Continuation::Identity)?;
+            self.apply_procedure_with_continuation(producer, Vec::new(), env.clone(), Continuation::Identity)?;
 
         // Convert result to arguments for consumer
         let consumer_args = match producer_result {
@@ -103,6 +103,6 @@ impl Evaluator {
         };
 
         // Apply consumer with the values
-        self.apply_procedure(consumer, consumer_args, env, parent)
+        self.apply_procedure_with_continuation(consumer, consumer_args, env, parent)
     }
 }

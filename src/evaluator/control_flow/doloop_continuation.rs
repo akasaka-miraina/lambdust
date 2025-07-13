@@ -62,10 +62,10 @@ impl Evaluator {
         // Evaluate result expressions
         if iteration_state.result_exprs.is_empty() {
             // No result expressions, return undefined
-            self.apply_continuation(parent, Value::Undefined)
+            self.apply_evaluator_continuation(parent, Value::Undefined)
         } else if iteration_state.result_exprs.len() == 1 {
             // Single result expression
-            self.eval(
+            self.eval_with_continuation(
                 iteration_state.result_exprs[0].clone(),
                 iteration_state.loop_env,
                 parent,
@@ -90,7 +90,7 @@ impl Evaluator {
         // Execute body expressions (side effects)
         if !iteration_state.body_exprs.is_empty() {
             for body_expr in &iteration_state.body_exprs {
-                self.eval(
+                self.eval_with_continuation(
                     body_expr.clone(),
                     iteration_state.loop_env.clone(),
                     Continuation::Identity,
@@ -125,7 +125,7 @@ impl Evaluator {
         };
 
         // Re-evaluate test expression for next iteration
-        self.eval(test_expr, loop_env, doloop_cont)
+        self.eval_with_continuation(test_expr, loop_env, doloop_cont)
     }
 
     /// Update loop variables with step expressions
@@ -139,7 +139,7 @@ impl Evaluator {
             let new_value =
                 if let Some(step_expr) = iteration_state.step_exprs.get(i).unwrap_or(&None) {
                     // Evaluate step expression
-                    self.eval(
+                    self.eval_with_continuation(
                         step_expr.clone(),
                         iteration_state.loop_env.clone(),
                         Continuation::Identity,

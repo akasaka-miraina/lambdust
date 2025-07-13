@@ -83,7 +83,7 @@ impl Evaluator {
         };
 
         // TODO: Store type annotations for type checking
-        self.apply_continuation(cont, Value::Procedure(lambda))
+        self.apply_evaluator_continuation(cont, Value::Procedure(lambda))
     }
 
     /// Evaluate typed define expression
@@ -112,7 +112,7 @@ impl Evaluator {
                 };
 
                 // TODO: Type check the value expression against the annotation
-                self.eval(typed_define.value, env, define_cont)
+                self.eval_with_continuation(typed_define.value, env, define_cont)
             }
             // Function definition with optional types: (define (foo (x : Int)) : Bool body...)
             Expr::List(_) => {
@@ -134,7 +134,7 @@ impl Evaluator {
                 env.define(typed_func_define.name, Value::Procedure(lambda));
                 
                 // TODO: Store type annotations for type checking
-                self.apply_continuation(cont, Value::Undefined)
+                self.apply_evaluator_continuation(cont, Value::Undefined)
             }
             _ => Err(LambdustError::syntax_error(
                 "define: first argument must be a variable or function definition".to_string(),

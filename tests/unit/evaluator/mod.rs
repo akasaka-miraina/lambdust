@@ -1,5 +1,6 @@
 //! Evaluator unit tests module
 
+pub mod adaptive_optimization_engine_tests;
 pub mod compact_continuation_tests;
 pub mod control_flow_tests;
 pub mod dynamic_points_tests;
@@ -31,3 +32,9 @@ pub mod imports_tests;
 pub mod semantic_evaluator_tests;
 // Phase 3: EvaluatorInterface unified evaluation system tests
 pub mod evaluator_interface_tests;
+// Memory management tests
+pub mod memory_tests;
+// Theorem proving tests
+pub mod theorem_proving_tests;
+// Theorem proving test fixes
+pub mod theorem_proving_test_fix;

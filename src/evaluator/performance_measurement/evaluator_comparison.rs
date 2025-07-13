@@ -275,7 +275,7 @@ impl EvaluatorComparison {
             reduction_steps: stats.expressions_evaluated,
             function_calls: stats.verification_checks,
             continuation_applications: stats.continuation_pool_hits + stats.continuation_pool_misses,
-            gc_cycles: stats.pool_defragmentations,
+            gc_cycles: stats.pool_defragmentation,
         })
     }
 

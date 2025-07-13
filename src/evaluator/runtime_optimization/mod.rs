@@ -25,7 +25,7 @@ pub use core_types::{
 pub use optimization_manager::{
     IntegratedOptimizationManager, OptimizationStrategySelector,
     OptimizationResult, PerformanceImprovement, OptimizationStatistics,
-    IntegratedOptimizationStats
+    IntegratedOptimizationStats, ExecutionStatistics
 };
 
 pub use performance_monitoring::{

@@ -261,6 +261,7 @@ pub enum UniverseScope {
 }
 
 /// Universe polymorphic type class registry
+#[derive(Debug)]
 pub struct UniversePolymorphicRegistry {
     /// Registered classes
     classes: RwLock<HashMap<String, UniversePolymorphicClass>>,
@@ -273,6 +274,7 @@ pub struct UniversePolymorphicRegistry {
 }
 
 /// Universe constraint solver
+#[derive(Debug)]
 pub struct UniverseConstraintSolver {
     /// Known universe relationships
     universe_relations: RwLock<HashMap<String, Vec<UniverseConstraint>>>,
@@ -293,6 +295,7 @@ pub struct UniverseSolution {
 }
 
 /// Universe polymorphic proof checker
+#[derive(Debug)]
 pub struct UniverseProofChecker {
     /// Known axioms
     axioms: RwLock<HashMap<String, UniversePolymorphicLaw>>,

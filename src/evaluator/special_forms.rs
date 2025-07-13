@@ -3,17 +3,24 @@
 //! This module implements evaluation of special forms like lambda, if, define, etc.
 
 use crate::ast::Expr;
-use crate::builtins::utils::make_boolean;
-use crate::debug::{DebugTracer, TraceLevel};
+use crate::debug::DebugTracer;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{Continuation, Evaluator};
-use crate::macros::pattern_matching::{Pattern, Template};
-use crate::macros::{expand_macro, Macro, SyntaxRule, SyntaxRulesTransformer};
+use crate::evaluator::control_flow::{
+    eval_call_cc, eval_call_with_values, eval_delay, eval_do, eval_dynamic_wind,
+    eval_force, eval_guard, eval_lazy, eval_promise_predicate, eval_raise, eval_values,
+    eval_with_exception_handler,
+};
+use crate::macros::{Macro, SyntaxRulesTransformer};
 use crate::value::{Procedure, Value};
 use std::rc::Rc;
 
 impl Evaluator {
+    // ========================================
+    // PUBLIC INTERFACE - Special Forms
+    // ========================================
+
     /// Dispatch to the appropriate special form evaluation
     pub fn eval_known_special_form(
         &mut self,
@@ -47,18 +54,18 @@ impl Evaluator {
             "or" => self.eval_or(operands, env, cont),
             "cond" => self.eval_cond(operands, env, cont),
             "case" => self.eval_case(operands, env, cont),
-            "do" => self.eval_do(operands, env, cont),
-            "delay" => self.eval_delay(operands, env, cont),
-            "lazy" => self.eval_lazy(operands, env, cont),
-            "force" => self.eval_force(operands, env, cont),
-            "promise?" => self.eval_promise_predicate(operands, env, cont),
-            "call/cc" | "call-with-current-continuation" => self.eval_call_cc(operands, env, cont),
-            "values" => self.eval_values(operands, env, cont),
-            "call-with-values" => self.eval_call_with_values(operands, env, cont),
-            "dynamic-wind" => self.eval_dynamic_wind(operands, env, cont),
-            "raise" => self.eval_raise(operands, env, cont),
-            "with-exception-handler" => self.eval_with_exception_handler(operands, env, cont),
-            "guard" => self.eval_guard(operands, env, cont),
+            "do" => eval_do(self, operands, env, cont),
+            "delay" => eval_delay(self, operands, env, cont),
+            "lazy" => eval_lazy(self, operands, env, cont),
+            "force" => eval_force(self, operands, env, cont),
+            "promise?" => eval_promise_predicate(self, operands, env, cont),
+            "call/cc" | "call-with-current-continuation" => eval_call_cc(self, operands, env, cont),
+            "values" => eval_values(self, operands, env, cont),
+            "call-with-values" => eval_call_with_values(self, operands, env, cont),
+            "dynamic-wind" => eval_dynamic_wind(self, operands, env, cont),
+            "raise" => eval_raise(self, operands, env, cont),
+            "with-exception-handler" => eval_with_exception_handler(self, operands, env, cont),
+            "guard" => eval_guard(self, operands, env, cont),
             // Higher-order functions as special forms
             "map" => self.eval_map_special_form(operands, env, cont),
             "apply" => self.eval_apply_special_form(operands, env, cont),
@@ -84,8 +91,8 @@ impl Evaluator {
             "quasiquote" => self.eval_quasiquote(operands, env, cont),
             _ => {
                 // Try macro expansion first
-                if let Some(expanded) = self.try_expand_macro(name, operands)? {
-                    self.eval(expanded, env, cont)
+                if let Ok(expanded) = crate::macros::expand_macro(name, operands) {
+                    self.eval_with_continuation(expanded, env, cont)
                 } else {
                     Err(LambdustError::syntax_error(format!(
                         "Unknown special form: {name}"
@@ -95,17 +102,7 @@ impl Evaluator {
         }
     }
 
-    /// Evaluate quote special form
-    fn eval_quote_special_form(&mut self, operands: &[Expr], cont: Continuation) -> Result<Value> {
-        if operands.len() != 1 {
-            return Err(LambdustError::arity_error(1, operands.len()));
-        }
-        let value =
-            crate::evaluator::ast_converter::AstConverter::expr_to_value(operands[0].clone())?;
-        self.apply_continuation(cont, value)
-    }
-
-    /// Evaluate lambda special form
+    /// Evaluate lambda expressions
     pub fn eval_lambda(
         &mut self,
         operands: &[Expr],
@@ -113,53 +110,32 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         if operands.len() < 2 {
-            return Err(LambdustError::syntax_error(
-                "lambda: requires at least 2 arguments (params and body)".to_string(),
-            ));
+            return Err(LambdustError::arity_error(2, operands.len()));
         }
 
-        // Parse parameter list
-        let (params, is_variadic) = self.parse_lambda_params(&operands[0])?;
+        let _tracer = DebugTracer; // Simplified debug tracer
+        // tracer.log("Starting lambda evaluation"); // Debug logging disabled
 
-        // Body is the rest of the operands
-        let body = operands[1..].to_vec();
+        let params_expr = &operands[0];
+        let body_exprs = &operands[1..];
 
-        let lambda = Procedure::Lambda {
+        let (params, variadic) = self.parse_lambda_params(params_expr)?;
+        let body = body_exprs.to_vec();
+
+        // tracer.log("Lambda parameters parsed successfully"); // Debug logging disabled
+
+        let proc = Procedure::Lambda {
             params,
             body,
             closure: env,
-            variadic: is_variadic,
+            variadic,
         };
 
-        self.apply_continuation(cont, Value::Procedure(lambda))
+        let result = Value::Procedure(proc);
+        self.apply_evaluator_continuation(cont, result)
     }
 
-    /// Parse lambda parameter list
-    fn parse_lambda_params(&self, params_expr: &Expr) -> Result<(Vec<String>, bool)> {
-        match params_expr {
-            // (param1 param2 ...)
-            Expr::List(params) => {
-                let mut param_names = Vec::new();
-                for param in params {
-                    if let Expr::Variable(name) = param {
-                        param_names.push(name.clone());
-                    } else {
-                        return Err(LambdustError::syntax_error(
-                            "lambda: parameter must be a symbol".to_string(),
-                        ));
-                    }
-                }
-                Ok((param_names, false))
-            }
-            // Single parameter (variadic)
-            Expr::Variable(name) => Ok((vec![name.clone()], true)),
-            _ => Err(LambdustError::syntax_error(
-                "lambda: invalid parameter list".to_string(),
-            )),
-        }
-    }
-
-    /// Evaluate if special form
+    /// Evaluate if conditionals
     pub fn eval_if(
         &mut self,
         operands: &[Expr],
@@ -167,24 +143,24 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         if operands.len() < 2 || operands.len() > 3 {
-            return Err(LambdustError::arity_error(2, operands.len()));
+            return Err(LambdustError::arity_error_range(2, 3, operands.len()));
         }
 
-        let test = operands[0].clone();
-        let consequent = operands[1].clone();
-        let alternate = operands.get(2).cloned();
+        let test_expr = operands[0].clone();
+        let then_expr = operands[1].clone();
+        let else_expr = operands.get(2).cloned();
 
         let if_cont = Continuation::IfTest {
-            consequent,
-            alternate,
-            env: Rc::clone(&env),
+            consequent: then_expr,
+            alternate: else_expr,
+            env: env.clone(),
             parent: Box::new(cont),
         };
 
-        self.eval(test, env, if_cont)
+        self.eval_with_continuation(test_expr, env, if_cont)
     }
 
-    /// Evaluate cond special form
+    /// Evaluate cond multi-branch conditionals
     pub fn eval_cond(
         &mut self,
         operands: &[Expr],
@@ -193,74 +169,32 @@ impl Evaluator {
     ) -> Result<Value> {
         if operands.is_empty() {
             return Err(LambdustError::syntax_error(
-                "cond: requires at least one clause".to_string(),
+                "cond: missing clauses".to_string(),
             ));
         }
 
         let clauses = self.parse_cond_clauses(operands)?;
+
         if clauses.is_empty() {
-            return self.apply_continuation(cont, Value::Undefined);
+            return self.apply_evaluator_continuation(cont, Value::Undefined);
         }
 
-        let (test, consequent) = clauses[0].clone();
-        let remaining_clauses = clauses[1..].to_vec();
-
-        // Special handling for else clause
-        if let Expr::Variable(name) = &test {
-            if name == "else" {
-                if !remaining_clauses.is_empty() {
-                    return Err(LambdustError::syntax_error(
-                        "cond: else clause must be last".to_string(),
-                    ));
-                }
-                return self.eval_sequence(consequent, env, cont);
-            }
-        }
+        let first_clause = clauses[0].clone();
+        let remaining_clauses: Vec<(Expr, Vec<Expr>)> = clauses[1..].iter()
+            .map(|clause| (clause.test.clone(), clause.body.clone()))
+            .collect();
 
         let cond_cont = Continuation::CondTest {
-            consequent,
+            consequent: first_clause.body.clone(),
             remaining_clauses,
-            env: Rc::clone(&env),
+            env: env.clone(),
             parent: Box::new(cont),
         };
 
-        self.eval(test, env, cond_cont)
+        self.eval_with_continuation(first_clause.test, env, cond_cont)
     }
 
-    /// Parse cond clauses
-    fn parse_cond_clauses(&self, operands: &[Expr]) -> Result<Vec<(Expr, Vec<Expr>)>> {
-        let mut clauses = Vec::new();
-        for operand in operands {
-            if let Expr::List(clause_exprs) = operand {
-                if clause_exprs.is_empty() {
-                    return Err(LambdustError::syntax_error(
-                        "cond: empty clause".to_string(),
-                    ));
-                }
-                let test = clause_exprs[0].clone();
-                let consequent = clause_exprs[1..].to_vec();
-                clauses.push((test, consequent));
-            } else {
-                return Err(LambdustError::syntax_error(
-                    "cond: clause must be a list".to_string(),
-                ));
-            }
-        }
-        Ok(clauses)
-    }
-
-    /// Evaluate case special form (via macro expansion)
-    fn eval_case(
-        &mut self,
-        operands: &[Expr],
-        env: Rc<Environment>,
-        cont: Continuation,
-    ) -> Result<Value> {
-        let expanded = expand_macro("case", operands)?;
-        self.eval(expanded, env, cont)
-    }
-
-    /// Evaluate set! special form
+    /// Evaluate set! assignment
     pub fn eval_set(
         &mut self,
         operands: &[Expr],
@@ -271,72 +205,39 @@ impl Evaluator {
             return Err(LambdustError::arity_error(2, operands.len()));
         }
 
-        let variable = match &operands[0] {
-            Expr::Variable(name) => name.clone(),
-            _ => {
-                return Err(LambdustError::syntax_error(
-                    "set!: first argument must be a variable".to_string(),
-                ));
-            }
+        let var_expr = &operands[0];
+        let val_expr = operands[1].clone();
+
+        let Expr::Variable(var_name) = var_expr else {
+            return Err(LambdustError::syntax_error(
+                "set!: first argument must be a variable".to_string(),
+            ));
         };
 
-        let value_expr = operands[1].clone();
-
-        let assign_cont = Continuation::Assignment {
-            variable,
-            env: Rc::clone(&env),
+        let assignment_cont = Continuation::Assignment {
+            variable: var_name.clone(),
+            env: env.clone(),
             parent: Box::new(cont),
         };
 
-        self.eval(value_expr, env, assign_cont)
+        self.eval_with_continuation(val_expr, env, assignment_cont)
     }
 
-    /// Evaluate begin special form
+    /// Evaluate begin sequential evaluation
     pub fn eval_begin(
         &mut self,
         operands: &[Expr],
         env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-
-        #[cfg(debug_assertions)]
-        DebugTracer::trace(
-            "evaluator::special_forms",
-            "eval_begin",
-            line!(),
-            TraceLevel::ENTRY,
-            format!("Begin with {} operands", operands.len()),
-        );
-
         if operands.is_empty() {
-            #[cfg(debug_assertions)]
-            DebugTracer::trace(
-                "evaluator::special_forms",
-                "eval_begin",
-                line!(),
-                TraceLevel::INFO,
-                "Empty begin, returning Undefined".to_string(),
-            );
-
-            return self.apply_continuation(cont, Value::Undefined);
-        }
-
-        #[cfg(debug_assertions)]
-        for (i, expr) in operands.iter().enumerate() {
-            DebugTracer::trace_expr(
-                "evaluator::special_forms",
-                "eval_begin",
-                line!(),
-                TraceLevel::INFO,
-                format!("Begin expr[{i}]"),
-                expr,
-            );
+            return self.apply_evaluator_continuation(cont, Value::Undefined);
         }
 
         self.eval_sequence(operands.to_vec(), env, cont)
     }
 
-    /// Evaluate define special form
+    /// Evaluate define variable/function definitions
     pub fn eval_define(
         &mut self,
         operands: &[Expr],
@@ -347,64 +248,62 @@ impl Evaluator {
             return Err(LambdustError::arity_error(2, operands.len()));
         }
 
-        match &operands[0] {
-            // Variable definition: (define var value)
+        let first = &operands[0];
+
+        match first {
             Expr::Variable(name) => {
+                // Variable definition: (define var expr)
                 if operands.len() != 2 {
                     return Err(LambdustError::arity_error(2, operands.len()));
                 }
 
-                let variable = name.clone();
-                let value_expr = operands[1].clone();
-
+                let val_expr = operands[1].clone();
                 let define_cont = Continuation::Define {
-                    variable,
-                    env: Rc::clone(&env),
+                    variable: name.clone(),
+                    env: env.clone(),
                     parent: Box::new(cont),
                 };
 
-                self.eval(value_expr, env, define_cont)
+                self.eval_with_continuation(val_expr, env, define_cont)
             }
-            // Function definition: (define (name params...) body...)
-            Expr::List(def_list) => {
-                if def_list.is_empty() {
+            Expr::List(params) => {
+                // Function definition: (define (name params...) body...)
+                if params.is_empty() {
                     return Err(LambdustError::syntax_error(
-                        "define: empty function definition".to_string(),
+                        "define: function name missing".to_string(),
                     ));
                 }
 
-                let function_name = match &def_list[0] {
-                    Expr::Variable(name) => name.clone(),
-                    _ => {
-                        return Err(LambdustError::syntax_error(
-                            "define: function name must be a symbol".to_string(),
-                        ));
-                    }
+                let Expr::Variable(func_name) = &params[0] else {
+                    return Err(LambdustError::syntax_error(
+                        "define: function name must be a variable".to_string(),
+                    ));
                 };
 
-                let params = Expr::List(def_list[1..].to_vec());
-                let body = operands[1..].to_vec();
+                let param_list = Expr::List(params[1..].to_vec());
+                let body_exprs = &operands[1..];
 
-                // Transform to (define name (lambda params body...))
-                let mut lambda_parts = vec![Expr::Variable("lambda".to_string()), params];
-                lambda_parts.extend(body);
-                let lambda_expr = Expr::List(lambda_parts);
+                // Transform into: (define func_name (lambda (params...) body...))
+                let mut lambda_operands = vec![param_list];
+                lambda_operands.extend(body_exprs.iter().cloned());
+
+                let lambda_result = self.eval_lambda(&lambda_operands, env.clone(), Continuation::Identity)?;
 
                 let define_cont = Continuation::Define {
-                    variable: function_name,
-                    env: Rc::clone(&env),
+                    variable: func_name.clone(),
+                    env: env.clone(),
                     parent: Box::new(cont),
                 };
 
-                self.eval(lambda_expr, env, define_cont)
+                self.apply_evaluator_continuation(define_cont, lambda_result)
             }
             _ => Err(LambdustError::syntax_error(
-                "define: invalid definition form".to_string(),
+                "define: invalid syntax".to_string(),
             )),
         }
     }
 
-    /// Evaluate and special form
+    /// Evaluate and logical conjunction
     pub fn eval_and(
         &mut self,
         operands: &[Expr],
@@ -412,22 +311,22 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         if operands.is_empty() {
-            return self.apply_continuation(cont, make_boolean(true));
+            return self.apply_evaluator_continuation(cont, Value::Boolean(true));
         }
 
-        let first = operands[0].clone();
-        let remaining = operands[1..].to_vec();
+        let first_expr = operands[0].clone();
+        let remaining_exprs = operands[1..].to_vec();
 
         let and_cont = Continuation::And {
-            remaining,
-            env: Rc::clone(&env),
+            remaining: remaining_exprs,
+            env: env.clone(),
             parent: Box::new(cont),
         };
 
-        self.eval(first, env, and_cont)
+        self.eval_with_continuation(first_expr, env, and_cont)
     }
 
-    /// Evaluate or special form
+    /// Evaluate or logical disjunction
     pub fn eval_or(
         &mut self,
         operands: &[Expr],
@@ -435,146 +334,23 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Value> {
         if operands.is_empty() {
-            return self.apply_continuation(cont, make_boolean(false));
+            return self.apply_evaluator_continuation(cont, Value::Boolean(false));
         }
 
-        let first = operands[0].clone();
-        let remaining = operands[1..].to_vec();
+        let first_expr = operands[0].clone();
+        let remaining_exprs = operands[1..].to_vec();
 
         let or_cont = Continuation::Or {
-            remaining,
-            env: Rc::clone(&env),
+            remaining: remaining_exprs,
+            env: env.clone(),
             parent: Box::new(cont),
         };
 
-        self.eval(first, env, or_cont)
+        self.eval_with_continuation(first_expr, env, or_cont)
     }
 
-    /// Evaluate sequence of expressions
-    pub fn eval_sequence(
-        &mut self,
-        exprs: Vec<Expr>,
-        env: Rc<Environment>,
-        cont: Continuation,
-    ) -> Result<Value> {
 
-        #[cfg(debug_assertions)]
-        DebugTracer::trace(
-            "evaluator::special_forms",
-            "eval_sequence",
-            line!(),
-            TraceLevel::ENTRY,
-            format!("Evaluating sequence of {} expressions", exprs.len()),
-        );
-
-        if exprs.is_empty() {
-            #[cfg(debug_assertions)]
-            DebugTracer::trace(
-                "evaluator::special_forms",
-                "eval_sequence",
-                line!(),
-                TraceLevel::INFO,
-                "Empty sequence, returning Undefined".to_string(),
-            );
-
-            return self.apply_continuation(cont, Value::Undefined);
-        }
-
-        if exprs.len() == 1 {
-            let (first_expr, _) = exprs.split_first().unwrap();
-
-            #[cfg(debug_assertions)]
-            DebugTracer::trace_expr(
-                "evaluator::special_forms",
-                "eval_sequence",
-                line!(),
-                TraceLevel::INFO,
-                "Single expression in sequence".to_string(),
-                first_expr,
-            );
-
-            #[cfg(debug_assertions)]
-            DebugTracer::trace(
-                "evaluator::special_forms",
-                "eval_sequence",
-                line!(),
-                TraceLevel::INFO,
-                format!("Calling eval with continuation: {cont:?}"),
-            );
-
-            #[cfg(debug_assertions)]
-            {
-                        DebugTracer::trace_expr(
-                    "evaluator::special_forms",
-                    "eval_sequence",
-                    line!(),
-                    TraceLevel::INFO,
-                    "BEFORE eval() call - expression".to_string(),
-                    first_expr,
-                );
-            }
-
-            let eval_result = self.eval(first_expr.clone(), env, cont);
-
-            #[cfg(debug_assertions)]
-            {
-                        DebugTracer::trace(
-                    "evaluator::special_forms",
-                    "eval_sequence",
-                    line!(),
-                    TraceLevel::INFO,
-                    "AFTER eval() call - about to check result".to_string(),
-                );
-            }
-
-            #[cfg(debug_assertions)]
-            {
-                        DebugTracer::trace(
-                    "evaluator::special_forms",
-                    "eval_sequence",
-                    line!(),
-                    TraceLevel::INFO,
-                    format!("eval() returned: {eval_result:?}"),
-                );
-            }
-
-            return eval_result;
-        }
-
-        let (first, remaining) = exprs.split_first().unwrap();
-
-        #[cfg(debug_assertions)]
-        DebugTracer::trace_expr(
-            "evaluator::special_forms",
-            "eval_sequence",
-            line!(),
-            TraceLevel::INFO,
-            format!("First expr (remaining: {})", remaining.len()),
-            first,
-        );
-
-        let begin_cont = Continuation::Begin {
-            remaining: remaining.to_vec(),
-            env: Rc::clone(&env),
-            parent: Box::new(cont),
-        };
-
-        #[cfg(debug_assertions)]
-        DebugTracer::trace_continuation(
-            "evaluator::special_forms",
-            "eval_sequence",
-            line!(),
-            TraceLevel::INFO,
-            "Created Begin continuation".to_string(),
-            "Begin",
-            Some(env.depth()),
-        );
-
-        self.eval(first.clone(), env, begin_cont)
-    }
-
-    /// Apply special form continuations (delegated from main `apply_continuation`)
-    /// Apply special form continuations (called from mod.rs)
+    /// Apply special form continuations
     pub fn apply_special_form_continuation(
         &mut self,
         cont: Continuation,
@@ -587,256 +363,289 @@ impl Evaluator {
                 env,
                 parent,
             } => self.apply_if_test_continuation(value, consequent, alternate, env, *parent),
+
             Continuation::CondTest {
                 consequent,
                 remaining_clauses,
                 env,
                 parent,
-            } => self.apply_cond_test_continuation(
-                value,
-                consequent,
-                remaining_clauses,
-                env,
-                *parent,
-            ),
-            Continuation::Assignment {
-                variable,
-                env,
-                parent,
-            } => self.apply_assignment_continuation(value, variable, env, *parent),
-            Continuation::Define {
-                variable,
-                env,
-                parent,
-            } => self.apply_define_continuation(value, variable, env, *parent),
+            } => {
+                if value.is_truthy() {
+                    if consequent.is_empty() {
+                        // No body: return test result
+                        self.apply_evaluator_continuation(*parent, value)
+                    } else {
+                        // Evaluate clause body
+                        self.eval_sequence(consequent, env, *parent)
+                    }
+                } else {
+                    // Test failed, try remaining clauses
+                    if remaining_clauses.is_empty() {
+                        self.apply_evaluator_continuation(*parent, Value::Undefined)
+                    } else {
+                        let (next_test, next_body) = remaining_clauses[0].clone();
+                        let remaining = remaining_clauses[1..].to_vec();
+                        let cond_cont = Continuation::CondTest {
+                            consequent: next_body,
+                            remaining_clauses: remaining,
+                            env: env.clone(),
+                            parent,
+                        };
+                        self.eval_with_continuation(next_test, env, cond_cont)
+                    }
+                }
+            }
+
+            Continuation::Assignment { variable, env, parent } => {
+                self.apply_assignment_continuation(value, variable, env, *parent)
+            }
+
+            Continuation::Define { variable, env, parent } => {
+                self.apply_define_continuation(value, variable, env, *parent)
+            }
+
             Continuation::Begin {
                 remaining,
                 env,
                 parent,
             } => self.apply_begin_continuation(value, remaining, env, *parent),
+
             Continuation::And {
                 remaining,
                 env,
                 parent,
             } => self.apply_and_continuation(value, remaining, env, *parent),
+
             Continuation::Or {
                 remaining,
                 env,
                 parent,
             } => self.apply_or_continuation(value, remaining, env, *parent),
-            // Delegate other continuations back to control flow
-            _ => self.apply_control_flow_continuation(cont, value),
+
+            _ => self.apply_evaluator_continuation(cont, value),
+        }
+    }
+
+    // ========================================
+    // PRIVATE HELPER METHODS
+    // ========================================
+
+    /// Evaluate quote special form
+    fn eval_quote_special_form(&mut self, operands: &[Expr], cont: Continuation) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        let quoted = self.quote_expression(&operands[0])?;
+        self.apply_evaluator_continuation(cont, quoted)
+    }
+
+    /// Evaluate case expressions (via macro expansion)
+    fn eval_case(&mut self, _operands: &[Expr], _env: Rc<Environment>, _cont: Continuation) -> Result<Value> {
+        // TODO: Implement case via macro expansion to cond
+        // For now, return an error
+        Err(LambdustError::syntax_error("case special form not yet implemented".to_string()))
+    }
+
+    /// Evaluate define-syntax macro definitions
+    fn eval_define_syntax(&mut self, operands: &[Expr], env: Rc<Environment>, cont: Continuation) -> Result<Value> {
+        if operands.len() != 2 {
+            return Err(LambdustError::arity_error(2, operands.len()));
+        }
+
+        let Expr::Variable(name) = &operands[0] else {
+            return Err(LambdustError::syntax_error(
+                "define-syntax: first argument must be a name".to_string(),
+            ));
+        };
+
+        let transformer_expr = &operands[1];
+        let transformer = self.parse_syntax_rules_transformer(transformer_expr)?;
+
+        env.define_macro(name.clone(), Macro::SyntaxRules {
+            name: name.clone(),
+            transformer,
+        });
+        self.apply_evaluator_continuation(cont, Value::Undefined)
+    }
+
+    /// Evaluate quasiquote expressions
+    fn eval_quasiquote(&mut self, operands: &[Expr], env: Rc<Environment>, cont: Continuation) -> Result<Value> {
+        if operands.len() != 1 {
+            return Err(LambdustError::arity_error(1, operands.len()));
+        }
+
+        let template = &operands[0];
+        let expanded = self.expand_quasiquote(template, env)?;
+        self.apply_evaluator_continuation(cont, expanded)
+    }
+
+    /// Parse lambda parameters
+    fn parse_lambda_params(&self, params_expr: &Expr) -> Result<(Vec<String>, bool)> {
+        match params_expr {
+            Expr::List(params) => {
+                let mut param_names = Vec::new();
+                for param in params {
+                    if let Expr::Variable(name) = param {
+                        param_names.push(name.clone());
+                    } else {
+                        return Err(LambdustError::syntax_error(
+                            "lambda: parameter must be a variable".to_string(),
+                        ));
+                    }
+                }
+                Ok((param_names, false))
+            }
+            Expr::Variable(name) => {
+                // Single parameter (variadic)
+                Ok((vec![name.clone()], true))
+            }
+            _ => Err(LambdustError::syntax_error(
+                "lambda: invalid parameter list".to_string(),
+            )),
+        }
+    }
+
+    /// Parse cond clauses
+    fn parse_cond_clauses(&self, operands: &[Expr]) -> Result<Vec<CondClause>> {
+        let mut clauses = Vec::new();
+        
+        for operand in operands {
+            if let Expr::List(clause_parts) = operand {
+                if clause_parts.is_empty() {
+                    return Err(LambdustError::syntax_error(
+                        "cond: empty clause".to_string(),
+                    ));
+                }
+
+                let test = clause_parts[0].clone();
+                let body = clause_parts[1..].to_vec();
+
+                clauses.push(CondClause { test, body });
+            } else {
+                return Err(LambdustError::syntax_error(
+                    "cond: clause must be a list".to_string(),
+                ));
+            }
+        }
+
+        Ok(clauses)
+    }
+
+    /// Parse syntax-rules transformer
+    fn parse_syntax_rules_transformer(&self, _expr: &Expr) -> Result<SyntaxRulesTransformer> {
+        // TODO: Implement full syntax-rules parsing
+        // For now, return a simple placeholder
+        Ok(SyntaxRulesTransformer {
+            literals: vec![],
+            rules: vec![],
+        })
+    }
+
+    /// Expand quasiquote templates
+    fn expand_quasiquote(&mut self, template: &Expr, env: Rc<Environment>) -> Result<Value> {
+        match template {
+            Expr::List(elements) => {
+                let mut result = Vec::new();
+                for element in elements {
+                    // TODO: Handle unquote and unquote-splicing
+                    let expanded = self.expand_quasiquote(element, env.clone())?;
+                    result.push(expanded);
+                }
+                Ok(Value::from_vector(result))
+            }
+            _ => self.quote_expression(template),
+        }
+    }
+
+    /// Quote expression to value
+    fn quote_expression(&self, expr: &Expr) -> Result<Value> {
+        match expr {
+            Expr::Literal(lit) => match lit {
+                crate::ast::Literal::Boolean(b) => Ok(Value::Boolean(*b)),
+                crate::ast::Literal::Number(n) => Ok(Value::Number(n.clone())),
+                crate::ast::Literal::String(s) => Ok(Value::String(s.clone())),
+                crate::ast::Literal::Character(c) => Ok(Value::Character(*c)),
+                crate::ast::Literal::Nil => Ok(Value::Nil),
+            },
+            Expr::Variable(name) => Ok(Value::Symbol(name.clone())),
+            Expr::List(exprs) => {
+                let mut values = Vec::new();
+                for expr in exprs {
+                    values.push(self.quote_expression(expr)?);
+                }
+                Ok(Value::from_vector(values))
+            }
+            Expr::Quote(_) => Err(LambdustError::syntax_error(
+                "quote: cannot quote quoted expression".to_string(),
+            )),
+            Expr::Vector(exprs) => {
+                let mut values = Vec::new();
+                for expr in exprs {
+                    values.push(self.quote_expression(expr)?);
+                }
+                Ok(Value::Vector(values))
+            }
+            _ => Err(LambdustError::syntax_error(
+                "quote: unsupported expression type".to_string(),
+            )),
         }
     }
 
     /// Apply if test continuation
     fn apply_if_test_continuation(
         &mut self,
-        test_value: Value,
-        consequent: Expr,
-        alternate: Option<Expr>,
+        test_result: Value,
+        then_expr: Expr,
+        else_expr: Option<Expr>,
         env: Rc<Environment>,
-        parent: Continuation,
+        cont: Continuation,
     ) -> Result<Value> {
-        if test_value.is_truthy() {
-            self.eval(consequent, env, parent)
-        } else if let Some(alt) = alternate {
-            self.eval(alt, env, parent)
+        if test_result.is_truthy() {
+            self.eval_with_continuation(then_expr, env, cont)
+        } else if let Some(else_expr) = else_expr {
+            self.eval_with_continuation(else_expr, env, cont)
         } else {
-            self.apply_continuation(parent, Value::Undefined)
+            self.apply_evaluator_continuation(cont, Value::Undefined)
         }
     }
 
-    /// Apply cond test continuation
-    fn apply_cond_test_continuation(
-        &mut self,
-        test_value: Value,
-        consequent: Vec<Expr>,
-        remaining_clauses: Vec<(Expr, Vec<Expr>)>,
-        env: Rc<Environment>,
-        parent: Continuation,
-    ) -> Result<Value> {
-        if test_value.is_truthy() {
-            return self.handle_truthy_cond_test(test_value, consequent, env, parent);
-        }
 
-        if remaining_clauses.is_empty() {
-            return self.apply_continuation(parent, Value::Undefined);
-        }
 
-        self.process_next_cond_clause(remaining_clauses, env, parent)
-    }
-
-    /// Handle the case when a cond test is truthy
-    fn handle_truthy_cond_test(
-        &mut self,
-        test_value: Value,
-        consequent: Vec<Expr>,
-        env: Rc<Environment>,
-        parent: Continuation,
-    ) -> Result<Value> {
-        if consequent.is_empty() {
-            self.apply_continuation(parent, test_value)
-        } else {
-            self.eval_sequence(consequent, env, parent)
-        }
-    }
-
-    /// Process the next clause in a cond expression
-    fn process_next_cond_clause(
-        &mut self,
-        remaining_clauses: Vec<(Expr, Vec<Expr>)>,
-        env: Rc<Environment>,
-        parent: Continuation,
-    ) -> Result<Value> {
-        let (next_test, next_consequent) = remaining_clauses[0].clone();
-        let remaining = remaining_clauses[1..].to_vec();
-
-        // Special handling for else clause
-        if let Expr::Variable(name) = &next_test {
-            if name == "else" {
-                if !remaining.is_empty() {
-                    return Err(LambdustError::syntax_error(
-                        "cond: else clause must be last".to_string(),
-                    ));
-                }
-                return self.eval_sequence(next_consequent, env, parent);
-            }
-        }
-
-        let cond_cont = Continuation::CondTest {
-            consequent: next_consequent,
-            remaining_clauses: remaining,
-            env: Rc::clone(&env),
-            parent: Box::new(parent),
-        };
-
-        self.eval(next_test, env, cond_cont)
-    }
 
     /// Apply assignment continuation
     fn apply_assignment_continuation(
         &mut self,
         value: Value,
-        variable: String,
+        var: String,
         env: Rc<Environment>,
-        parent: Continuation,
+        cont: Continuation,
     ) -> Result<Value> {
-        env.set(&variable, value)?;
-        self.apply_continuation(parent, Value::Undefined)
+        env.set(&var, value)?;
+        self.apply_evaluator_continuation(cont, Value::Undefined)
     }
 
     /// Apply define continuation
     fn apply_define_continuation(
         &mut self,
         value: Value,
-        variable: String,
+        var: String,
         env: Rc<Environment>,
-        parent: Continuation,
+        cont: Continuation,
     ) -> Result<Value> {
-
-        #[cfg(debug_assertions)]
-        DebugTracer::trace_value(
-            "evaluator::special_forms",
-            "apply_define_continuation",
-            line!(),
-            TraceLevel::ENTRY,
-            format!("Defining variable: {variable}"),
-            &value,
-        );
-
-        env.define(variable.clone(), value);
-
-        #[cfg(debug_assertions)]
-        DebugTracer::trace(
-            "evaluator::special_forms",
-            "apply_define_continuation",
-            line!(),
-            TraceLevel::INFO,
-            format!("Variable '{variable}' defined, returning Undefined"),
-        );
-
-        let result = self.apply_continuation(parent, Value::Undefined)?;
-
-        #[cfg(debug_assertions)]
-        DebugTracer::trace_value(
-            "evaluator::special_forms",
-            "apply_define_continuation",
-            line!(),
-            TraceLevel::EXIT,
-            "Define continuation result".to_string(),
-            &result,
-        );
-
-        Ok(result)
+        env.define(var, value);
+        self.apply_evaluator_continuation(cont, Value::Undefined)
     }
 
     /// Apply begin continuation
     fn apply_begin_continuation(
         &mut self,
-        value: Value,
+        _value: Value,
         remaining: Vec<Expr>,
         env: Rc<Environment>,
-        parent: Continuation,
+        cont: Continuation,
     ) -> Result<Value> {
-
-        #[cfg(debug_assertions)]
-        DebugTracer::trace_value(
-            "evaluator::special_forms",
-            "apply_begin_continuation",
-            line!(),
-            TraceLevel::ENTRY,
-            format!("Begin continuation, remaining: {}", remaining.len()),
-            &value,
-        );
-
-        if remaining.is_empty() {
-            #[cfg(debug_assertions)]
-            DebugTracer::trace(
-                "evaluator::special_forms",
-                "apply_begin_continuation",
-                line!(),
-                TraceLevel::INFO,
-                "No remaining expressions, returning value".to_string(),
-            );
-
-            let result = self.apply_continuation(parent, value)?;
-
-            #[cfg(debug_assertions)]
-            DebugTracer::trace_value(
-                "evaluator::special_forms",
-                "apply_begin_continuation",
-                line!(),
-                TraceLevel::EXIT,
-                "Final result".to_string(),
-                &result,
-            );
-
-            Ok(result)
-        } else {
-            #[cfg(debug_assertions)]
-            DebugTracer::trace(
-                "evaluator::special_forms",
-                "apply_begin_continuation",
-                line!(),
-                TraceLevel::INFO,
-                format!("Evaluating remaining {} expressions", remaining.len()),
-            );
-
-            let result = self.eval_sequence(remaining, env, parent)?;
-
-            #[cfg(debug_assertions)]
-            DebugTracer::trace_value(
-                "evaluator::special_forms",
-                "apply_begin_continuation",
-                line!(),
-                TraceLevel::EXIT,
-                "Sequence result".to_string(),
-                &result,
-            );
-
-            Ok(result)
-        }
+        self.eval_sequence(remaining, env, cont)
     }
 
     /// Apply and continuation
@@ -845,23 +654,23 @@ impl Evaluator {
         value: Value,
         remaining: Vec<Expr>,
         env: Rc<Environment>,
-        parent: Continuation,
+        cont: Continuation,
     ) -> Result<Value> {
         if !value.is_truthy() {
-            self.apply_continuation(parent, make_boolean(false))
+            self.apply_evaluator_continuation(cont, value)
         } else if remaining.is_empty() {
-            self.apply_continuation(parent, value)
+            self.apply_evaluator_continuation(cont, value)
         } else {
-            let first = remaining[0].clone();
-            let rest = remaining[1..].to_vec();
+            let first_expr = remaining[0].clone();
+            let rest_exprs = remaining[1..].to_vec();
 
             let and_cont = Continuation::And {
-                remaining: rest,
-                env: Rc::clone(&env),
-                parent: Box::new(parent),
+                remaining: rest_exprs,
+                env: env.clone(),
+                parent: Box::new(cont),
             };
 
-            self.eval(first, env, and_cont)
+            self.eval_with_continuation(first_expr, env, and_cont)
         }
     }
 
@@ -871,418 +680,30 @@ impl Evaluator {
         value: Value,
         remaining: Vec<Expr>,
         env: Rc<Environment>,
-        parent: Continuation,
-    ) -> Result<Value> {
-        if value.is_truthy() {
-            self.apply_continuation(parent, value)
-        } else if remaining.is_empty() {
-            self.apply_continuation(parent, make_boolean(false))
-        } else {
-            let first = remaining[0].clone();
-            let rest = remaining[1..].to_vec();
-
-            let or_cont = Continuation::Or {
-                remaining: rest,
-                env: Rc::clone(&env),
-                parent: Box::new(parent),
-            };
-
-            self.eval(first, env, or_cont)
-        }
-    }
-
-    /// Evaluate define-syntax special form
-    fn eval_define_syntax(
-        &mut self,
-        operands: &[Expr],
-        env: Rc<Environment>,
-        _cont: Continuation,
-    ) -> Result<Value> {
-        // Syntax: (define-syntax <name> <transformer>)
-        if operands.len() != 2 {
-            return Err(LambdustError::syntax_error(
-                "define-syntax: expected exactly 2 arguments".to_string(),
-            ));
-        }
-
-        // Extract macro name
-        let macro_name = match &operands[0] {
-            Expr::Variable(name) => name.clone(),
-            _ => {
-                return Err(LambdustError::syntax_error(
-                    "define-syntax: first argument must be a symbol".to_string(),
-                ));
-            }
-        };
-
-        // Parse transformer (must be syntax-rules)
-        let transformer = &operands[1];
-        let macro_def = self.parse_syntax_rules_transformer(transformer)?;
-
-        // Define the macro in the environment
-        env.define_macro(macro_name.clone(), macro_def);
-
-        // Return the macro name as the result
-        Ok(Value::Symbol(macro_name))
-    }
-
-    /// Parse syntax-rules transformer
-    fn parse_syntax_rules_transformer(&self, expr: &Expr) -> Result<Macro> {
-        match expr {
-            Expr::List(exprs) if !exprs.is_empty() => {
-                // Check if it's a syntax-rules form
-                if let Expr::Variable(name) = &exprs[0] {
-                    if name == "syntax-rules" {
-                        return self.parse_syntax_rules(&exprs[1..]);
-                    }
-                }
-            }
-            _ => {}
-        }
-
-        Err(LambdustError::syntax_error(
-            "define-syntax: transformer must be a syntax-rules expression".to_string(),
-        ))
-    }
-
-    /// Parse syntax-rules expression
-    fn parse_syntax_rules(&self, args: &[Expr]) -> Result<Macro> {
-        // Syntax: (syntax-rules <literals> <rule1> <rule2> ...)
-        if args.is_empty() {
-            return Err(LambdustError::syntax_error(
-                "syntax-rules: missing literal list".to_string(),
-            ));
-        }
-
-        // Parse literals
-        let literals = self.parse_literals(&args[0])?;
-
-        // Parse rules
-        let mut rules = Vec::new();
-        for rule_expr in &args[1..] {
-            let rule = self.parse_syntax_rule(rule_expr)?;
-            rules.push(rule);
-        }
-
-        if rules.is_empty() {
-            return Err(LambdustError::syntax_error(
-                "syntax-rules: at least one rule is required".to_string(),
-            ));
-        }
-
-        // Create syntax-rules transformer
-        let transformer = SyntaxRulesTransformer::new(literals, rules);
-        Ok(Macro::SyntaxRules {
-            name: "user-defined".to_string(),
-            transformer,
-        })
-    }
-
-    /// Parse literals list
-    fn parse_literals(&self, expr: &Expr) -> Result<Vec<String>> {
-        match expr {
-            Expr::List(exprs) => {
-                let mut literals = Vec::new();
-                for expr in exprs {
-                    match expr {
-                        Expr::Variable(name) => literals.push(name.clone()),
-                        _ => {
-                            return Err(LambdustError::syntax_error(
-                                "syntax-rules: literals must be symbols".to_string(),
-                            ));
-                        }
-                    }
-                }
-                Ok(literals)
-            }
-            _ => Err(LambdustError::syntax_error(
-                "syntax-rules: literals must be a list".to_string(),
-            )),
-        }
-    }
-
-    /// Parse syntax rule
-    fn parse_syntax_rule(&self, expr: &Expr) -> Result<SyntaxRule> {
-        match expr {
-            Expr::List(exprs) if exprs.len() == 2 => {
-                // Parse pattern
-                let pattern = self.parse_pattern(&exprs[0])?;
-                // Parse template
-                let template = self.parse_template(&exprs[1])?;
-                Ok(SyntaxRule { pattern, template })
-            }
-            _ => Err(LambdustError::syntax_error(
-                "syntax-rules: each rule must be a list of two elements (pattern template)"
-                    .to_string(),
-            )),
-        }
-    }
-
-    /// Parse pattern
-    fn parse_pattern(&self, expr: &Expr) -> Result<Pattern> {
-        match expr {
-            Expr::Variable(name) => {
-                if name == "..." {
-                    return Err(LambdustError::syntax_error(
-                        "syntax-rules: unexpected ellipsis".to_string(),
-                    ));
-                }
-                Ok(Pattern::Variable(name.clone()))
-            }
-            Expr::List(exprs) => {
-                if exprs.is_empty() {
-                    return Ok(Pattern::List(vec![]));
-                }
-
-                let mut patterns = Vec::new();
-                let mut i = 0;
-
-                while i < exprs.len() {
-                    if let Expr::Variable(name) = &exprs[i] {
-                        if name == "..." {
-                            if patterns.is_empty() {
-                                return Err(LambdustError::syntax_error(
-                                    "syntax-rules: ellipsis without preceding pattern".to_string(),
-                                ));
-                            }
-                            let last_pattern = patterns.pop().unwrap();
-                            patterns.push(Pattern::Ellipsis(Box::new(last_pattern)));
-                            i += 1;
-                            continue;
-                        }
-                    }
-
-                    patterns.push(self.parse_pattern(&exprs[i])?);
-                    i += 1;
-                }
-
-                Ok(Pattern::List(patterns))
-            }
-            Expr::Literal(lit) => Ok(Pattern::Literal(format!("{lit:?}"))),
-            _ => Err(LambdustError::syntax_error(
-                "syntax-rules: invalid pattern".to_string(),
-            )),
-        }
-    }
-
-    /// Parse template
-    fn parse_template(&self, expr: &Expr) -> Result<Template> {
-        match expr {
-            Expr::Variable(name) => {
-                if name == "..." {
-                    return Err(LambdustError::syntax_error(
-                        "syntax-rules: unexpected ellipsis in template".to_string(),
-                    ));
-                }
-                Ok(Template::Variable(name.clone()))
-            }
-            Expr::List(exprs) => {
-                if exprs.is_empty() {
-                    return Ok(Template::List(vec![]));
-                }
-
-                let mut templates = Vec::new();
-                let mut i = 0;
-
-                while i < exprs.len() {
-                    if let Expr::Variable(name) = &exprs[i] {
-                        if name == "..." {
-                            if templates.is_empty() {
-                                return Err(LambdustError::syntax_error(
-                                    "syntax-rules: ellipsis without preceding template".to_string(),
-                                ));
-                            }
-                            let last_template = templates.pop().unwrap();
-                            templates.push(Template::Ellipsis(Box::new(last_template)));
-                            i += 1;
-                            continue;
-                        }
-                    }
-
-                    templates.push(self.parse_template(&exprs[i])?);
-                    i += 1;
-                }
-
-                Ok(Template::List(templates))
-            }
-            Expr::Literal(lit) => Ok(Template::Literal(format!("{lit:?}"))),
-            _ => Err(LambdustError::syntax_error(
-                "syntax-rules: invalid template".to_string(),
-            )),
-        }
-    }
-
-    /// Evaluate quasiquote special form
-    fn eval_quasiquote(
-        &mut self,
-        operands: &[Expr],
-        env: Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-        // Syntax: (quasiquote <template>)
-        if operands.len() != 1 {
-            return Err(LambdustError::syntax_error(
-                "quasiquote: expected exactly 1 argument".to_string(),
-            ));
-        }
+        if value.is_truthy() {
+            self.apply_evaluator_continuation(cont, value)
+        } else if remaining.is_empty() {
+            self.apply_evaluator_continuation(cont, value)
+        } else {
+            let first_expr = remaining[0].clone();
+            let rest_exprs = remaining[1..].to_vec();
 
-        let template = &operands[0];
-        let result = self.expand_quasiquote(template, env, 0)?;
-        self.apply_continuation(cont, result)
-    }
+            let or_cont = Continuation::Or {
+                remaining: rest_exprs,
+                env: env.clone(),
+                parent: Box::new(cont),
+            };
 
-    /// Expand quasiquote template
-    fn expand_quasiquote(
-        &mut self,
-        template: &Expr,
-        env: Rc<Environment>,
-        depth: usize,
-    ) -> Result<Value> {
-        match template {
-            // Handle unquote
-            Expr::List(exprs) if !exprs.is_empty() => {
-                match &exprs[0] {
-                    Expr::Variable(name) if name == "unquote" => {
-                        if depth == 0 {
-                            // Evaluate the unquoted expression
-                            if exprs.len() != 2 {
-                                return Err(LambdustError::syntax_error(
-                                    "unquote: expected exactly 1 argument".to_string(),
-                                ));
-                            }
-                            return self.eval(exprs[1].clone(), env, Continuation::Identity);
-                        }
-                        // Nested quasiquote, decrease depth
-                        self.expand_quasiquote_list(exprs, env, depth - 1)
-                    }
-                    Expr::Variable(name) if name == "unquote-splicing" => {
-                        Err(LambdustError::syntax_error(
-                            "unquote-splicing: can only appear within a list".to_string(),
-                        ))
-                    }
-                    Expr::Variable(name) if name == "quasiquote" => {
-                        // Nested quasiquote, increase depth
-                        self.expand_quasiquote_list(exprs, env, depth + 1)
-                    }
-                    _ => {
-                        // Regular list processing
-                        self.expand_quasiquote_list(exprs, env, depth)
-                    }
-                }
-            }
-            // Handle vectors
-            Expr::Vector(exprs) => {
-                let mut result = Vec::new();
-                for expr in exprs {
-                    let value = self.expand_quasiquote(expr, env.clone(), depth)?;
-                    result.push(value);
-                }
-                Ok(Value::from_vector(result))
-            }
-            // Handle atoms (literals, variables, etc.)
-            _ => {
-                // Convert expression to value as-is (quoted)
-                self.quote_expression(template)
-            }
+            self.eval_with_continuation(first_expr, env, or_cont)
         }
     }
+}
 
-    /// Expand quasiquote list with unquote-splicing support
-    fn expand_quasiquote_list(
-        &mut self,
-        exprs: &[Expr],
-        env: Rc<Environment>,
-        depth: usize,
-    ) -> Result<Value> {
-        let mut result = Vec::new();
-        let mut i = 0;
-
-        while i < exprs.len() {
-            match &exprs[i] {
-                Expr::List(inner_exprs) if !inner_exprs.is_empty() => {
-                    if let Expr::Variable(name) = &inner_exprs[0] {
-                        if name == "unquote-splicing" && depth == 0 {
-                            // Handle unquote-splicing
-                            if inner_exprs.len() != 2 {
-                                return Err(LambdustError::syntax_error(
-                                    "unquote-splicing: expected exactly 1 argument".to_string(),
-                                ));
-                            }
-                            let spliced_value = self.eval(
-                                inner_exprs[1].clone(),
-                                env.clone(),
-                                Continuation::Identity,
-                            )?;
-
-                            // Convert to list and splice
-                            match spliced_value {
-                                Value::Vector(vec) => {
-                                    result.extend(vec);
-                                }
-                                Value::Nil => {
-                                    // Empty list, nothing to splice
-                                }
-                                _ => {
-                                    // Try to convert to list
-                                    let list_items = self.value_to_list(spliced_value)?;
-                                    result.extend(list_items);
-                                }
-                            }
-                            i += 1;
-                            continue;
-                        }
-                    }
-                    // Regular expression
-                    let value = self.expand_quasiquote(&exprs[i], env.clone(), depth)?;
-                    result.push(value);
-                }
-                _ => {
-                    // Regular expression
-                    let value = self.expand_quasiquote(&exprs[i], env.clone(), depth)?;
-                    result.push(value);
-                }
-            }
-            i += 1;
-        }
-
-        Ok(Value::from_vector(result))
-    }
-
-    /// Quote an expression (convert to value representation)
-    fn quote_expression(&self, expr: &Expr) -> Result<Value> {
-        use crate::evaluator::ast_converter::AstConverter;
-        AstConverter::expr_to_value(expr.clone())
-    }
-
-    /// Convert a value to a list of values
-    fn value_to_list(&self, value: Value) -> Result<Vec<Value>> {
-        match value {
-            Value::Vector(vec) => Ok(vec),
-            Value::Nil => Ok(Vec::new()),
-            Value::Pair(pair_ref) => {
-                let mut result = Vec::new();
-                let mut current = Value::Pair(pair_ref);
-
-                loop {
-                    match current {
-                        Value::Pair(pair_ref) => {
-                            let pair = pair_ref.borrow();
-                            result.push(pair.car.clone());
-                            current = pair.cdr.clone();
-                        }
-                        Value::Nil => break,
-                        _ => {
-                            return Err(LambdustError::type_error(
-                                "unquote-splicing: expected proper list".to_string(),
-                            ));
-                        }
-                    }
-                }
-                Ok(result)
-            }
-            _ => Err(LambdustError::type_error(
-                "unquote-splicing: expected list or vector".to_string(),
-            )),
-        }
-    }
+/// Cond clause structure
+#[derive(Debug, Clone)]
+struct CondClause {
+    test: Expr,
+    body: Vec<Expr>,
 }

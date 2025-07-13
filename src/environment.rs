@@ -9,6 +9,148 @@ use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::mpsc;
+
+/// Statistics message sent from evaluators to the environment
+#[derive(Debug, Clone)]
+pub enum StatisticsMessage {
+    /// Evaluation completed
+    EvaluationCompleted {
+        expression_type: String,
+        execution_time_ns: u64,
+        recursion_depth: usize,
+    },
+    /// Optimization applied
+    OptimizationApplied {
+        optimization_type: String,
+        improvement_factor: f64,
+        memory_saved: usize,
+    },
+    /// JIT compilation event
+    JitCompilation {
+        expression_hash: String,
+        compilation_time_ns: u64,
+        code_size: usize,
+    },
+    /// Memory allocation event
+    MemoryAllocation {
+        allocation_type: String,
+        size_bytes: usize,
+        pool_usage: bool,
+    },
+    /// Continuation pooling event
+    ContinuationPooling {
+        continuation_type: String,
+        pool_hit: bool,
+        efficiency_gain: f64,
+    },
+    /// Hot path detection
+    HotPathDetected {
+        expression_hash: String,
+        frequency: u64,
+        optimization_candidate: bool,
+    },
+}
+
+/// Statistics processor interface
+pub trait StatisticsProcessor {
+    /// Process a statistics message
+    fn process_message(&mut self, message: StatisticsMessage);
+    
+    /// Get current statistics summary
+    fn get_summary(&self) -> StatisticsSummary;
+    
+    /// Reset statistics
+    fn reset(&mut self);
+}
+
+/// Summary of collected statistics
+#[derive(Debug, Clone)]
+pub struct StatisticsSummary {
+    pub total_evaluations: usize,
+    pub total_optimizations: usize,
+    pub jit_compilations: usize,
+    pub memory_allocations: usize,
+    pub continuation_pool_hits: usize,
+    pub hot_paths_detected: usize,
+    pub average_execution_time_ns: u64,
+    pub total_memory_saved: usize,
+    pub average_optimization_improvement: f64,
+}
+
+/// Basic implementation of statistics processor
+#[derive(Debug, Default)]
+pub struct BasicStatisticsProcessor {
+    total_evaluations: usize,
+    total_optimizations: usize,
+    jit_compilations: usize,
+    memory_allocations: usize,
+    continuation_pool_hits: usize,
+    hot_paths_detected: usize,
+    total_execution_time_ns: u64,
+    total_memory_saved: usize,
+    optimization_improvements: Vec<f64>,
+}
+
+impl StatisticsProcessor for BasicStatisticsProcessor {
+    fn process_message(&mut self, message: StatisticsMessage) {
+        match message {
+            StatisticsMessage::EvaluationCompleted { execution_time_ns, .. } => {
+                self.total_evaluations += 1;
+                self.total_execution_time_ns += execution_time_ns;
+            }
+            StatisticsMessage::OptimizationApplied { improvement_factor, memory_saved, .. } => {
+                self.total_optimizations += 1;
+                self.total_memory_saved += memory_saved;
+                self.optimization_improvements.push(improvement_factor);
+            }
+            StatisticsMessage::JitCompilation { .. } => {
+                self.jit_compilations += 1;
+            }
+            StatisticsMessage::MemoryAllocation { .. } => {
+                self.memory_allocations += 1;
+            }
+            StatisticsMessage::ContinuationPooling { pool_hit, .. } => {
+                if pool_hit {
+                    self.continuation_pool_hits += 1;
+                }
+            }
+            StatisticsMessage::HotPathDetected { .. } => {
+                self.hot_paths_detected += 1;
+            }
+        }
+    }
+
+    fn get_summary(&self) -> StatisticsSummary {
+        let average_execution_time_ns = if self.total_evaluations > 0 {
+            self.total_execution_time_ns / self.total_evaluations as u64
+        } else {
+            0
+        };
+
+        let average_optimization_improvement = if !self.optimization_improvements.is_empty() {
+            self.optimization_improvements.iter().sum::<f64>() / self.optimization_improvements.len() as f64
+        } else {
+            0.0
+        };
+
+        StatisticsSummary {
+            total_evaluations: self.total_evaluations,
+            total_optimizations: self.total_optimizations,
+            jit_compilations: self.jit_compilations,
+            memory_allocations: self.memory_allocations,
+            continuation_pool_hits: self.continuation_pool_hits,
+            hot_paths_detected: self.hot_paths_detected,
+            average_execution_time_ns,
+            total_memory_saved: self.total_memory_saved,
+            average_optimization_improvement,
+        }
+    }
+
+    fn reset(&mut self) {
+        *self = Self::default();
+    }
+}
 
 /// Shared environment using copy-on-write optimization
 /// Reduces memory usage by sharing immutable parent environments
@@ -41,6 +183,10 @@ pub struct SharedEnvironment {
     /// Whether this environment is "frozen" (immutable)
     /// Frozen environments can be safely shared and cached
     is_frozen: bool,
+
+    /// Statistics sender channel for decoupled statistics reporting
+    /// Only the global environment holds the actual sender
+    statistics_sender: Option<mpsc::Sender<StatisticsMessage>>,
 }
 
 impl SharedEnvironment {
@@ -54,11 +200,30 @@ impl SharedEnvironment {
             macro_cache: None,
             generation: 0,
             is_frozen: false,
+            statistics_sender: None,
         }
+    }
+
+    /// Create a new global shared environment with statistics processing
+    #[must_use] pub fn with_statistics_processor() -> (Self, mpsc::Receiver<StatisticsMessage>) {
+        let (sender, receiver) = mpsc::channel();
+        let env = SharedEnvironment {
+            local_bindings: HashMap::new(),
+            local_macros: HashMap::new(),
+            parent: None,
+            immutable_cache: None,
+            macro_cache: None,
+            generation: 0,
+            is_frozen: false,
+            statistics_sender: Some(sender),
+        };
+        (env, receiver)
     }
 
     /// Create a new shared environment with a parent
     #[must_use] pub fn with_parent(parent: Rc<SharedEnvironment>) -> Self {
+        // Inherit statistics sender from parent (if any)
+        let statistics_sender = parent.get_global_statistics_sender();
         SharedEnvironment {
             local_bindings: HashMap::new(),
             local_macros: HashMap::new(),
@@ -67,6 +232,7 @@ impl SharedEnvironment {
             macro_cache: None,
             generation: 0,
             is_frozen: false,
+            statistics_sender,
         }
     }
 
@@ -81,6 +247,7 @@ impl SharedEnvironment {
             macro_cache: None,
             generation: 0,
             is_frozen: is_empty, // Empty environments can be frozen immediately
+            statistics_sender: None,
         }
     }
 
@@ -404,6 +571,7 @@ assert!(!self.is_frozen, "Attempt to modify frozen environment");
             macro_cache: None,
             generation: 0,
             is_frozen: false,
+            statistics_sender: self.get_global_statistics_sender(),
         })
     }
 
@@ -493,6 +661,30 @@ assert!(!self.is_frozen, "Attempt to modify frozen environment");
         );
 
         all_bindings
+    }
+
+    /// Send statistics message to the statistics processor (if configured)
+    /// This provides decoupled statistics reporting from evaluators through the environment
+    pub fn send_statistics(&self, message: StatisticsMessage) {
+        if let Some(sender) = &self.statistics_sender {
+            let _ = sender.send(message); // Ignore send errors to avoid affecting evaluation
+        }
+    }
+
+    /// Get the global statistics sender by traversing up the environment chain
+    pub fn get_global_statistics_sender(&self) -> Option<mpsc::Sender<StatisticsMessage>> {
+        if let Some(ref sender) = self.statistics_sender {
+            Some(sender.clone())
+        } else if let Some(ref parent) = self.parent {
+            parent.get_global_statistics_sender()
+        } else {
+            None
+        }
+    }
+
+    /// Check if statistics reporting is enabled
+    #[must_use] pub fn has_statistics_reporting(&self) -> bool {
+        self.get_global_statistics_sender().is_some()
     }
 }
 

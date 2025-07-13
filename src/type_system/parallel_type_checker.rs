@@ -306,6 +306,7 @@ impl TypeCheckWorker {
 }
 
 /// Parallel type checking coordinator
+#[derive(Debug)]
 pub struct ParallelTypeChecker {
     /// Number of worker threads
     worker_count: usize,

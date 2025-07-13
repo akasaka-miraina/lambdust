@@ -133,6 +133,10 @@ pub struct EvaluatorInterface {
 }
 
 impl EvaluatorInterface {
+    // ========================================
+    // PUBLIC INTERFACE - Evaluator Interface
+    // ========================================
+
     /// Create new evaluator interface with default configuration
     #[must_use] pub fn new() -> Self {
         Self {
@@ -179,6 +183,237 @@ impl EvaluatorInterface {
             EvaluationMode::Verification => self.eval_verification(expr, env, cont),
         }
     }
+
+    /// ExecutionContext-based unified evaluation (Phase 11 integration)
+    /// This is the core integration method that combines static analysis with dynamic optimization
+    pub fn eval_with_execution_context(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<EvaluationResult> {
+        let start_time = Instant::now();
+        
+        // Phase 1: Generate ExecutionContext using Evaluator's static analysis
+        let execution_context = self.evaluator.create_execution_context(
+            expr.clone(),
+            env.clone(),
+            cont.clone(),
+        )?;
+        
+        let context_generation_time = start_time.elapsed().as_micros() as u64;
+        
+        // Phase 2: Select evaluation strategy based on ExecutionContext
+        let selected_mode = self.select_evaluation_mode_from_context(&execution_context);
+        
+        // Phase 3: Execute with selected strategy
+        let execution_start = Instant::now();
+        let result = match selected_mode {
+            EvaluationMode::Semantic => {
+                // Use semantic evaluator as fallback or when explicitly requested
+                self.eval_semantic(expr, env, cont)
+            }
+            EvaluationMode::Runtime(level) => {
+                // Try RuntimeExecutor with ExecutionContext
+                match self.runtime_executor.eval_with_execution_context(execution_context.clone()) {
+                    Ok(value) => {
+                        let execution_time = execution_start.elapsed().as_micros() as u64;
+                        
+                        // Verify result if enabled
+                        let correctness_proof = if self.config.verify_correctness {
+                            Some(self.verify_correctness(&expr, &value)?)
+                        } else {
+                            None
+                        };
+                        
+                        let performance_metrics = PerformanceMetrics {
+                            total_time_us: context_generation_time + execution_time,
+                            semantic_time_us: 0,
+                            runtime_time_us: execution_time,
+                            verification_time_us: 0,
+                            reduction_steps: execution_context.static_analysis.complexity_score as usize,
+                            memory_usage_bytes: execution_context.estimated_memory_usage(),
+                        };
+                        
+                        Ok(EvaluationResult {
+                            value,
+                            mode_used: EvaluationMode::Runtime(level),
+                            evaluation_time_us: execution_time,
+                            correctness_proof,
+                            verification_result: None,
+                            performance_metrics,
+                            fallback_used: false,
+                        })
+                    }
+                    Err(_) if self.config.fallback_to_semantic => {
+                        // Fallback to semantic evaluation on optimization failure
+                        let mut semantic_result = self.eval_semantic(expr, env, cont)?;
+                        semantic_result.fallback_used = true;
+                        Ok(semantic_result)
+                    }
+                    Err(e) => Err(e),
+                }
+            }
+            EvaluationMode::Auto => {
+                // Auto mode already handled in select_evaluation_mode_from_context
+                unreachable!("Auto mode should be resolved to specific mode")
+            }
+            EvaluationMode::Verification => {
+                // Run both evaluations and verify equivalence
+                self.eval_verification_mode_with_context(execution_context, expr, env, cont)
+            }
+        }?;
+        
+        // Update performance history
+        if self.config.monitor_performance {
+            self.performance_history.push(result.performance_metrics.clone());
+            
+            // Keep only recent history (last 1000 evaluations)
+            if self.performance_history.len() > 1000 {
+                self.performance_history.drain(0..100);
+            }
+        }
+        
+        Ok(result)
+    }
+
+    /// Update configuration
+    pub fn set_config(&mut self, config: EvaluationConfig) {
+        self.config = config;
+    }
+
+    /// Get current configuration
+    #[must_use] pub fn get_config(&self) -> &EvaluationConfig {
+        &self.config
+    }
+
+    /// Get performance history
+    #[must_use] pub fn get_performance_history(&self) -> &[PerformanceMetrics] {
+        &self.performance_history
+    }
+
+    /// Clear performance history
+    pub fn clear_performance_history(&mut self) {
+        self.performance_history.clear();
+    }
+
+    /// Get verification cache statistics
+    #[must_use] pub fn get_verification_cache_stats(&self) -> (usize, usize) {
+        let total_entries = self.verification_cache.len();
+        let successful_verifications = self
+            .verification_cache
+            .values()
+            .filter(|v| v.results_match)
+            .count();
+        (total_entries, successful_verifications)
+    }
+
+    /// Get mode selector statistics
+    #[must_use] pub fn get_mode_selector_stats(&self) -> Vec<String> {
+        use crate::evaluator::ExpressionType;
+
+        let expression_types = vec![
+            ExpressionType::Literal,
+            ExpressionType::Variable,
+            ExpressionType::SimpleArithmetic,
+            ExpressionType::ComplexArithmetic,
+            ExpressionType::FunctionCall,
+            ExpressionType::Lambda,
+            ExpressionType::ConditionalExpression,
+            ExpressionType::ListProcessing,
+            ExpressionType::RecursiveFunction,
+            ExpressionType::ComplexNested,
+        ];
+
+        let mut stats = Vec::new();
+        for expr_type in expression_types {
+            let recommendations = self.mode_selector.get_recommendations(&expr_type);
+            stats.push(format!("{expr_type:?}: {recommendations:?}"));
+        }
+
+        stats
+    }
+
+    /// Reset mode selector learning data
+    pub fn reset_mode_selector(&mut self) {
+        self.mode_selector.clear_history();
+    }
+
+    /// Get intelligent mode selection recommendation
+    pub fn get_mode_recommendation(&mut self, expr: &Expr) -> EvaluationMode {
+        let criteria = SelectionCriteria {
+            expression: expr.clone(),
+            expected_type: None,
+            performance_requirements: PerformanceRequirements::default(),
+            context: EvaluationContext::default(),
+        };
+
+        self.mode_selector.select_mode(&criteria)
+    }
+
+    /// Get verification system statistics
+    #[must_use] pub fn get_verification_statistics(&self) -> &crate::evaluator::VerificationStatistics {
+        self.verification_system.get_statistics()
+    }
+
+    /// Get verification system configuration
+    #[must_use] pub fn get_verification_config(&self) -> &VerificationConfig {
+        self.verification_system.get_config()
+    }
+
+    /// Update verification system configuration
+    pub fn set_verification_config(&mut self, config: VerificationConfig) {
+        self.verification_system.set_config(config.clone());
+        self.config.verification_config = config;
+    }
+
+    /// Reset verification system statistics
+    pub fn reset_verification_statistics(&mut self) {
+        self.verification_system.reset_statistics();
+    }
+
+    /// Clear verification system cache
+    pub fn clear_verification_cache(&mut self) {
+        self.verification_system.clear_cache();
+    }
+
+    /// Helper function to create a callable custom predicate that uses the evaluator
+    /// This bridges Scheme procedures to Rust custom predicate functions
+    /// Note: This is a simplified implementation for demonstration purposes
+    pub fn create_custom_predicate_fn(
+        &self,
+        _procedure: Value,
+        _environment: Environment,
+    ) -> crate::value::CustomPredicateFn {
+        use std::sync::Arc;
+        
+        // For now, return a placeholder predicate that always returns false
+        // In a full implementation, this would need to properly handle
+        // calling Scheme procedures with the evaluator context
+        Arc::new(move |_value: &Value| -> bool {
+            // Placeholder implementation - always returns false
+            false
+        })
+    }
+    
+    // Removed duplicate set_config/get_config methods - see line 281-287
+    
+    /// Evaluate with continuation (compatibility method)
+    pub fn eval_with_continuation(
+        &mut self,
+        expr: Expr,
+        env: Rc<Environment>,
+        cont: Continuation,
+    ) -> Result<Value> {
+        // Delegate to the main eval method and extract the value
+        self.eval(expr, env, cont).map(|result| result.value)
+    }
+    
+    // Removed duplicate methods - see line 291-305
+
+    // ========================================
+    // PRIVATE HELPER METHODS
+    // ========================================
 
     /// Evaluate using semantic evaluator
     fn eval_semantic(
@@ -411,7 +646,6 @@ impl EvaluatorInterface {
     /// Check if two values are equivalent
     fn values_equivalent(&self, v1: &Value, v2: &Value) -> Result<bool> {
         // Simple structural equivalence check
-        // TODO: implement deeper semantic equivalence
         Ok(format!("{v1:?}") == format!("{v2:?}"))
     }
 
@@ -434,99 +668,6 @@ impl EvaluatorInterface {
             }
             _ => 5, // Default complexity for other expressions
         }
-    }
-
-    /// ExecutionContext-based unified evaluation (Phase 11 integration)
-    /// This is the core integration method that combines static analysis with dynamic optimization
-    pub fn eval_with_execution_context(
-        &mut self,
-        expr: Expr,
-        env: Rc<Environment>,
-        cont: Continuation,
-    ) -> Result<EvaluationResult> {
-        let start_time = Instant::now();
-        
-        // Phase 1: Generate ExecutionContext using Evaluator's static analysis
-        let execution_context = self.evaluator.create_execution_context(
-            expr.clone(),
-            env.clone(),
-            cont.clone(),
-        )?;
-        
-        let context_generation_time = start_time.elapsed().as_micros() as u64;
-        
-        // Phase 2: Select evaluation strategy based on ExecutionContext
-        let selected_mode = self.select_evaluation_mode_from_context(&execution_context);
-        
-        // Phase 3: Execute with selected strategy
-        let execution_start = Instant::now();
-        let result = match selected_mode {
-            EvaluationMode::Semantic => {
-                // Use semantic evaluator as fallback or when explicitly requested
-                self.eval_semantic(expr, env, cont)
-            }
-            EvaluationMode::Runtime(level) => {
-                // Try RuntimeExecutor with ExecutionContext
-                match self.runtime_executor.eval_with_execution_context(execution_context.clone()) {
-                    Ok(value) => {
-                        let execution_time = execution_start.elapsed().as_micros() as u64;
-                        
-                        // Verify result if enabled
-                        let correctness_proof = if self.config.verify_correctness {
-                            Some(self.verify_correctness(&expr, &value)?)
-                        } else {
-                            None
-                        };
-                        
-                        let performance_metrics = PerformanceMetrics {
-                            total_time_us: context_generation_time + execution_time,
-                            semantic_time_us: 0,
-                            runtime_time_us: execution_time,
-                            verification_time_us: 0,
-                            reduction_steps: execution_context.static_analysis.complexity_score as usize,
-                            memory_usage_bytes: execution_context.estimated_memory_usage(),
-                        };
-                        
-                        Ok(EvaluationResult {
-                            value,
-                            mode_used: EvaluationMode::Runtime(level),
-                            evaluation_time_us: execution_time,
-                            correctness_proof,
-                            verification_result: None,
-                            performance_metrics,
-                            fallback_used: false,
-                        })
-                    }
-                    Err(_) if self.config.fallback_to_semantic => {
-                        // Fallback to semantic evaluation on optimization failure
-                        let mut semantic_result = self.eval_semantic(expr, env, cont)?;
-                        semantic_result.fallback_used = true;
-                        Ok(semantic_result)
-                    }
-                    Err(e) => Err(e),
-                }
-            }
-            EvaluationMode::Auto => {
-                // Auto mode already handled in select_evaluation_mode_from_context
-                unreachable!("Auto mode should be resolved to specific mode")
-            }
-            EvaluationMode::Verification => {
-                // Run both evaluations and verify equivalence
-                self.eval_verification_mode_with_context(execution_context, expr, env, cont)
-            }
-        }?;
-        
-        // Update performance history
-        if self.config.monitor_performance {
-            self.performance_history.push(result.performance_metrics.clone());
-            
-            // Keep only recent history (last 1000 evaluations)
-            if self.performance_history.len() > 1000 {
-                self.performance_history.drain(0..100);
-            }
-        }
-        
-        Ok(result)
     }
     
     /// Select evaluation mode based on ExecutionContext analysis
@@ -646,126 +787,6 @@ impl EvaluatorInterface {
                 })
             }
         }
-    }
-
-    /// Update configuration
-    pub fn set_config(&mut self, config: EvaluationConfig) {
-        self.config = config;
-    }
-
-    /// Get current configuration
-    #[must_use] pub fn get_config(&self) -> &EvaluationConfig {
-        &self.config
-    }
-
-    /// Get performance history
-    #[must_use] pub fn get_performance_history(&self) -> &[PerformanceMetrics] {
-        &self.performance_history
-    }
-
-    /// Clear performance history
-    pub fn clear_performance_history(&mut self) {
-        self.performance_history.clear();
-    }
-
-    /// Get verification cache statistics
-    #[must_use] pub fn get_verification_cache_stats(&self) -> (usize, usize) {
-        let total_entries = self.verification_cache.len();
-        let successful_verifications = self
-            .verification_cache
-            .values()
-            .filter(|v| v.results_match)
-            .count();
-        (total_entries, successful_verifications)
-    }
-
-    /// Get mode selector statistics
-    #[must_use] pub fn get_mode_selector_stats(&self) -> Vec<String> {
-        use crate::evaluator::ExpressionType;
-
-        let expression_types = vec![
-            ExpressionType::Literal,
-            ExpressionType::Variable,
-            ExpressionType::SimpleArithmetic,
-            ExpressionType::ComplexArithmetic,
-            ExpressionType::FunctionCall,
-            ExpressionType::Lambda,
-            ExpressionType::ConditionalExpression,
-            ExpressionType::ListProcessing,
-            ExpressionType::RecursiveFunction,
-            ExpressionType::ComplexNested,
-        ];
-
-        let mut stats = Vec::new();
-        for expr_type in expression_types {
-            let recommendations = self.mode_selector.get_recommendations(&expr_type);
-            stats.push(format!("{expr_type:?}: {recommendations:?}"));
-        }
-
-        stats
-    }
-
-    /// Reset mode selector learning data
-    pub fn reset_mode_selector(&mut self) {
-        self.mode_selector.clear_history();
-    }
-
-    /// Get intelligent mode selection recommendation
-    pub fn get_mode_recommendation(&mut self, expr: &Expr) -> EvaluationMode {
-        let criteria = SelectionCriteria {
-            expression: expr.clone(),
-            expected_type: None,
-            performance_requirements: PerformanceRequirements::default(),
-            context: EvaluationContext::default(),
-        };
-
-        self.mode_selector.select_mode(&criteria)
-    }
-
-    /// Get verification system statistics
-    #[must_use] pub fn get_verification_statistics(&self) -> &crate::evaluator::VerificationStatistics {
-        self.verification_system.get_statistics()
-    }
-
-    /// Get verification system configuration
-    #[must_use] pub fn get_verification_config(&self) -> &VerificationConfig {
-        self.verification_system.get_config()
-    }
-
-    /// Update verification system configuration
-    pub fn set_verification_config(&mut self, config: VerificationConfig) {
-        self.verification_system.set_config(config.clone());
-        self.config.verification_config = config;
-    }
-
-    /// Reset verification system statistics
-    pub fn reset_verification_statistics(&mut self) {
-        self.verification_system.reset_statistics();
-    }
-
-    /// Clear verification system cache
-    pub fn clear_verification_cache(&mut self) {
-        self.verification_system.clear_cache();
-    }
-
-    /// Helper function to create a callable custom predicate that uses the evaluator
-    /// This bridges Scheme procedures to Rust custom predicate functions
-    /// Note: This is a simplified implementation for demonstration purposes
-    pub fn create_custom_predicate_fn(
-        &self,
-        _procedure: Value,
-        _environment: Environment,
-    ) -> crate::value::CustomPredicateFn {
-        use std::sync::Arc;
-        
-        // For now, return a placeholder predicate that always returns false
-        // In a full implementation, this would need to properly handle
-        // calling Scheme procedures with the evaluator context
-        Arc::new(move |_value: &Value| -> bool {
-            // Placeholder implementation - always returns false
-            // TODO: Implement proper Scheme procedure calling
-            false
-        })
     }
 }
 
