@@ -51,7 +51,7 @@ impl RuntimeExecutor {
         // Check if defragmentation is needed
         if self.needs_pool_defragmentation() {
             self.defragment_pools();
-            self.stats_mut().pool_defragmentation += 1;
+            // Pool defragmentation tracking no longer used (removed embedded statistics)
         }
         
         // Clear underused pools to free memory
@@ -70,7 +70,7 @@ impl RuntimeExecutor {
     /// Use adaptive engine for dynamic optimization decisions
     pub fn apply_adaptive_optimization(&mut self, execution_context: &ExecutionContext) -> Result<Value> {
         // Get adaptive optimization recommendation
-        let optimization_type = self.adaptive_engine().get_optimization_recommendation(
+        let optimization_type = self.adaptive_engine_mut().get_optimization_recommendation(
             &execution_context.expression,
             &execution_context.static_analysis
         );
@@ -97,10 +97,35 @@ impl RuntimeExecutor {
                 // Apply type-specific optimizations
                 self.execute_with_type_specialization(execution_context)
             }
+            AdaptiveOptimizationType::None => {
+                // No optimization, use basic evaluation
+                self.execute_with_semantic_evaluator(execution_context)
+            },
+            AdaptiveOptimizationType::Inline => {
+                // Inline optimization
+                self.execute_with_inline_evaluation(execution_context)
+            },
+            AdaptiveOptimizationType::JitCompile => {
+                // JIT compilation
+                self.execute_with_jit_optimization(execution_context)
+            },
+            AdaptiveOptimizationType::TailCallOptimize => {
+                // Tail call optimization
+                self.execute_with_semantic_evaluator(execution_context) // TODO: Implement tail call optimization
+            },
+            AdaptiveOptimizationType::TypeSpecialize => {
+                // Type specialization
+                self.execute_with_type_specialization(execution_context)
+            },
+            AdaptiveOptimizationType::LoopUnroll { factor } => {
+                // Loop unrolling with factor
+                self.execute_with_loop_unrolling(execution_context, factor)
+            },
             AdaptiveOptimizationType::ContinuationPooling |
             AdaptiveOptimizationType::MemoryLayoutOptimization |
-            AdaptiveOptimizationType::ProfileGuidedOptimization => {
-                // Advanced optimizations not yet implemented, fallback to semantic evaluator
+            AdaptiveOptimizationType::ProfileGuidedOptimization |
+            _ => {
+                // Catch-all for any remaining patterns
                 self.execute_with_semantic_evaluator(execution_context)
             }
         }
@@ -163,17 +188,18 @@ impl RuntimeExecutor {
 
     /// Adaptive pool management based on usage patterns
     fn adaptive_pool_management(&mut self) {
-        // Periodic optimization based on evaluation count
-        if self.stats().expressions_evaluated % 1000 == 0 && self.stats().expressions_evaluated > 0 {
-            let pool_efficiency = self.stats().continuation_pool_efficiency();
-            
-            // If pool efficiency is low, trigger optimization
-            if pool_efficiency < 50.0 {
+        // Adaptive pool management has been simplified for decoupled statistics
+        // In a full implementation, this would use environment-based performance metrics
+        // For now, we use basic pool management based on available metrics
+        
+        // Simple adaptive management based on pooling efficiency
+        let global_stats = self.get_pooling_statistics();
+        let (pool_hits, pool_misses, _total_pools, efficiency) = global_stats;
+        
+        if pool_hits + pool_misses > 1000 {
+            if efficiency < 50.0 {
                 // Clear all pools and let them rebuild with current patterns
                 self.clear_continuation_pools();
-            } else if pool_efficiency > 85.0 {
-                // High efficiency - consider expanding pool sizes
-                // This would be implemented in a full production system
             }
         }
     }
@@ -290,7 +316,7 @@ impl RuntimeExecutor {
     /// Get comprehensive runtime performance report
     #[must_use] pub fn generate_performance_report(&self) -> RuntimePerformanceReport {
         RuntimePerformanceReport {
-            runtime_stats: self.stats().clone(),
+            runtime_stats: RuntimeStats::default(), // Basic placeholder stats
             pooling_stats: self.get_pooling_statistics(),
             detailed_pooling: self.get_detailed_pooling_statistics(),
             memory_usage: self.continuation_pooler().memory_usage_summary(),
@@ -307,9 +333,9 @@ impl RuntimeExecutor {
     fn generate_optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
         let mut recommendations = Vec::new();
         
-        // Pool efficiency recommendations
-        let pool_efficiency = self.stats().continuation_pool_efficiency();
-        if pool_efficiency < 30.0 && self.stats().continuation_pool_hits + self.stats().continuation_pool_misses > 100 {
+        // Pool efficiency recommendations based on available metrics
+        let (pool_hits, pool_misses, _total_pools, pool_efficiency) = self.get_pooling_statistics();
+        if pool_efficiency < 30.0 && pool_hits + pool_misses > 100 {
             recommendations.push(OptimizationRecommendation {
                 optimization_type: OptimizationType::MemoryLayoutOptimization,
                 confidence: 0.8,
@@ -318,23 +344,25 @@ impl RuntimeExecutor {
             });
         }
         
-        // Hot path recommendations
-        if self.stats().hot_path_detections > 50 && self.stats().jit_compilations < 10 {
+        // JIT optimization recommendations based on available data
+        // Note: In decoupled statistics, specific hot path counts would come from environment
+        let detailed_pooling = self.get_detailed_pooling_statistics();
+        if detailed_pooling.len() > 10 {
             recommendations.push(OptimizationRecommendation {
                 optimization_type: OptimizationType::JITCompilation,
                 confidence: 0.7,
                 expected_speedup: 1.30, // 30% improvement
-                description: "Multiple hot paths detected but few JIT compilations. Consider enabling more aggressive JIT compilation.".to_string(),
+                description: "Multiple continuation types detected. Consider enabling JIT compilation for frequently used patterns.".to_string(),
             });
         }
         
-        // Optimization rate recommendations
-        if self.stats().optimization_rate() < 20.0 && self.stats().expressions_evaluated > 1000 {
+        // General optimization recommendations
+        if pool_hits + pool_misses > 1000 && pool_efficiency > 80.0 {
             recommendations.push(OptimizationRecommendation {
                 optimization_type: OptimizationType::CacheOptimization,
                 confidence: 0.6,
                 expected_speedup: 1.20, // 20% improvement
-                description: "Low optimization rate detected. Consider using more aggressive optimization levels.".to_string(),
+                description: "High pool usage with good efficiency. Consider increasing pool sizes for better performance.".to_string(),
             });
         }
         

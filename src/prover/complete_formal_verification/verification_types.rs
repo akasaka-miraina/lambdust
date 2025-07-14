@@ -42,7 +42,7 @@ impl Default for CompleteVerificationConfig {
     fn default() -> Self {
         Self {
             exhaustive_verification: false,
-            verification_depth: VerificationDepth::Standard,
+            verification_depth: VerificationDepth::Semantic,
             enable_external_provers: false,
             real_time_verification: false,
             performance_overhead_limit: 0.1,
@@ -268,7 +268,7 @@ pub struct ResponsibilitySeparationResult {
 }
 
 /// System-wide correctness guarantees
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub struct SystemCorrectnessGuarantees {
     /// R7RS compliance guarantee

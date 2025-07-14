@@ -9,9 +9,12 @@ use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
+#[cfg(feature = "development")]
 use std::sync::mpsc;
 
 /// Statistics message sent from evaluators to the environment
+/// Only available in development builds for performance analysis
+#[cfg(feature = "development")]
 #[derive(Debug, Clone)]
 pub enum StatisticsMessage {
     /// Evaluation completed
@@ -53,6 +56,8 @@ pub enum StatisticsMessage {
 }
 
 /// Statistics processor interface
+/// Only available in development builds for performance analysis
+#[cfg(feature = "development")]
 pub trait StatisticsProcessor {
     /// Process a statistics message
     fn process_message(&mut self, message: StatisticsMessage);
@@ -65,6 +70,8 @@ pub trait StatisticsProcessor {
 }
 
 /// Summary of collected statistics
+/// Only available in development builds for performance analysis
+#[cfg(feature = "development")]
 #[derive(Debug, Clone)]
 pub struct StatisticsSummary {
     pub total_evaluations: usize,
@@ -79,6 +86,8 @@ pub struct StatisticsSummary {
 }
 
 /// Basic implementation of statistics processor
+/// Only available in development builds for performance analysis
+#[cfg(feature = "development")]
 #[derive(Debug, Default)]
 pub struct BasicStatisticsProcessor {
     total_evaluations: usize,
@@ -92,6 +101,7 @@ pub struct BasicStatisticsProcessor {
     optimization_improvements: Vec<f64>,
 }
 
+#[cfg(feature = "development")]
 impl StatisticsProcessor for BasicStatisticsProcessor {
     fn process_message(&mut self, message: StatisticsMessage) {
         match message {
@@ -186,6 +196,8 @@ pub struct SharedEnvironment {
 
     /// Statistics sender channel for decoupled statistics reporting
     /// Only the global environment holds the actual sender
+    /// Only available in development builds
+    #[cfg(feature = "development")]
     statistics_sender: Option<mpsc::Sender<StatisticsMessage>>,
 }
 
@@ -200,11 +212,14 @@ impl SharedEnvironment {
             macro_cache: None,
             generation: 0,
             is_frozen: false,
+            #[cfg(feature = "development")]
             statistics_sender: None,
         }
     }
 
     /// Create a new global shared environment with statistics processing
+    /// Only available in development builds
+    #[cfg(feature = "development")]
     #[must_use] pub fn with_statistics_processor() -> (Self, mpsc::Receiver<StatisticsMessage>) {
         let (sender, receiver) = mpsc::channel();
         let env = SharedEnvironment {
@@ -223,7 +238,9 @@ impl SharedEnvironment {
     /// Create a new shared environment with a parent
     #[must_use] pub fn with_parent(parent: Rc<SharedEnvironment>) -> Self {
         // Inherit statistics sender from parent (if any)
+        #[cfg(feature = "development")]
         let statistics_sender = parent.get_global_statistics_sender();
+        
         SharedEnvironment {
             local_bindings: HashMap::new(),
             local_macros: HashMap::new(),
@@ -232,6 +249,7 @@ impl SharedEnvironment {
             macro_cache: None,
             generation: 0,
             is_frozen: false,
+            #[cfg(feature = "development")]
             statistics_sender,
         }
     }
@@ -247,6 +265,7 @@ impl SharedEnvironment {
             macro_cache: None,
             generation: 0,
             is_frozen: is_empty, // Empty environments can be frozen immediately
+            #[cfg(feature = "development")]
             statistics_sender: None,
         }
     }
@@ -296,6 +315,8 @@ impl SharedEnvironment {
                 macro_cache: None,
                 generation: 0,
                 is_frozen: false,
+                #[cfg(feature = "development")]
+                statistics_sender: self.get_global_statistics_sender(),
             }
         }
     }
@@ -571,6 +592,7 @@ assert!(!self.is_frozen, "Attempt to modify frozen environment");
             macro_cache: None,
             generation: 0,
             is_frozen: false,
+            #[cfg(feature = "development")]
             statistics_sender: self.get_global_statistics_sender(),
         })
     }
@@ -665,13 +687,23 @@ assert!(!self.is_frozen, "Attempt to modify frozen environment");
 
     /// Send statistics message to the statistics processor (if configured)
     /// This provides decoupled statistics reporting from evaluators through the environment
+    /// Only available in development builds
+    #[cfg(feature = "development")]
     pub fn send_statistics(&self, message: StatisticsMessage) {
         if let Some(sender) = &self.statistics_sender {
             let _ = sender.send(message); // Ignore send errors to avoid affecting evaluation
         }
     }
+    
+    /// No-op version for non-development builds
+    #[cfg(not(feature = "development"))]
+    pub fn send_statistics(&self, _message: ()) {
+        // No-op: statistics disabled in production builds
+    }
 
     /// Get the global statistics sender by traversing up the environment chain
+    /// Only available in development builds
+    #[cfg(feature = "development")]
     pub fn get_global_statistics_sender(&self) -> Option<mpsc::Sender<StatisticsMessage>> {
         if let Some(ref sender) = self.statistics_sender {
             Some(sender.clone())
@@ -681,10 +713,23 @@ assert!(!self.is_frozen, "Attempt to modify frozen environment");
             None
         }
     }
+    
+    /// No-op version for non-development builds
+    #[cfg(not(feature = "development"))]
+    pub fn get_global_statistics_sender(&self) -> Option<()> {
+        None
+    }
 
     /// Check if statistics reporting is enabled
     #[must_use] pub fn has_statistics_reporting(&self) -> bool {
-        self.get_global_statistics_sender().is_some()
+        #[cfg(feature = "development")]
+        {
+            self.get_global_statistics_sender().is_some()
+        }
+        #[cfg(not(feature = "development"))]
+        {
+            false
+        }
     }
 }
 
@@ -812,6 +857,18 @@ impl MutableEnvironment {
     /// Check if macro exists
     #[must_use] pub fn has_macro(&self, name: &str) -> bool {
         self.inner.borrow().has_macro(name)
+    }
+    
+    /// Send statistics message (development builds only)
+    #[cfg(feature = "development")]
+    pub fn send_statistics(&self, message: StatisticsMessage) {
+        self.inner.borrow().send_statistics(message);
+    }
+    
+    /// No-op version for non-development builds
+    #[cfg(not(feature = "development"))]
+    pub fn send_statistics(&self, _message: ()) {
+        // No-op: statistics disabled in production builds
     }
 }
 

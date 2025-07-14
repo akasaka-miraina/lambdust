@@ -12,6 +12,8 @@
 //! - `loop_optimization`: ループ最適化関連
 
 pub mod core_types;
+pub mod theorem_derivation;
+pub mod verified_optimization;
 
 // Re-export main types for backward compatibility
 pub use core_types::{
@@ -24,11 +26,17 @@ pub use core_types::{
     CommonSubexpressionEngine, LoopOptimizationEngine,
 };
 
+// Re-export theorem derivation types
+pub use theorem_derivation::{InferenceRule, LearnedPattern, TheoremDerivationEngine};
+
+// Re-export verified optimization types  
+pub use verified_optimization::{OptimizationController, VerificationSystem, VerifiedOptimization};
+
 // Re-export VerificationDepth directly from its source
-pub use crate::evaluator::formal_verification::configuration_types::VerificationDepth;
+pub use crate::prover::formal_verification::configuration_types::VerificationDepth;
 
 use std::collections::HashMap;
-use crate::formal_verification::FormalVerificationEngine;
+use crate::prover::formal_verification::FormalVerificationEngine;
 
 // For now, we'll create a simplified StaticSemanticOptimizer
 // that uses the modularized components internally
@@ -85,7 +93,10 @@ impl StaticSemanticOptimizer {
     pub fn new(config: StaticOptimizerConfiguration) -> Self {
         Self {
             semantic_evaluator: SemanticEvaluator::new(),
-            verification_engine: FormalVerificationEngine::new(),
+            verification_engine: FormalVerificationEngine::new(
+                crate::evaluator::SemanticEvaluator::new(),
+                crate::type_system::PolynomialUniverseSystem::new(),
+            ),
             optimization_cache: HashMap::new(),
             type_inference: TypeInferenceEngine::new(),
             constant_propagator: ConstantPropagationEngine::new(),

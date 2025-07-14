@@ -156,7 +156,7 @@ impl TrampolineEvaluator {
         match expr {
             // Constants can be evaluated immediately
             Expr::Literal(lit) => {
-                let value = evaluator.literal_to_value(lit)?;
+                let value = Value::from_literal(&lit);
                 Self::apply_continuation_to_thunk(evaluator, cont, value)
             }
 
@@ -514,9 +514,7 @@ impl TrampolineEvaluator {
                                 let init_expr = &clause_exprs[1];
                                 let init_value = match init_expr {
                                     // Direct literal evaluation
-                                    Expr::Literal(lit) => {
-                                        evaluator.literal_to_value(lit.clone())?
-                                    }
+                                    Expr::Literal(lit) => Value::from_literal(lit),
                                     // Variable lookup
                                     Expr::Variable(var) => env.get(var).unwrap_or(Value::Undefined),
                                     // For complex expressions, evaluate them
@@ -754,35 +752,39 @@ impl TrampolineEvaluator {
                 value: Value::Undefined,
             })))
         } else {
-            // Return the first variable value as placeholder
-            // TODO: Properly evaluate result expressions in sequence
-            let result_value = if result_exprs.len() == 1 {
-                // Single result expression - try simple evaluation
-                match &result_exprs[0] {
-                    Expr::Variable(_var_name) => {
-                        // Return placeholder value for now
-                        Value::from(42i64)
-                    }
-                    Expr::Literal(lit) => {
-                        // Convert literal directly
-                        match lit {
-                            crate::ast::Literal::Number(n) => Value::Number(n.clone()),
-                            crate::ast::Literal::Boolean(b) => Value::Boolean(*b),
-                            crate::ast::Literal::String(s) => Value::String(s.clone()),
-                            crate::ast::Literal::Character(c) => Value::Character(*c),
-                            crate::ast::Literal::Nil => Value::Nil,
-                        }
-                    }
-                    _ => Value::from(42i64), // Placeholder for complex expressions
-                }
+            // Properly evaluate result expressions in sequence
+            if result_exprs.len() == 1 {
+                // Single result expression - evaluate directly
+                return Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
+                    expr: result_exprs[0].clone(),
+                    env: _loop_env.clone(),
+                    cont,
+                })));
+            } else if result_exprs.is_empty() {
+                // No result expressions - return undefined
+                return Ok(Bounce::Continue(Box::new(ContinuationThunk::ApplyCont {
+                    cont,
+                    value: Value::Undefined,
+                })));
             } else {
-                Value::from(42i64) // Placeholder for multiple results
-            };
-
-            Ok(Bounce::Continue(Box::new(ContinuationThunk::ApplyCont {
-                cont,
-                value: result_value,
-            })))
+                // Multiple result expressions - evaluate first and continue with rest
+                // Create a begin-like continuation for sequence evaluation
+                let sequence_cont = if result_exprs.len() > 1 {
+                    Continuation::Begin {
+                        remaining: result_exprs[1..].to_vec(),
+                        env: _loop_env.clone(),
+                        parent: Box::new(cont),
+                    }
+                } else {
+                    cont
+                };
+                
+                return Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
+                    expr: result_exprs[0].clone(),
+                    env: _loop_env.clone(),
+                    cont: sequence_cont,
+                })));
+            }
         }
     }
 

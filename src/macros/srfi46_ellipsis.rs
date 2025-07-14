@@ -91,6 +91,11 @@ impl NestedEllipsisProcessor {
         }
     }
     
+    /// Get maximum nesting depth
+    #[must_use] pub fn max_depth(&self) -> usize {
+        self.max_nesting_depth
+    }
+    
     /// Create processor with custom depth limit
     #[must_use] pub fn with_max_depth(max_depth: usize) -> Self {
         Self {

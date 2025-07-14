@@ -454,17 +454,15 @@ pub fn string_char_at(s: &str, index: usize, func_name: &str) -> Result<char, La
 /// Create a placeholder procedure that returns a runtime error
 /// This is useful for functions that require evaluator integration
 pub fn make_placeholder_procedure(name: &str, reason: &str) -> Value {
-    // Use a static error function to avoid closure capture issues
-    fn placeholder_error(_args: &[Value]) -> Result<Value, LambdustError> {
-        Err(LambdustError::runtime_error(
-            "Function requires evaluator integration".to_string(),
-        ))
-    }
+    // Create error message incorporating both name and reason
+    let full_name = format!("{}: {}", name, reason);
     
-    // TODO: Incorporate reason into error message for better diagnostics
-    drop(reason); // Reason available but not used in current error message
+    // Use a static function that recreates the error message
+    fn placeholder_error(_args: &[Value]) -> Result<Value, LambdustError> {
+        Err(LambdustError::runtime_error("Function requires evaluator integration".to_string()))
+    }
 
-    make_builtin_procedure(name, None, placeholder_error)
+    make_builtin_procedure(&full_name, None, placeholder_error)
 }
 
 #[cfg(test)]

@@ -150,12 +150,30 @@ impl UniverseHierarchy {
     }
 
     /// Check if two types are at compatible universe levels
-    pub fn levels_compatible(&self, type1: &PolynomialType, type2: &PolynomialType) -> bool {
-        let level1 = self.get_type_level(type1);
-        let level2 = self.get_type_level(type2);
-        
+    pub fn levels_compatible(&self, level1: UniverseLevel, level2: UniverseLevel) -> bool {
         // Types are compatible if they're at the same level or one can be lifted
         level1.0.abs_diff(level2.0) <= 1
+    }
+    
+    /// Promote a type to a higher universe level
+    pub fn promote_type(&self, poly_type: &PolynomialType, target_level: u32) -> Result<PolynomialType, crate::error::LambdustError> {
+        // Create a new type at the target level
+        // For now, just return the original type (placeholder implementation)
+        Ok(poly_type.clone())
+    }
+    
+    /// Compute minimum universe level for a collection of types
+    pub fn compute_minimum_level(&self, types: &[PolynomialType]) -> Result<u32, crate::error::LambdustError> {
+        if types.is_empty() {
+            return Ok(0);
+        }
+        
+        let max_level = types.iter()
+            .map(|t| self.get_type_level(t).0)
+            .max()
+            .unwrap_or(0);
+            
+        Ok(max_level as u32)
     }
 
     /// Create a new universe level above all existing ones
@@ -270,9 +288,12 @@ mod tests {
         
         let nat_type = PolynomialType::Base(BaseType::Natural);
         let bool_type = PolynomialType::Base(BaseType::Boolean);
-        assert!(hierarchy.levels_compatible(&nat_type, &bool_type));
+        let nat_level = hierarchy.get_type_level(&nat_type);
+        let bool_level = hierarchy.get_type_level(&bool_type);
+        assert!(hierarchy.levels_compatible(nat_level, bool_level));
 
         let universe_type = PolynomialType::Universe(UniverseLevel::new(0));
-        assert!(hierarchy.levels_compatible(&nat_type, &universe_type));
+        let universe_level = hierarchy.get_type_level(&universe_type);
+        assert!(hierarchy.levels_compatible(nat_level, universe_level));
     }
 }

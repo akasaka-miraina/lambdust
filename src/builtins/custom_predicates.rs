@@ -51,14 +51,27 @@ fn define_predicate() -> Value {
             None
         };
 
-        // Placeholder implementation for now
-        // TODO: Implement proper Scheme procedure calling with evaluator context
-        let _procedure_ref = predicate_proc; // Keep reference to avoid unused variable warning
-        let predicate_fn = move |_value: &Value| -> bool {
-            // Placeholder implementation - always returns false
-            // In a full implementation, this would call the Scheme procedure
-            // with the evaluator context to determine the result
-            false
+        // Create a simple predicate function based on procedure name
+        // This is a simplified approach until full evaluator integration is available
+        let procedure_name = match &predicate_proc {
+            crate::value::Procedure::Builtin { name, .. } => name.clone(),
+            _ => "unknown".to_string(),
+        };
+        
+        let predicate_fn = move |value: &Value| -> bool {
+            // For now, implement common predicate patterns based on procedure name
+            match procedure_name.as_str() {
+                "number?" => matches!(value, crate::value::Value::Number(_)),
+                "string?" => matches!(value, crate::value::Value::String(_) | crate::value::Value::ShortString(_)),
+                "boolean?" => matches!(value, crate::value::Value::Boolean(_)),
+                "symbol?" => matches!(value, crate::value::Value::Symbol(_) | crate::value::Value::ShortSymbol(_)),
+                "null?" => matches!(value, crate::value::Value::Nil),
+                "pair?" => value.is_pair(),
+                "list?" => value.is_list(),
+                "vector?" => matches!(value, crate::value::Value::Vector(_)),
+                "procedure?" => matches!(value, crate::value::Value::Procedure(_)),
+                _ => false, // Unknown predicate - return false as default
+            }
         };
 
         // Register the custom predicate

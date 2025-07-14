@@ -163,7 +163,7 @@ impl MemoryStrategy {
 
     /// Allocate value and return handle
     pub fn allocate(&mut self, value: Value) -> Result<crate::evaluator::raii_store::RaiiLocation> {
-        Ok(self.raii_store.allocate(value)?)
+        Ok(self.raii_store.allocate(value))
     }
 
     /// Force garbage collection if supported

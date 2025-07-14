@@ -362,7 +362,7 @@ impl TheoremDerivationEngine {
         let foundation = MathematicalStatement::Identity {
             operation: "+".to_string(),
             expression: Expr::Variable("x".to_string()),
-            identity_element: Value::Integer(0),
+            identity_element: Value::Number(crate::lexer::SchemeNumber::Integer(0)),
         };
         
         self.create_placeholder_optimization_theorem("identity_elimination", foundation)
@@ -439,14 +439,18 @@ impl TheoremDerivationEngine {
             base_theorem: name.to_string(),
             optimization_rule,
             correctness_proof: FormalProof {
-                proof_method: ProofMethod::DirectProof,
-                proof_steps: vec![ProofStep {
+                method: ProofMethod::SemanticEquivalence,
+                steps: vec![ProofStep {
                     description: format!("Apply {} theorem", name),
+                    rule: format!("{}_theorem", name),
+                    input: "expression".to_string(),
+                    output: "optimized_expression".to_string(),
                     justification: "Mathematical foundation".to_string(),
-                    transformed_expression: Expr::Variable("result".to_string()),
                 }],
-                conclusion: "Correctness preserved".to_string(),
-                verification_status: "Verified".to_string(),
+                external_verification: None,
+                generation_time: std::time::Duration::from_millis(100),
+                is_valid: true, // conclusion: "Correctness preserved".to_string(),
+                // verification_status: "Verified".to_string(),
             },
             performance_verification: super::theorem_types::PerformanceVerification {
                 benchmarks: Vec::new(),
@@ -524,14 +528,17 @@ impl TheoremDerivationEngine {
     /// Generate correctness proof for optimization
     fn generate_correctness_proof(&self, _foundation: &MathematicalStatement) -> Result<FormalProof> {
         Ok(FormalProof {
-            proof_method: ProofMethod::DirectProof,
-            proof_steps: vec![ProofStep {
+            method: ProofMethod::SemanticEquivalence,
+            steps: vec![ProofStep {
                 description: "Apply mathematical foundation".to_string(),
+                rule: "semantic_equivalence".to_string(),
+                input: "mathematical_foundation".to_string(),
+                output: "optimization_theorem".to_string(),
                 justification: "Theorem-based transformation".to_string(),
-                transformed_expression: Expr::Variable("result".to_string()),
             }],
-            conclusion: "Semantic equivalence preserved".to_string(),
-            verification_status: "Verified".to_string(),
+            external_verification: None,
+            generation_time: std::time::Duration::from_millis(0),
+            is_valid: true,
         })
     }
     

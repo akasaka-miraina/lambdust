@@ -10,7 +10,9 @@ use super::core_types::{
 use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::Result;
-use crate::evaluator::{FormalVerificationEngine, RuntimeOptimizationLevel};
+#[cfg(feature = "development")]
+use crate::evaluator::FormalVerificationEngine;
+use crate::evaluator::RuntimeOptimizationLevel;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -33,6 +35,7 @@ pub struct IntegratedOptimizationManager {
     optimization_stats: IntegratedOptimizationStats,
 
     /// 形式的検証統合
+    #[cfg(feature = "development")]
     formal_verification: Option<FormalVerificationEngine>,
 
     /// 正当性保証システム
@@ -350,12 +353,14 @@ impl IntegratedOptimizationManager {
             optimization_orchestrator: OptimizationOrchestrator::new(),
             optimization_cache: OptimizationCache::new(),
             optimization_stats: IntegratedOptimizationStats::default(),
+            #[cfg(feature = "development")]
             formal_verification: None,
             correctness_guarantor: CorrectnessGuarantor::new(),
         }
     }
 
     /// 形式的検証を有効化
+    #[cfg(feature = "development")]
     pub fn enable_formal_verification(&mut self) {
         self.formal_verification = Some(FormalVerificationEngine::new());
     }

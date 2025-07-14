@@ -4,27 +4,7 @@
 
 use super::core_types::*;
 use crate::ast::Expr;
-#[cfg(feature = "development")]
 use crate::environment::{Environment, StatisticsMessage};
-#[cfg(not(feature = "development"))]
-use crate::environment::Environment;
-
-/// Macro for conditional statistics reporting
-/// Only sends statistics in development builds
-#[cfg(feature = "development")]
-macro_rules! send_stats {
-    ($self:expr, $env:expr, $message:expr) => {
-        $self.send_statistics($env, $message);
-    };
-}
-
-#[cfg(not(feature = "development"))]
-macro_rules! send_stats {
-    ($self:expr, $env:expr, $message:expr) => {
-        $self.send_statistics($env, ());
-    };
-}
-
 use crate::error::{LambdustError, Result};
 use crate::evaluator::{
     Continuation, ContinuationPoolManager, InlineEvaluator,
@@ -128,7 +108,8 @@ impl RuntimeExecutor {
 
     /// Clear JIT compilation caches (useful for testing or memory management)
     pub fn clear_jit_caches(&mut self) {
-        self.jit_optimizer_mut().clear_caches();
+        // TODO: Implement clear_caches method in JitLoopOptimizer
+        // self.jit_optimizer_mut().clear_caches();
     }
 
     /// Get current recursion depth (useful for testing)
@@ -157,10 +138,10 @@ impl RuntimeExecutor {
         let cont = context.continuation.clone();
         
         // Send evaluation started statistics through environment
-        send_stats!(self, &env, StatisticsMessage::EvaluationCompleted {
+        self.send_statistics(&env, StatisticsMessage::EvaluationCompleted {
             expression_type: format!("{:?}", expr).chars().take(50).collect(),
             execution_time_ns: 0, // Will be updated at the end
-            recursion_depth: self.recursion_depth()(),
+            recursion_depth: self.recursion_depth,
         });
         
         // Use static analysis from ExecutionContext
@@ -168,7 +149,7 @@ impl RuntimeExecutor {
         
         // Log static optimization information
         if context.was_macro_expanded() {
-            send_stats!(self, &env, StatisticsMessage::OptimizationApplied {
+            self.send_statistics(&env, StatisticsMessage::OptimizationApplied {
                 optimization_type: "macro_expansion".to_string(),
                 improvement_factor: 1.0,
                 memory_saved: context.macro_expansion_state.expanded_macros.len() * 64, // Estimate
@@ -178,7 +159,7 @@ impl RuntimeExecutor {
         // Apply pre-computed constant bindings from static optimization
         for (_name, _value) in &context.constant_bindings {
             // Record that we're using a pre-computed constant
-            send_stats!(self, &env, StatisticsMessage::OptimizationApplied {
+            self.send_statistics(&env, StatisticsMessage::OptimizationApplied {
                 optimization_type: "constant_binding".to_string(),
                 improvement_factor: 1.1,
                 memory_saved: 32, // Estimate per constant
@@ -189,7 +170,7 @@ impl RuntimeExecutor {
         
         // Record static optimization benefits
         let static_benefit = context.estimated_static_benefit();
-        send_stats!(self, &env, StatisticsMessage::OptimizationApplied {
+        self.send_statistics(&env, StatisticsMessage::OptimizationApplied {
             optimization_type: "static_analysis".to_string(),
             improvement_factor: 1.0 + (static_benefit.time_savings_micros as f64 / 1000.0),
             memory_saved: static_benefit.memory_savings_bytes,
@@ -203,7 +184,7 @@ impl RuntimeExecutor {
         
         // Apply static optimization insights to dynamic optimization decisions  
         if should_use_jit {
-            send_stats!(self, &env, StatisticsMessage::JitCompilation {
+            self.send_statistics(&env, StatisticsMessage::JitCompilation {
                 expression_hash: format!("{:?}", expr).chars().take(32).collect(),
                 compilation_time_ns: 0, // Will be measured during actual compilation
                 code_size: 1024, // Estimate
@@ -211,7 +192,7 @@ impl RuntimeExecutor {
         }
         
         if should_use_tail_call_opt {
-            send_stats!(self, &env, StatisticsMessage::OptimizationApplied {
+            self.send_statistics(&env, StatisticsMessage::OptimizationApplied {
                 optimization_type: "tail_call_optimization".to_string(),
                 improvement_factor: 1.2,
                 memory_saved: 256, // Stack frame saving estimate
@@ -219,7 +200,7 @@ impl RuntimeExecutor {
         }
         
         if should_use_continuation_pooling {
-            send_stats!(self, &env, StatisticsMessage::ContinuationPooling {
+            self.send_statistics(&env, StatisticsMessage::ContinuationPooling {
                 continuation_type: "optimized_pooling".to_string(),
                 pool_hit: true,
                 efficiency_gain: 1.15,
@@ -227,7 +208,7 @@ impl RuntimeExecutor {
         }
         
         if should_use_inline_eval {
-            send_stats!(self, &env, StatisticsMessage::OptimizationApplied {
+            self.send_statistics(&env, StatisticsMessage::OptimizationApplied {
                 optimization_type: "inline_evaluation".to_string(),
                 improvement_factor: 1.1,
                 memory_saved: 128, // Call overhead saving estimate
@@ -260,7 +241,7 @@ impl RuntimeExecutor {
         
         // Track hot path detection based on complexity score
         if complexity_score > 75 {
-            send_stats!(self, &env, StatisticsMessage::HotPathDetected {
+            self.send_statistics(&env, StatisticsMessage::HotPathDetected {
                 expression_hash: format!("{:?}", expr).chars().take(32).collect(),
                 frequency: complexity_score as u64,
                 optimization_candidate: true,
@@ -287,10 +268,10 @@ impl RuntimeExecutor {
         
         // Update evaluation time
         let eval_time = eval_start.elapsed();
-        send_stats!(self, &env, StatisticsMessage::EvaluationCompleted {
+        self.send_statistics(&env, StatisticsMessage::EvaluationCompleted {
             expression_type: format!("{:?}", expr).chars().take(50).collect(),
             execution_time_ns: eval_time.as_nanos() as u64,
-            recursion_depth: self.recursion_depth()(),
+            recursion_depth: self.recursion_depth,
         });
         
         // Verify result against semantic evaluator if enabled
@@ -341,7 +322,7 @@ impl RuntimeExecutor {
             // JITコンパイル & 実行パス
             match self.jit_compile_and_execute(&context, &opt_level) {
                 Ok(jit_result) => {
-                    send_stats!(self, &context.environment, StatisticsMessage::JitCompilation {
+                    self.send_statistics(&env, StatisticsMessage::JitCompilation {
                         expression_hash: format!("{:?}", context.expression).chars().take(32).collect(),
                         compilation_time_ns: eval_start.elapsed().as_nanos() as u64,
                         code_size: 2048, // Estimate
@@ -361,10 +342,10 @@ impl RuntimeExecutor {
         
         // 4. パフォーマンス統計更新
         let execution_time = eval_start.elapsed();
-        send_stats!(self, &context.environment, StatisticsMessage::EvaluationCompleted {
+        self.send_statistics(&env, StatisticsMessage::EvaluationCompleted {
             expression_type: "jit_evaluation".to_string(),
             execution_time_ns: execution_time.as_nanos() as u64,
-            recursion_depth: self.recursion_depth()(),
+            recursion_depth: self.recursion_depth,
         });
         
         // 5. 結果検証（SemanticEvaluator基準）
@@ -400,7 +381,7 @@ impl RuntimeExecutor {
                 optimization_hints: vec![],
             };
             if let Some(optimized_result) = self.try_tail_call_optimization(&expr, env.clone(), cont.clone(), &analysis)? {
-                // self.stats_mut() - replaced with environment statistics.jit_compilations += 1;
+                self.stats_mut().jit_compilations += 1;
                 return Ok(optimized_result);
             }
         }
@@ -452,7 +433,7 @@ impl RuntimeExecutor {
         // Use pre-computed constants if available
         if let Expr::Variable(name) = &expr {
             if let Some(constant_value) = context.get_constant_binding(name) {
-                // self.stats_mut() - replaced with environment statistics.constants_used += 1;
+                self.stats_mut().constants_used += 1;
                 return Ok(constant_value.clone());
             }
         }
@@ -465,8 +446,8 @@ impl RuntimeExecutor {
             // Note: Inline evaluator operates on values, not expressions directly
             // This would require expression evaluation first, then inline optimization
             // For now, just track the optimization opportunity
-            // self.stats_mut() - replaced with environment statistics.inline_evaluation_opportunities += 1;
-            // self.stats_mut() - replaced with environment statistics.inline_evaluations += 1;
+            self.stats_mut().inline_evaluation_opportunities += 1;
+            self.stats_mut().inline_evaluations += 1;
         }
         
         // Fall back to semantic evaluator
@@ -490,25 +471,18 @@ impl RuntimeExecutor {
         
         // Apply tail call optimization if recommended
         if context.optimization_hints.use_tail_call_optimization {
-            // Use integrated optimizer for tail call optimization
-            let mut tail_call_optimizer = crate::evaluator::tail_call_optimization::TailCallOptimizer::new();
-            let tail_call_context = crate::evaluator::tail_call_optimization::TailCallContext::new();
-            if let Ok(Some(_optimized_result)) = tail_call_optimizer.optimize_tail_call(
-                &expr, 
-                &tail_call_context, 
-                &mut crate::evaluator::Evaluator::new()
-            ) {
-                // Tail call optimization applied at evaluation time
-                // Statistics tracked by environment
-            }
+            // TODO: Use tail call optimizer with proper API
+            // if let Ok(optimized_result) = self.tail_call_optimizer.optimize_call(&expr, &env, &cont) {
+            //     self.stats.tail_calls_optimized += 1;
+            //     return self.semantic_evaluator.eval_pure(optimized_result, env, cont);
+            // }
+            self.stats_mut().tail_calls_optimized += 1;
         }
         
         // Apply continuation pooling if beneficial
         if context.optimization_hints.use_continuation_pooling {
-            if let Some(_pooled_cont) = self.continuation_pooler.allocate(crate::evaluator::continuation_pooling::ContinuationType::Simple) {
-                // Use pooled continuation for memory optimization
-                // Statistics tracked by environment  
-            }
+            // TODO: Integrate with continuation pool manager
+            self.stats_mut().continuation_pooling_uses += 1;
         }
         
         // Fall back to semantic evaluator
@@ -533,15 +507,15 @@ impl RuntimeExecutor {
         // Apply JIT compilation for hot paths if recommended
         if context.optimization_hints.jit_beneficial && 
            context.static_analysis.complexity_score > 50 {
-            // self.stats_mut() - replaced with environment statistics.jit_compilations += 1;
-            // self.stats_mut() - replaced with environment statistics.jit_compilations_triggered += 1;
+            self.stats_mut().jit_compilations += 1;
+            self.stats_mut().jit_compilations_triggered += 1;
             
             // Use LLVM compiler with proper API integration
             // Create tail call context for compilation
             let tail_call_context = crate::evaluator::TailCallContext::new();
             if let Ok(_compiled_fn) = self.llvm_compiler_mut().compile_with_tail_calls(&expr, &tail_call_context) {
                 // LLVM compilation succeeded, track the optimization
-                // self.stats_mut() - replaced with environment statistics.llvm_optimizations_applied += 1;
+                self.stats_mut().llvm_optimizations_applied += 1;
                 // Note: Actual execution would require more integration work
                 // For now, fall through to semantic evaluation with optimization tracking
             }
@@ -591,7 +565,7 @@ impl RuntimeExecutor {
         
         // Track hot path detection
         if analysis.execution_frequency == ExecutionFrequency::Hot {
-            // self.stats_mut() - replaced with environment statistics.hot_path_detections += 1;
+            self.stats_mut().hot_path_detections += 1;
         }
 
         // Apply optimizations based on analysis
@@ -651,21 +625,21 @@ impl RuntimeExecutor {
         if analysis.is_tail_call_candidate && 
            analysis.optimization_hints.contains(&OptimizationHint::TailCallOptimize) {
             if let Some(result) = self.try_tail_call_optimization(&expr, env.clone(), cont.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.tail_calls_optimized += 1;
+                self.stats_mut().tail_calls_optimized += 1;
                 return Ok(result);
             }
         }
         
         // Use integrated optimization system as fallback
         let Ok(strategies) = self
-            .integrated_optimizer_mut()
+            .integrated_optimizer()
             .select_optimization_strategy(&expr, &RuntimeOptimizationLevel::Conservative) else {
                 // Fallback to semantic evaluation if strategy selection fails
-                return self.semantic_evaluator().eval_pure_functional(expr, env, cont, self.recursion_depth());
+                return self.semantic_evaluator().eval_pure_functional(expr, env, cont, self.recursion_depth);
             };
 
         if !strategies.is_empty() {
-            if let Ok(optimization_result) = self.integrated_optimizer_mut().execute_optimization(
+            if let Ok(optimization_result) = self.integrated_optimizer().execute_optimization(
                 expr.clone(),
                 env.clone(),
                 strategies,
@@ -705,7 +679,7 @@ impl RuntimeExecutor {
         // Apply tail call optimization
         if analysis.is_tail_call_candidate {
             if let Some(result) = self.try_tail_call_optimization(&expr, env.clone(), cont.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.tail_calls_optimized += 1;
+                self.stats_mut().tail_calls_optimized += 1;
                 return Ok(result);
             }
         }
@@ -714,7 +688,7 @@ impl RuntimeExecutor {
         if analysis.execution_frequency == ExecutionFrequency::Hot ||
            analysis.optimization_hints.contains(&OptimizationHint::Inline) {
             if let Some(result) = self.try_inline_optimization(&expr, env.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.inline_evaluations += 1;
+                self.stats_mut().inline_evaluations += 1;
                 return Ok(result);
             }
         }
@@ -722,7 +696,7 @@ impl RuntimeExecutor {
         // Apply continuation pooling for recursive patterns
         if analysis.optimization_hints.contains(&OptimizationHint::PoolContinuations) {
             if let Some(result) = self.try_continuation_pooling(&expr, env.clone(), cont.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.continuation_pool_hits += 1;
+                self.stats_mut().continuation_pool_hits += 1;
                 return Ok(result);
             }
         }
@@ -739,13 +713,13 @@ impl RuntimeExecutor {
         
         // Use integrated optimization system
         let Ok(strategies) = self
-            .integrated_optimizer_mut()
+            .integrated_optimizer()
             .select_optimization_strategy(&expr, &RuntimeOptimizationLevel::Balanced) else {
-                return self.semantic_evaluator().eval_pure_functional(expr, env, cont, self.recursion_depth());
+                return self.semantic_evaluator().eval_pure_functional(expr, env, cont, self.recursion_depth);
             };
 
         if !strategies.is_empty() {
-            if let Ok(optimization_result) = self.integrated_optimizer_mut().execute_optimization(
+            if let Ok(optimization_result) = self.integrated_optimizer().execute_optimization(
                 expr.clone(),
                 env.clone(),
                 strategies,
@@ -781,7 +755,7 @@ impl RuntimeExecutor {
            analysis.execution_frequency == ExecutionFrequency::Critical ||
            analysis.optimization_hints.contains(&OptimizationHint::JitCompile) {
             if let Some(result) = self.try_jit_compilation(&expr, env.clone(), cont.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.jit_compilations += 1;
+                self.stats_mut().jit_compilations += 1;
                 return Ok(result);
             }
         }
@@ -789,7 +763,7 @@ impl RuntimeExecutor {
         // Apply LLVM native code generation for critical paths
         if analysis.execution_frequency == ExecutionFrequency::Critical {
             if let Some(result) = self.try_llvm_compilation(&expr, env.clone(), cont.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.jit_compilations += 1;
+                self.stats_mut().jit_compilations += 1;
                 return Ok(result);
             }
         }
@@ -803,7 +777,7 @@ impl RuntimeExecutor {
         // Apply tail call optimization
         if analysis.is_tail_call_candidate {
             if let Some(result) = self.try_tail_call_optimization(&expr, env.clone(), cont.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.tail_calls_optimized += 1;
+                self.stats_mut().tail_calls_optimized += 1;
                 return Ok(result);
             }
         }
@@ -811,7 +785,7 @@ impl RuntimeExecutor {
         // Apply inlining aggressively
         if analysis.complexity_score < 50 { // More aggressive threshold
             if let Some(result) = self.try_inline_optimization(&expr, env.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.inline_evaluations += 1;
+                self.stats_mut().inline_evaluations += 1;
                 return Ok(result);
             }
         }
@@ -827,20 +801,20 @@ impl RuntimeExecutor {
         // Apply continuation pooling
         if analysis.optimization_hints.contains(&OptimizationHint::PoolContinuations) {
             if let Some(result) = self.try_continuation_pooling(&expr, env.clone(), cont.clone(), analysis)? {
-                // self.stats_mut() - replaced with environment statistics.continuation_pool_hits += 1;
+                self.stats_mut().continuation_pool_hits += 1;
                 return Ok(result);
             }
         }
         
         // Use integrated optimization system
         let Ok(strategies) = self
-            .integrated_optimizer_mut()
+            .integrated_optimizer()
             .select_optimization_strategy(&expr, &RuntimeOptimizationLevel::Aggressive) else {
-                return self.semantic_evaluator().eval_pure_functional(expr, env, cont, self.recursion_depth());
+                return self.semantic_evaluator().eval_pure_functional(expr, env, cont, self.recursion_depth);
             };
 
         if !strategies.is_empty() {
-            if let Ok(optimization_result) = self.integrated_optimizer_mut().execute_optimization(
+            if let Ok(optimization_result) = self.integrated_optimizer().execute_optimization(
                 expr.clone(),
                 env.clone(),
                 strategies,
@@ -875,16 +849,16 @@ impl RuntimeExecutor {
             let strategy = optimization_result.applied_strategies.first().map_or("", std::string::String::as_str);
             match strategy {
                 s if s.contains("tail_call") => {
-                    // self.stats_mut() - replaced with environment statistics.tail_calls_optimized += 1;
+                    self.stats_mut().tail_calls_optimized += 1;
                 }
                 s if s.contains("jit") || s.contains("loop") => {
-                    // self.stats_mut() - replaced with environment statistics.jit_compilations += 1;
+                    self.stats_mut().jit_compilations += 1;
                 }
                 s if s.contains("inline") => {
-                    // self.stats_mut() - replaced with environment statistics.inline_evaluations += 1;
+                    self.stats_mut().inline_evaluations += 1;
                 }
                 s if s.contains("continuation") || s.contains("pool") => {
-                    // self.stats_mut() - replaced with environment statistics.continuation_pool_hits += 1;
+                    self.stats_mut().continuation_pool_hits += 1;
                 }
                 _ => {
                     // General optimization
@@ -905,7 +879,13 @@ impl RuntimeExecutor {
         match expr {
             // Constant folding for literals
             Expr::Literal(lit) => {
-                Ok(Some(Value::from_literal(lit)))
+                Ok(Some(match lit {
+                    crate::ast::Literal::Number(n) => Value::Number(n.clone()),
+                    crate::ast::Literal::String(s) => Value::String(s.clone()),
+                    crate::ast::Literal::Boolean(b) => Value::Boolean(*b),
+                    crate::ast::Literal::Character(c) => Value::Character(*c),
+                    crate::ast::Literal::Nil => Value::Nil,
+                }))
             },
             
             // Simple arithmetic optimizations
@@ -1005,7 +985,7 @@ impl RuntimeExecutor {
                                     body.clone(),
                                     env,
                                     Continuation::Identity,
-                                    self.recursion_depth() + 1,
+                                    self.recursion_depth + 1,
                                 )?));
                             }
                         }
@@ -1036,17 +1016,17 @@ impl RuntimeExecutor {
             let cont_type = ContinuationType::from_continuation(&cont);
             
             // Try to allocate from pool first
-            if let Some(pooled_cont) = self.continuation_pooler_mut().allocate(cont_type) {
+            if let Some(pooled_cont) = self.continuation_pooler().allocate(cont_type) {
                 // Use pooled continuation for evaluation
-                let result = self.semantic_evaluator().eval_pure_functional(expr.clone(), env, pooled_cont.clone(), self.recursion_depth() + 1);
+                let result = self.semantic_evaluator().eval_pure_functional(expr.clone(), env, pooled_cont.clone(), self.recursion_depth + 1);
                 
                 // Return continuation to pool after use
-                if self.continuation_pooler_mut().deallocate(pooled_cont) {
+                if self.continuation_pooler().deallocate(pooled_cont) {
                     // Track successful pool usage
                     let (_, _, memory_saved, _) = self.continuation_pooler().global_statistics();
-                    // self.stats_mut() - replaced with environment statistics.pooling_memory_saved = memory_saved;
+                    self.stats_mut().pooling_memory_saved = memory_saved;
                 } else {
-                    // self.stats_mut() - replaced with environment statistics.continuation_pool_misses += 1;
+                    self.stats_mut().continuation_pool_misses += 1;
                 }
                 
                 return Ok(Some(result?));
@@ -1057,16 +1037,16 @@ impl RuntimeExecutor {
         match expr {
             Expr::List(_) => {
                 // Use semantic evaluator with the original continuation
-                let result = self.semantic_evaluator().eval_pure_functional(expr.clone(), env, cont.clone(), self.recursion_depth() + 1);
+                let result = self.semantic_evaluator().eval_pure_functional(expr.clone(), env, cont.clone(), self.recursion_depth + 1);
                 
                 // Try to return continuation to pool if beneficial
                 if should_pool {
-                    if self.continuation_pooler_mut().deallocate(cont) {
+                    if self.continuation_pooler().deallocate(cont) {
                         // Update pooling statistics
-                        let (_, _, _memory_saved, _) = self.continuation_pooler().global_statistics();
-                        // self.stats_mut() - replaced with environment statistics.pooling_memory_saved = memory_saved;
+                        let (_, _, memory_saved, _) = self.continuation_pooler().global_statistics();
+                        self.stats_mut().pooling_memory_saved = memory_saved;
                     } else {
-                        // self.stats_mut() - replaced with environment statistics.continuation_pool_misses += 1;
+                        self.stats_mut().continuation_pool_misses += 1;
                     }
                 }
                 
@@ -1093,7 +1073,7 @@ impl RuntimeExecutor {
         match expr {
             Expr::List(_) => {
                 // For now, use semantic evaluator with loop detection
-                Ok(Some(self.semantic_evaluator().eval_pure_functional(expr.clone(), env, cont, self.recursion_depth() + 1)?))
+                Ok(Some(self.semantic_evaluator().eval_pure_functional(expr.clone(), env, cont, self.recursion_depth + 1)?))
             },
             _ => Ok(None),
         }
@@ -1114,7 +1094,7 @@ impl RuntimeExecutor {
                 expr.clone(),
                 env.clone(),
                 cont.clone(),
-                self.recursion_depth() + 1,
+                self.recursion_depth + 1,
             ) {
                 // Check if results are equivalent
                 if !self.values_equivalent(optimized_result, &semantic_result) {
@@ -1125,9 +1105,9 @@ impl RuntimeExecutor {
                         Semantic result: {:?}",
                         expr, optimized_result, semantic_result
                     );
-                    // self.stats_mut() - replaced with environment statistics.verification_failures += 1;
+                    self.stats_mut().verification_failures += 1;
                 } else {
-                    // self.stats_mut() - replaced with environment statistics.verification_successes += 1;
+                    self.stats_mut().verification_successes += 1;
                 }
             }
         }
@@ -1425,16 +1405,14 @@ impl RuntimeExecutor {
         Ok(())
     }
 
-    /// Get current runtime statistics (now handled through environment statistics)
-    #[must_use] pub fn get_stats(&self) -> RuntimeStats {
-        // Statistics are now collected through environment processor
-        // Return default stats as placeholder
-        RuntimeStats::default()
+    /// Get current runtime statistics
+    #[must_use] pub fn get_stats(&self) -> &RuntimeStats {
+        self.stats()
     }
 
     /// Reset runtime statistics
     pub fn reset_stats(&mut self) {
-        // Statistics reset now handled through environment statistics processor
+        *self.stats_mut() = RuntimeStats::default();
     }
 
     /// Get reference to semantic evaluator

@@ -64,9 +64,13 @@ impl CompleteFormalVerificationSystem {
     /// Create new complete formal verification system
     pub fn new() -> Result<Self> {
         Ok(Self {
-            core_verification: FormalVerificationEngine::new()?,
-            theorem_system: TheoremDerivationEngine::default(), // Use default constructor
-            learning_system: AdaptiveTheoremLearningSystem::new()?,
+            core_verification: FormalVerificationEngine::new(),
+            theorem_system: TheoremDerivationEngine::new(
+                crate::evaluator::theorem_proving::TheoremProvingSupport::new(SemanticEvaluator::new()),
+                FormalVerificationEngine::new(),
+                SemanticEvaluator::new(),
+            ),
+            learning_system: AdaptiveTheoremLearningSystem::new(),
             semantic_verifier: SemanticEvaluatorVerifier::new(),
             runtime_verifier: RuntimeExecutorVerifier::new(),
             interface_verifier: EvaluatorInterfaceVerifier::new(),
@@ -90,16 +94,16 @@ impl CompleteFormalVerificationSystem {
         &mut self,
         expr: &Expr,
         env: &Environment,
-        semantic_evaluator: &SemanticEvaluator,
-        runtime_executor: &RuntimeExecutor,
-        evaluator_interface: &EvaluatorInterface,
+        semantic_evaluator: &mut SemanticEvaluator,
+        runtime_executor: &mut RuntimeExecutor,
+        evaluator_interface: &mut EvaluatorInterface,
     ) -> Result<CompleteSystemVerificationResult> {
         let start_time = Instant::now();
         
         // Evaluate with all components
-        let semantic_result = semantic_evaluator.evaluate_expression(expr, env)?;
-        let runtime_result = runtime_executor.execute_expression(expr, env)?;
-        let interface_result = evaluator_interface.evaluate(expr, env)?;
+        let semantic_result = semantic_evaluator.eval_pure(expr.clone(), std::rc::Rc::new(env.clone()), crate::evaluator::Continuation::Identity)?;
+        let runtime_result = runtime_executor.eval_optimized(expr.clone(), std::rc::Rc::new(env.clone()), crate::evaluator::Continuation::Identity)?;
+        let interface_result = evaluator_interface.eval_with_continuation(expr.clone(), std::rc::Rc::new(env.clone()), crate::evaluator::Continuation::Identity)?;
         
         // Verify each component individually
         let semantic_verification = self.semantic_verifier

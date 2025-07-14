@@ -15,6 +15,10 @@ pub mod performance_monitoring;
 // Caching and dependency management
 pub mod caching_and_dependencies;
 
+// Research-level evolving optimization engine
+#[cfg(feature = "development")]
+pub mod evolving_optimization;
+
 // Re-export main types for convenience
 pub use core_types::{
     OptimizationStrategy, OptimizationStrategyType, ExpressionType,
@@ -38,10 +42,18 @@ pub use caching_and_dependencies::{
     OptimizationScheduler, ConflictResolver, CacheStatistics
 };
 
+#[cfg(feature = "development")]
+pub use evolving_optimization::{
+    EvolvingOptimizationEngine, PerformanceMetrics, OptimizationResult as EvolvingOptimizationResult,
+    EvolutionResult, TrainingResult, OptimizationStatistics as EvolvingOptimizationStatistics
+};
+
 use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
-use crate::evaluator::{FormalVerificationEngine, RuntimeOptimizationLevel};
+#[cfg(feature = "development")]
+use crate::evaluator::FormalVerificationEngine;
+use crate::evaluator::RuntimeOptimizationLevel;
 // Removed unused import: use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -51,6 +63,7 @@ use std::time::{Duration, Instant};
 #[allow(dead_code)]
 pub struct CorrectnessGuarantor {
     /// 検証エンジン
+    #[cfg(feature = "development")]
     verification_engine: Option<FormalVerificationEngine>,
 
     /// 検証設定
@@ -561,6 +574,7 @@ impl CorrectnessGuarantor {
     /// 新しい正当性保証システムを作成
     #[must_use] pub fn new() -> Self {
         Self {
+            #[cfg(feature = "development")]
             verification_engine: None,
             verification_config: VerificationConfiguration::default(),
             verification_history: Vec::new(),

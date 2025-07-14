@@ -12,6 +12,7 @@ pub fn apply_control_flow_continuation(
     evaluator: &mut Evaluator,
     cont: Continuation,
     value: Value,
+    env: std::rc::Rc<crate::environment::Environment>,
 ) -> Result<Value> {
     match cont {
         Continuation::Do {
@@ -72,7 +73,7 @@ pub fn apply_control_flow_continuation(
             dynamic_point_id,
             parent,
         } => {
-            evaluator.apply_dynamic_wind_continuation(value, after_thunk, dynamic_point_id, *parent)
+            evaluator.apply_dynamic_wind_continuation(value, after_thunk, dynamic_point_id, *parent, env)
         }
         // DoLoop specialized continuation handling with memory pool integration
         Continuation::DoLoop {

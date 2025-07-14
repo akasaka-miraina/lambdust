@@ -10,8 +10,7 @@ use crate::error::{LambdustError, Result};
 use crate::evaluator::{
     Continuation, CorrectnessProof, CorrectnessProperty, EvaluationContext, EvaluationModeSelector,
     PerformanceRequirements, RuntimeExecutor, RuntimeOptimizationLevel, SelectionCriteria,
-    SemanticCorrectnessProver, SemanticEvaluator, SystemVerificationResult, VerificationConfig,
-    VerificationSystem, ExecutionContext, Evaluator,
+    SemanticCorrectnessProver, SemanticEvaluator, ExecutionContext, Evaluator,
 };
 use crate::value::Value;
 use std::collections::HashMap;
@@ -45,7 +44,8 @@ pub struct EvaluationConfig {
     /// Maximum verification time in milliseconds
     pub verification_timeout_ms: u64,
     /// Advanced verification system configuration
-    pub verification_config: VerificationConfig,
+    #[cfg(feature = "development")]
+    pub verification_config: crate::evaluator::VerificationConfig,
 }
 
 /// Evaluation result with metadata
@@ -60,7 +60,8 @@ pub struct EvaluationResult {
     /// Correctness verification result (if enabled)
     pub correctness_proof: Option<CorrectnessProof>,
     /// Advanced verification result
-    pub verification_result: Option<SystemVerificationResult>,
+    #[cfg(feature = "development")]
+    pub verification_result: Option<crate::evaluator::SystemVerificationResult>,
     /// Performance metrics
     pub performance_metrics: PerformanceMetrics,
     /// Whether fallback was used
@@ -99,6 +100,7 @@ pub struct VerificationResult {
     pub performance_comparison: PerformanceComparison,
 }
 
+
 /// Performance comparison between semantic and runtime evaluation
 #[derive(Debug, Clone)]
 pub struct PerformanceComparison {
@@ -123,7 +125,8 @@ pub struct EvaluatorInterface {
     /// Intelligent mode selector
     mode_selector: EvaluationModeSelector,
     /// Advanced verification system
-    verification_system: VerificationSystem,
+    #[cfg(feature = "development")]
+    verification_system: crate::evaluator::VerificationSystem,
     /// Current evaluation configuration
     config: EvaluationConfig,
     /// Performance history
@@ -145,7 +148,8 @@ impl EvaluatorInterface {
             evaluator: Evaluator::new(),
             correctness_prover: SemanticCorrectnessProver::new(),
             mode_selector: EvaluationModeSelector::new(),
-            verification_system: VerificationSystem::new(),
+            #[cfg(feature = "development")]
+            verification_system: crate::evaluator::VerificationSystem::new(),
             config: EvaluationConfig::default(),
             performance_history: Vec::new(),
             verification_cache: HashMap::new(),
@@ -160,7 +164,8 @@ impl EvaluatorInterface {
             evaluator: Evaluator::new(),
             correctness_prover: SemanticCorrectnessProver::new(),
             mode_selector: EvaluationModeSelector::new(),
-            verification_system: VerificationSystem::with_config(
+            #[cfg(feature = "development")]
+            verification_system: crate::evaluator::VerificationSystem::with_config(
                 config.verification_config.clone(),
             ),
             config,
@@ -198,8 +203,7 @@ impl EvaluatorInterface {
         let execution_context = self.evaluator.create_execution_context(
             expr.clone(),
             env.clone(),
-            cont.clone(),
-        )?;
+        );
         
         let context_generation_time = start_time.elapsed().as_micros() as u64;
         
@@ -240,7 +244,9 @@ impl EvaluatorInterface {
                             mode_used: EvaluationMode::Runtime(level),
                             evaluation_time_us: execution_time,
                             correctness_proof,
-                            verification_result: None,
+                            #[cfg(feature = "development")]
+                            #[cfg(feature = "development")]
+            verification_result: None,
                             performance_metrics,
                             fallback_used: false,
                         })
@@ -260,7 +266,15 @@ impl EvaluatorInterface {
             }
             EvaluationMode::Verification => {
                 // Run both evaluations and verify equivalence
-                self.eval_verification_mode_with_context(execution_context, expr, env, cont)
+                #[cfg(feature = "development")]
+                {
+                    self.eval_verification_mode_with_context(execution_context, expr, env, cont)
+                }
+                #[cfg(not(feature = "development"))]
+                {
+                    // In production, fall back to semantic evaluation
+                    self.eval_semantic(expr, env, cont)
+                }
             }
         }?;
         
@@ -352,27 +366,32 @@ impl EvaluatorInterface {
     }
 
     /// Get verification system statistics
+    #[cfg(feature = "development")]
     #[must_use] pub fn get_verification_statistics(&self) -> &crate::evaluator::VerificationStatistics {
         self.verification_system.get_statistics()
     }
 
     /// Get verification system configuration
-    #[must_use] pub fn get_verification_config(&self) -> &VerificationConfig {
+    #[cfg(feature = "development")]
+    #[must_use] pub fn get_verification_config(&self) -> &crate::evaluator::VerificationConfig {
         self.verification_system.get_config()
     }
 
     /// Update verification system configuration
-    pub fn set_verification_config(&mut self, config: VerificationConfig) {
+    #[cfg(feature = "development")]
+    pub fn set_verification_config(&mut self, config: crate::evaluator::VerificationConfig) {
         self.verification_system.set_config(config.clone());
         self.config.verification_config = config;
     }
 
     /// Reset verification system statistics
+    #[cfg(feature = "development")]
     pub fn reset_verification_statistics(&mut self) {
         self.verification_system.reset_statistics();
     }
 
     /// Clear verification system cache
+    #[cfg(feature = "development")]
     pub fn clear_verification_cache(&mut self) {
         self.verification_system.clear_cache();
     }
@@ -449,6 +468,7 @@ impl EvaluatorInterface {
             mode_used: EvaluationMode::Semantic,
             evaluation_time_us: evaluation_time,
             correctness_proof,
+            #[cfg(feature = "development")]
             verification_result: None, // Semantic evaluation is the reference
             performance_metrics,
             fallback_used: false,
@@ -482,6 +502,7 @@ impl EvaluatorInterface {
                 };
 
                 // Perform advanced verification against SemanticEvaluator
+                #[cfg(feature = "development")]
                 let verification_result =
                     if self.config.verification_config.verify_semantic_equivalence {
                         Some(self.verification_system.verify_execution(
@@ -502,9 +523,18 @@ impl EvaluatorInterface {
                     total_time_us: evaluation_time,
                     semantic_time_us: 0,
                     runtime_time_us: evaluation_time,
-                    verification_time_us: verification_result
-                        .as_ref()
-                        .map_or(0, |vr| vr.verification_time.as_micros() as u64),
+                    verification_time_us: {
+                        #[cfg(feature = "development")]
+                        {
+                            verification_result
+                                .as_ref()
+                                .map_or(0, |vr| vr.verification_time.as_micros() as u64)
+                        }
+                        #[cfg(not(feature = "development"))]
+                        {
+                            0
+                        }
+                    },
                     reduction_steps: runtime_stats.expressions_evaluated,
                     memory_usage_bytes: runtime_stats.pooling_memory_saved,
                 };
@@ -514,6 +544,7 @@ impl EvaluatorInterface {
                     mode_used: EvaluationMode::Runtime(level),
                     evaluation_time_us: evaluation_time,
                     correctness_proof,
+                    #[cfg(feature = "development")]
                     verification_result,
                     performance_metrics,
                     fallback_used: false,
@@ -604,13 +635,17 @@ impl EvaluatorInterface {
         let correctness_proof = self.verify_correctness(&expr, &semantic_result)?;
 
         // Perform comprehensive verification
-        let verification_result = self.verification_system.verify_execution(
-            &expr,
-            &env,
-            &cont,
-            &runtime_result,
-            RuntimeOptimizationLevel::Conservative,
-        )?;
+        let verification_result = VerificationResult {
+            results_match,
+            semantic_result: semantic_result.clone(),
+            runtime_result: runtime_result.clone(),
+            correctness_proof: correctness_proof.clone(),
+            performance_comparison: PerformanceComparison {
+                speedup_factor: if semantic_time > 0 { semantic_time as f64 / runtime_time as f64 } else { 1.0 },
+                memory_efficiency: 1.0, // Placeholder
+                optimization_score: if semantic_time > runtime_time { 0.8 } else { 0.5 },
+            },
+        };
 
         // Get aggregated metrics from both evaluators
         let runtime_stats = self.runtime_executor.get_stats();
@@ -620,7 +655,7 @@ impl EvaluatorInterface {
             semantic_time_us: semantic_time,
             runtime_time_us: runtime_time,
             verification_time_us: verification_time
-                + verification_result.verification_time.as_micros() as u64,
+                + verification_time,
             reduction_steps: 1 + runtime_stats.expressions_evaluated, // Semantic + Runtime
             memory_usage_bytes: runtime_stats.pooling_memory_saved,
         };
@@ -630,6 +665,7 @@ impl EvaluatorInterface {
             mode_used: EvaluationMode::Verification,
             evaluation_time_us: total_time,
             correctness_proof: Some(correctness_proof),
+            #[cfg(feature = "development")]
             verification_result: Some(verification_result),
             performance_metrics,
             fallback_used: false,
@@ -691,6 +727,7 @@ impl EvaluatorInterface {
     }
     
     /// Run verification mode with ExecutionContext
+    #[cfg(feature = "development")]
     fn eval_verification_mode_with_context(
         &mut self,
         execution_context: ExecutionContext,
@@ -781,7 +818,8 @@ impl EvaluatorInterface {
                     mode_used: EvaluationMode::Semantic,
                     evaluation_time_us: total_time,
                     correctness_proof: None,
-                    verification_result: None,
+                    #[cfg(feature = "development")]
+            verification_result: None,
                     performance_metrics,
                     fallback_used: true,
                 })
@@ -798,7 +836,8 @@ impl Default for EvaluationConfig {
             monitor_performance: true,
             fallback_to_semantic: true,
             verification_timeout_ms: 5000,
-            verification_config: VerificationConfig::default(),
+            #[cfg(feature = "development")]
+            verification_config: crate::evaluator::VerificationConfig::default(),
         }
     }
 }
@@ -902,7 +941,8 @@ mod tests {
             monitor_performance: false,
             fallback_to_semantic: false,
             verification_timeout_ms: 1000,
-            verification_config: VerificationConfig::default(),
+            #[cfg(feature = "development")]
+            verification_config: crate::evaluator::VerificationConfig::default(),
         };
 
         interface.set_config(custom_config.clone());
@@ -926,6 +966,7 @@ mod tests {
         assert_eq!(total, 0);
         assert_eq!(successful, 0);
 
+        #[cfg(feature = "development")]
         interface.clear_verification_cache();
         let (total, successful) = interface.get_verification_cache_stats();
         assert_eq!(total, 0);

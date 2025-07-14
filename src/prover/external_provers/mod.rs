@@ -3,15 +3,23 @@
 //! This module provides interfaces for integrating with external
 //! theorem provers like Agda and Coq for formal verification.
 
+#[cfg(feature = "development")]
 use crate::ast::Expr;
+#[cfg(feature = "development")]
 use crate::error::{LambdustError, Result};
+#[cfg(feature = "development")]
 use crate::evaluator::combinators::CombinatorExpr;
+#[cfg(feature = "development")]
 use crate::evaluator::theorem_proving::{ProofMethod, ProofTerm, Statement, ProofTermType};
+#[cfg(feature = "development")]
 use std::collections::HashMap;
+#[cfg(feature = "development")]
 use std::path::PathBuf;
+#[cfg(feature = "development")]
 use std::process::{Command, Stdio};
 
 /// External prover types supported
+#[cfg(feature = "development")]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ExternalProver {
     /// Agda dependently typed functional programming language
@@ -25,6 +33,7 @@ pub enum ExternalProver {
 }
 
 /// Configuration for external prover integration
+#[cfg(feature = "development")]
 #[derive(Debug, Clone)]
 pub struct ProverConfig {
     /// Type of prover
@@ -42,6 +51,7 @@ pub struct ProverConfig {
 }
 
 /// Result from external prover verification
+#[cfg(feature = "development")]
 #[derive(Debug, Clone)]
 pub struct ExternalVerificationResult {
     /// Whether verification succeeded
@@ -79,6 +89,7 @@ pub trait ExternalProverInterface: std::fmt::Debug {
 }
 
 /// Agda prover integration
+#[cfg(feature = "development")]
 #[derive(Debug)]
 pub struct AgdaProver {
     /// Cache for generated modules
@@ -86,6 +97,7 @@ pub struct AgdaProver {
     module_cache: HashMap<String, String>,
 }
 
+#[cfg(feature = "development")]
 impl Default for AgdaProver {
     fn default() -> Self {
         Self::new()

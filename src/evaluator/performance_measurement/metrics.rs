@@ -196,6 +196,7 @@ impl MetricsManager {
                 collection_interval: self.metrics_config.collection_interval,
                 last_collection: None,
                 sampling_config: super::core_types::SamplingConfiguration::default(),
+                last_update: None,
             };
             self.collectors.insert(metric_type.clone(), collector);
         }
@@ -232,9 +233,8 @@ impl MetricsManager {
             metadata: HashMap::new(),
         };
         
-        // TODO: Store the actual data instead of using generic store_metric_data
-        drop(data); // Temporarily unused until store implementation is completed
-        self.store_metric_data()?;
+        // Store the actual measurement data
+        self.store_measurement_data(data)?;
         self.update_realtime_stats()?;
         
         Ok(())
@@ -298,6 +298,25 @@ impl MetricsManager {
             }
             _ => Ok(()),
         }
+    }
+
+    /// 実際の測定データを保存
+    fn store_measurement_data(&mut self, data: super::core_types::MetricData) -> Result<()> {
+        // MetricDataから既に持っているmetric_typeを使用
+        let metric_type = data.metric_type.clone();
+        
+        if let Some(collector) = self.collectors.get_mut(&metric_type) {
+            collector.add_sample(data.value);
+            collector.last_update = Some(data.timestamp);
+        } else {
+            // 新しいメトリクスタイプの場合、コレクターを作成
+            let mut new_collector = MetricCollector::new();
+            new_collector.add_sample(data.value);
+            new_collector.last_update = Some(data.timestamp);
+            self.collectors.insert(metric_type, new_collector);
+        }
+        
+        Ok(())
     }
 
     /// リアルタイム統計を更新

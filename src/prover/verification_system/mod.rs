@@ -7,10 +7,19 @@
 use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::{LambdustError, Result};
+#[cfg(feature = "development")]
 use crate::evaluator::{
-    Continuation, CorrectnessProof, CorrectnessProperty, GoalType, ProofGoal, ProofTactic,
-    RuntimeOptimizationLevel, SemanticCorrectnessProver, SemanticEvaluator, Statement,
-    TheoremProvingSupport,
+    Continuation, CorrectnessProof, CorrectnessProperty,
+    RuntimeOptimizationLevel, SemanticCorrectnessProver, SemanticEvaluator,
+};
+#[cfg(feature = "development")]
+use crate::prover::{
+    GoalType, ProofGoal, ProofTactic, Statement, TheoremProvingSupport,
+};
+#[cfg(not(feature = "development"))]
+use crate::evaluator::{
+    Continuation, CorrectnessProof, CorrectnessProperty,
+    RuntimeOptimizationLevel, SemanticCorrectnessProver, SemanticEvaluator,
 };
 use crate::value::Value;
 use std::collections::HashMap;

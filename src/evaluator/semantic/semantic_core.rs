@@ -94,7 +94,7 @@ impl SemanticEvaluator {
     ) -> Result<Value> {
         // Stack overflow protection (functional approach)
         if recursion_depth > self.max_recursion_depth {
-            return Err(LambdustError::StackOverflow);
+            return Err(LambdustError::stack_overflow_old());
         }
 
         #[cfg(debug_assertions)]
@@ -110,7 +110,71 @@ impl SemanticEvaluator {
         }
 
         // Continue with pure evaluation using recursion_depth parameter
-        self.eval_pure_internal(expr, env, cont, recursion_depth)
+        // Call the actual evaluation implementation
+        match expr {
+            Expr::Literal(lit) => {
+                // Basic literal evaluation
+                match lit {
+                    crate::ast::Literal::Number(n) => Ok(Value::Number(n.clone())),
+                    crate::ast::Literal::String(s) => Ok(Value::String(s.clone())),
+                    crate::ast::Literal::Boolean(b) => Ok(Value::Boolean(b)),
+                    crate::ast::Literal::Character(c) => Ok(Value::Character(c)),
+                    crate::ast::Literal::Nil => Ok(Value::Nil),
+                }
+            },
+            Expr::Variable(name) => {
+                // Variable lookup
+                env.get(&name).ok_or_else(|| {
+                    crate::error::LambdustError::runtime_error(format!("Unbound variable: {}", name))
+                })
+            },
+            Expr::List(elements) => {
+                if elements.is_empty() {
+                    Ok(Value::Nil)
+                } else {
+                    // Immutable application evaluation using existing infrastructure
+                    if let Some(first_element) = elements.first() {
+                        match first_element {
+                            Expr::Variable(symbol) => {
+                                // Check if this is a special form
+                                match symbol.as_str() {
+                                    "quote" => self.eval_quote_immutable(&elements[1..]),
+                                    "if" => self.eval_if_immutable(&elements[1..], &env),
+                                    "lambda" => self.eval_lambda_immutable(&elements[1..], &env),
+                                    "define" => self.eval_define_immutable(&elements[1..], &env),
+                                    _ => self.eval_application_immutable(&elements, &env),
+                                }
+                            },
+                            _ => self.eval_application_immutable(&elements, &env),
+                        }
+                    } else {
+                        Ok(Value::Nil)
+                    }
+                }
+            },
+            Expr::HygienicVariable(symbol) => {
+                // Hygienic variable lookup (simplified)
+                env.get(&symbol.name).ok_or_else(|| {
+                    crate::error::LambdustError::runtime_error(format!("Unbound hygienic variable: {}", symbol.name))
+                })
+            },
+            Expr::Quote(_quoted_expr) => {
+                // Quote evaluation (placeholder - should convert expr to value)
+                Ok(Value::Nil)
+            },
+            Expr::Quasiquote(_) => {
+                // Quasiquote evaluation (placeholder)
+                Ok(Value::Nil)
+            },
+            Expr::Vector(_) => {
+                // Vector evaluation (placeholder)
+                Ok(Value::Vector(Vec::new()))
+            },
+            _ => {
+                // Catch-all for any remaining patterns
+                Err(crate::error::LambdustError::runtime_error("Unsupported expression type in semantic evaluation".to_string()))
+            }
+        }
     }
 
     pub fn eval_pure(
@@ -445,6 +509,410 @@ impl SemanticEvaluator {
         // Placeholder implementation for complex continuations
         // These would be handled by the control flow module
         Ok(value)
+    }
+    
+    /// Immutable quote evaluation
+    fn eval_quote_immutable(&self, args: &[Expr]) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(crate::error::LambdustError::runtime_error("quote requires exactly one argument".to_string()));
+        }
+        // Convert expression to value for quote
+        self.expr_to_value(&args[0])
+    }
+    
+    /// Immutable if evaluation
+    fn eval_if_immutable(&self, args: &[Expr], env: &Rc<Environment>) -> Result<Value> {
+        if args.len() < 2 || args.len() > 3 {
+            return Err(crate::error::LambdustError::runtime_error("if requires 2 or 3 arguments".to_string()));
+        }
+        
+        let condition = self.eval_pure_functional(args[0].clone(), env.clone(), crate::evaluator::Continuation::Identity, 0)?;
+        if self.is_truthy(&condition) {
+            self.eval_pure_functional(args[1].clone(), env.clone(), crate::evaluator::Continuation::Identity, 0)
+        } else if args.len() == 3 {
+            self.eval_pure_functional(args[2].clone(), env.clone(), crate::evaluator::Continuation::Identity, 0)
+        } else {
+            Ok(Value::Undefined)
+        }
+    }
+    
+    /// Immutable lambda evaluation
+    fn eval_lambda_immutable(&self, args: &[Expr], env: &Rc<Environment>) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(crate::error::LambdustError::runtime_error("lambda requires exactly 2 arguments".to_string()));
+        }
+        
+        // Extract parameters and body
+        let params = self.extract_parameters(&args[0])?;
+        let body = args[1].clone();
+        
+        Ok(Value::Procedure(crate::value::Procedure::Lambda {
+            params,
+            body: vec![body],
+            closure: env.clone(),
+            variadic: false,
+        }))
+    }
+    
+    /// Immutable define evaluation (returns defined value)
+    fn eval_define_immutable(&self, args: &[Expr], env: &Rc<Environment>) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(crate::error::LambdustError::runtime_error("define requires exactly 2 arguments".to_string()));
+        }
+        
+        // In immutable context, just return the value that would be defined
+        self.eval_pure_functional(args[1].clone(), env.clone(), crate::evaluator::Continuation::Identity, 0)
+    }
+    
+    /// Immutable application evaluation
+    fn eval_application_immutable(&self, elements: &[Expr], env: &Rc<Environment>) -> Result<Value> {
+        if elements.is_empty() {
+            return Ok(Value::Nil);
+        }
+        
+        let operator = self.eval_pure_functional(elements[0].clone(), env.clone(), crate::evaluator::Continuation::Identity, 0)?;
+        let operands: Result<Vec<Value>> = elements[1..]
+            .iter()
+            .map(|arg| self.eval_pure_functional(arg.clone(), env.clone(), crate::evaluator::Continuation::Identity, 0))
+            .collect();
+        let operands = operands?;
+        
+        // Apply operator to operands
+        self.apply_immutable(operator, operands, env)
+    }
+    
+    /// Helper method to convert expression to value
+    fn expr_to_value(&self, expr: &Expr) -> Result<Value> {
+        match expr {
+            Expr::Literal(lit) => match lit {
+                crate::ast::Literal::Number(n) => Ok(Value::Number(n.clone())),
+                crate::ast::Literal::String(s) => Ok(Value::String(s.clone())),
+                crate::ast::Literal::Boolean(b) => Ok(Value::Boolean(*b)),
+                crate::ast::Literal::Character(c) => Ok(Value::Character(*c)),
+                crate::ast::Literal::Nil => Ok(Value::Nil),
+            },
+            Expr::Variable(s) => Ok(Value::Symbol(s.clone())),
+            Expr::List(elements) => {
+                let values: Result<Vec<Value>> = elements
+                    .iter()
+                    .map(|e| self.expr_to_value(e))
+                    .collect();
+                Ok(Value::from_vector(values?))
+            },
+            Expr::Vector(elements) => {
+                let values: Result<Vec<Value>> = elements
+                    .iter()
+                    .map(|e| self.expr_to_value(e))
+                    .collect();
+                Ok(Value::Vector(values?))
+            },
+            _ => Err(crate::error::LambdustError::runtime_error("Cannot convert expression to value".to_string())),
+        }
+    }
+    
+    /// Helper method to check truthiness
+    fn is_truthy(&self, value: &Value) -> bool {
+        !matches!(value, Value::Boolean(false) | Value::Nil)
+    }
+    
+    /// Helper method to extract parameters from lambda
+    fn extract_parameters(&self, expr: &Expr) -> Result<Vec<String>> {
+        match expr {
+            Expr::Variable(s) => Ok(vec![s.clone()]),
+            Expr::List(elements) => {
+                elements
+                    .iter()
+                    .map(|e| match e {
+                        Expr::Variable(s) => Ok(s.clone()),
+                        _ => Err(crate::error::LambdustError::runtime_error("Invalid parameter in lambda".to_string())),
+                    })
+                    .collect()
+            },
+            Expr::Literal(crate::ast::Literal::Nil) => Ok(vec![]),
+            _ => Err(crate::error::LambdustError::runtime_error("Invalid parameter list in lambda".to_string())),
+        }
+    }
+    
+    /// Immutable application of operator to operands
+    fn apply_immutable(&self, operator: Value, operands: Vec<Value>, env: &Rc<Environment>) -> Result<Value> {
+        match operator {
+            Value::Procedure(proc) => {
+                match proc {
+                    crate::value::Procedure::Builtin { name, .. } => {
+                        // Apply builtin function
+                        self.apply_builtin_immutable(&name, operands, env)
+                    },
+                    crate::value::Procedure::Lambda { params, body, closure, variadic: _ } => {
+                        // Create new environment with parameter bindings
+                        if params.len() != operands.len() {
+                            return Err(crate::error::LambdustError::runtime_error(
+                                format!("Arity mismatch: expected {} arguments, got {}", params.len(), operands.len())
+                            ));
+                        }
+                        
+                        let mut new_env = (*closure).clone();
+                        for (param, value) in params.iter().zip(operands.iter()) {
+                            new_env.define(param.clone(), value.clone());
+                        }
+                        
+                        // Evaluate all body expressions and return the last result
+                        let env_rc = Rc::new(new_env);
+                        let mut result = Value::Undefined;
+                        for expr in body {
+                            result = self.eval_pure_functional(expr.clone(), env_rc.clone(), crate::evaluator::Continuation::Identity, 0)?;
+                        }
+                        Ok(result)
+                    },
+                    _ => Err(crate::error::LambdustError::runtime_error("Cannot apply non-procedure".to_string())),
+                }
+            },
+            _ => Err(crate::error::LambdustError::runtime_error("Cannot apply non-procedure".to_string())),
+        }
+    }
+    
+    /// Apply builtin function in immutable context
+    fn apply_builtin_immutable(&self, name: &str, operands: Vec<Value>, _env: &Rc<Environment>) -> Result<Value> {
+        match name {
+            "+" => {
+                let mut result = crate::lexer::SchemeNumber::Integer(0);
+                for operand in operands {
+                    match operand {
+                        Value::Number(n) => {
+                            result = match (&result, n) {
+                                (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Integer(b)) => {
+                                    crate::lexer::SchemeNumber::Integer(a + b)
+                                },
+                                (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Integer(b)) => {
+                                    crate::lexer::SchemeNumber::Real(a + (b as f64))
+                                },
+                                (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Real(b)) => {
+                                    crate::lexer::SchemeNumber::Real(*a as f64 + b)
+                                },
+                                (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Real(b)) => {
+                                    crate::lexer::SchemeNumber::Real(a + b)
+                                },
+                                _ => return Err(crate::error::LambdustError::runtime_error("Unsupported number type in +".to_string())),
+                            };
+                        },
+                        _ => return Err(crate::error::LambdustError::runtime_error("+ requires numeric arguments".to_string())),
+                    }
+                }
+                Ok(Value::Number(result))
+            },
+            "-" => {
+                if operands.is_empty() {
+                    return Err(crate::error::LambdustError::runtime_error("- requires at least 1 argument".to_string()));
+                }
+                
+                if operands.len() == 1 {
+                    // Unary negation
+                    match &operands[0] {
+                        Value::Number(n) => {
+                            let negated = match n {
+                                crate::lexer::SchemeNumber::Integer(i) => crate::lexer::SchemeNumber::Integer(-i),
+                                crate::lexer::SchemeNumber::Real(r) => crate::lexer::SchemeNumber::Real(-r),
+                                _ => return Err(crate::error::LambdustError::runtime_error("Unsupported number type in unary -".to_string())),
+                            };
+                            Ok(Value::Number(negated))
+                        },
+                        _ => return Err(crate::error::LambdustError::runtime_error("- requires numeric arguments".to_string())),
+                    }
+                } else {
+                    // Binary subtraction
+                    let first = match &operands[0] {
+                        Value::Number(n) => n.clone(),
+                        _ => return Err(crate::error::LambdustError::runtime_error("- requires numeric arguments".to_string())),
+                    };
+                    
+                    let mut result = first;
+                    for operand in &operands[1..] {
+                        match operand {
+                            Value::Number(n) => {
+                                result = match (&result, n) {
+                                    (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Integer(b)) => {
+                                        crate::lexer::SchemeNumber::Integer(a - b)
+                                    },
+                                    (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Integer(b)) => {
+                                        crate::lexer::SchemeNumber::Real(a - (*b as f64))
+                                    },
+                                    (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Real(b)) => {
+                                        crate::lexer::SchemeNumber::Real(*a as f64 - b)
+                                    },
+                                    (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Real(b)) => {
+                                        crate::lexer::SchemeNumber::Real(a - b)
+                                    },
+                                    _ => return Err(crate::error::LambdustError::runtime_error("Unsupported number type in -".to_string())),
+                                };
+                            },
+                            _ => return Err(crate::error::LambdustError::runtime_error("- requires numeric arguments".to_string())),
+                        }
+                    }
+                    Ok(Value::Number(result))
+                }
+            },
+            "*" => {
+                let mut result = crate::lexer::SchemeNumber::Integer(1);
+                for operand in operands {
+                    match operand {
+                        Value::Number(n) => {
+                            result = match (&result, n) {
+                                (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Integer(b)) => {
+                                    crate::lexer::SchemeNumber::Integer(a * b)
+                                },
+                                (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Integer(b)) => {
+                                    crate::lexer::SchemeNumber::Real(a * (b as f64))
+                                },
+                                (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Real(b)) => {
+                                    crate::lexer::SchemeNumber::Real(*a as f64 * b)
+                                },
+                                (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Real(b)) => {
+                                    crate::lexer::SchemeNumber::Real(a * b)
+                                },
+                                _ => return Err(crate::error::LambdustError::runtime_error("Unsupported number type in *".to_string())),
+                            };
+                        },
+                        _ => return Err(crate::error::LambdustError::runtime_error("* requires numeric arguments".to_string())),
+                    }
+                }
+                Ok(Value::Number(result))
+            },
+            "/" => {
+                if operands.is_empty() {
+                    return Err(crate::error::LambdustError::runtime_error("/ requires at least 1 argument".to_string()));
+                }
+                
+                if operands.len() == 1 {
+                    // Reciprocal (1/x)
+                    match &operands[0] {
+                        Value::Number(n) => {
+                            let reciprocal = match n {
+                                crate::lexer::SchemeNumber::Integer(i) => {
+                                    if *i == 0 {
+                                        return Err(crate::error::LambdustError::runtime_error("Division by zero".to_string()));
+                                    }
+                                    crate::lexer::SchemeNumber::Real(1.0 / (*i as f64))
+                                },
+                                crate::lexer::SchemeNumber::Real(r) => {
+                                    if *r == 0.0 {
+                                        return Err(crate::error::LambdustError::runtime_error("Division by zero".to_string()));
+                                    }
+                                    crate::lexer::SchemeNumber::Real(1.0 / r)
+                                },
+                                _ => return Err(crate::error::LambdustError::runtime_error("Unsupported number type in /".to_string())),
+                            };
+                            Ok(Value::Number(reciprocal))
+                        },
+                        _ => return Err(crate::error::LambdustError::runtime_error("/ requires numeric arguments".to_string())),
+                    }
+                } else {
+                    // Division
+                    let first = match &operands[0] {
+                        Value::Number(n) => n.clone(),
+                        _ => return Err(crate::error::LambdustError::runtime_error("/ requires numeric arguments".to_string())),
+                    };
+                    
+                    let mut result = first;
+                    for operand in &operands[1..] {
+                        match operand {
+                            Value::Number(n) => {
+                                result = match (&result, n) {
+                                    (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Integer(b)) => {
+                                        if *b == 0 {
+                                            return Err(crate::error::LambdustError::runtime_error("Division by zero".to_string()));
+                                        }
+                                        // Always convert to real for division to avoid integer division truncation
+                                        crate::lexer::SchemeNumber::Real(*a as f64 / (*b as f64))
+                                    },
+                                    (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Integer(b)) => {
+                                        if *b == 0 {
+                                            return Err(crate::error::LambdustError::runtime_error("Division by zero".to_string()));
+                                        }
+                                        crate::lexer::SchemeNumber::Real(a / (*b as f64))
+                                    },
+                                    (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Real(b)) => {
+                                        if *b == 0.0 {
+                                            return Err(crate::error::LambdustError::runtime_error("Division by zero".to_string()));
+                                        }
+                                        crate::lexer::SchemeNumber::Real(*a as f64 / b)
+                                    },
+                                    (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Real(b)) => {
+                                        if *b == 0.0 {
+                                            return Err(crate::error::LambdustError::runtime_error("Division by zero".to_string()));
+                                        }
+                                        crate::lexer::SchemeNumber::Real(a / b)
+                                    },
+                                    _ => return Err(crate::error::LambdustError::runtime_error("Unsupported number type in /".to_string())),
+                                };
+                            },
+                            _ => return Err(crate::error::LambdustError::runtime_error("/ requires numeric arguments".to_string())),
+                        }
+                    }
+                    Ok(Value::Number(result))
+                }
+            },
+            "=" => {
+                if operands.len() < 2 {
+                    return Err(crate::error::LambdustError::runtime_error("= requires at least 2 arguments".to_string()));
+                }
+                let first = &operands[0];
+                for operand in &operands[1..] {
+                    if !self.values_equal(first, operand) {
+                        return Ok(Value::Boolean(false));
+                    }
+                }
+                Ok(Value::Boolean(true))
+            },
+            "cons" => {
+                if operands.len() != 2 {
+                    return Err(crate::error::LambdustError::runtime_error("cons requires exactly 2 arguments".to_string()));
+                }
+                use crate::value::PairData;
+                use std::rc::Rc;
+                use std::cell::RefCell;
+                Ok(Value::Pair(Rc::new(RefCell::new(PairData::new(operands[0].clone(), operands[1].clone())))))
+            },
+            "car" => {
+                if operands.len() != 1 {
+                    return Err(crate::error::LambdustError::runtime_error("car requires exactly 1 argument".to_string()));
+                }
+                match &operands[0] {
+                    Value::Pair(pair_data) => Ok(pair_data.borrow().car.clone()),
+                    Value::Nil => Err(crate::error::LambdustError::runtime_error("car: cannot take car of empty list".to_string())),
+                    _ => Err(crate::error::LambdustError::runtime_error("car: not a pair".to_string())),
+                }
+            },
+            "cdr" => {
+                if operands.len() != 1 {
+                    return Err(crate::error::LambdustError::runtime_error("cdr requires exactly 1 argument".to_string()));
+                }
+                match &operands[0] {
+                    Value::Pair(pair_data) => Ok(pair_data.borrow().cdr.clone()),
+                    Value::Nil => Err(crate::error::LambdustError::runtime_error("cdr: cannot take cdr of empty list".to_string())),
+                    _ => Err(crate::error::LambdustError::runtime_error("cdr: not a pair".to_string())),
+                }
+            },
+            _ => Err(crate::error::LambdustError::runtime_error(format!("Unknown builtin function: {}", name))),
+        }
+    }
+    
+    /// Helper method to compare values for equality
+    fn values_equal(&self, a: &Value, b: &Value) -> bool {
+        match (a, b) {
+            (Value::Number(a), Value::Number(b)) => {
+                match (a, b) {
+                    (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Integer(b)) => a == b,
+                    (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Real(b)) => (a - b).abs() < f64::EPSILON,
+                    (crate::lexer::SchemeNumber::Integer(a), crate::lexer::SchemeNumber::Real(b)) => ((*a as f64) - b).abs() < f64::EPSILON,
+                    (crate::lexer::SchemeNumber::Real(a), crate::lexer::SchemeNumber::Integer(b)) => (a - (*b as f64)).abs() < f64::EPSILON,
+                    _ => false,
+                }
+            },
+            (Value::String(a), Value::String(b)) => a == b,
+            (Value::Boolean(a), Value::Boolean(b)) => a == b,
+            (Value::Symbol(a), Value::Symbol(b)) => a == b,
+            (Value::Nil, Value::Nil) => true,
+            _ => false,
+        }
     }
 }
 

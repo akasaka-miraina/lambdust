@@ -546,17 +546,15 @@ pub fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
         Expr::List(vec![
             Expr::Variable("lambda".to_string()),
             Expr::List(constructor_args),
-            // TODO: Create actual record construction logic
+            // Create actual record construction logic
             Expr::List(vec![
-                Expr::Variable("make-record".to_string()),
-                Expr::Quote(Box::new(Expr::Variable(type_name.clone()))),
-                Expr::List(
-                    vec![Expr::Variable("list".to_string())]
-                        .into_iter()
-                        .chain(field_names.iter().map(|name| Expr::Variable(name.clone())))
-                        .collect(),
-                ),
-            ]),
+                Expr::Variable("vector".to_string()),
+                Expr::Quote(Box::new(Expr::Variable(type_name.clone()))), // Type tag
+            ]
+                .into_iter()
+                .chain(field_names.iter().map(|name| Expr::Variable(name.clone())))
+                .collect(),
+            ),
         ]),
     ]);
     definitions.push(constructor_def);

@@ -84,35 +84,22 @@
 #![allow(clippy::negative_feature_names)]
 #![allow(clippy::redundant_feature_names)]
 
-// ===== Core Modules (Always Included) =====
 pub mod ast;
 pub mod error;
-// Tests moved to tests/unit/error_tests.rs
 pub mod lexer;
 pub mod parser;
 
-// Environment system
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod environment;
-
-// ===== Evaluator Selection =====
-#[cfg(feature = "embedded")]
-pub mod embedded_evaluator;
 
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod evaluator;
 
-// ===== Value System =====
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod value;
 
-// ===== Basic Modules (Minimal Configuration) =====
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod bridge;
-
-// Tests moved to tests/ directory
-// #[cfg(test)]
-// pub mod bridge_tests;
 
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod builtins;
@@ -128,8 +115,6 @@ pub mod macros;
 
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod marshal;
-
-// ===== Feature-Gated Modules =====
 
 // SRFI Support (Not available in embedded mode)
 #[cfg(all(
@@ -314,7 +299,6 @@ pub mod srfi {
     }
 }
 
-// Basic Optimization (Not available in embedded mode)
 #[cfg(all(
     feature = "basic-optimization",
     any(feature = "standard", feature = "minimal", not(feature = "embedded"))
@@ -327,7 +311,6 @@ pub mod cps_inlining;
 ))]
 pub mod optimized_collections;
 
-// Memory Management (Not available in embedded mode)
 #[cfg(all(
     feature = "memory-pooling",
     any(feature = "standard", feature = "minimal", not(feature = "embedded"))
@@ -340,14 +323,20 @@ pub mod adaptive_memory;
 ))]
 pub mod memory_pool;
 
-// ===== Type System =====
 #[cfg(all(
     feature = "type-system",
     any(feature = "standard", feature = "minimal", not(feature = "embedded"))
 ))]
 pub mod type_system;
 
-// Advanced Features (Not available in embedded mode)
+// Static optimization system (compile-time optimizations)
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
+pub mod static_optimization;
+
+// Dynamic optimization system (runtime optimizations) - moved to evaluator/runtime_optimization
+// Note: src/evaluator/runtime_optimization/ contains the runtime optimization system
+
+// Legacy optimization system (deprecated, for backward compatibility)
 #[cfg(all(
     feature = "theorem-derivation",
     any(feature = "standard", feature = "minimal", not(feature = "embedded"))
@@ -438,7 +427,10 @@ pub mod debug {
 ))]
 pub mod stack_monitor;
 pub mod benchmarks;
-pub mod formal_verification;
+
+// Theorem proving support system (development feature only)
+#[cfg(feature = "development")]
+pub mod prover;
 
 // Language Server Protocol support
 #[cfg(feature = "language-server")]
@@ -479,8 +471,9 @@ pub use interpreter::LambdustInterpreter;
 pub use value::Value;
 
 // Embedded API (only available in embedded mode)
-#[cfg(feature = "embedded")]
-pub use embedded_evaluator::{EmbeddedEnvironment, EmbeddedEvaluator, EmbeddedValue};
+// TODO: Implement embedded_evaluator module
+// #[cfg(feature = "embedded")]
+// pub use embedded_evaluator::{EmbeddedEnvironment, EmbeddedEvaluator, EmbeddedValue};
 
 // ===== Feature-Gated Exports =====
 

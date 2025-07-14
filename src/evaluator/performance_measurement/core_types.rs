@@ -57,6 +57,28 @@ pub struct MetricCollector {
     
     /// サンプリング設定
     pub sampling_config: SamplingConfiguration,
+    
+    /// 最後の更新時刻
+    pub last_update: Option<Instant>,
+}
+
+impl MetricCollector {
+    /// 新しいメトリクスコレクターを作成
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            metric_type: MetricType::ExecutionTime,
+            collection_interval: Duration::from_millis(100),
+            last_collection: None,
+            sampling_config: SamplingConfiguration::default(),
+            last_update: None,
+        }
+    }
+    
+    /// サンプルを追加（プレースホルダー実装）
+    pub fn add_sample(&mut self, _value: MetricValue) {
+        self.last_update = Some(Instant::now());
+    }
 }
 
 /// メトリクスデータ
@@ -325,6 +347,25 @@ impl Default for MemoryInfo {
             total_memory_bytes: 8 * 1024 * 1024 * 1024, // 8GB default
             available_memory_bytes: 4 * 1024 * 1024 * 1024, // 4GB default
             page_size_bytes: 4096, // 4KB default
+        }
+    }
+}
+
+impl MetricType {
+    /// Create metric type from measurement data
+    pub fn from_measurement_data(data: &MetricData) -> Self {
+        // Infer metric type from measurement data characteristics
+        if data.metadata.contains_key("execution_time") {
+            MetricType::ExecutionTime
+        } else if data.metadata.contains_key("memory_usage") {
+            MetricType::MemoryUsage
+        } else if data.metadata.contains_key("cpu_usage") {
+            MetricType::CpuUtilization
+        } else if data.metadata.contains_key("throughput") {
+            MetricType::Throughput
+        } else {
+            // Default to execution time for unspecified measurements
+            MetricType::ExecutionTime
         }
     }
 }

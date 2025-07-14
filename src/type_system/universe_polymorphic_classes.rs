@@ -279,7 +279,6 @@ pub struct UniverseConstraintSolver {
     /// Known universe relationships
     universe_relations: RwLock<HashMap<String, Vec<UniverseConstraint>>>,
     /// Cached solutions
-    #[allow(dead_code)]
     solution_cache: RwLock<HashMap<String, UniverseSolution>>,
 }
 
@@ -300,7 +299,6 @@ pub struct UniverseProofChecker {
     /// Known axioms
     axioms: RwLock<HashMap<String, UniversePolymorphicLaw>>,
     /// Proof cache
-    #[allow(dead_code)]
     proof_cache: RwLock<HashMap<String, bool>>,
 }
 
@@ -511,6 +509,39 @@ impl UniversePolymorphicRegistry {
     pub fn get_instances(&self, class_name: &str) -> Vec<UniversePolymorphicInstance> {
         let instances = self.instances.read().unwrap();
         instances.get(class_name).cloned().unwrap_or_default()
+    }
+    
+    /// Get cached solution for constraint system
+    pub fn get_cached_solution(&self, key: &str) -> Option<UniverseSolution> {
+        let cache = self.constraint_solver.solution_cache.read().unwrap();
+        cache.get(key).cloned()
+    }
+    
+    /// Cache a solution for reuse
+    pub fn cache_solution(&self, key: String, solution: UniverseSolution) {
+        let mut cache = self.constraint_solver.solution_cache.write().unwrap();
+        cache.insert(key, solution);
+    }
+    
+    /// Get cached proof result
+    pub fn get_cached_proof(&self, key: &str) -> Option<bool> {
+        let cache = self.constraint_solver.solution_cache.read().unwrap();
+        // Convert solution to boolean result - satisfiable if no residual constraints
+        cache.get(key).map(|solution| solution.residual_constraints.is_empty())
+    }
+    
+    /// Cache a proof result for reuse
+    pub fn cache_proof(&self, key: String, result: bool) {
+        let mut cache = self.constraint_solver.solution_cache.write().unwrap();
+        // Create a simple solution from the boolean result
+        let solution = UniverseSolution {
+            assignments: std::collections::HashMap::new(),
+            min_universe: crate::type_system::polynomial_types::UniverseLevel::new(0),
+            residual_constraints: if result { Vec::new() } else { 
+                vec![UniverseConstraint::Variable("failed".to_string())]
+            },
+        };
+        cache.insert(key, solution);
     }
 }
 

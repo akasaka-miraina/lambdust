@@ -4,7 +4,8 @@
 //! 段階的移行、リスク評価、パフォーマンス監視、ロールバック機能を含みます。
 
 use crate::error::Result;
-use crate::evaluator::{LegacyEvaluatorAdapter, backward_compatibility::RiskLevel};
+use crate::evaluator::runtime_optimization::core_types::RiskLevel;
+use crate::evaluator::EvaluatorInterface;
 use std::time::{Duration, Instant};
 
 /// Migration phase definition
@@ -115,8 +116,8 @@ pub struct MigrationStrategy {
     progress_tracker: MigrationProgressTracker,
     /// Risk assessment system
     risk_assessor: RiskAssessment,
-    /// Legacy adapter for compatibility
-    legacy_adapter: LegacyEvaluatorAdapter,
+    /// Modern evaluator interface
+    evaluator_interface: EvaluatorInterface,
 }
 
 impl MigrationStrategy {
@@ -139,7 +140,7 @@ impl MigrationStrategy {
                 mitigation_strategies: Vec::new(),
                 assessed_at: Instant::now(),
             },
-            legacy_adapter: LegacyEvaluatorAdapter::new(),
+            evaluator_interface: EvaluatorInterface::new(),
         }
     }
 
@@ -324,7 +325,13 @@ impl MigrationStrategy {
             overall_progress: self.progress_tracker.overall_progress,
             elapsed_time: self.progress_tracker.start_time.elapsed(),
             milestones_achieved: self.progress_tracker.milestones_achieved.len(),
-            risk_level: self.risk_assessor.overall_risk_level,
+            risk_level: if self.risk_assessor.overall_risk_level < 0.3 {
+                RiskLevel::Low
+            } else if self.risk_assessor.overall_risk_level < 0.7 {
+                RiskLevel::Medium
+            } else {
+                RiskLevel::High
+            },
         }
     }
 }

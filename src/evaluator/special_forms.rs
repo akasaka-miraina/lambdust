@@ -441,10 +441,72 @@ impl Evaluator {
     }
 
     /// Evaluate case expressions (via macro expansion)
-    fn eval_case(&mut self, _operands: &[Expr], _env: Rc<Environment>, _cont: Continuation) -> Result<Value> {
-        // TODO: Implement case via macro expansion to cond
-        // For now, return an error
-        Err(LambdustError::syntax_error("case special form not yet implemented".to_string()))
+    fn eval_case(&mut self, operands: &[Expr], env: Rc<Environment>, cont: Continuation) -> Result<Value> {
+        if operands.is_empty() {
+            return Err(LambdustError::syntax_error("case: missing key expression".to_string()));
+        }
+
+        let key_expr = &operands[0];
+        let clauses = &operands[1..];
+
+        if clauses.is_empty() {
+            return Err(LambdustError::syntax_error("case: missing clauses".to_string()));
+        }
+
+        // Evaluate key expression first
+        let key_value = self.eval_with_continuation(key_expr.clone(), env.clone(), Continuation::Identity)?;
+
+        // Process each clause
+        for clause in clauses {
+            match clause {
+                Expr::List(clause_parts) => {
+                    if clause_parts.len() < 2 {
+                        return Err(LambdustError::syntax_error("case: clause must have datum list and body".to_string()));
+                    }
+
+                    let datum_list = &clause_parts[0];
+                    let body = &clause_parts[1..];
+
+                    // Check if this is an else clause
+                    if let Expr::Variable(name) = datum_list {
+                        if name == "else" {
+                            // Execute else clause body
+                            return self.eval_sequence(body.to_vec(), env, cont);
+                        }
+                    }
+
+                    // Check datum list for matches
+                    let matches = match datum_list {
+                        Expr::List(datums) => {
+                            // Check if key matches any datum using eqv?
+                            datums.iter().any(|datum| {
+                                match self.eval_with_continuation(datum.clone(), env.clone(), Continuation::Identity) {
+                                    Ok(datum_value) => self.values_eqv(&key_value, &datum_value),
+                                    Err(_) => false,
+                                }
+                            })
+                        }
+                        _ => {
+                            // Single datum (not in a list)
+                            match self.eval_with_continuation(datum_list.clone(), env.clone(), Continuation::Identity) {
+                                Ok(datum_value) => self.values_eqv(&key_value, &datum_value),
+                                Err(_) => false,
+                            }
+                        }
+                    };
+
+                    if matches {
+                        return self.eval_sequence(body.to_vec(), env, cont);
+                    }
+                }
+                _ => {
+                    return Err(LambdustError::syntax_error("case: clause must be a list".to_string()));
+                }
+            }
+        }
+
+        // No clause matched and no else clause
+        Ok(Value::Undefined)
     }
 
     /// Evaluate define-syntax macro definitions
@@ -533,27 +595,129 @@ impl Evaluator {
     }
 
     /// Parse syntax-rules transformer
-    fn parse_syntax_rules_transformer(&self, _expr: &Expr) -> Result<SyntaxRulesTransformer> {
-        // TODO: Implement full syntax-rules parsing
-        // For now, return a simple placeholder
-        Ok(SyntaxRulesTransformer {
-            literals: vec![],
-            rules: vec![],
-        })
+    fn parse_syntax_rules_transformer(&self, expr: &Expr) -> Result<SyntaxRulesTransformer> {
+        match expr {
+            Expr::List(elements) if elements.len() >= 2 => {
+                // Extract literals list
+                let literals = match &elements[1] {
+                    Expr::List(lit_elements) => {
+                        lit_elements.iter()
+                            .map(|e| match e {
+                                Expr::Variable(name) => Ok(name.clone()),
+                                _ => Err(crate::error::LambdustError::syntax_error("Invalid literal in syntax-rules".to_string())),
+                            })
+                            .collect::<Result<Vec<String>>>()?
+                    },
+                    _ => vec![],
+                };
+                
+                // Extract transformation rules
+                let mut rules = Vec::new();
+                for rule_expr in &elements[2..] {
+                    match rule_expr {
+                        Expr::List(rule_parts) if rule_parts.len() == 2 => {
+                            // Pattern and template pair
+                            let pattern = self.parse_syntax_pattern(&rule_parts[0])?;
+                            let template = self.parse_syntax_template(&rule_parts[1])?;
+                            rules.push(crate::macros::SyntaxRule { pattern, template });
+                        },
+                        _ => return Err(crate::error::LambdustError::syntax_error("Invalid syntax rule".to_string())),
+                    }
+                }
+                
+                Ok(SyntaxRulesTransformer { literals, rules })
+            },
+            _ => Err(crate::error::LambdustError::syntax_error("Invalid syntax-rules form".to_string())),
+        }
+    }
+    
+    /// Parse syntax pattern
+    fn parse_syntax_pattern(&self, expr: &Expr) -> Result<crate::macros::Pattern> {
+        match expr {
+            Expr::Variable(name) => Ok(crate::macros::Pattern::Variable(name.clone())),
+            Expr::List(elements) => {
+                let patterns: Result<Vec<crate::macros::Pattern>> = elements
+                    .iter()
+                    .map(|e| self.parse_syntax_pattern(e))
+                    .collect();
+                Ok(crate::macros::Pattern::List(patterns?))
+            },
+            Expr::Literal(lit) => Ok(crate::macros::Pattern::Literal(format!("{:?}", lit))),
+            _ => Ok(crate::macros::Pattern::Variable("_".to_string())), // Wildcard pattern
+        }
+    }
+    
+    /// Parse syntax template
+    fn parse_syntax_template(&self, expr: &Expr) -> Result<crate::macros::Template> {
+        match expr {
+            Expr::Variable(name) => Ok(crate::macros::Template::Variable(name.clone())),
+            Expr::List(elements) => {
+                let templates: Result<Vec<crate::macros::Template>> = elements
+                    .iter()
+                    .map(|e| self.parse_syntax_template(e))
+                    .collect();
+                Ok(crate::macros::Template::List(templates?))
+            },
+            Expr::Literal(lit) => Ok(crate::macros::Template::Literal(format!("{:?}", lit))),
+            _ => Ok(crate::macros::Template::Variable("_".to_string())), // Wildcard template
+        }
     }
 
     /// Expand quasiquote templates
     fn expand_quasiquote(&mut self, template: &Expr, env: Rc<Environment>) -> Result<Value> {
         match template {
             Expr::List(elements) => {
+                if elements.is_empty() {
+                    return Ok(Value::Nil);
+                }
+                
+                // Check for unquote and unquote-splicing
+                if let Some(first) = elements.first() {
+                    match first {
+                        Expr::Variable(name) if name == "unquote" => {
+                            // Handle unquote: evaluate the expression
+                            if elements.len() != 2 {
+                                return Err(crate::error::LambdustError::syntax_error("unquote requires exactly one argument".to_string()));
+                            }
+                            return self.eval_with_continuation(elements[1].clone(), env, crate::evaluator::Continuation::Identity);
+                        },
+                        Expr::Variable(name) if name == "unquote-splicing" => {
+                            // Handle unquote-splicing: evaluate and splice into parent list
+                            if elements.len() != 2 {
+                                return Err(crate::error::LambdustError::syntax_error("unquote-splicing requires exactly one argument".to_string()));
+                            }
+                            let spliced_value = self.eval_with_continuation(elements[1].clone(), env, crate::evaluator::Continuation::Identity)?;
+                            // Convert to list for splicing
+                            match spliced_value {
+                                Value::Vector(vec) => Ok(Value::Vector(vec)),
+                                Value::Pair(_) => Ok(spliced_value), // Already a list as pair chain
+                                Value::Nil => Ok(Value::Nil),
+                                _ => Err(crate::error::LambdustError::runtime_error("unquote-splicing requires a list".to_string())),
+                            }
+                        },
+                        _ => {
+                            // Regular list: recursively expand elements
+                            let mut result = Vec::new();
+                            for element in elements {
+                                let expanded = self.expand_quasiquote(element, env.clone())?;
+                                result.push(expanded);
+                            }
+                            Ok(Value::Vector(result))
+                        }
+                    }
+                } else {
+                    Ok(Value::Nil)
+                }
+            },
+            Expr::Vector(elements) => {
+                // Handle vectors similarly to lists
                 let mut result = Vec::new();
                 for element in elements {
-                    // TODO: Handle unquote and unquote-splicing
                     let expanded = self.expand_quasiquote(element, env.clone())?;
                     result.push(expanded);
                 }
-                Ok(Value::from_vector(result))
-            }
+                Ok(Value::Vector(result))
+            },
             _ => self.quote_expression(template),
         }
     }
@@ -697,6 +861,31 @@ impl Evaluator {
             };
 
             self.eval_with_continuation(first_expr, env, or_cont)
+        }
+    }
+
+    /// Check if two values are equivalent using eqv? semantics
+    fn values_eqv(&self, a: &Value, b: &Value) -> bool {
+        use crate::value::Value;
+        
+        match (a, b) {
+            // Numbers are eqv? if they are numerically equal and same type
+            (Value::Number(n1), Value::Number(n2)) => n1 == n2,
+            // Characters are eqv? if they are the same character
+            (Value::Character(c1), Value::Character(c2)) => c1 == c2,
+            // Booleans are eqv? if they are the same boolean
+            (Value::Boolean(b1), Value::Boolean(b2)) => b1 == b2,
+            // Symbols are eqv? if they are the same symbol
+            (Value::Symbol(s1), Value::Symbol(s2)) => s1 == s2,
+            // Nil is eqv? to nil
+            (Value::Nil, Value::Nil) => true,
+            // Undefined is eqv? to undefined
+            (Value::Undefined, Value::Undefined) => true,
+            // Other values are only eqv? if they are the same object (identity)
+            // For now, we use structural equality for strings as approximation
+            (Value::String(s1), Value::String(s2)) => s1 == s2,
+            // Different types are not eqv?
+            _ => false,
         }
     }
 }

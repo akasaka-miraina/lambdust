@@ -10,6 +10,86 @@ use crate::evaluator::{Continuation, Evaluator};
 use crate::value::{Procedure, Value};
 // use crate::value::conversions::ToValue;
 use std::rc::Rc;
+use std::collections::HashMap;
+
+/// Statistics for location registry usage
+#[derive(Debug, Clone)]
+pub struct LocationRegistryStats {
+    /// Total number of active locations
+    pub total_locations: usize,
+    /// Next location ID to be assigned
+    pub next_id: usize,
+    /// Estimated memory usage in bytes
+    pub memory_usage: usize,
+}
+
+/// Location registry for managing stable location references
+#[derive(Debug, Clone)]
+pub struct LocationRegistry {
+    locations: HashMap<usize, Value>,
+    next_id: usize,
+}
+
+impl Default for LocationRegistry {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LocationRegistry {
+    /// Create a new location registry
+    pub fn new() -> Self {
+        Self {
+            locations: HashMap::new(),
+            next_id: 0,
+        }
+    }
+    
+    /// Create a new location with the given value
+    pub fn create_location(&mut self, value: Value) -> usize {
+        let location_id = self.next_id;
+        self.next_id += 1;
+        self.locations.insert(location_id, value);
+        location_id
+    }
+    
+    /// Get the value at a location
+    pub fn get_location(&self, location_id: usize) -> Option<&Value> {
+        self.locations.get(&location_id)
+    }
+    
+    /// Set the value at a location
+    pub fn set_location(&mut self, location_id: usize, value: Value) -> Result<()> {
+        if self.locations.contains_key(&location_id) {
+            self.locations.insert(location_id, value);
+            Ok(())
+        } else {
+            Err(LambdustError::runtime_error(format!("Invalid location ID: {}", location_id)))
+        }
+    }
+    
+    /// Get statistics about the location registry
+    pub fn get_statistics(&self) -> LocationRegistryStats {
+        LocationRegistryStats {
+            total_locations: self.locations.len(),
+            next_id: self.next_id,
+            memory_usage: self.estimate_memory_usage(),
+        }
+    }
+    
+    /// Estimate memory usage of the registry
+    fn estimate_memory_usage(&self) -> usize {
+        // Rough estimate: HashMap overhead + entries
+        std::mem::size_of::<HashMap<usize, Value>>() +
+        self.locations.len() * (std::mem::size_of::<usize>() + std::mem::size_of::<Value>())
+    }
+    
+    /// Clear all locations (useful for cleanup)
+    pub fn clear(&mut self) {
+        self.locations.clear();
+        // Note: we don't reset next_id to maintain unique IDs
+    }
+}
 
 impl Evaluator {
     // ========================================
@@ -57,22 +137,21 @@ impl Evaluator {
         let proc_value = self.eval_with_continuation(proc_expr, env.clone(), Continuation::Identity)?;
 
         // Evaluate arguments
-        let mut _call_args = Vec::new();
-
-        if arg_exprs.len() == 1 {
+        let call_args = if arg_exprs.len() == 1 {
             // Simple form: (apply proc args)
             let arg_list = self.eval_with_continuation(arg_exprs[0].clone(), env.clone(), Continuation::Identity)?;
-            call_args = Self::expect_proper_list(&arg_list, "apply")?;
+            Self::expect_proper_list(&arg_list, "apply")?
         } else {
             // Extended form: (apply proc arg1 arg2 ... args)
             // Evaluate fixed arguments
-            call_args = self.eval_expressions(&arg_exprs[..arg_exprs.len() - 1], env.clone())?;
+            let mut args = self.eval_expressions(&arg_exprs[..arg_exprs.len() - 1], env.clone())?;
 
             // Evaluate and append last argument (must be a list)
             let last_arg = self.eval_with_continuation(arg_exprs[arg_exprs.len() - 1].clone(), env.clone(), Continuation::Identity)?;
             let last_list = Self::expect_proper_list(&last_arg, "apply")?;
-            call_args.extend(last_list);
-        }
+            args.extend(last_list);
+            args
+        };
 
         // Apply procedure with evaluator support
         self.apply_procedure_with_evaluator(proc_value, call_args, cont)
@@ -474,13 +553,16 @@ impl Evaluator {
             }
         };
 
-        // Phase 5-Step2: location-ref placeholder - RAII locations are managed automatically
-        // TODO: Implement location registry for stable location references
-        // TODO: Use location_id to retrieve value from location registry
-        drop(location_id); // Temporarily unused until location registry is implemented
-        Err(LambdustError::runtime_error(
-            "location-ref not yet implemented for RAII store".to_string(),
-        ))
+        // Phase 5-Step2: location-ref implementation using location registry
+        if let Some(location_registry) = self.get_location_registry() {
+            if let Some(value) = location_registry.get_location(location_id) {
+                Ok(value.clone())
+            } else {
+                Err(LambdustError::runtime_error(format!("Invalid location ID: {}", location_id)))
+            }
+        } else {
+            Err(LambdustError::runtime_error("Location registry not available".to_string()))
+        }
     }
 
     /// Evaluate location-set! as special form
@@ -509,13 +591,13 @@ impl Evaluator {
             }
         };
 
-        // Phase 5-Step2: location-set! placeholder - RAII locations are managed automatically
-        // TODO: Implement location registry for stable location references
-        // TODO: Use location_id and new_value to update location in registry
-        drop((location_id, new_value)); // Temporarily unused until location registry is implemented
-        Err(LambdustError::runtime_error(
-            "location-set! not yet implemented for RAII store".to_string(),
-        ))
+        // Phase 5-Step2: location-set! implementation using location registry
+        if let Some(location_registry) = self.get_location_registry_mut() {
+            location_registry.set_location(location_id, new_value)?;
+            Ok(Value::Undefined)
+        } else {
+            Err(LambdustError::runtime_error("Location registry not available".to_string()))
+        }
     }
 
     // ========================================

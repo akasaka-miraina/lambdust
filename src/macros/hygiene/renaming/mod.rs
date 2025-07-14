@@ -307,7 +307,6 @@ impl BenchmarkResults {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macros::hygiene::symbol::EnvironmentId;
 
     #[test]
     fn test_create_symbol_renamer() {

@@ -52,7 +52,6 @@ pub struct PolynomialUniverseSystem {
     /// Type inference engine
     type_inference: TypeInference,
     /// Universe hierarchy manager
-    #[allow(dead_code)]
     universe_hierarchy: UniverseHierarchy,
     /// Monad algebra system
     monad_algebra: MonadAlgebra,
@@ -167,6 +166,26 @@ impl PolynomialUniverseSystem {
     /// Register universe polymorphic class
     pub fn register_universe_polymorphic_class(&mut self, class: UniversePolymorphicClass) -> Result<(), LambdustError> {
         self.universe_polymorphic_registry.register_class(class)
+    }
+    
+    /// Check universe level consistency using universe_hierarchy
+    pub fn check_universe_level_consistency(&self, type1: &PolynomialType, type2: &PolynomialType) -> Result<bool, LambdustError> {
+        // Use the universe_hierarchy to verify level consistency
+        let level1 = self.universe_hierarchy.get_type_level(type1);
+        let level2 = self.universe_hierarchy.get_type_level(type2);
+        
+        // Check if the levels are compatible
+        Ok(self.universe_hierarchy.levels_compatible(level1, level2))
+    }
+    
+    /// Promote type to higher universe level
+    pub fn promote_type_universe(&mut self, poly_type: &PolynomialType, target_level: u32) -> Result<PolynomialType, LambdustError> {
+        self.universe_hierarchy.promote_type(poly_type, target_level)
+    }
+    
+    /// Get minimum universe level for type compatibility
+    pub fn get_minimum_universe_level(&self, types: &[PolynomialType]) -> Result<u32, LambdustError> {
+        self.universe_hierarchy.compute_minimum_level(types)
     }
 
     /// Register universe polymorphic instance

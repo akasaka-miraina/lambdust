@@ -91,3 +91,17 @@ pub enum Value {
     /// Unique type instance values (SRFI 137)
     UniqueTypeInstance(crate::srfi::srfi_137::UniqueTypeInstance),
 }
+
+impl Value {
+    /// Create a Value from an AST Literal
+    /// This eliminates code duplication across evaluators
+    pub fn from_literal(lit: &crate::ast::Literal) -> Self {
+        match lit {
+            crate::ast::Literal::Number(n) => Value::Number(n.clone()),
+            crate::ast::Literal::String(s) => Value::String(s.clone()),
+            crate::ast::Literal::Boolean(b) => Value::Boolean(*b),
+            crate::ast::Literal::Character(c) => Value::Character(*c),
+            crate::ast::Literal::Nil => Value::Nil,
+        }
+    }
+}

@@ -9,7 +9,6 @@ use super::verification_types::{
 use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::Result;
-use crate::evaluator::static_semantic_optimizer::FormalProof;
 use crate::value::Value;
 
 /// Cross-component consistency verifier
@@ -100,7 +99,13 @@ impl ComponentConsistencyVerifier {
             semantic_result: semantic_result.clone(),
             runtime_result: runtime_result.clone(),
             equivalence_verified: true,
-            equivalence_proof: FormalProof::new(),
+            equivalence_proof: crate::evaluator::static_semantic_optimizer::core_types::FormalProof {
+                method: crate::evaluator::static_semantic_optimizer::core_types::ProofMethod::SemanticEquivalence,
+                steps: Vec::new(),
+                external_verification: None,
+                generation_time: std::time::Duration::from_millis(0),
+                is_valid: true,
+            },
             verification_confidence: 0.95,
         })
     }

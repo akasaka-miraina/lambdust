@@ -77,8 +77,6 @@ mod tests {
     use super::*;
     use crate::ast::{Expr, Literal};
     use crate::lexer::SchemeNumber;
-    use crate::environment::Environment;
-    use std::rc::Rc;
 
     #[test]
     fn test_analyzer_creation() {
@@ -140,7 +138,7 @@ mod tests {
     fn test_constants() {
         let expr = Expr::Variable("PI".to_string());
         let mut constants = std::collections::HashMap::new();
-        constants.insert("PI".to_string(), crate::value::Value::Number(SchemeNumber::Float(3.14159)));
+        constants.insert("PI".to_string(), crate::value::Value::Number(SchemeNumber::Real(3.14159)));
         
         let result = analyze_with_constants(&expr, None, constants).unwrap();
         assert!(result.is_constant);

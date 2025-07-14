@@ -434,7 +434,6 @@ impl Default for PatternBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macros::hygiene::symbol::EnvironmentId;
 
     #[test]
     fn test_exact_pattern_matching() {

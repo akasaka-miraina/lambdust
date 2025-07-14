@@ -84,14 +84,13 @@ impl Evaluator {
         after_thunk: Value,
         dynamic_point_id: usize,
         parent: Continuation,
+        env: std::rc::Rc<crate::environment::Environment>,
     ) -> Result<Value> {
-        // Execute after thunk
-        // TODO: Need environment parameter - using placeholder environment
-        let placeholder_env = std::rc::Rc::new(crate::environment::Environment::new());
+        // Execute after thunk with proper environment
         self.apply_procedure_with_continuation(
             after_thunk,
             vec![],
-            placeholder_env,
+            env,
             Continuation::Identity,
         )?;
 

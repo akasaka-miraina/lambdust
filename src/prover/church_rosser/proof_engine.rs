@@ -6,7 +6,7 @@
 use crate::error::Result;
 use crate::evaluator::{
     combinators::CombinatorExpr,
-    theorem_proving::{ProofMethod, ProofTerm, Statement, ProofTermType},
+    theorem_proving::{ProofMethod, ProofTerm, ProofTermType},
     SemanticEvaluator,
 };
 use std::collections::HashMap;
@@ -214,10 +214,17 @@ impl ChurchRosserProofEngine {
 
         // 証明実行 (プレースホルダー)
         let proof_result = ProofResult::Proven(ProofTerm {
-            statement: Statement::Custom(format!("Church-Rosser: {:?}", expr), vec![expr.clone()]), // Use existing variant
-            proof_method: ProofMethod::Induction, // Use existing variant
-            sub_proofs: Vec::new(),
-            proof_term_type: ProofTermType::ChurchRosserProof, // Use existing variant
+            method: ProofMethod::Induction("church_rosser".to_string()), // Use existing variant
+            subproofs: Vec::new(),
+            explanation: format!("Church-Rosser proof for: {:?}", expr),
+            term_type: ProofTermType::ChurchRosserProof, // Use existing variant
+            proof_steps: Vec::new(),
+            lemmas_used: Vec::new(),
+            tactics_used: Vec::new(),
+            conclusion: crate::evaluator::theorem_proving::Statement::Custom(
+                format!("Church-Rosser proof for: {:?}", expr), 
+                vec![]
+            ),
         });
 
         // 統計更新

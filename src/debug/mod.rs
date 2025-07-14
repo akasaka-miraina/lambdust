@@ -10,11 +10,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 /// Global trace counter for unique step IDs
-#[allow(dead_code)]
 static TRACE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// Global trace log storage (protected by mutex)
-#[allow(dead_code)]
 static TRACE_LOG: Mutex<Vec<TraceEntry>> = Mutex::new(Vec::new());
 
 /// Single trace entry with complete context information
@@ -280,6 +278,20 @@ impl DebugTracer {
         _env_depth: Option<usize>,
     ) {
     }
+    
+    /// No-op versions for release builds (but provide same interface)
+    #[cfg(not(debug_assertions))]
+    pub fn get_trace_counter() -> usize {
+        0
+    }
+    
+    #[cfg(not(debug_assertions))]
+    pub fn filter_trace_log<F>(_predicate: F) -> Vec<TraceEntry>
+    where
+        F: Fn(&TraceEntry) -> bool,
+    {
+        Vec::new()
+    }
 
     /// Convert Value to readable S-expression
     pub fn value_to_sexpr(value: &Value) -> String {
@@ -352,6 +364,24 @@ impl DebugTracer {
     #[cfg(debug_assertions)]
     pub fn get_trace_log() -> Vec<TraceEntry> {
         TRACE_LOG.lock().unwrap().clone()
+    }
+    
+    /// Use global trace counter for trace identification
+    #[cfg(debug_assertions)]
+    pub fn get_trace_counter() -> usize {
+        TRACE_COUNTER.load(Ordering::SeqCst)
+    }
+    
+    /// Filter trace log by criteria (utilizes TRACE_LOG storage)
+    #[cfg(debug_assertions)]
+    pub fn filter_trace_log<F>(predicate: F) -> Vec<TraceEntry>
+    where
+        F: Fn(&TraceEntry) -> bool,
+    {
+        TRACE_LOG.lock().unwrap().iter()
+            .filter(|entry| predicate(entry))
+            .cloned()
+            .collect()
     }
 
     /// Clear trace log

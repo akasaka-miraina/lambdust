@@ -21,6 +21,33 @@ use crate::evaluator::{
 use rustc_hash::FxHashMap;
 use std::collections::HashSet;
 
+/// Trait for providing safe accessor patterns to internal components
+/// This implements the "Tell, Don't Ask" principle through higher-order functions
+pub trait ComponentAccessor<T> {
+    /// Access component with mutable reference
+    fn with_component_mut<F>(&mut self, f: F) 
+    where F: FnOnce(&mut T);
+    
+    /// Access component with immutable reference and return value
+    fn with_component<F, R>(&self, f: F) -> R
+    where F: FnOnce(&T) -> R;
+}
+
+/// Specialized trait for hot path detector access
+pub trait HotPathDetectorAccess: ComponentAccessor<HotPathDetector> {
+    /// Convenience method for hot path detector access
+    fn with_hot_path_detector_mut<F>(&mut self, f: F) 
+    where F: FnOnce(&mut HotPathDetector) {
+        self.with_component_mut(f);
+    }
+    
+    /// Convenience method for hot path detector access
+    fn with_hot_path_detector<F, R>(&self, f: F) -> R
+    where F: FnOnce(&HotPathDetector) -> R {
+        self.with_component(f)
+    }
+}
+
 // Re-export types from runtime_executor_types for backward compatibility
 pub use crate::evaluator::runtime_executor_types::{
     RuntimeOptimizationLevel, ExpressionAnalysisResult, CallPattern, ExecutionFrequency,
@@ -32,69 +59,69 @@ pub use crate::evaluator::runtime_executor_types::{
 /// Runtime executor with integrated optimization systems
 pub struct RuntimeExecutor {
     /// Reference semantic evaluator for correctness verification
-    semantic_evaluator: SemanticEvaluator,
+    pub(crate) semantic_evaluator: SemanticEvaluator,
 
     /// JIT loop optimizer (dynamic optimization)
-    jit_optimizer: JitLoopOptimizer,
+    pub(crate) jit_optimizer: JitLoopOptimizer,
 
     /// Inline evaluator for hot path optimization
-    inline_evaluator: InlineEvaluator,
+    pub(crate) inline_evaluator: InlineEvaluator,
 
     /// Continuation pooling manager
-    continuation_pooler: ContinuationPoolManager,
+    pub(crate) continuation_pooler: ContinuationPoolManager,
 
     /// Integrated optimization manager
-    integrated_optimizer: IntegratedOptimizationManager,
+    pub(crate) integrated_optimizer: IntegratedOptimizationManager,
     
     /// Adaptive optimization engine
-    adaptive_engine: AdaptiveOptimizationEngine,
+    pub(crate) adaptive_engine: AdaptiveOptimizationEngine,
 
     /// Advanced hot path detector with multidimensional analysis
-    hotpath_detector: AdvancedHotPathDetector,
+    pub(crate) hotpath_detector: AdvancedHotPathDetector,
 
     /// LLVM compiler integration for native code generation
-    llvm_compiler: LLVMCompilerIntegration,
+    pub(crate) llvm_compiler: LLVMCompilerIntegration,
 
     /// Current optimization level
-    optimization_level: RuntimeOptimizationLevel,
+    pub(crate) optimization_level: RuntimeOptimizationLevel,
 
     /// Whether to verify against semantic evaluator
-    verification_enabled: bool,
+    pub(crate) verification_enabled: bool,
 
     /// Recursion depth tracking
-    recursion_depth: usize,
-    max_recursion_depth: usize,
+    pub(crate) recursion_depth: usize,
+    pub(crate) max_recursion_depth: usize,
 }
 
 /// Adaptive optimization engine for dynamic code generation
 #[derive(Debug)]
 pub struct AdaptiveOptimizationEngine {
     /// Hot path detector
-    hot_path_detector: HotPathDetector,
+    pub(crate) hot_path_detector: HotPathDetector,
     
     /// Dynamic code generator
-    code_generator: DynamicCodeGenerator,
+    pub(crate) code_generator: DynamicCodeGenerator,
     
     /// Profile-guided optimization system
-    profile_optimizer: ProfileGuidedOptimizer,
+    pub(crate) profile_optimizer: ProfileGuidedOptimizer,
     
     /// Performance tracker
-    performance_tracker: PerformanceTracker,
+    pub(crate) performance_tracker: PerformanceTracker,
     
     /// Optimization decisions history
-    decisions: Vec<AdaptiveDecision>,
+    pub(crate) decisions: Vec<AdaptiveDecision>,
     
     /// Optimization thresholds
-    thresholds: OptimizationThresholds,
+    pub(crate) thresholds: OptimizationThresholds,
     
     /// Profile-guided optimizer (for compatibility)
-    profiler: ProfileGuidedOptimizer,
+    pub(crate) profiler: ProfileGuidedOptimizer,
     
     /// JIT code cache (for compatibility)
-    jit_cache: FxHashMap<String, JitCompiledCode>,
+    pub(crate) jit_cache: FxHashMap<String, JitCompiledCode>,
     
     /// Decision history (for compatibility)
-    decision_history: Vec<AdaptiveDecision>,
+    pub(crate) decision_history: Vec<AdaptiveDecision>,
 }
 
 /// Hot path detection system
@@ -154,9 +181,19 @@ impl HotPathDetector {
         }
     }
     
-    /// Check if expression is on hot path
+    /// Check if expression is on hot path using hot_threshold
     pub fn is_hot_path(&self, expr_hash: &str) -> bool {
-        self.hot_paths.contains(expr_hash)
+        // Check both the hot paths set and the threshold-based detection
+        if self.hot_paths.contains(expr_hash) {
+            return true;
+        }
+        
+        // Also check if frequency exceeds hot_threshold
+        if let Some(&frequency) = self.execution_frequencies.get(expr_hash) {
+            frequency >= self.hot_threshold
+        } else {
+            false
+        }
     }
     
     /// Get execution frequency for expression
@@ -175,54 +212,54 @@ impl Default for HotPathDetector {
 #[derive(Debug)]
 pub struct DynamicCodeGenerator {
     /// Generated code cache
-    code_cache: FxHashMap<String, JitCompiledCode>,
+    pub(crate) code_cache: FxHashMap<String, JitCompiledCode>,
     
     /// Code generation statistics
-    generation_stats: CodeGenerationStats,
+    pub(crate) generation_stats: CodeGenerationStats,
     
     /// Strategy selector (for compatibility)
-    strategy_selector: CompilationStrategySelector,
+    pub(crate) strategy_selector: CompilationStrategySelector,
     
     /// Code allocator (for compatibility)
-    code_allocator: CodeAllocator,
+    pub(crate) code_allocator: CodeAllocator,
 }
 
 /// Profile-guided optimization system
 #[derive(Debug)]
 pub struct ProfileGuidedOptimizer {
     /// Performance profiles
-    profiles: FxHashMap<String, PerformanceProfile>,
+    pub(crate) profiles: FxHashMap<String, PerformanceProfile>,
     
     /// Optimization recommendations
-    recommendations: Vec<OptimizationHint>,
+    pub(crate) recommendations: Vec<OptimizationHint>,
     
     /// Execution profiles (for compatibility)
-    execution_profiles: FxHashMap<String, PerformanceProfile>,
+    pub(crate) execution_profiles: FxHashMap<String, PerformanceProfile>,
     
     /// Optimization decisions (for compatibility)
-    optimization_decisions: FxHashMap<String, AdaptiveOptimizationType>,
+    pub(crate) optimization_decisions: FxHashMap<String, AdaptiveOptimizationType>,
     
     /// Collection period (for compatibility)
-    collection_period: std::time::Duration,
+    pub(crate) collection_period: std::time::Duration,
     
     /// Minimum samples required (for compatibility)
-    min_samples: usize,
+    pub(crate) min_samples: usize,
 }
 
 /// Performance tracking system
 #[derive(Debug)]
 pub struct PerformanceTracker {
     /// Performance metrics history
-    metrics_history: Vec<PerformanceProfile>,
+    pub(crate) metrics_history: Vec<PerformanceProfile>,
     
     /// Current performance baseline
-    baseline: Option<PerformanceProfile>,
+    pub(crate) baseline: Option<PerformanceProfile>,
     
     /// Regression detector (for compatibility)
-    regression_detector: RegressionDetector,
+    pub(crate) regression_detector: RegressionDetector,
     
     /// Performance improvements (for compatibility)
-    improvements: Vec<PerformanceProfile>,
+    pub(crate) improvements: Vec<PerformanceProfile>,
 }
 
 /// Code generation statistics
@@ -267,6 +304,16 @@ pub struct RegressionDetector;
 
 impl RegressionDetector {
     #[must_use] pub fn new() -> Self { Self }
+    
+    /// Detect performance regression (placeholder implementation)
+    #[must_use] pub fn detect_regression(&self, _current: f64, _baseline: f64) -> bool {
+        false // No regression detected in placeholder
+    }
+    
+    /// Get risk level (placeholder implementation)
+    #[must_use] pub fn get_risk_level(&self) -> f64 {
+        0.0 // No risk in placeholder
+    }
 }
 
 /// Performance baseline (placeholder)
@@ -276,6 +323,7 @@ pub struct PerformanceBaseline;
 impl PerformanceBaseline {
     #[must_use] pub fn new() -> Self { Self }
 }
+
 
 impl RuntimeExecutor {
     /// Get optimization level
@@ -359,8 +407,16 @@ impl RuntimeExecutor {
     }
     
     /// Send statistics through environment (decoupled statistics reporting)
+    /// Only available in development builds
+    #[cfg(feature = "development")]
     pub fn send_statistics(&self, env: &crate::environment::Environment, message: crate::environment::StatisticsMessage) {
         env.send_statistics(message);
+    }
+    
+    /// No-op version for non-development builds
+    #[cfg(not(feature = "development"))]
+    pub fn send_statistics(&self, _env: &crate::environment::Environment, _message: ()) {
+        // No-op: statistics disabled in production builds
     }
     
     /// Get continuation pooler reference
@@ -398,16 +454,35 @@ impl RuntimeExecutor {
         &mut self.integrated_optimizer
     }
     
-    /// Access hot path detector with mutable reference
-    pub fn with_hot_path_detector_mut<F>(&mut self, f: F) 
-    where F: FnOnce(&mut HotPathDetector) {
-        f(&mut self.hot_path_detector);
-    }
     
-    /// Access hot path detector with immutable reference  
-    pub fn with_hot_path_detector<F, R>(&self, f: F) -> R
-    where F: FnOnce(&HotPathDetector) -> R {
-        f(&self.hot_path_detector)
+    /// Set optimization level for runtime executor
+    pub fn set_optimization_level(&mut self, level: RuntimeOptimizationLevel) {
+        self.optimization_level = level;
+        // Also configure LLVM compiler
+        let llvm_level = match level {
+            RuntimeOptimizationLevel::None => crate::evaluator::llvm_backend::LLVMOptimizationLevel::O0,
+            RuntimeOptimizationLevel::Conservative => crate::evaluator::llvm_backend::LLVMOptimizationLevel::O1,
+            RuntimeOptimizationLevel::Balanced => crate::evaluator::llvm_backend::LLVMOptimizationLevel::O2,
+            RuntimeOptimizationLevel::Aggressive => crate::evaluator::llvm_backend::LLVMOptimizationLevel::O3,
+        };
+        self.llvm_compiler.set_optimization_level(llvm_level);
     }
 }
+
+// Implement ComponentAccessor trait for HotPathDetector access
+impl ComponentAccessor<HotPathDetector> for RuntimeExecutor {
+    fn with_component_mut<F>(&mut self, f: F) 
+    where F: FnOnce(&mut HotPathDetector) {
+        f(&mut self.adaptive_engine.hot_path_detector);
+    }
+    
+    fn with_component<F, R>(&self, f: F) -> R
+    where F: FnOnce(&HotPathDetector) -> R {
+        f(&self.adaptive_engine.hot_path_detector)
+    }
+}
+
+// Implement specialized HotPathDetectorAccess trait  
+impl HotPathDetectorAccess for RuntimeExecutor {}
+
 

@@ -279,6 +279,13 @@ impl JitLoopOptimizer {
             self.hotpath_detector.execution_counts.len(),
         )
     }
+    
+    /// Clear all compilation caches (useful for testing or memory management)
+    pub fn clear_caches(&mut self) {
+        self.hotpath_detector.execution_counts.clear();
+        self.hotpath_detector.compiled_patterns.clear();
+        self.hotpath_detector.total_executions = 0;
+    }
 }
 
 impl Default for JitLoopOptimizer {

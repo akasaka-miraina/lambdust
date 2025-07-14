@@ -132,10 +132,14 @@ impl ChurchRosserProofEngineImpl {
         let proof_result = match (confluence_result, termination_result) {
             (confluence_proof::ConfluenceProofResult::Confluent(_), true) => {
                 proof_engine::ProofResult::Proven(ProofTerm {
-                    statement: Statement::Custom(format!("Church-Rosser property holds for: {:?}", expr), vec![expr.clone()]), // Use existing variant
-                    proof_method: ProofMethod::Induction, // Use existing variant
-                    sub_proofs: Vec::new(),
-                    proof_term_type: ProofTermType::ChurchRosserProof, // Use existing variant
+                    method: ProofMethod::Induction("church_rosser".to_string()), // Use existing variant
+                    subproofs: Vec::new(),
+                    explanation: format!("Church-Rosser property holds for: {:?}", expr),
+                    term_type: ProofTermType::ChurchRosserProof, // Use existing variant
+                    proof_steps: Vec::new(),
+                    lemmas_used: Vec::new(),
+                    tactics_used: Vec::new(),
+                    conclusion: Statement::Custom(format!("Church-Rosser property holds for: {:?}", expr), Vec::new()),
                 })
             }
             (confluence_proof::ConfluenceProofResult::NonConfluent(_), _) => {

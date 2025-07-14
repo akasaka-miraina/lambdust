@@ -47,32 +47,13 @@ pub mod runtime_executor_types;
 pub mod special_forms;
 // Typed special forms for type-annotated lambda and define expressions
 pub mod typed_special_forms;
-// Theorem proving support system for formal verification (modular structure)
-pub mod theorem_proving;
-// External prover integration for advanced verification
-pub mod external_provers;
+// Note: Theorem proving systems moved to src/prover/
 // Unified evaluator interface for transparent evaluation mode switching
 pub mod evaluator_interface;
 // Advanced evaluation mode selection for performance and correctness trade-offs
 pub mod evaluation_mode_selector;
-// Comprehensive verification system for correctness guarantees
-pub mod verification_system;
-// Backward compatibility system for legacy code support
-pub mod backward_compatibility;
 // Migration strategy system for seamless evaluator transitions
 pub mod migration_strategy;
-// Formal verification foundation for mathematical proofs
-pub mod formal_verification;
-// Church-Rosser property and confluence formal proofs (modular structure)
-pub mod church_rosser_proof;
-// Static semantic optimizer with formal proof guarantees
-pub mod static_semantic_optimizer;
-// Theorem derivation engine for advanced static optimization (modular structure)
-pub mod theorem_derivation_engine;
-// Adaptive theorem learning system for knowledge accumulation
-pub mod adaptive_theorem_learning;
-// Complete formal verification system for mathematical correctness guarantees
-pub mod complete_formal_verification;
 // Advanced JIT compilation system with formal verification
 pub mod advanced_jit_system;
 // Runtime optimization integration system for performance tuning
@@ -151,14 +132,36 @@ pub use semantic_correctness::{CorrectnessProof, CorrectnessProperty, SemanticCo
 // Runtime executor exports
 pub use runtime_executor::RuntimeExecutor;
 pub use runtime_executor_types::{RuntimeOptimizationLevel, RuntimeStats};
-// Theorem proving support exports
-pub use theorem_proving::{
-    GoalType, ProofGoal, ProofState, ProofTactic, Statement, TheoremProvingSupport,
-    VerificationResult as TheoremVerificationResult,
-};
-// External prover integration exports
-pub use external_provers::{
+// ===== Theorem Proving Support Systems (Re-exported from prover module) =====
+#[cfg(feature = "development")]
+pub use crate::prover::{
+    // Core theorem proving
+    GoalType, ProofGoal, ProofTactic, Statement, TheoremProvingSupport,
+    TheoremVerificationResult,
+    // External provers
     ExternalProver, ExternalProverManager, ExternalVerificationResult, ProverConfig,
+    // Verification system
+    VerificationAnalysis, VerificationConfig, SystemVerificationResult,
+    VerificationStatistics, VerificationStatus, VerificationSystem,
+    // Formal verification
+    FormalVerificationEngine,
+    // Church-Rosser proofs
+    ChurchRosserProof, ChurchRosserProofEngine, ConfluenceProof, ConfluenceVerifier,
+    NormalizationProof, NormalizationVerifier, TerminationProof, TerminationVerifier,
+    // Static optimization
+    ProofMethod, ProofStep,
+    // Theorem derivation
+    TheoremDerivationEngine, DerivedTheoremDatabase, FundamentalTheorem, MathematicalStatement,
+    DerivedOptimizationRule, OptimizationPattern, OptimizationReplacement, DerivationProof,
+    OptimizationTheorem, PerformanceCharacteristics, TheoremCategory, TheoremComplexity,
+    ApplicabilityCondition, CompositionTheorem, PreservationTheorem, PerformanceTheorem,
+    AdvancedProofTactics, TheoremDerivationConfig, DerivationStatistics,
+    // Adaptive learning
+    AdaptiveTheoremLearningSystem, TheoremKnowledgeBase, DiscoveredPattern, LearnedOptimizationPattern,
+    PerformanceAnalyzer, PatternDiscoveryEngine, OccurrenceContext, SourceInfo, 
+    ContextPerformanceData, StyleIndicators, PatternType, LearnedPerformanceCharacteristics,
+    MemoryImpactData, ScalabilityCharacteristics, PerformanceInsight, PerformanceImpactQuantification,
+    // Complete formal verification (TODO: implement)
 };
 // Unified evaluator interface exports
 pub use evaluator_interface::{
@@ -170,52 +173,10 @@ pub use evaluation_mode_selector::{
     EvaluationContext, EvaluationModeSelector, ExpressionType, PerformanceRequirements,
     PerformanceStats, SelectionCriteria,
 };
-// Comprehensive verification system exports
-pub use verification_system::{
-    VerificationAnalysis, VerificationConfig, VerificationResult as SystemVerificationResult,
-    VerificationStatistics, VerificationStatus, VerificationSystem,
-};
-// Backward compatibility system exports
-pub use backward_compatibility::{
-    migration_helpers, CompatibilityMode, CompatibilityResult, LegacyEvaluatorAdapter,
-    MigrationRecommendation, MigrationStatistics,
-};
 // Migration strategy system exports
 pub use migration_strategy::{
     MigrationPhase, MigrationProgressTracker, MigrationStatus, MigrationStrategy,
     SuccessCriterion, RiskAssessment, RiskFactor, MitigationStrategy,
-};
-// Formal verification foundation exports
-pub use formal_verification::{
-    CorrectnessGuarantee, FormalProof, FormalVerificationEngine, FormalVerificationResult,
-    FormalVerificationStatus, VerificationConfiguration, VerificationDepth,
-};
-// Church-Rosser property and confluence formal proofs exports
-pub use church_rosser_proof::{
-    ChurchRosserProof, ChurchRosserProofEngine, ConfluenceProof, ConfluenceVerifier,
-    NormalizationProof, NormalizationVerifier, TerminationProof, TerminationVerifier,
-};
-// Static semantic optimizer with formal proof guarantees exports
-pub use static_semantic_optimizer::{
-    StaticSemanticOptimizer, ProvenOptimization, FormalProof as OptimizerFormalProof,
-    ProofMethod, ProofStep, TypeInferenceEngine, InferredType, ConstantPropagationEngine,
-    DeadCodeEliminationEngine, CommonSubexpressionEngine, LoopOptimizationEngine,
-    StaticOptimizerConfiguration, OptimizationStatistics as OptimizerStatistics,
-};
-// Theorem derivation engine for advanced static optimization exports
-pub use theorem_derivation_engine::{
-    TheoremDerivationEngine, DerivedTheoremDatabase, FundamentalTheorem, MathematicalStatement,
-    DerivedOptimizationRule, OptimizationPattern, OptimizationReplacement, DerivationProof,
-    OptimizationTheorem, PerformanceCharacteristics, TheoremCategory, TheoremComplexity,
-    ApplicabilityCondition, CompositionTheorem, PreservationTheorem, PerformanceTheorem,
-    AdvancedProofTactics, TheoremDerivationConfig, DerivationStatistics,
-};
-// Adaptive theorem learning system exports
-pub use adaptive_theorem_learning::{
-    AdaptiveTheoremLearningSystem, TheoremKnowledgeBase, DiscoveredPattern, LearnedOptimizationPattern,
-    PerformanceAnalyzer, PatternDiscoveryEngine, OccurrenceContext, SourceInfo, 
-    ContextPerformanceData, StyleIndicators, PatternType, LearnedPerformanceCharacteristics,
-    MemoryImpactData, ScalabilityCharacteristics, PerformanceInsight, PerformanceImpactQuantification,
 };
 // Runtime optimization integration system exports
 pub use runtime_optimization_integration::{

@@ -197,7 +197,6 @@ pub struct TypeCheckWorker {
     /// Worker ID
     id: usize,
     /// Type checker instance
-    #[allow(dead_code)]
     type_checker: TypeChecker,
     /// Type inference engine
     type_inference: TypeInference,
@@ -302,6 +301,16 @@ impl TypeCheckWorker {
                 })
             }
         }
+    }
+    
+    /// Check type equivalence using the type checker
+    pub fn check_type_equivalence(&self, type1: &PolynomialType, type2: &PolynomialType) -> Result<bool> {
+        self.type_checker.equivalent(type1, type2)
+    }
+    
+    /// Get worker ID
+    pub fn worker_id(&self) -> usize {
+        self.id
     }
 }
 

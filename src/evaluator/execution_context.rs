@@ -47,9 +47,11 @@ pub struct ExecutionContext {
     pub macro_expansion_state: MacroExpansionState,
     
     /// Static semantic optimization results with formal proofs
+    #[cfg(feature = "development")]
     pub proven_optimizations: Vec<crate::evaluator::static_semantic_optimizer::ProvenOptimization>,
     
     /// Type inference results
+    #[cfg(feature = "development")]
     pub type_information: Option<crate::evaluator::static_semantic_optimizer::InferredType>,
 }
 
@@ -516,7 +518,9 @@ impl ExecutionContext {
             execution_metadata: ExecutionMetadata::default(),
             constant_bindings: FxHashMap::default(),
             macro_expansion_state: MacroExpansionState::default(),
+            #[cfg(feature = "development")]
             proven_optimizations: Vec::new(),
+            #[cfg(feature = "development")]
             type_information: None,
         }
     }
@@ -812,12 +816,14 @@ impl ExecutionContextBuilder {
     }
     
     /// Add proven optimization with formal verification
+    #[cfg(feature = "development")]
     pub fn add_proven_optimization(mut self, optimization: crate::evaluator::static_semantic_optimizer::ProvenOptimization) -> Self {
         self.context.proven_optimizations.push(optimization);
         self
     }
     
     /// Set type information from static analysis
+    #[cfg(feature = "development")]
     pub fn with_type_information(mut self, type_info: crate::evaluator::static_semantic_optimizer::InferredType) -> Self {
         self.context.type_information = Some(type_info);
         self

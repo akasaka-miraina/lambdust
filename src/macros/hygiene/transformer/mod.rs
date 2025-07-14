@@ -79,9 +79,7 @@ pub fn create_legacy_transformer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::macros::{Pattern, SyntaxRule, Template};
     use crate::macros::hygiene::environment::HygienicEnvironment;
-    use crate::ast::Expr;
     use std::rc::Rc;
 
     fn create_test_environment() -> Rc<HygienicEnvironment> {
