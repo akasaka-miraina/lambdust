@@ -96,7 +96,13 @@ pub mod environment;
 pub mod evaluator;
 
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
+pub mod executor;
+
+#[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod value;
+
+#[cfg(feature = "embedded")]
+pub mod embedded_evaluator;
 
 #[cfg(any(feature = "standard", feature = "minimal", not(feature = "embedded")))]
 pub mod bridge;
@@ -428,6 +434,10 @@ pub mod debug {
 pub mod stack_monitor;
 pub mod benchmarks;
 
+// Performance monitoring system (development feature only)
+#[cfg(feature = "development")]
+pub mod performance_monitor;
+
 // Theorem proving support system (development feature only)
 #[cfg(feature = "development")]
 pub mod prover;
@@ -450,6 +460,10 @@ pub mod wasm;
 // #[cfg(feature = "repl")]
 // pub mod repl;
 
+// Testing support (only available in test builds)
+#[cfg(test)]
+pub mod testing_support;
+
 // ===== Core Exports =====
 use std::rc::Rc;
 pub use error::{LambdustError, Result};
@@ -471,9 +485,8 @@ pub use interpreter::LambdustInterpreter;
 pub use value::Value;
 
 // Embedded API (only available in embedded mode)
-// TODO: Implement embedded_evaluator module
-// #[cfg(feature = "embedded")]
-// pub use embedded_evaluator::{EmbeddedEnvironment, EmbeddedEvaluator, EmbeddedValue};
+#[cfg(feature = "embedded")]
+pub use embedded_evaluator::{EmbeddedEnvironment, EmbeddedEvaluator, EmbeddedValue};
 
 // ===== Feature-Gated Exports =====
 

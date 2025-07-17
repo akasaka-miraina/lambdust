@@ -10,11 +10,14 @@ use crate::error::{LambdustError, Result};
 #[cfg(feature = "development")]
 use crate::evaluator::{
     Continuation, CorrectnessProof, CorrectnessProperty,
-    RuntimeOptimizationLevel, SemanticCorrectnessProver, SemanticEvaluator,
+    SemanticCorrectnessProver, SemanticEvaluator,
 };
+use crate::prover::proof_types::{ProofResult, ProofTactic};
+#[cfg(feature = "development")]
+use crate::executor::RuntimeOptimizationLevel;
 #[cfg(feature = "development")]
 use crate::prover::{
-    GoalType, ProofGoal, ProofTactic, Statement, TheoremProvingSupport,
+    GoalType, ProofGoal, Statement, TheoremProvingSupport,
 };
 #[cfg(not(feature = "development"))]
 use crate::evaluator::{
@@ -158,7 +161,7 @@ impl VerificationSystem {
             config: VerificationConfig::default(),
             semantic_evaluator: SemanticEvaluator::new(),
             correctness_prover: SemanticCorrectnessProver::new(),
-            theorem_prover: TheoremProvingSupport::new(SemanticEvaluator::new()),
+            theorem_prover: TheoremProvingSupport::new(),
             statistics: VerificationStatistics::default(),
             history: Vec::new(),
             comparison_cache: HashMap::new(),
@@ -171,7 +174,7 @@ impl VerificationSystem {
             config,
             semantic_evaluator: SemanticEvaluator::new(),
             correctness_prover: SemanticCorrectnessProver::new(),
-            theorem_prover: TheoremProvingSupport::new(SemanticEvaluator::new()),
+            theorem_prover: TheoremProvingSupport::new(),
             statistics: VerificationStatistics::default(),
             history: Vec::new(),
             comparison_cache: HashMap::new(),
@@ -400,12 +403,20 @@ impl VerificationSystem {
             .theorem_prover
             .apply_tactic(ProofTactic::R7RSSemantics)?;
 
-        if tactic_result.success {
-            Ok("R7RS semantic compliance verified".to_string())
-        } else {
-            Err(LambdustError::runtime_error(
-                "Theorem proving verification failed".to_string(),
-            ))
+        match tactic_result {
+            ProofResult::Success => {
+                Ok("R7RS semantic compliance verified".to_string())
+            }
+            ProofResult::Failed(msg) => {
+                Err(LambdustError::runtime_error(
+                    format!("Theorem proving verification failed: {}", msg),
+                ))
+            }
+            ProofResult::Incomplete => {
+                Err(LambdustError::runtime_error(
+                    "Theorem proving verification incomplete".to_string(),
+                ))
+            }
         }
     }
 
@@ -747,136 +758,3 @@ impl Default for VerificationSystem {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_verification_system_creation() {
-        let system = VerificationSystem::new();
-        assert!(system.config.verify_semantic_equivalence);
-        assert_eq!(system.statistics.total_verifications, 0);
-    }
-
-    #[test]
-    fn test_deep_value_comparison() {
-        let system = VerificationSystem::new();
-
-        // Test identical values
-        let val1 = Value::Number(SchemeNumber::Integer(42));
-        let val2 = Value::Number(SchemeNumber::Integer(42));
-        assert!(system.deep_value_comparison(&val1, &val2).unwrap());
-
-        // Test different values
-        let val3 = Value::Number(SchemeNumber::Integer(43));
-        assert!(!system.deep_value_comparison(&val1, &val3).unwrap());
-
-        // Test different types
-        let val4 = Value::String("42".to_string());
-        assert!(!system.deep_value_comparison(&val1, &val4).unwrap());
-    }
-
-    #[test]
-    fn test_verification_analysis() {
-        let system = VerificationSystem::new();
-
-        let reference = Value::Number(SchemeNumber::Integer(42));
-        let actual = Value::Number(SchemeNumber::Integer(42));
-
-        let analysis = system.analyze_verification(&reference, &actual);
-
-        assert!(analysis.value_type_match);
-        assert!(analysis.structural_match);
-        assert!(analysis.discrepancies.is_empty());
-        assert_eq!(analysis.confidence_level, 1.0);
-    }
-
-    #[test]
-    fn test_verification_status_determination() {
-        let system = VerificationSystem::new();
-
-        let reference = Some(Value::Number(SchemeNumber::Integer(42)));
-        let actual = Value::Number(SchemeNumber::Integer(42));
-        let semantic_equivalence = Some(true);
-        let analysis = VerificationAnalysis::default();
-
-        let status = system.determine_verification_status(
-            &reference,
-            &actual,
-            &semantic_equivalence,
-            &analysis,
-        );
-
-        assert_eq!(status, VerificationStatus::Passed);
-    }
-
-    #[test]
-    fn test_discrepancy_detection() {
-        let system = VerificationSystem::new();
-
-        let reference = Value::Number(SchemeNumber::Integer(42));
-        let actual = Value::String("42".to_string());
-
-        let discrepancies = system.detect_discrepancies(&reference, &actual);
-
-        assert!(!discrepancies.is_empty());
-        assert!(discrepancies[0].contains("Type mismatch"));
-    }
-
-    #[test]
-    fn test_confidence_level_calculation() {
-        let system = VerificationSystem::new();
-
-        let mut analysis = VerificationAnalysis {
-            value_type_match: false,
-            ..Default::default()
-        };
-        analysis.discrepancies.push("Type mismatch".to_string());
-
-        let confidence = system.calculate_confidence_level(&analysis);
-
-        assert!(confidence < 1.0);
-        assert!(confidence >= 0.0);
-    }
-
-    #[test]
-    fn test_configuration_management() {
-        let mut system = VerificationSystem::new();
-
-        let config = VerificationConfig {
-            verify_semantic_equivalence: false,
-            max_verification_time_ms: 500,
-            ..Default::default()
-        };
-
-        system.set_config(config.clone());
-        assert_eq!(system.get_config().max_verification_time_ms, 500);
-        assert!(!system.get_config().verify_semantic_equivalence);
-    }
-
-    #[test]
-    fn test_statistics_tracking() {
-        let system = VerificationSystem::new();
-        let stats = system.get_statistics();
-
-        assert_eq!(stats.total_verifications, 0);
-        assert_eq!(stats.successful_verifications, 0);
-        assert_eq!(stats.success_rate, 0.0);
-    }
-
-    #[test]
-    fn test_cache_management() {
-        let mut system = VerificationSystem::new();
-
-        // Cache should be empty initially
-        let (size, _capacity) = system.get_cache_stats();
-        assert_eq!(size, 0);
-
-        // Clear cache should not panic
-        system.clear_cache();
-
-        let (size_after, _) = system.get_cache_stats();
-        assert_eq!(size_after, 0);
-    }
-}

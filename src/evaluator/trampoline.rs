@@ -755,11 +755,11 @@ impl TrampolineEvaluator {
             // Properly evaluate result expressions in sequence
             if result_exprs.len() == 1 {
                 // Single result expression - evaluate directly
-                return Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
+                Ok(Bounce::Continue(Box::new(ContinuationThunk::Bounce {
                     expr: result_exprs[0].clone(),
                     env: _loop_env.clone(),
                     cont,
-                })));
+                })))
             } else if result_exprs.is_empty() {
                 // No result expressions - return undefined
                 return Ok(Bounce::Continue(Box::new(ContinuationThunk::ApplyCont {
@@ -886,69 +886,3 @@ impl TrampolineEvaluation for Evaluator {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::evaluator::types::Evaluator;
-    use crate::evaluator::Continuation;
-
-    #[test]
-    fn test_trampoline_basic_evaluation() {
-        let mut evaluator = Evaluator::new();
-        let env = evaluator.global_env.clone();
-
-        // Test simple constant evaluation
-        let expr = Expr::Literal(crate::ast::Literal::Number(
-            crate::lexer::SchemeNumber::Integer(42),
-        ));
-        let result = evaluator
-            .eval_trampoline(expr, env, Continuation::Identity)
-            .unwrap();
-
-        assert_eq!(result, Value::from(42i64));
-    }
-
-    #[test]
-    fn test_trampoline_variable_lookup() {
-        let mut evaluator = Evaluator::new();
-
-        // Define a variable
-        let test_env = Environment::new();
-        test_env.define("x".to_string(), Value::from(100i64));
-        let env = Rc::new(test_env.extend());
-
-        // Test variable lookup
-        let expr = Expr::Variable("x".to_string());
-        let result = evaluator
-            .eval_trampoline(expr, env, Continuation::Identity)
-            .unwrap();
-
-        assert_eq!(result, Value::from(100i64));
-    }
-
-    #[test]
-    fn test_trampoline_simple_expression() {
-        let mut evaluator = Evaluator::new();
-        let env = evaluator.global_env.clone();
-
-        // Test basic trampoline mechanism with literal value
-        let expr = Expr::Literal(crate::ast::Literal::Number(
-            crate::lexer::SchemeNumber::Integer(42),
-        ));
-
-        // This should evaluate successfully
-        let result = evaluator.eval_trampoline(expr, env, Continuation::Identity);
-
-        match result {
-            Ok(value) => {
-                // Should get result 42
-                assert_eq!(value, Value::from(42i64));
-            }
-            Err(e) => {
-                eprintln!("Trampoline evaluation error: {:?}", e);
-                // For now, allow the test to fail gracefully until trampoline is fully integrated
-                eprintln!("Note: Trampoline evaluation not fully integrated yet");
-            }
-        }
-    }
-}

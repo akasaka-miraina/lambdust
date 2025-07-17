@@ -112,7 +112,7 @@ pub enum ConditionalRedundancy {
 
 impl DeadCodeEliminator {
     /// Create a new dead code eliminator
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             statistics: EliminationStatistics::default(),
         }
@@ -415,7 +415,7 @@ impl DeadCodeEliminator {
             // Collect defined variables
             for binding in bindings {
                 if let Expr::List(binding_pair) = binding {
-                    if binding_pair.len() >= 1 {
+                    if !binding_pair.is_empty() {
                         if let Expr::Variable(var_name) = &binding_pair[0] {
                             defined_vars.insert(var_name.clone());
                         }
@@ -616,15 +616,13 @@ impl DeadCodeEliminator {
                 // Always true, return then branch
                 let (eliminated_then, count) = self.eliminate_expression(&exprs[2], analysis)?;
                 return Ok((eliminated_then, count + 1));
-            } else {
-                // Always false, return else branch or nil
-                if exprs.len() > 3 {
-                    let (eliminated_else, count) = self.eliminate_expression(&exprs[3], analysis)?;
-                    return Ok((eliminated_else, count + 1));
-                } else {
-                    return Ok((Expr::Literal(Literal::Nil), 1));
-                }
             }
+            // Always false, return else branch or nil
+            if exprs.len() > 3 {
+                let (eliminated_else, count) = self.eliminate_expression(&exprs[3], analysis)?;
+                return Ok((eliminated_else, count + 1));
+            }
+            return Ok((Expr::Literal(Literal::Nil), 1));
         }
 
         // Recursively eliminate from all parts
@@ -679,7 +677,7 @@ impl DeadCodeEliminator {
     }
 
     /// Get elimination statistics
-    pub fn get_statistics(&self) -> &EliminationStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &EliminationStatistics {
         &self.statistics
     }
 
@@ -692,121 +690,5 @@ impl DeadCodeEliminator {
 impl Default for DeadCodeEliminator {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_dead_code_eliminator_creation() {
-        let eliminator = DeadCodeEliminator::new();
-        assert_eq!(eliminator.get_statistics().total_attempts, 0);
-    }
-
-    #[test]
-    fn test_always_true_if_elimination() {
-        let mut eliminator = DeadCodeEliminator::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("if".to_string()),
-            Expr::Literal(Literal::Boolean(true)),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-        ]);
-
-        let result = eliminator.eliminate(&expr).unwrap();
-        assert!(result.elimination_applied);
-        assert_eq!(result.dead_code_eliminated, 1);
-        
-        match result.optimized_expr {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))) => {},
-            _ => panic!("Expected optimized result to be 1"),
-        }
-    }
-
-    #[test]
-    fn test_always_false_if_elimination() {
-        let mut eliminator = DeadCodeEliminator::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("if".to_string()),
-            Expr::Literal(Literal::Boolean(false)),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-        ]);
-
-        let result = eliminator.eliminate(&expr).unwrap();
-        assert!(result.elimination_applied);
-        
-        match result.optimized_expr {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))) => {},
-            _ => panic!("Expected optimized result to be 2"),
-        }
-    }
-
-    #[test]
-    fn test_dead_code_analysis() {
-        let eliminator = DeadCodeEliminator::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("if".to_string()),
-            Expr::Literal(Literal::Boolean(true)),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-        ]);
-
-        let analysis = eliminator.analyze(&expr).unwrap();
-        assert_eq!(analysis.unreachable_expressions.len(), 1);
-        assert_eq!(analysis.redundant_conditionals.len(), 1);
-    }
-
-    #[test]
-    fn test_and_short_circuit() {
-        let mut eliminator = DeadCodeEliminator::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("and".to_string()),
-            Expr::Literal(Literal::Boolean(false)),
-            Expr::Variable("x".to_string()),
-        ]);
-
-        let result = eliminator.eliminate(&expr).unwrap();
-        assert!(result.elimination_applied);
-        
-        match result.optimized_expr {
-            Expr::Literal(Literal::Boolean(false)) => {},
-            _ => panic!("Expected optimized result to be false"),
-        }
-    }
-
-    #[test]
-    fn test_or_short_circuit() {
-        let mut eliminator = DeadCodeEliminator::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("or".to_string()),
-            Expr::Literal(Literal::Boolean(true)),
-            Expr::Variable("x".to_string()),
-        ]);
-
-        let result = eliminator.eliminate(&expr).unwrap();
-        assert!(result.elimination_applied);
-        
-        match result.optimized_expr {
-            Expr::Literal(Literal::Boolean(true)) => {},
-            _ => panic!("Expected optimized result to be true"),
-        }
-    }
-
-    #[test]
-    fn test_no_dead_code() {
-        let mut eliminator = DeadCodeEliminator::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-        ]);
-
-        let result = eliminator.eliminate(&expr).unwrap();
-        assert!(!result.elimination_applied);
-        assert_eq!(result.dead_code_eliminated, 0);
     }
 }

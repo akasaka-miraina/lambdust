@@ -692,7 +692,6 @@ impl PatternMatcher {
     }
 }
 
-
 impl SyntaxObject {
     /// Create a new syntax object
     #[must_use] pub fn new(expression: Expr, context: ExpansionContext) -> Self {

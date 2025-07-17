@@ -108,7 +108,7 @@ pub struct StyleIndicators {
 }
 
 /// Classification of different pattern types
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PatternType {
     /// Common Scheme idioms
     Idiom,

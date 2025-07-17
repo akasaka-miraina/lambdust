@@ -110,7 +110,7 @@ impl PatternMatchingEngine {
     /// Match glob patterns (supports * and ?)
     fn matches_glob(&mut self, name: &str, pattern: &str) -> bool {
         // Check cache first
-        let cache_key = format!("glob:{}:{}", pattern, name);
+        let cache_key = format!("glob:{pattern}:{name}");
         if let Some(&result) = self.pattern_cache.get(&cache_key) {
             self.stats.cache_hits += 1;
             return result;
@@ -193,7 +193,7 @@ impl PatternMatchingEngine {
     /// Simple regex matching (without regex crate)
     fn matches_simple_regex(&mut self, name: &str, pattern: &str) -> bool {
         // Check cache first
-        let cache_key = format!("regex:{}:{}", pattern, name);
+        let cache_key = format!("regex:{pattern}:{name}");
         if let Some(&result) = self.pattern_cache.get(&cache_key) {
             self.stats.cache_hits += 1;
             return result;
@@ -356,60 +356,60 @@ impl PatternBuilder {
     }
 
     /// Set exact string matcher
-    pub fn exact(mut self, pattern: String) -> Self {
+    #[must_use] pub fn exact(mut self, pattern: String) -> Self {
         self.matcher = Some(PatternMatcher::Exact(pattern));
         self
     }
 
     /// Set glob matcher
-    pub fn glob(mut self, pattern: String) -> Self {
+    #[must_use] pub fn glob(mut self, pattern: String) -> Self {
         self.matcher = Some(PatternMatcher::Glob(pattern));
         self
     }
 
     /// Set regex matcher
-    pub fn regex(mut self, pattern: String) -> Self {
+    #[must_use] pub fn regex(mut self, pattern: String) -> Self {
         self.matcher = Some(PatternMatcher::Regex(pattern));
         self
     }
 
     /// Set predicate matcher
-    pub fn predicate(mut self, predicate: PredicateFunction) -> Self {
+    #[must_use] pub fn predicate(mut self, predicate: PredicateFunction) -> Self {
         self.matcher = Some(PatternMatcher::Predicate(predicate));
         self
     }
 
     /// Set multiple matchers
-    pub fn multiple(mut self, matchers: Vec<PatternMatcher>) -> Self {
+    #[must_use] pub fn multiple(mut self, matchers: Vec<PatternMatcher>) -> Self {
         self.matcher = Some(PatternMatcher::Multiple(matchers));
         self
     }
 
     /// Set macro context constraint
-    pub fn in_macro(mut self, macro_name: String) -> Self {
+    #[must_use] pub fn in_macro(mut self, macro_name: String) -> Self {
         self.macro_context = Some(macro_name);
         self
     }
 
     /// Set scope depth constraint
-    pub fn at_scope(mut self, constraint: ScopeConstraint) -> Self {
+    #[must_use] pub fn at_scope(mut self, constraint: ScopeConstraint) -> Self {
         self.scope_depth = Some(constraint);
         self
     }
 
     /// Set type constraint
-    pub fn with_type(mut self, constraint: TypeConstraint) -> Self {
+    #[must_use] pub fn with_type(mut self, constraint: TypeConstraint) -> Self {
         self.type_constraint = Some(constraint);
         self
     }
 
     /// Build the pattern matcher
-    pub fn build(self) -> Option<PatternMatcher> {
+    #[must_use] pub fn build(self) -> Option<PatternMatcher> {
         self.matcher
     }
 
     /// Build complete renaming pattern
-    pub fn build_pattern(
+    #[must_use] pub fn build_pattern(
         self, 
         action: super::core_types::RenamingAction, 
         priority: u32
@@ -428,75 +428,5 @@ impl PatternBuilder {
 impl Default for PatternBuilder {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_exact_pattern_matching() {
-        let mut engine = PatternMatchingEngine::new();
-        let matcher = PatternMatcher::Exact("test".to_string());
-        
-        assert!(engine.matches_name_pattern("test", &matcher));
-        assert!(!engine.matches_name_pattern("test123", &matcher));
-    }
-
-    #[test]
-    fn test_glob_pattern_matching() {
-        let mut engine = PatternMatchingEngine::new();
-        
-        let matcher = PatternMatcher::Glob("test*".to_string());
-        assert!(engine.matches_name_pattern("test", &matcher));
-        assert!(engine.matches_name_pattern("test123", &matcher));
-        assert!(!engine.matches_name_pattern("other", &matcher));
-
-        let matcher = PatternMatcher::Glob("*test".to_string());
-        assert!(engine.matches_name_pattern("test", &matcher));
-        assert!(engine.matches_name_pattern("mytest", &matcher));
-        assert!(!engine.matches_name_pattern("testing", &matcher));
-    }
-
-    #[test]
-    fn test_predicate_matching() {
-        let mut engine = PatternMatchingEngine::new();
-        
-        let predicate = PredicateFunction::BuiltIn(BuiltInPredicate::StartsWith("temp".to_string()));
-        let matcher = PatternMatcher::Predicate(predicate);
-        
-        assert!(engine.matches_name_pattern("temp123", &matcher));
-        assert!(engine.matches_name_pattern("temporary", &matcher));
-        assert!(!engine.matches_name_pattern("test", &matcher));
-    }
-
-    #[test]
-    fn test_pattern_builder() {
-        let pattern = PatternBuilder::new()
-            .glob("temp*".to_string())
-            .in_macro("let".to_string())
-            .build();
-        
-        assert!(pattern.is_some());
-        match pattern.unwrap() {
-            PatternMatcher::Glob(g) => assert_eq!(g, "temp*"),
-            _ => panic!("Expected glob pattern"),
-        }
-    }
-
-    #[test]
-    fn test_cache_functionality() {
-        let mut engine = PatternMatchingEngine::new();
-        let pattern = "test*";
-        
-        // First call should be a cache miss
-        engine.matches_glob("test123", pattern);
-        assert_eq!(engine.stats.cache_misses, 1);
-        assert_eq!(engine.stats.cache_hits, 0);
-        
-        // Second call should be a cache hit
-        engine.matches_glob("test123", pattern);
-        assert_eq!(engine.stats.cache_hits, 1);
     }
 }

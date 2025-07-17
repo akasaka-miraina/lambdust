@@ -8,4 +8,4 @@
 //! 新しいコードでは `theorem_proving` モジュールを直接使用してください。
 
 // Re-export everything from the modularized theorem_proving system
-pub use crate::evaluator::theorem_proving::*;
+pub use crate::prover::proof_types::*;

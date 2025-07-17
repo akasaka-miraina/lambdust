@@ -99,8 +99,8 @@ impl ComponentConsistencyVerifier {
             semantic_result: semantic_result.clone(),
             runtime_result: runtime_result.clone(),
             equivalence_verified: true,
-            equivalence_proof: crate::evaluator::static_semantic_optimizer::core_types::FormalProof {
-                method: crate::evaluator::static_semantic_optimizer::core_types::ProofMethod::SemanticEquivalence,
+            equivalence_proof: crate::prover::optimization::FormalProof {
+                method: crate::prover::optimization::ProofMethod::SemanticEquivalence,
                 steps: Vec::new(),
                 external_verification: None,
                 generation_time: std::time::Duration::from_millis(0),

@@ -1,5 +1,5 @@
 //! Homotopy Type Theory Integration
-//! Placeholder implementation for HoTT features
+//! Placeholder implementation for `HoTT` features
 
 use super::polynomial_types::{PolynomialType, UniverseLevel};
 
@@ -37,8 +37,8 @@ pub struct UnivalenceAxiom {
 }
 
 impl HoTTType {
-    /// Create new HoTT type
-    pub fn new(base: PolynomialType, structure: HigherStructure) -> Self {
+    /// Create new `HoTT` type
+    #[must_use] pub fn new(base: PolynomialType, structure: HigherStructure) -> Self {
         Self {
             base,
             higher_structure: structure,
@@ -46,19 +46,19 @@ impl HoTTType {
     }
 
     /// Create discrete type
-    pub fn discrete(base: PolynomialType) -> Self {
+    #[must_use] pub fn discrete(base: PolynomialType) -> Self {
         Self::new(base, HigherStructure::Discrete)
     }
 
     /// Create proposition type
-    pub fn proposition(base: PolynomialType) -> Self {
+    #[must_use] pub fn proposition(base: PolynomialType) -> Self {
         Self::new(base, HigherStructure::Proposition)
     }
 }
 
 impl UnivalenceAxiom {
     /// Create univalence axiom at given level
-    pub fn at_level(level: UniverseLevel) -> Self {
+    #[must_use] pub fn at_level(level: UniverseLevel) -> Self {
         Self {
             level,
             enabled: true,

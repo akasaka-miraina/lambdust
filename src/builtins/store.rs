@@ -123,7 +123,7 @@ fn location_equal_function() -> Value {
 
 /// Collect garbage using evaluator
 pub fn collect_garbage_with_evaluator(evaluator: &mut crate::evaluator::types::Evaluator) {
-    evaluator.collect_garbage();
+    let _ = evaluator.collect_garbage();
 }
 
 /// Set memory limit using evaluator

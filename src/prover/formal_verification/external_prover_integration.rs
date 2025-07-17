@@ -98,7 +98,7 @@ impl ExternalProverIntegration {
         let agda_start = Instant::now();
         
         // Create statement for Agda verification
-        let statement = crate::evaluator::theorem_proving::Statement::SemanticEquivalence(
+        let statement = crate::prover::proof_types::Statement::SemanticEquivalence(
             expr.clone(),
             crate::ast::Expr::Literal(crate::ast::Literal::String(format!("{result:?}"))),
         );
@@ -139,7 +139,7 @@ impl ExternalProverIntegration {
         let coq_start = Instant::now();
         
         // Create statement for Coq verification
-        let statement = crate::evaluator::theorem_proving::Statement::SemanticEquivalence(
+        let statement = crate::prover::proof_types::Statement::SemanticEquivalence(
             expr.clone(),
             crate::ast::Expr::Literal(crate::ast::Literal::String(format!("{result:?}"))),
         );

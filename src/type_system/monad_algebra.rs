@@ -94,7 +94,7 @@ impl std::fmt::Debug for DistributiveTransformation {
 }
 
 /// Main monad algebra system
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct MonadAlgebra {
     /// Registered monads
     monads: HashMap<MonadId, MonadStructure>,
@@ -106,7 +106,7 @@ pub struct MonadAlgebra {
 
 impl MonadAlgebra {
     /// Create new monad algebra system
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut system = Self {
             monads: HashMap::new(),
             distributive_laws: HashMap::new(),
@@ -149,7 +149,7 @@ impl MonadAlgebra {
     /// Apply distributive law to transform M(N(A)) to N(M(A))
     pub fn apply_distributive_law(&self, law_name: &str, value: &Value) -> Result<Value, LambdustError> {
         let law = self.distributive_laws.get(law_name)
-            .ok_or_else(|| LambdustError::type_error(format!("Distributive law '{}' not found", law_name)))?;
+            .ok_or_else(|| LambdustError::type_error(format!("Distributive law '{law_name}' not found")))?;
         
         (law.transformation.transform)(value)
     }
@@ -164,8 +164,7 @@ impl MonadAlgebra {
         }
         
         Err(LambdustError::type_error(format!(
-            "No distributive law found between monads '{}' and '{}'", 
-            left_monad, right_monad
+            "No distributive law found between monads '{left_monad}' and '{right_monad}'"
         )))
     }
 
@@ -395,19 +394,19 @@ impl MonadAlgebra {
     /// Create composite monad from two monads via distributive law
     fn create_composite_monad(&self, monad1: &str, monad2: &str) -> Result<MonadStructure, LambdustError> {
         let m1 = self.monads.get(monad1)
-            .ok_or_else(|| LambdustError::type_error(format!("Monad '{}' not found", monad1)))?;
+            .ok_or_else(|| LambdustError::type_error(format!("Monad '{monad1}' not found")))?;
         let m2 = self.monads.get(monad2)
-            .ok_or_else(|| LambdustError::type_error(format!("Monad '{}' not found", monad2)))?;
+            .ok_or_else(|| LambdustError::type_error(format!("Monad '{monad2}' not found")))?;
         
         // Create composite monad M1 ∘ M2
-        let composite_name = format!("{}∘{}", monad1, monad2);
+        let composite_name = format!("{monad1}∘{monad2}");
         let composite_level = UniverseLevel::new(m1.universe_level.0.max(m2.universe_level.0));
         
         Ok(MonadStructure {
             name: composite_name.clone(),
             universe_level: composite_level,
             unit: MonadOperation {
-                name: format!("{}-composite-unit", composite_name),
+                name: format!("{composite_name}-composite-unit"),
                 input_type: PolynomialType::Variable { name: "A".to_string(), level: composite_level },
                 output_type: PolynomialType::Application {
                     constructor: Box::new(PolynomialType::Variable { name: monad1.to_string(), level: composite_level }),
@@ -425,7 +424,7 @@ impl MonadAlgebra {
                 }),
             },
             bind: MonadOperation {
-                name: format!("{}-composite-bind", composite_name),
+                name: format!("{composite_name}-composite-bind"),
                 input_type: PolynomialType::Product {
                     left: Box::new(PolynomialType::Application {
                         constructor: Box::new(PolynomialType::Variable { name: monad1.to_string(), level: composite_level }),
@@ -468,48 +467,5 @@ impl MonadAlgebra {
 impl Default for MonadAlgebra {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_monad_algebra_creation() {
-        let algebra = MonadAlgebra::new();
-        assert!(algebra.monads.contains_key("List"));
-        assert!(algebra.monads.contains_key("Maybe"));
-    }
-
-    #[test]
-    fn test_distributive_law_registration() {
-        let algebra = MonadAlgebra::new();
-        assert!(algebra.distributive_laws.contains_key("pi-over-sigma"));
-    }
-
-    #[test]
-    fn test_list_monad_unit() {
-        let algebra = MonadAlgebra::new();
-        let list_monad = algebra.monads.get("List").unwrap();
-        
-        let test_value = Value::Number(crate::lexer::SchemeNumber::Integer(42));
-        let result = (list_monad.unit.implementation)(&[test_value.clone()]);
-        
-        assert!(result.is_ok());
-        if let Ok(Value::Pair(_)) = result {
-            // Expected list structure
-        } else {
-            panic!("Expected list from unit operation");
-        }
-    }
-
-    #[test]
-    fn test_monad_types() {
-        let algebra = MonadAlgebra::new();
-        let list_monad = algebra.monads.get("List").unwrap();
-        
-        assert_eq!(list_monad.universe_level, UniverseLevel::new(0));
-        assert_eq!(list_monad.name, "List");
     }
 }

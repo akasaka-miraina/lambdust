@@ -132,7 +132,7 @@ pub enum VerbosityLevel {
 
 impl BenchmarkCoordinator {
     /// Create new benchmark coordinator
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             ghc_suite: GHCComparisonSuite::new(),
             custom_suites: HashMap::new(),
@@ -154,10 +154,10 @@ impl BenchmarkCoordinator {
         let mut results = Vec::new();
 
         for (name, suite) in &mut self.custom_suites {
-            println!("Running benchmark suite: {}", name);
+            println!("Running benchmark suite: {name}");
             match suite.run() {
                 Ok(result) => results.push(result),
-                Err(e) => println!("Suite {} failed: {}", name, e),
+                Err(e) => println!("Suite {name} failed: {e}"),
             }
         }
 
@@ -178,7 +178,7 @@ impl BenchmarkCoordinator {
                 report.push_str(&ghc_report);
             }
             Err(e) => {
-                report.push_str(&format!("GHC comparison failed: {}\n\n", e));
+                report.push_str(&format!("GHC comparison failed: {e}\n\n"));
             }
         }
 
@@ -196,7 +196,7 @@ impl BenchmarkCoordinator {
                 }
             }
             Err(e) => {
-                report.push_str(&format!("Custom suites failed: {}\n\n", e));
+                report.push_str(&format!("Custom suites failed: {e}\n\n"));
             }
         }
 
@@ -210,7 +210,7 @@ impl BenchmarkCoordinator {
 
     /// List registered benchmark suites
     pub fn list_suites(&self) -> Vec<&str> {
-        self.custom_suites.keys().map(|s| s.as_str()).collect()
+        self.custom_suites.keys().map(std::string::String::as_str).collect()
     }
 }
 
@@ -229,100 +229,5 @@ impl Default for BenchmarkConfig {
             verbosity: VerbosityLevel::Normal,
             enable_profiling: false,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    struct MockBenchmarkSuite {
-        name: String,
-        config: BenchmarkConfig,
-    }
-
-    impl BenchmarkSuite for MockBenchmarkSuite {
-        fn name(&self) -> &str {
-            &self.name
-        }
-
-        fn run(&mut self) -> Result<BenchmarkSuiteResult> {
-            Ok(BenchmarkSuiteResult {
-                suite_name: self.name.clone(),
-                test_results: vec![
-                    TestResult {
-                        test_name: "mock_test_1".to_string(),
-                        category: "unit".to_string(),
-                        metrics: TestMetrics {
-                            execution_time_ms: 10.0,
-                            memory_usage_mb: 1.0,
-                            throughput_ops_per_sec: 100.0,
-                            custom_metrics: HashMap::new(),
-                        },
-                        status: TestStatus::Passed,
-                    }
-                ],
-                summary: BenchmarkSummary {
-                    total_tests: 1,
-                    passed_tests: 1,
-                    failed_tests: 0,
-                    total_execution_time_ms: 10.0,
-                    average_performance_score: 95.0,
-                },
-            })
-        }
-
-        fn get_config(&self) -> BenchmarkConfig {
-            self.config.clone()
-        }
-
-        fn set_config(&mut self, config: BenchmarkConfig) {
-            self.config = config;
-        }
-    }
-
-    #[test]
-    fn test_benchmark_coordinator_creation() {
-        let coordinator = BenchmarkCoordinator::new();
-        assert_eq!(coordinator.list_suites().len(), 0);
-    }
-
-    #[test]
-    fn test_custom_suite_registration() {
-        let mut coordinator = BenchmarkCoordinator::new();
-        
-        let mock_suite = MockBenchmarkSuite {
-            name: "test_suite".to_string(),
-            config: BenchmarkConfig::default(),
-        };
-        
-        coordinator.register_suite("test_suite".to_string(), Box::new(mock_suite));
-        
-        let suites = coordinator.list_suites();
-        assert_eq!(suites.len(), 1);
-        assert!(suites.contains(&"test_suite"));
-    }
-
-    #[test]
-    fn test_benchmark_config_default() {
-        let config = BenchmarkConfig::default();
-        assert_eq!(config.iterations, 10);
-        assert_eq!(config.warmup_iterations, 3);
-        assert_eq!(config.timeout_seconds, 30);
-        assert!(matches!(config.verbosity, VerbosityLevel::Normal));
-        assert!(!config.enable_profiling);
-    }
-
-    #[test]
-    fn test_test_status_variants() {
-        let passed = TestStatus::Passed;
-        let failed = TestStatus::Failed("error".to_string());
-        let skipped = TestStatus::Skipped("reason".to_string());
-        let warning = TestStatus::Warning("warning".to_string());
-
-        assert!(matches!(passed, TestStatus::Passed));
-        assert!(matches!(failed, TestStatus::Failed(_)));
-        assert!(matches!(skipped, TestStatus::Skipped(_)));
-        assert!(matches!(warning, TestStatus::Warning(_)));
     }
 }

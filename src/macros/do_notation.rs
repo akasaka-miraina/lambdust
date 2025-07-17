@@ -1,5 +1,5 @@
 //! Mdo Notation for Monads in Lambdust
-//! Scheme version of Haskell's do notation with HoTT type class integration
+//! Scheme version of Haskell's do notation with `HoTT` type class integration
 //! Uses 'mdo' keyword to avoid conflict with Scheme's native 'do' loops
 
 use crate::ast::Expr;
@@ -62,7 +62,7 @@ pub struct DoBlock {
 
 impl DoNotationExpander {
     /// Create new do notation expander
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut expander = Self {
             monad_instances: HashMap::new(),
             expander: MacroExpander::new(),
@@ -253,12 +253,12 @@ impl DoNotationExpander {
     }
     
     /// Get monad instance by name
-    pub fn get_monad(&self, name: &str) -> Option<&MonadInstance> {
+    #[must_use] pub fn get_monad(&self, name: &str) -> Option<&MonadInstance> {
         self.monad_instances.get(name)
     }
     
     /// Check if expression is mdo notation
-    pub fn is_mdo_notation(&self, expr: &Expr) -> bool {
+    #[must_use] pub fn is_mdo_notation(&self, expr: &Expr) -> bool {
         match expr {
             Expr::List(elements) => {
                 !elements.is_empty() && 
@@ -271,7 +271,7 @@ impl DoNotationExpander {
     /// Transform mdo notation for specific monad
     pub fn transform_for_monad(&self, mdo_block: DoBlock, monad_name: &str) -> Result<Expr, LambdustError> {
         let monad = self.get_monad(monad_name)
-            .ok_or_else(|| LambdustError::type_error(format!("Unknown monad: {}", monad_name)))?;
+            .ok_or_else(|| LambdustError::type_error(format!("Unknown monad: {monad_name}")))?;
         
         // Replace generic >>= and return with monad-specific ones
         let mut expanded = self.expand_mdo(mdo_block)?;
@@ -282,25 +282,22 @@ impl DoNotationExpander {
     
     /// Replace generic monad operations with specific implementations
     fn replace_monad_operations(&self, expr: &mut Expr, monad: &MonadInstance) {
-        match expr {
-            Expr::List(elements) => {
-                // First recursively process all elements
-                for element in &mut *elements {
-                    self.replace_monad_operations(element, monad);
-                }
-                
-                // Replace >>= with monad-specific bind
-                if !elements.is_empty() {
-                    if let Expr::Variable(op) = &elements[0] {
-                        if op == ">>=" {
-                            elements[0] = Expr::Variable(monad.bind_fn.clone());
-                        } else if op == "return" {
-                            elements[0] = Expr::Variable(monad.return_fn.clone());
-                        }
+        if let Expr::List(elements) = expr {
+            // First recursively process all elements
+            for element in &mut *elements {
+                self.replace_monad_operations(element, monad);
+            }
+            
+            // Replace >>= with monad-specific bind
+            if !elements.is_empty() {
+                if let Expr::Variable(op) = &elements[0] {
+                    if op == ">>=" {
+                        elements[0] = Expr::Variable(monad.bind_fn.clone());
+                    } else if op == "return" {
+                        elements[0] = Expr::Variable(monad.return_fn.clone());
                     }
                 }
             }
-            _ => {}
         }
     }
 }

@@ -1,27 +1,10 @@
-//! Integration tests module
+//! Integration tests for Lambdust Scheme interpreter
 //!
-//! This module contains all integration tests that verify the behavior
-//! of the complete system by testing multiple components working together.
-//! These tests use the public API and test end-to-end functionality.
+//! This module contains integration tests that verify the complete functionality
+//! of the Lambdust Scheme interpreter by testing the interaction between
+//! different components.
 
-// Core system integration tests
-pub mod bridge_tests;
-pub mod call_cc_deep_exit_tests;
-pub mod error_handling_tests;
-pub mod evaluator_tests;
-pub mod exception_handling_tests;
-pub mod expression_analyzer_integration_tests;
-pub mod integration_tests;
-pub mod module_system_integration_tests;
-pub mod r7rs_compliance_tests;
-pub mod syntax_rules_tests;
-
-// SRFI implementation integration tests
-pub mod srfi_13_tests;
-pub mod srfi_1_tests;
-pub mod srfi_69_tests;
-pub mod srfi_97_tests;
-pub mod srfi_tests;
-
-// ExecutionContext integration tests
-pub mod execution_context_integration_tests;
+pub mod r7rs_compliance;
+pub mod performance;
+pub mod macros;
+pub mod type_system;

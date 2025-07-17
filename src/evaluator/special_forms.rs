@@ -67,22 +67,22 @@ impl Evaluator {
             "with-exception-handler" => eval_with_exception_handler(self, operands, env, cont),
             "guard" => eval_guard(self, operands, env, cont),
             // Higher-order functions as special forms
-            "map" => self.eval_map_special_form(operands, env, cont),
-            "apply" => self.eval_apply_special_form(operands, env, cont),
-            "fold" => self.eval_fold_special_form(operands, env, cont),
-            "fold-right" => self.eval_fold_right_special_form(operands, env, cont),
-            "filter" => self.eval_filter_special_form(operands, env, cont),
+            "map" => self.eval_map_special_form(operands, &env, cont),
+            "apply" => self.eval_apply_special_form(operands, &env, cont),
+            "fold" => self.eval_fold_special_form(operands, &env, cont),
+            "fold-right" => self.eval_fold_right_special_form(operands, &env, cont),
+            "filter" => self.eval_filter_special_form(operands, &env, cont),
             // Hash table higher-order functions
-            "hash-table-walk" => self.eval_hash_table_walk_special_form(operands, env, cont),
-            "hash-table-fold" => self.eval_hash_table_fold_special_form(operands, env, cont),
+            "hash-table-walk" => self.eval_hash_table_walk_special_form(operands, &env, cont),
+            "hash-table-fold" => self.eval_hash_table_fold_special_form(operands, &env, cont),
             // Store system memory management
-            "memory-usage" => self.eval_memory_usage_special_form(operands, env, cont),
-            "memory-statistics" => self.eval_memory_statistics_special_form(operands, env, cont),
-            "collect-garbage" => self.eval_collect_garbage_special_form(operands, env, cont),
-            "set-memory-limit!" => self.eval_set_memory_limit_special_form(operands, env, cont),
-            "allocate-location" => self.eval_allocate_location_special_form(operands, env, cont),
-            "location-ref" => self.eval_location_ref_special_form(operands, env, cont),
-            "location-set!" => self.eval_location_set_special_form(operands, env, cont),
+            "memory-usage" => self.eval_memory_usage_special_form(operands, &env, cont),
+            "memory-statistics" => self.eval_memory_statistics_special_form(operands, &env, cont),
+            "collect-garbage" => self.eval_collect_garbage_special_form(operands, &env, cont),
+            "set-memory-limit!" => self.eval_set_memory_limit_special_form(operands, &env, cont),
+            "allocate-location" => self.eval_allocate_location_special_form(operands, &env, cont),
+            "location-ref" => self.eval_location_ref_special_form(operands, &env, cont),
+            "location-set!" => self.eval_location_set_special_form(operands, &env, cont),
             // Import functionality
             "import" => self.eval_import(operands, env, cont),
             // Macro system
@@ -348,7 +348,6 @@ impl Evaluator {
 
         self.eval_with_continuation(first_expr, env, or_cont)
     }
-
 
     /// Apply special form continuations
     pub fn apply_special_form_continuation(
@@ -642,7 +641,7 @@ impl Evaluator {
                     .collect();
                 Ok(crate::macros::Pattern::List(patterns?))
             },
-            Expr::Literal(lit) => Ok(crate::macros::Pattern::Literal(format!("{:?}", lit))),
+            Expr::Literal(lit) => Ok(crate::macros::Pattern::Literal(format!("{lit:?}"))),
             _ => Ok(crate::macros::Pattern::Variable("_".to_string())), // Wildcard pattern
         }
     }
@@ -658,7 +657,7 @@ impl Evaluator {
                     .collect();
                 Ok(crate::macros::Template::List(templates?))
             },
-            Expr::Literal(lit) => Ok(crate::macros::Template::Literal(format!("{:?}", lit))),
+            Expr::Literal(lit) => Ok(crate::macros::Template::Literal(format!("{lit:?}"))),
             _ => Ok(crate::macros::Template::Variable("_".to_string())), // Wildcard template
         }
     }
@@ -679,7 +678,7 @@ impl Evaluator {
                             if elements.len() != 2 {
                                 return Err(crate::error::LambdustError::syntax_error("unquote requires exactly one argument".to_string()));
                             }
-                            return self.eval_with_continuation(elements[1].clone(), env, crate::evaluator::Continuation::Identity);
+                            self.eval_with_continuation(elements[1].clone(), env, crate::evaluator::Continuation::Identity)
                         },
                         Expr::Variable(name) if name == "unquote-splicing" => {
                             // Handle unquote-splicing: evaluate and splice into parent list
@@ -773,9 +772,6 @@ impl Evaluator {
             self.apply_evaluator_continuation(cont, Value::Undefined)
         }
     }
-
-
-
 
     /// Apply assignment continuation
     fn apply_assignment_continuation(

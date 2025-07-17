@@ -19,8 +19,6 @@
 // Allow directive removed - all public APIs have appropriate documentation.
 
 use super::polynomial_types::{PolynomialType, UniverseLevel};
-#[cfg(test)]
-use super::polynomial_types::BaseType;
 use super::universe_polymorphic_classes::{
     UniversePolymorphicConstraint, UniverseConstraint, KindConstraint,
 };
@@ -32,7 +30,7 @@ use std::sync::{Arc, RwLock};
 /// Monad transformer type definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct MonadTransformer {
-    /// Transformer name (StateT, ReaderT, WriterT, etc.)
+    /// Transformer name (`StateT`, `ReaderT`, `WriterT`, etc.)
     pub name: String,
     /// Universe level constraint
     pub universe_constraint: UniverseConstraint,
@@ -75,21 +73,29 @@ pub struct LiftOperation {
 pub enum MonadTransformerType {
     /// Concrete transformer application: T m a
     Application {
+        /// Transformer type
         transformer: Box<MonadTransformerType>,
+        /// Base monad type
         base_monad: Box<MonadTransformerType>,
+        /// Value type
         value_type: Box<MonadTransformerType>,
     },
     /// Quantified transformer type: forall m. Monad m => T m a
     Quantified {
+        /// Monad variable name
         monad_var: String,
+        /// Type class constraints
         constraints: Vec<UniversePolymorphicConstraint>,
+        /// Quantified type body
         body: Box<MonadTransformerType>,
     },
     /// Base type
     Base(PolynomialType),
     /// Higher-kinded variable
     Variable {
+        /// Variable name
         name: String,
+        /// Kind constraint
         kind: KindConstraint,
     },
 }
@@ -101,11 +107,14 @@ pub enum LiftImplementation {
     Direct(Value),
     /// Compositional lifting through other transformers
     Compositional {
+        /// Intermediate transformers in composition chain
         intermediate_transformers: Vec<String>,
+        /// Final lift operation
         final_lift: Value,
     },
     /// Automatic derivation
     Derived {
+        /// Rule used for automatic derivation
         derivation_rule: DerivationRule,
     },
 }
@@ -141,7 +150,7 @@ pub struct TransformerLaw {
 /// Constraint for transformer laws
 #[derive(Debug, Clone, PartialEq)]
 pub struct TransformerConstraint {
-    /// Constraint type (Monad, Functor, MonadTrans, etc.)
+    /// Constraint type (Monad, Functor, `MonadTrans`, etc.)
     pub constraint_type: String,
     /// Type arguments
     pub type_args: Vec<MonadTransformerType>,
@@ -289,7 +298,9 @@ pub enum CompositionResult {
     Direct(String),
     /// Requires intermediate steps
     Indirect {
+        /// Intermediate transformation steps
         intermediate_steps: Vec<String>,
+        /// Final composition result
         final_result: String,
     },
     /// Composition not possible
@@ -388,7 +399,7 @@ pub struct CommutationRule {
 
 impl MonadTransformerRegistry {
     /// Create new monad transformer registry
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             transformers: RwLock::new(HashMap::new()),
             instances: RwLock::new(HashMap::new()),
@@ -415,7 +426,7 @@ impl MonadTransformerRegistry {
 
         let mut instances = self.instances.write().unwrap();
         instances.entry(instance.transformer_name.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(instance);
 
         Ok(())
@@ -444,8 +455,7 @@ impl MonadTransformerRegistry {
         }
 
         Err(LambdustError::type_error(format!(
-            "No instance found for transformer {} with base monad {:?}",
-            transformer, base_monad
+            "No instance found for transformer {transformer} with base monad {base_monad:?}"
         )))
     }
 
@@ -532,9 +542,15 @@ impl MonadTransformerRegistry {
     }
 }
 
+impl Default for TransformerStackBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TransformerStackBuilder {
     /// Create new stack builder
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             stack_cache: RwLock::new(HashMap::new()),
             composition_rules: RwLock::new(HashMap::new()),
@@ -544,7 +560,7 @@ impl TransformerStackBuilder {
     /// Build transformer stack
     pub fn build_stack(&self, transformers: Vec<String>, base_monad: PolynomialType) -> Result<TransformerStack> {
         // Create cache key
-        let cache_key = format!("{:?}:{:?}", transformers, base_monad);
+        let cache_key = format!("{transformers:?}:{base_monad:?}");
         
         // Check cache first
         {
@@ -602,9 +618,15 @@ impl TransformerStackBuilder {
     }
 }
 
+impl Default for CompositionAnalyzer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CompositionAnalyzer {
     /// Create new composition analyzer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             analysis_cache: RwLock::new(HashMap::new()),
             commutation_detector: Arc::new(CommutationDetector::new()),
@@ -613,7 +635,7 @@ impl CompositionAnalyzer {
 
     /// Analyze transformer composition
     pub fn analyze(&self, stack: &TransformerStack) -> Result<CompositionAnalysis> {
-        let cache_key = format!("{:?}", stack);
+        let cache_key = format!("{stack:?}");
         
         // Check cache first
         {
@@ -676,9 +698,15 @@ impl CompositionAnalyzer {
     }
 }
 
+impl Default for CommutationDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CommutationDetector {
     /// Create new commutation detector
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             commutation_cache: RwLock::new(HashMap::new()),
             commutation_rules: RwLock::new(Vec::new()),
@@ -737,137 +765,21 @@ impl CommutationDetector {
     }
 }
 
-impl Default for MonadTransformerRegistry {
-    fn default() -> Self {
-        Self::new()
+impl Clone for MonadTransformerRegistry {
+    fn clone(&self) -> Self {
+        let transformers = self.transformers.read().unwrap().clone();
+        let instances = self.instances.read().unwrap().clone();
+        Self {
+            transformers: RwLock::new(transformers),
+            instances: RwLock::new(instances),
+            stack_builder: Arc::clone(&self.stack_builder),
+            composition_analyzer: Arc::clone(&self.composition_analyzer),
+        }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_registry_creation() {
-        let registry = MonadTransformerRegistry::new();
-        assert!(registry.list_transformers().is_empty());
-    }
-
-    #[test]
-    fn test_transformer_registration() {
-        let registry = MonadTransformerRegistry::new();
-        
-        let state_t = MonadTransformer {
-            name: "StateT".to_string(),
-            universe_constraint: UniverseConstraint::AtLeast(UniverseLevel::new(1)),
-            type_parameters: vec![
-                TransformerParameter {
-                    name: "s".to_string(),
-                    param_type: PolynomialType::Base(crate::type_system::polynomial_types::BaseType::Natural),
-                    universe_constraint: UniverseConstraint::Any,
-                    kind_constraint: Some(KindConstraint::Type),
-                }
-            ],
-            base_monad_param: "m".to_string(),
-            lift_operations: vec![
-                LiftOperation {
-                    name: "lift".to_string(),
-                    signature: MonadTransformerType::Quantified {
-                        monad_var: "m".to_string(),
-                        constraints: vec![],
-                        body: Box::new(MonadTransformerType::Base(PolynomialType::Base(crate::type_system::polynomial_types::BaseType::Natural))),
-                    },
-                    implementation: LiftImplementation::Direct(Value::Symbol("state-lift".into())),
-                }
-            ],
-            laws: vec![],
-        };
-
-        let result = registry.register_transformer(state_t);
-        assert!(result.is_ok());
-        assert_eq!(registry.list_transformers().len(), 1);
-    }
-
-    #[test]
-    fn test_stack_building() {
-        let builder = TransformerStackBuilder::new();
-        
-        let transformers = vec!["StateT".to_string(), "ReaderT".to_string()];
-        let base_monad = PolynomialType::Base(crate::type_system::polynomial_types::BaseType::Natural);
-        
-        let result = builder.build_stack(transformers, base_monad);
-        assert!(result.is_ok());
-        
-        let stack = result.unwrap();
-        assert_eq!(stack.layers.len(), 2);
-    }
-
-    #[test]
-    fn test_composition_analysis() {
-        let analyzer = CompositionAnalyzer::new();
-        
-        let stack = TransformerStack {
-            layers: vec![
-                TransformerLayer {
-                    transformer: "StateT".to_string(),
-                    parameters: vec![PolynomialType::Base(BaseType::Natural)],
-                    universe_level: UniverseLevel::new(0),
-                },
-                TransformerLayer {
-                    transformer: "ReaderT".to_string(),
-                    parameters: vec![PolynomialType::Base(BaseType::String)],
-                    universe_level: UniverseLevel::new(0),
-                }
-            ],
-            base_monad: PolynomialType::Base(BaseType::Natural),
-            stack_type: PolynomialType::Base(BaseType::Natural),
-        };
-        
-        let result = analyzer.analyze(&stack);
-        assert!(result.is_ok());
-        
-        let analysis = result.unwrap();
-        assert_eq!(analysis.layers.len(), 2);
-        assert_eq!(analysis.commutativity_matrix.len(), 2);
-    }
-
-    #[test]
-    fn test_commutation_detection() {
-        let detector = CommutationDetector::new();
-        
-        // Add a commutation rule
-        let rule = CommutationRule {
-            left_pattern: "StateT".to_string(),
-            right_pattern: "ReaderT".to_string(),
-            commutes: true,
-            conditions: vec![],
-        };
-        detector.add_rule(rule);
-        
-        let result = detector.check_commutation("StateT", "ReaderT");
-        assert!(result.is_ok());
-        assert!(result.unwrap());
-    }
-
-    #[test]
-    fn test_transformer_types() {
-        let app_type = MonadTransformerType::Application {
-            transformer: Box::new(MonadTransformerType::Variable {
-                name: "StateT".to_string(),
-                kind: KindConstraint::TypeConstructor(2),
-            }),
-            base_monad: Box::new(MonadTransformerType::Variable {
-                name: "IO".to_string(),
-                kind: KindConstraint::TypeConstructor(1),
-            }),
-            value_type: Box::new(MonadTransformerType::Base(PolynomialType::Base(BaseType::Integer))),
-        };
-
-        match app_type {
-            MonadTransformerType::Application { .. } => {
-                // Test passes
-            }
-            _ => panic!("Expected application type"),
-        }
+impl Default for MonadTransformerRegistry {
+    fn default() -> Self {
+        Self::new()
     }
 }

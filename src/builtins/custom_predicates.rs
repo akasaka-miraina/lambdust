@@ -133,7 +133,7 @@ fn list_predicates() -> Value {
         match global_custom_predicate_registry().list_predicates() {
             Ok(names) => {
                 let values: Vec<Value> = names.into_iter()
-                    .map(|name| Value::String(name))
+                    .map(Value::String)
                     .collect();
                 Ok(list_to_scheme_list(values))
             },
@@ -214,7 +214,7 @@ fn apply_predicate() -> Value {
 
         match evaluate_global_custom_predicate(name, value) {
             Ok(Some(result)) => Ok(Value::Boolean(result)),
-            Ok(None) => Err(LambdustError::runtime_error(&format!("apply-predicate: predicate '{}' not found", name))),
+            Ok(None) => Err(LambdustError::runtime_error(format!("apply-predicate: predicate '{name}' not found"))),
             Err(e) => Err(e),
         }
     })
@@ -233,85 +233,4 @@ fn list_to_scheme_list(mut values: Vec<Value>) -> Value {
         result = make_pair(value, result);
     }
     result
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::value::Procedure;
-
-    #[test]
-    fn test_predicate_management_basic() {
-        // Test basic predicate management functions
-        let mut builtins = HashMap::new();
-        register_custom_predicate_functions(&mut builtins);
-        
-        // Check that all functions are registered
-        assert!(builtins.contains_key("define-predicate"));
-        assert!(builtins.contains_key("remove-predicate"));
-        assert!(builtins.contains_key("predicate-defined?"));
-        assert!(builtins.contains_key("list-predicates"));
-        assert!(builtins.contains_key("predicate-info"));
-        assert!(builtins.contains_key("clear-predicates"));
-        assert!(builtins.contains_key("apply-predicate"));
-    }
-
-    #[test]
-    fn test_define_predicate_invalid_args() {
-        let define_pred = define_predicate();
-        
-        // Test with wrong number of arguments
-        let result = match &define_pred {
-            Value::Procedure(Procedure::Builtin { func, .. }) => {
-                func(&[])
-            },
-            _ => panic!("Expected builtin procedure"),
-        };
-        assert!(result.is_err());
-        
-        // Test with invalid first argument
-        let result = match &define_pred {
-            Value::Procedure(Procedure::Builtin { func, .. }) => {
-                func(&[Value::Number(crate::lexer::SchemeNumber::Integer(42)), Value::Boolean(true)])
-            },
-            _ => panic!("Expected builtin procedure"),
-        };
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_predicate_defined() {
-        let pred_defined = predicate_defined();
-        
-        // Test with non-existent predicate
-        let result = match &pred_defined {
-            Value::Procedure(Procedure::Builtin { func, .. }) => {
-                func(&[Value::String("nonexistent?".to_string())])
-            },
-            _ => panic!("Expected builtin procedure"),
-        };
-        assert!(result.is_ok());
-        if let Value::Boolean(exists) = result.unwrap() {
-            assert!(!exists);
-        } else {
-            panic!("Expected boolean result");
-        }
-    }
-
-    #[test]
-    fn test_list_predicates_empty() {
-        // Clear predicates first
-        global_custom_predicate_registry().clear().unwrap();
-        
-        let list_pred = list_predicates();
-        let result = match &list_pred {
-            Value::Procedure(Procedure::Builtin { func, .. }) => {
-                func(&[])
-            },
-            _ => panic!("Expected builtin procedure"),
-        };
-        assert!(result.is_ok());
-        // Should return empty list (Nil)
-        assert!(matches!(result.unwrap(), Value::Nil));
-    }
 }

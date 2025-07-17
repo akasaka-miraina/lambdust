@@ -4,7 +4,7 @@
 //! 数学的構造体の型定義を含みます。
 
 use crate::ast::Expr;
-use crate::evaluator::static_semantic_optimizer::FormalProof;
+use crate::prover::proof_types::FormalProof;
 use crate::value::Value;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
@@ -33,75 +33,105 @@ pub struct FundamentalTheorem {
 pub enum MathematicalStatement {
     /// Associativity: (a op b) op c ≡ a op (b op c)
     Associativity {
+        /// The operation being proven associative
         operation: String,
+        /// The expressions involved in the associativity proof
         expressions: Vec<Expr>,
     },
     
     /// Commutativity: a op b ≡ b op a
     Commutativity {
+        /// The operation being proven commutative
         operation: String,
+        /// Left side of the commutative equation
         left: Expr,
+        /// Right side of the commutative equation
         right: Expr,
     },
     
     /// Distributivity: a op (b op' c) ≡ (a op b) op' (a op c)
     Distributivity {
+        /// The outer operation in the distributive law
         outer_op: String,
+        /// The inner operation in the distributive law
         inner_op: String,
+        /// The three expressions involved in the distributivity proof
         expressions: [Expr; 3],
     },
     
     /// Identity element: a op identity ≡ a
     Identity {
+        /// The operation for which identity is proven
         operation: String,
+        /// The expression to which identity is applied
         expression: Expr,
+        /// The identity element for the operation
         identity_element: Value,
     },
     
     /// Constant folding theorem: eval(constant_expr) ≡ constant_value
     ConstantFolding {
+        /// The expression to be folded to a constant
         expression: Expr,
+        /// The constant value to which the expression folds
         constant_value: Value,
     },
     
     /// Dead code elimination: unreachable_code; expr ≡ expr
     DeadCodeElimination {
+        /// The dead code expression to be eliminated
         dead_code: Expr,
+        /// The live expression that remains after elimination
         live_expr: Expr,
     },
     
     /// Common subexpression: let x = expr in body[expr, expr] ≡ let x = expr in body[x, x]
     CommonSubexpression {
+        /// The subexpression to be hoisted
         subexpression: Expr,
+        /// The body expression containing the common subexpression
         body: Expr,
+        /// The variable name used for the hoisted subexpression
         variable_name: String,
     },
     
     /// Loop invariant hoisting: loop { invariant; variant } ≡ invariant; loop { variant }
     LoopInvariantHoisting {
+        /// The invariant expression to be hoisted
         invariant: Expr,
+        /// The variant expression that changes in the loop
         variant: Expr,
+        /// The loop construct containing the invariant and variant
         loop_construct: Expr,
     },
     
     /// Tail call optimization: func(...); return ≡ tail_call func(...)
     TailCallOptimization {
+        /// The function call to be optimized
         function_call: Expr,
+        /// The return context in which the call occurs
         return_context: Expr,
     },
     
     /// Function inlining: call(func, args) ≡ substitute(func_body, args)
     FunctionInlining {
+        /// The function call to be inlined
         function_call: Expr,
+        /// The function body to substitute
         function_body: Expr,
+        /// The substitution mapping for function parameters
         substitution: HashMap<String, Expr>,
     },
     
     /// Custom derived statement
     Custom {
+        /// Name of the custom statement
         name: String,
+        /// Left side of the custom equation
         left_expr: Expr,
+        /// Right side of the custom equation
         right_expr: Expr,
+        /// Properties that characterize this custom statement
         properties: Vec<String>,
     },
 }
@@ -136,113 +166,197 @@ pub struct DerivedOptimizationRule {
 pub enum OptimizationPattern {
     /// Arithmetic expression pattern
     ArithmeticPattern {
+        /// The arithmetic operation to match
         operation: String,
+        /// The operands of the arithmetic operation
         operands: Vec<PatternElement>,
     },
     
     /// Control flow pattern
     ControlFlowPattern {
+        /// The control flow construct type
         construct: String,
+        /// The condition expression for the control flow
         condition: PatternElement,
+        /// The branch expressions in the control flow
         branches: Vec<PatternElement>,
     },
     
     /// Function application pattern
     ApplicationPattern {
+        /// The function expression to match
         function: PatternElement,
+        /// The argument expressions to match
         arguments: Vec<PatternElement>,
     },
     
     /// Let binding pattern
     LetPattern {
+        /// The variable bindings to match
         bindings: Vec<(String, PatternElement)>,
+        /// The body expression to match
         body: PatternElement,
     },
     
     /// Recursive pattern
     RecursivePattern {
+        /// The base case pattern to match
         base_case: PatternElement,
+        /// The recursive case pattern to match
         recursive_case: PatternElement,
     },
     
     /// Custom pattern
     CustomPattern {
+        /// Name of the custom pattern
         pattern_name: String,
+        /// The pattern elements to match
         elements: Vec<PatternElement>,
     },
 }
 
 /// Elements within optimization patterns
+///
+/// These elements form the building blocks of pattern matching in theorem derivation.
+/// They enable flexible matching against Scheme expressions while maintaining
+/// mathematical rigor and type safety in optimization transformations.
 #[derive(Debug, Clone)]
 pub enum PatternElement {
-    /// Concrete expression
+    /// Concrete expression that must match exactly
+    /// 
+    /// Used when the pattern requires a specific expression structure
+    /// without any substitution variables.
     Concrete(Expr),
     
-    /// Variable placeholder
+    /// Variable placeholder for pattern substitution
+    /// 
+    /// Represents a named variable that can be bound to any expression
+    /// during pattern matching, enabling template-based transformations.
     Variable(String),
     
-    /// Constant placeholder
+    /// Constant placeholder for compile-time known values
+    /// 
+    /// Used to match against constant expressions while preserving
+    /// their symbolic names for replacement generation.
     Constant(String),
     
-    /// Wildcard (matches anything)
+    /// Wildcard that matches any expression
+    /// 
+    /// Provides maximum flexibility in pattern matching when the
+    /// specific structure of a subexpression is irrelevant to the optimization.
     Wildcard,
     
-    /// Conditional element
+    /// Conditional element with runtime constraints
+    /// 
+    /// Enables pattern matching with additional type, value, or structural
+    /// constraints, supporting complex optimization preconditions.
     Conditional {
+        /// The condition that must be satisfied for matching
         condition: Box<PatternCondition>,
+        /// The element to match if the condition holds
         element: Box<PatternElement>,
     },
     
-    /// Repeated element
+    /// Repeated element with cardinality constraints
+    /// 
+    /// Supports matching against variable-length sequences of expressions,
+    /// essential for list operations and variadic function optimizations.
     Repeated {
+        /// The pattern element to repeat
         element: Box<PatternElement>,
+        /// Minimum number of repetitions required
         min_count: usize,
+        /// Maximum number of repetitions allowed (None = unlimited)
         max_count: Option<usize>,
     },
 }
 
-/// Conditions within patterns
+/// Conditions within patterns for advanced constraint checking
+///
+/// These conditions enable sophisticated pattern matching by adding
+/// runtime constraints that must be satisfied during optimization rule application.
+/// They support type safety, value validation, and structural requirements.
 #[derive(Debug, Clone)]
 pub enum PatternCondition {
-    /// Type check
+    /// Type constraint verification
+    /// 
+    /// Ensures that the matched expression conforms to the expected type,
+    /// preventing unsafe optimizations and maintaining type safety.
     TypeCheck(String),
     
-    /// Value check
+    /// Value equality constraint
+    /// 
+    /// Matches only when the expression evaluates to the specified value,
+    /// enabling constant-specific optimizations and value-based transformations.
     ValueCheck(Value),
     
-    /// Expression structure check
+    /// Structural constraint verification
+    /// 
+    /// Validates that the expression has the required syntactic structure,
+    /// supporting pattern matching on AST forms and expression templates.
     StructureCheck(String),
     
-    /// Custom predicate
+    /// User-defined constraint predicate
+    /// 
+    /// Allows for domain-specific constraint checking through custom
+    /// predicates, enabling extensible pattern matching capabilities.
     CustomPredicate(String),
 }
 
-/// Optimization replacement generators
+/// Optimization replacement generators for theorem-based transformations
+///
+/// These generators define how matched patterns should be transformed
+/// into optimized expressions, implementing the replacement part of
+/// rewrite rules derived from mathematical theorems.
 #[derive(Debug, Clone)]
 pub enum OptimizationReplacement {
-    /// Direct substitution
+    /// Direct expression substitution
+    /// 
+    /// Replaces the matched pattern with a concrete expression,
+    /// used for simple constant folding and direct transformations.
     DirectSubstitution(Expr),
     
-    /// Template-based replacement
+    /// Template-based replacement with variable bindings
+    /// 
+    /// Uses a template expression with variable substitutions,
+    /// enabling complex transformations that preserve variable bindings
+    /// from the pattern matching phase.
     Template {
+        /// The template expression with placeholder variables
         template: Expr,
+        /// Mapping from variable names to their bound pattern elements
         bindings: HashMap<String, PatternElement>,
     },
     
-    /// Function-based replacement
+    /// Function-based replacement generation
+    /// 
+    /// Delegates replacement generation to a named function,
+    /// supporting dynamic optimizations and complex transformations
+    /// that require procedural logic.
     FunctionCall {
+        /// Name of the replacement generation function
         function_name: String,
+        /// Arguments derived from pattern matching
         arguments: Vec<PatternElement>,
     },
     
-    /// Conditional replacement
+    /// Conditional replacement with branching logic
+    /// 
+    /// Selects between different replacements based on runtime conditions,
+    /// enabling context-sensitive optimizations and adaptive transformations.
     Conditional {
+        /// Condition to evaluate for replacement selection
         condition: PatternCondition,
+        /// Replacement to use if condition is true
         true_replacement: Box<OptimizationReplacement>,
+        /// Replacement to use if condition is false
         false_replacement: Box<OptimizationReplacement>,
     },
     
-    /// Composite replacement
+    /// Composite replacement with multiple components
+    /// 
+    /// Combines multiple replacement strategies, supporting complex
+    /// optimizations that require multi-step transformations.
     Composite(Vec<OptimizationReplacement>),
 }
 
@@ -265,22 +379,41 @@ pub struct DerivationProof {
     pub metadata: ProofMetadata,
 }
 
-/// Individual step in derivation proof
+/// Individual step in derivation proof chains
+///
+/// Represents a single logical step in the derivation of an optimization rule
+/// from fundamental mathematical theorems. Each step maintains the connection
+/// between the applied theorem and the resulting transformation.
 #[derive(Debug, Clone)]
 pub struct DerivationStep {
-    /// Step description
+    /// Human-readable description of the derivation step
+    /// 
+    /// Provides context and explanation for the logical transformation
+    /// being performed in this step of the proof.
     pub description: String,
     
-    /// Applied theorem or rule
+    /// Name of the theorem or rule applied in this step
+    /// 
+    /// References the fundamental theorem or previously derived rule
+    /// that justifies this transformation step.
     pub applied_theorem: String,
     
-    /// Input state
+    /// Mathematical statement before applying the theorem
+    /// 
+    /// The input mathematical statement that serves as the premise
+    /// for this derivation step.
     pub input_state: MathematicalStatement,
     
-    /// Output state
+    /// Mathematical statement after applying the theorem
+    /// 
+    /// The resulting mathematical statement obtained by applying
+    /// the theorem to the input state.
     pub output_state: MathematicalStatement,
     
-    /// Justification
+    /// Detailed justification for the transformation
+    /// 
+    /// Explains why the applied theorem is valid in this context
+    /// and how it produces the output state from the input state.
     pub justification: String,
 }
 
@@ -306,293 +439,577 @@ pub struct PerformanceCharacteristics {
     pub scope: OptimizationScope,
 }
 
-/// Complexity improvement description
+/// Complexity improvement classification for performance analysis
+///
+/// Categorizes the theoretical complexity improvements achieved by optimizations,
+/// providing both quantitative and qualitative measures of performance gains.
+/// Used for comparing optimization effectiveness and predicting scalability.
 #[derive(Debug, Clone)]
 pub enum ComplexityImprovement {
-    /// Constant factor improvement
+    /// Constant factor speedup improvement
+    /// 
+    /// Represents optimizations that provide a fixed multiplicative speedup
+    /// regardless of input size, such as eliminating redundant operations.
     ConstantFactor(f64),
     
-    /// Logarithmic improvement
+    /// Logarithmic complexity improvement
+    /// 
+    /// Indicates algorithms that improve from linear to logarithmic complexity,
+    /// typically through better data structures or search algorithms.
     Logarithmic,
     
-    /// Linear improvement
+    /// Linear complexity improvement
+    /// 
+    /// Represents optimizations that reduce complexity by one polynomial degree,
+    /// such as quadratic to linear improvements.
     Linear,
     
-    /// Polynomial improvement
+    /// Polynomial degree reduction improvement
+    /// 
+    /// Indicates reduction in polynomial complexity by the specified degree,
+    /// representing significant algorithmic improvements.
     Polynomial(u32),
     
-    /// Exponential improvement
+    /// Exponential to polynomial improvement
+    /// 
+    /// Represents dramatic complexity reductions from exponential to polynomial,
+    /// typically achieved through dynamic programming or memoization.
     Exponential,
     
-    /// No change
+    /// No complexity change
+    /// 
+    /// Indicates optimizations that preserve complexity while improving
+    /// constant factors or other performance characteristics.
     NoChange,
     
-    /// Custom description
+    /// Custom complexity improvement description
+    /// 
+    /// Allows for domain-specific complexity improvements that don't
+    /// fit standard complexity classes.
     Custom(String),
 }
 
-/// Memory usage change
+/// Memory usage change quantification for optimization analysis
+///
+/// Tracks memory consumption changes resulting from optimizations,
+/// providing both absolute and relative measurements for performance evaluation.
+/// Essential for understanding space-time tradeoffs in optimization decisions.
 #[derive(Debug, Clone)]
 pub enum MemoryChange {
-    /// Reduction in bytes
+    /// Absolute memory reduction in bytes
+    /// 
+    /// Represents the total number of bytes saved by the optimization,
+    /// useful for tracking absolute memory efficiency improvements.
     Reduction(usize),
     
-    /// Increase in bytes
+    /// Absolute memory increase in bytes
+    /// 
+    /// Represents additional memory required by the optimization,
+    /// typically for precomputed tables or cached results.
     Increase(usize),
     
-    /// Percentage change
+    /// Relative memory change as percentage
+    /// 
+    /// Represents memory change as a percentage of baseline usage,
+    /// enabling comparison across different input sizes and contexts.
     Percentage(f64),
     
-    /// No change
+    /// No memory usage change
+    /// 
+    /// Indicates the optimization has no significant impact on memory consumption,
+    /// focusing purely on computational efficiency improvements.
     NoChange,
 }
 
-/// Optimization scope
+/// Optimization scope for applicability analysis
+///
+/// Defines the scope and granularity at which optimizations can be applied,
+/// helping to categorize optimization strategies and determine their
+/// applicability in different compilation contexts.
 #[derive(Debug, Clone)]
 pub enum OptimizationScope {
-    /// Local optimization (single expression)
+    /// Local optimization within single expressions
+    /// 
+    /// Applies to individual expressions or small code fragments,
+    /// such as constant folding and simple algebraic simplifications.
     Local,
     
-    /// Function-level optimization
+    /// Function-level optimization scope
+    /// 
+    /// Operates across entire function bodies, enabling inlining,
+    /// tail call optimization, and interprocedural analysis.
     Function,
     
-    /// Module-level optimization
+    /// Module-level optimization scope
+    /// 
+    /// Applies optimizations across module boundaries within a single
+    /// compilation unit, enabling cross-function optimizations.
     Module,
     
-    /// Global optimization
+    /// Global optimization across the entire program
+    /// 
+    /// Applies whole-program optimizations that consider all code,
+    /// enabling the most aggressive optimization strategies.
     Global,
     
-    /// Cross-module optimization
+    /// Cross-module optimization scope
+    /// 
+    /// Enables optimizations that span multiple compilation units,
+    /// requiring advanced linking and analysis capabilities.
     CrossModule,
 }
 
-/// Conditions for rule applicability
+/// Conditions for rule applicability in optimization contexts
+///
+/// Defines the constraints and preconditions that must be satisfied
+/// for an optimization rule to be safely and effectively applied.
+/// These conditions ensure correctness and performance guarantees.
 #[derive(Debug, Clone)]
 pub enum ApplicabilityCondition {
-    /// Type constraint
+    /// Type constraint for variable binding
+    /// 
+    /// Ensures that pattern variables are bound to expressions
+    /// of the expected type, maintaining type safety during optimization.
     TypeConstraint {
+        /// The variable name in the pattern
         variable: String,
+        /// The required type for the variable
         expected_type: String,
     },
     
-    /// Value constraint
+    /// Value constraint for pattern matching
+    /// 
+    /// Restricts pattern variables to specific values or value ranges,
+    /// enabling value-dependent optimizations and safety checks.
     ValueConstraint {
+        /// The variable name in the pattern
         variable: String,
+        /// The constraint to apply to the variable's value
         constraint: ValueConstraint,
     },
     
-    /// Expression structure constraint
+    /// Expression structure constraint verification
+    /// 
+    /// Validates that expressions have the required syntactic structure,
+    /// preventing incorrect optimizations on malformed code.
     StructureConstraint {
+        /// The expression to validate
         expression: String,
+        /// The required structural pattern
         required_structure: String,
     },
     
-    /// Performance constraint
+    /// Performance constraint for optimization viability
+    /// 
+    /// Ensures that optimizations are only applied when they meet
+    /// minimum performance improvement thresholds.
     PerformanceConstraint {
+        /// The performance metric to evaluate
         metric: String,
+        /// The minimum improvement threshold
         threshold: f64,
     },
     
-    /// Context constraint
+    /// Context constraint for environment validation
+    /// 
+    /// Validates that the optimization context satisfies specific
+    /// requirements, such as available resources or compilation flags.
     ContextConstraint {
+        /// The type of context being validated
         context_type: String,
+        /// List of requirements that must be satisfied
         requirements: Vec<String>,
     },
     
-    /// Custom constraint
+    /// Custom constraint with user-defined logic
+    /// 
+    /// Allows for domain-specific constraints that extend beyond
+    /// the standard constraint types, supporting extensible optimization.
     CustomConstraint {
+        /// Name of the custom constraint
         name: String,
+        /// Predicate function or expression defining the constraint
         predicate: String,
     },
 }
 
-/// Value constraints
+/// Value constraints for pattern variable validation
+///
+/// Defines the range of acceptable values for pattern variables,
+/// enabling precise control over when optimizations are applicable
+/// based on runtime or compile-time value properties.
 #[derive(Debug, Clone)]
 pub enum ValueConstraint {
-    /// Equal to specific value
+    /// Exact value equality constraint
+    /// 
+    /// Matches only when the variable's value is exactly equal
+    /// to the specified value, enabling constant-specific optimizations.
     Equal(Value),
     
-    /// Greater than threshold
+    /// Greater than threshold constraint
+    /// 
+    /// Ensures the variable's value exceeds the specified threshold,
+    /// useful for size-dependent and performance-critical optimizations.
     GreaterThan(Value),
     
-    /// Less than threshold
+    /// Less than threshold constraint
+    /// 
+    /// Ensures the variable's value is below the specified threshold,
+    /// preventing optimizations that might be counterproductive for large inputs.
     LessThan(Value),
     
-    /// Within range
+    /// Value within specified range constraint
+    /// 
+    /// Constrains the variable's value to fall within the inclusive range,
+    /// enabling range-specific optimization strategies.
     Range(Value, Value),
     
-    /// Member of set
+    /// Set membership constraint
+    /// 
+    /// Ensures the variable's value is a member of the specified set,
+    /// supporting discrete value-based optimization decisions.
     MemberOf(Vec<Value>),
     
-    /// Satisfies predicate
+    /// Custom predicate constraint
+    /// 
+    /// Evaluates a user-defined predicate against the variable's value,
+    /// enabling complex constraint logic beyond simple comparisons.
     Predicate(String),
 }
 
-/// Theorem categories
+/// Theorem categories for classification and organization
+///
+/// Categorizes theorems by their primary mathematical domain and optimization focus,
+/// enabling systematic organization and targeted application of theorem-based
+/// optimizations in different contexts.
 #[derive(Debug, Clone, PartialEq)]
 pub enum TheoremCategory {
-    /// Algebraic laws
+    /// Algebraic laws and mathematical identities
+    /// 
+    /// Covers associativity, commutativity, distributivity, and other
+    /// fundamental algebraic properties used in expression simplification.
     Algebraic,
     
-    /// Control flow transformations
+    /// Control flow transformation theorems
+    /// 
+    /// Includes theorems for loop optimization, conditional simplification,
+    /// and control structure reorganization.
     ControlFlow,
     
-    /// Memory management
+    /// Memory management optimization theorems
+    /// 
+    /// Covers memory allocation strategies, garbage collection optimizations,
+    /// and memory layout improvements.
     Memory,
     
-    /// Performance optimizations
+    /// General performance optimization theorems
+    /// 
+    /// Encompasses various performance-focused optimizations that don't
+    /// fit into more specific categories.
     Performance,
     
-    /// Correctness preserving
+    /// Correctness preservation theorems
+    /// 
+    /// Ensures that optimizations maintain program semantics and
+    /// produce equivalent results to the original code.
     Correctness,
     
-    /// Safety guarantees
+    /// Safety guarantee theorems
+    /// 
+    /// Provides formal guarantees about memory safety, type safety,
+    /// and other security-critical properties.
     Safety,
     
-    /// Type system
+    /// Type system theorems and type-based optimizations
+    /// 
+    /// Covers type inference, type checking optimizations, and
+    /// type-directed program transformations.
     TypeSystem,
     
-    /// Custom category
+    /// Custom theorem category
+    /// 
+    /// Allows for domain-specific theorem classifications that extend
+    /// beyond the standard categories.
     Custom(String),
 }
 
-/// Conditions for theorem applicability
+/// Conditions for theorem applicability in optimization contexts
+///
+/// Specifies the preconditions and constraints that must be satisfied
+/// for a theorem to be safely applied in program optimization.
+/// Ensures both correctness and effectiveness of theorem-based transformations.
 #[derive(Debug, Clone)]
 pub enum TheoremCondition {
-    /// Precondition
+    /// General precondition for theorem application
+    /// 
+    /// Specifies a logical condition that must hold before the theorem
+    /// can be applied, ensuring correctness of the transformation.
     Precondition(String),
     
-    /// Type condition
+    /// Type-based applicability condition
+    /// 
+    /// Ensures that the expressions involved in the theorem application
+    /// have compatible types and satisfy type safety requirements.
     TypeCondition(String),
     
-    /// Context condition
+    /// Context-dependent applicability condition
+    /// 
+    /// Validates that the surrounding program context supports
+    /// the theorem application and its assumptions.
     ContextCondition(String),
     
-    /// Performance condition
+    /// Performance-based applicability condition
+    /// 
+    /// Ensures that applying the theorem will result in measurable
+    /// performance improvements under the given conditions.
     PerformanceCondition(String),
 }
 
-/// Composition theorems for combining optimizations
+/// Composition theorems for combining multiple optimizations
+///
+/// Represents theorems that describe how multiple optimization rules
+/// can be safely and effectively combined, including analysis of
+/// interactions, interference patterns, and combined performance effects.
 #[derive(Debug, Clone)]
 pub struct CompositionTheorem {
-    /// Component optimizations
+    /// List of component optimization rule names
+    /// 
+    /// References to the individual optimization rules that are
+    /// being combined through this composition theorem.
     pub components: Vec<String>,
     
-    /// Composition rule
+    /// Rule defining how optimizations are combined
+    /// 
+    /// Specifies the strategy for applying multiple optimizations,
+    /// including ordering, parallelization, and interaction handling.
     pub composition_rule: CompositionRule,
     
-    /// Combined effect
+    /// Overall performance characteristics of the combination
+    /// 
+    /// Describes the net effect of applying all component optimizations
+    /// together, accounting for synergies and interference.
     pub combined_effect: PerformanceCharacteristics,
     
-    /// Interference analysis
+    /// Analysis of optimization interactions and interference
+    /// 
+    /// Detailed analysis of how the component optimizations interact,
+    /// including conflicts, synergies, and resolution strategies.
     pub interference: InterferenceAnalysis,
 }
 
-/// Rules for combining optimizations
+/// Rules for combining multiple optimization strategies
+///
+/// Defines the various strategies for applying multiple optimizations,
+/// including their order of execution, parallelization possibilities,
+/// and conditional application based on runtime or compile-time conditions.
 #[derive(Debug, Clone)]
 pub enum CompositionRule {
-    /// Sequential application
+    /// Sequential optimization application
+    /// 
+    /// Applies optimizations one after another in a defined order,
+    /// allowing each optimization to build upon the results of previous ones.
     Sequential,
     
-    /// Parallel application
+    /// Parallel optimization application
+    /// 
+    /// Applies optimizations independently and concurrently,
+    /// suitable when optimizations don't interfere with each other.
     Parallel,
     
-    /// Conditional application
+    /// Conditional optimization application
+    /// 
+    /// Applies optimizations based on runtime or compile-time conditions,
+    /// enabling adaptive optimization strategies.
     Conditional(String),
     
-    /// Iterative application
+    /// Iterative optimization application
+    /// 
+    /// Repeatedly applies the optimization set until convergence
+    /// or the specified maximum number of iterations is reached.
     Iterative(usize),
     
-    /// Custom composition
+    /// Custom composition strategy
+    /// 
+    /// Allows for domain-specific composition strategies that don't
+    /// fit the standard composition patterns.
     Custom(String),
 }
 
-/// Analysis of optimization interference
+/// Analysis of optimization interference and interactions
+///
+/// Provides detailed analysis of how different optimizations interact
+/// when applied together, identifying conflicts, synergies, and independence
+/// relationships that inform composition strategy decisions.
 #[derive(Debug, Clone)]
 pub struct InterferenceAnalysis {
-    /// Conflicting optimizations
+    /// List of conflicting optimization pairs
+    /// 
+    /// Identifies optimizations that cannot be safely applied together
+    /// due to semantic conflicts or contradictory transformations.
     pub conflicts: Vec<String>,
     
-    /// Synergistic optimizations
+    /// List of synergistic optimization combinations
+    /// 
+    /// Identifies optimization pairs that work together to achieve
+    /// greater performance improvements than the sum of their parts.
     pub synergies: Vec<String>,
     
-    /// Independent optimizations
+    /// List of independent optimization pairs
+    /// 
+    /// Identifies optimizations that can be applied in any order
+    /// without affecting each other's effectiveness or correctness.
     pub independent: Vec<String>,
     
-    /// Resolution strategies
+    /// Strategies for resolving optimization conflicts
+    /// 
+    /// Describes methods for handling conflicts when they arise,
+    /// including prioritization rules and alternative approaches.
     pub resolution_strategies: Vec<String>,
 }
 
-/// Preservation theorems for correctness
+/// Preservation theorems for correctness guarantees
+///
+/// Formal theorems that prove optimizations preserve specific program
+/// properties, ensuring that transformations maintain semantic correctness
+/// while potentially improving performance characteristics.
 #[derive(Debug, Clone)]
 pub struct PreservationTheorem {
-    /// Property being preserved
+    /// The program property that must be preserved
+    /// 
+    /// Specifies the semantic or behavioral property that the optimization
+    /// guarantees to maintain throughout the transformation.
     pub preserved_property: String,
     
-    /// Optimization being applied
+    /// The optimization rule being validated
+    /// 
+    /// References the specific optimization for which preservation
+    /// is being proven and guaranteed.
     pub optimization: String,
     
-    /// Preservation proof
+    /// Formal proof of property preservation
+    /// 
+    /// The mathematical proof that demonstrates the optimization
+    /// preserves the specified property under all valid conditions.
     pub proof: FormalProof,
     
-    /// Invariants
+    /// Program invariants maintained by the optimization
+    /// 
+    /// List of logical conditions that remain true before, during,
+    /// and after the optimization is applied.
     pub invariants: Vec<String>,
 }
 
-/// Performance theorems with bounds
+/// Performance theorems with quantitative bounds and validation
+///
+/// Formal theorems that provide quantitative performance guarantees
+/// for optimizations, including theoretical bounds and experimental
+/// validation data to support performance claims.
 #[derive(Debug, Clone)]
 pub struct PerformanceTheorem {
-    /// Performance metric
+    /// The performance metric being measured
+    /// 
+    /// Specifies the quantitative measure (e.g., "execution_time",
+    /// "memory_usage", "cache_misses") for which bounds are provided.
     pub metric: String,
     
-    /// Lower bound
+    /// Theoretical lower bound for the performance metric
+    /// 
+    /// The minimum performance improvement guaranteed by the theorem,
+    /// providing a conservative estimate of optimization effectiveness.
     pub lower_bound: Option<f64>,
     
-    /// Upper bound
+    /// Theoretical upper bound for the performance metric
+    /// 
+    /// The maximum expected performance improvement, helping to
+    /// set realistic expectations for optimization outcomes.
     pub upper_bound: Option<f64>,
     
-    /// Expected value
+    /// Expected performance improvement value
+    /// 
+    /// The most likely performance improvement based on theoretical
+    /// analysis and empirical observations.
     pub expected_value: f64,
     
-    /// Confidence interval
+    /// Statistical confidence interval for the performance improvement
+    /// 
+    /// Provides a range of values with associated confidence level,
+    /// indicating the reliability of the performance prediction.
     pub confidence_interval: (f64, f64),
     
-    /// Experimental validation
+    /// Experimental validation data supporting the theorem
+    /// 
+    /// Empirical evidence that validates the theoretical performance
+    /// claims through controlled experiments and statistical analysis.
     pub validation: Option<ExperimentalValidation>,
 }
 
-/// Experimental validation data
+/// Experimental validation data for performance theorem verification
+///
+/// Contains empirical data collected through controlled experiments
+/// to validate theoretical performance claims. Includes statistical
+/// analysis and confidence measures for scientific rigor.
 #[derive(Debug, Clone)]
 pub struct ExperimentalValidation {
-    /// Number of test cases
+    /// Total number of experimental test cases
+    /// 
+    /// The sample size used for performance validation,
+    /// affecting the statistical significance of results.
     pub test_cases: usize,
     
-    /// Observed performance
+    /// Raw performance measurements from experiments
+    /// 
+    /// Individual performance measurements collected during
+    /// experimental validation, used for statistical analysis.
     pub observed_performance: Vec<f64>,
     
-    /// Statistical analysis
+    /// Comprehensive statistical analysis of performance data
+    /// 
+    /// Statistical measures including central tendency, variance,
+    /// and significance testing to validate performance claims.
     pub statistics: StatisticalAnalysis,
     
-    /// Validation timestamp
+    /// Timestamp when validation experiments were conducted
+    /// 
+    /// Records when the experimental validation was performed,
+    /// enabling tracking of result freshness and reproducibility.
     pub validated_at: Instant,
 }
 
-/// Statistical analysis results
+/// Statistical analysis results for performance validation
+///
+/// Comprehensive statistical measures derived from experimental data,
+/// providing quantitative evidence for performance theorem validation
+/// and supporting scientific claims about optimization effectiveness.
 #[derive(Debug, Clone)]
 pub struct StatisticalAnalysis {
-    /// Mean performance
+    /// Arithmetic mean of performance measurements
+    /// 
+    /// The average performance improvement observed across
+    /// all experimental trials, representing central tendency.
     pub mean: f64,
     
-    /// Standard deviation
+    /// Standard deviation of performance measurements
+    /// 
+    /// Measures the variability in performance improvements,
+    /// indicating consistency and reliability of the optimization.
     pub std_dev: f64,
     
-    /// Confidence level
+    /// Statistical confidence level for the analysis
+    /// 
+    /// The probability that the confidence interval contains
+    /// the true performance improvement value (e.g., 0.95 for 95%).
     pub confidence_level: f64,
     
-    /// P-value
+    /// Statistical significance p-value
+    /// 
+    /// The probability of observing the measured performance improvement
+    /// by chance alone, used to assess statistical significance.
     pub p_value: f64,
     
-    /// Effect size
+    /// Effect size of the performance improvement
+    /// 
+    /// Quantifies the magnitude of the optimization effect,
+    /// providing practical significance beyond statistical significance.
     pub effect_size: f64,
 }
 

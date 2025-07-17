@@ -1,7 +1,7 @@
 //! Built-in functions for pure semantic evaluator
 //!
 //! This module previously contained duplicate builtin function implementations.
-//! SemanticEvaluator now uses the standard Environment builtin system from
+//! `SemanticEvaluator` now uses the standard Environment builtin system from
 //! the `builtins` module for consistency and to avoid duplication.
 //!
 //! All builtin functions are now provided through `Environment::with_builtins()`

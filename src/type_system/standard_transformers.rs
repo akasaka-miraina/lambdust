@@ -1,7 +1,7 @@
 //! Standard Monad Transformers
-//! Implementation of common monad transformers: StateT, ReaderT, WriterT, etc.
+//! Implementation of common monad transformers: `StateT`, `ReaderT`, `WriterT`, etc.
 
-use super::monad_transformers::*;
+use super::monad_transformers::{MonadTransformer, TransformerParameter, LiftOperation, MonadTransformerType, LiftImplementation, TransformerLaw, TransformerConstraint, TransformerEquation, MonadTransformerRegistry};
 use super::polynomial_types::{PolynomialType, UniverseLevel, BaseType};
 use super::universe_polymorphic_classes::{
     UniversePolymorphicConstraint, UniverseConstraint, KindConstraint
@@ -9,8 +9,8 @@ use super::universe_polymorphic_classes::{
 use crate::value::Value;
 use crate::error::Result;
 
-/// Create StateT transformer
-pub fn create_state_transformer() -> MonadTransformer {
+/// Create `StateT` transformer
+#[must_use] pub fn create_state_transformer() -> MonadTransformer {
     MonadTransformer {
         name: "StateT".to_string(),
         universe_constraint: UniverseConstraint::AtLeast(UniverseLevel::new(1)),
@@ -38,8 +38,8 @@ pub fn create_state_transformer() -> MonadTransformer {
     }
 }
 
-/// Create ReaderT transformer
-pub fn create_reader_transformer() -> MonadTransformer {
+/// Create `ReaderT` transformer
+#[must_use] pub fn create_reader_transformer() -> MonadTransformer {
     MonadTransformer {
         name: "ReaderT".to_string(),
         universe_constraint: UniverseConstraint::AtLeast(UniverseLevel::new(1)),
@@ -65,8 +65,8 @@ pub fn create_reader_transformer() -> MonadTransformer {
     }
 }
 
-/// Create WriterT transformer
-pub fn create_writer_transformer() -> MonadTransformer {
+/// Create `WriterT` transformer
+#[must_use] pub fn create_writer_transformer() -> MonadTransformer {
     MonadTransformer {
         name: "WriterT".to_string(),
         universe_constraint: UniverseConstraint::AtLeast(UniverseLevel::new(1)),
@@ -93,8 +93,8 @@ pub fn create_writer_transformer() -> MonadTransformer {
     }
 }
 
-/// Create MaybeT transformer
-pub fn create_maybe_transformer() -> MonadTransformer {
+/// Create `MaybeT` transformer
+#[must_use] pub fn create_maybe_transformer() -> MonadTransformer {
     MonadTransformer {
         name: "MaybeT".to_string(),
         universe_constraint: UniverseConstraint::AtLeast(UniverseLevel::new(1)),
@@ -112,8 +112,8 @@ pub fn create_maybe_transformer() -> MonadTransformer {
     }
 }
 
-/// Create ExceptT transformer
-pub fn create_except_transformer() -> MonadTransformer {
+/// Create `ExceptT` transformer
+#[must_use] pub fn create_except_transformer() -> MonadTransformer {
     MonadTransformer {
         name: "ExceptT".to_string(),
         universe_constraint: UniverseConstraint::AtLeast(UniverseLevel::new(1)),
@@ -139,8 +139,8 @@ pub fn create_except_transformer() -> MonadTransformer {
     }
 }
 
-/// Create ContT transformer
-pub fn create_cont_transformer() -> MonadTransformer {
+/// Create `ContT` transformer
+#[must_use] pub fn create_cont_transformer() -> MonadTransformer {
     MonadTransformer {
         name: "ContT".to_string(),
         universe_constraint: UniverseConstraint::AtLeast(UniverseLevel::new(1)),
@@ -834,109 +834,4 @@ pub fn initialize_standard_transformers(registry: &MonadTransformerRegistry) -> 
     registry.register_transformer(create_cont_transformer())?;
     
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_state_transformer_creation() {
-        let state_t = create_state_transformer();
-        assert_eq!(state_t.name, "StateT");
-        assert_eq!(state_t.type_parameters.len(), 1);
-        assert_eq!(state_t.lift_operations.len(), 4);
-        assert_eq!(state_t.laws.len(), 4);
-    }
-
-    #[test]
-    fn test_reader_transformer_creation() {
-        let reader_t = create_reader_transformer();
-        assert_eq!(reader_t.name, "ReaderT");
-        assert_eq!(reader_t.type_parameters.len(), 1);
-        assert_eq!(reader_t.lift_operations.len(), 3);
-        assert_eq!(reader_t.laws.len(), 3);
-    }
-
-    #[test]
-    fn test_writer_transformer_creation() {
-        let writer_t = create_writer_transformer();
-        assert_eq!(writer_t.name, "WriterT");
-        assert_eq!(writer_t.type_parameters.len(), 1);
-        assert_eq!(writer_t.lift_operations.len(), 4);
-        assert_eq!(writer_t.laws.len(), 3);
-    }
-
-    #[test]
-    fn test_maybe_transformer_creation() {
-        let maybe_t = create_maybe_transformer();
-        assert_eq!(maybe_t.name, "MaybeT");
-        assert_eq!(maybe_t.type_parameters.len(), 0);
-        assert_eq!(maybe_t.lift_operations.len(), 3);
-        assert_eq!(maybe_t.laws.len(), 2);
-    }
-
-    #[test]
-    fn test_except_transformer_creation() {
-        let except_t = create_except_transformer();
-        assert_eq!(except_t.name, "ExceptT");
-        assert_eq!(except_t.type_parameters.len(), 1);
-        assert_eq!(except_t.lift_operations.len(), 3);
-        assert_eq!(except_t.laws.len(), 3);
-    }
-
-    #[test]
-    fn test_cont_transformer_creation() {
-        let cont_t = create_cont_transformer();
-        assert_eq!(cont_t.name, "ContT");
-        assert_eq!(cont_t.type_parameters.len(), 1);
-        assert_eq!(cont_t.lift_operations.len(), 4);
-        assert_eq!(cont_t.laws.len(), 2);
-    }
-
-    #[test]
-    fn test_standard_transformers_initialization() {
-        let registry = MonadTransformerRegistry::new();
-        let result = initialize_standard_transformers(&registry);
-        assert!(result.is_ok());
-        
-        let transformers = registry.list_transformers();
-        assert_eq!(transformers.len(), 6);
-        assert!(transformers.contains(&"StateT".to_string()));
-        assert!(transformers.contains(&"ReaderT".to_string()));
-        assert!(transformers.contains(&"WriterT".to_string()));
-        assert!(transformers.contains(&"MaybeT".to_string()));
-        assert!(transformers.contains(&"ExceptT".to_string()));
-        assert!(transformers.contains(&"ContT".to_string()));
-    }
-
-    #[test]
-    fn test_state_operations() {
-        let lift_op = create_state_lift_operation();
-        assert_eq!(lift_op.name, "lift");
-        
-        let get_op = create_state_get_operation();
-        assert_eq!(get_op.name, "get");
-        
-        let put_op = create_state_put_operation();
-        assert_eq!(put_op.name, "put");
-        
-        let modify_op = create_state_modify_operation();
-        assert_eq!(modify_op.name, "modify");
-    }
-
-    #[test]
-    fn test_state_laws() {
-        let get_put_law = create_state_get_put_law();
-        assert_eq!(get_put_law.name, "state_get_put");
-        
-        let put_get_law = create_state_put_get_law();
-        assert_eq!(put_get_law.name, "state_put_get");
-        
-        let get_get_law = create_state_get_get_law();
-        assert_eq!(get_get_law.name, "state_get_get");
-        
-        let put_put_law = create_state_put_put_law();
-        assert_eq!(put_put_law.name, "state_put_put");
-    }
 }

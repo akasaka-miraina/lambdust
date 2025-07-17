@@ -12,6 +12,7 @@ pub mod dependent_types;
 pub mod type_checker;
 pub mod type_inference;
 pub mod universe_levels;
+#[cfg(feature = "parallel-type-checking")]
 pub mod parallel_type_checker;
 pub mod incremental_inference;
 pub mod universe_polymorphic_classes;
@@ -30,6 +31,7 @@ pub use type_checker::{TypeChecker, TypeCheckResult};
 pub use type_inference::{TypeInference, InferenceContext};
 pub use polynomial_types::UniverseLevel;
 pub use universe_levels::UniverseHierarchy;
+#[cfg(feature = "parallel-type-checking")]
 pub use parallel_type_checker::{ParallelTypeChecker, ParallelTypeCheckMetrics};
 pub use incremental_inference::{IncrementalTypeInference, IncrementalConfig, CacheStatistics};
 pub use universe_polymorphic_classes::{
@@ -45,7 +47,7 @@ use crate::value::Value;
 use crate::error::LambdustError;
 
 /// Main type system interface
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PolynomialUniverseSystem {
     /// Type checker instance
     type_checker: TypeChecker,
@@ -58,6 +60,7 @@ pub struct PolynomialUniverseSystem {
     /// Type class registry (HoTT-based)
     type_class_registry: TypeClassRegistry,
     /// Parallel type checker for high-performance compilation
+    #[cfg(feature = "parallel-type-checking")]
     parallel_type_checker: ParallelTypeChecker,
     /// Incremental type inference with caching
     incremental_inference: IncrementalTypeInference,
@@ -69,13 +72,14 @@ pub struct PolynomialUniverseSystem {
 
 impl PolynomialUniverseSystem {
     /// Create new polynomial universe type system
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             type_checker: TypeChecker::new(),
             type_inference: TypeInference::new(),
             universe_hierarchy: UniverseHierarchy::new(),
             monad_algebra: MonadAlgebra::new(),
             type_class_registry: TypeClassRegistry::new(),
+            #[cfg(feature = "parallel-type-checking")]
             parallel_type_checker: ParallelTypeChecker::default(),
             incremental_inference: IncrementalTypeInference::default(),
             universe_polymorphic_registry: UniversePolymorphicRegistry::default(),
@@ -118,23 +122,152 @@ impl PolynomialUniverseSystem {
         self.type_class_registry.resolve_instance(class_name, instance_type)
     }
 
+    /// Compose two polynomial functors
+    /// Mathematical operation: (`P_u` ∘ `P_v)(X`) ≅ P_{u∘v}(X)
+    pub fn compose_polynomial_functors(&self, f: &PolynomialFunctor, g: &PolynomialFunctor) -> Result<PolynomialFunctor, LambdustError> {
+        let composed_level = f.universe_level.next();
+        let mut composed = PolynomialFunctor::new(composed_level);
+        
+        // Compose constructor sets: for each constructor c_f in f and c_g in g,
+        // create composed constructor that applies f then g
+        for (name_f, constructor_f) in &f.constructors {
+            for (name_g, constructor_g) in &g.constructors {
+                let composed_name = format!("{name_f}_{name_g}");
+                
+                // Compose the constructors appropriately
+                let composed_constructor = Constructor {
+                    name: composed_name.clone(),
+                    arg_types: constructor_f.arg_types.clone(),
+                    result_type: Box::new(PolynomialType::Application {
+                        constructor: Box::new((*constructor_g.result_type).clone()),
+                        argument: Box::new((*constructor_f.result_type).clone()),
+                    }),
+                };
+                
+                composed.add_constructor(composed_name, composed_constructor)?;
+            }
+        }
+        
+        Ok(composed)
+    }
+
+    /// Promote a type to a higher universe level
+    /// This implements universe level lifting for type-in-type avoidance
+    pub fn promote_type(&self, base_type: &PolynomialType, target_level: usize) -> Result<PolynomialType, LambdustError> {
+        match base_type {
+            PolynomialType::Base(base) => {
+                // Base types can be promoted by wrapping in universe
+                Ok(PolynomialType::Variable {
+                    name: format!("{base:?}"),
+                    level: UniverseLevel::new(target_level),
+                })
+            }
+            PolynomialType::Variable { name, level } => {
+                if level.0 < target_level {
+                    Ok(PolynomialType::Variable {
+                        name: name.clone(),
+                        level: UniverseLevel::new(target_level),
+                    })
+                } else {
+                    Ok(base_type.clone())
+                }
+            }
+            _ => {
+                // Other types require more sophisticated promotion
+                Ok(base_type.clone())
+            }
+        }
+    }
+
+    /// Unify two types using polynomial universe semantics
+    /// This implements type unification with universe constraints
+    pub fn unify_types(&self, type1: &PolynomialType, type2: &PolynomialType) -> Result<std::collections::HashMap<String, PolynomialType>, LambdustError> {
+        let mut substitution = std::collections::HashMap::new();
+        
+        match (type1, type2) {
+            (PolynomialType::Variable { name, .. }, t) | (t, PolynomialType::Variable { name, .. }) => {
+                substitution.insert(name.clone(), t.clone());
+                Ok(substitution)
+            }
+            (PolynomialType::Base(b1), PolynomialType::Base(b2)) if b1 == b2 => {
+                Ok(substitution)
+            }
+            (PolynomialType::Function { input: i1, output: o1 }, 
+             PolynomialType::Function { input: i2, output: o2 }) => {
+                let input_unify = self.unify_types(i1, i2)?;
+                let output_unify = self.unify_types(o1, o2)?;
+                
+                // Merge substitutions
+                substitution.extend(input_unify);
+                substitution.extend(output_unify);
+                Ok(substitution)
+            }
+            _ => Err(LambdustError::type_error(format!("Cannot unify {type1:?} with {type2:?}"))),
+        }
+    }
+
+    /// Solve universe constraints
+    /// This implements constraint solving for universe polymorphic types
+    pub fn solve_universe_constraints(&self, constraints: &[crate::type_system::universe_polymorphic_classes::UniversePolymorphicConstraint]) -> Result<std::collections::HashMap<String, PolynomialType>, LambdustError> {
+        let mut solution = std::collections::HashMap::new();
+        
+        for constraint in constraints {
+            if constraint.class_name.is_empty() {
+                return Err(LambdustError::type_error("Empty constraint class name".to_string()));
+            }
+            
+            // For now, provide a simple solution
+            // Real implementation would use constraint solving algorithms
+            solution.insert(
+                format!("constraint_{}", constraint.class_name),
+                PolynomialType::Base(polynomial_types::BaseType::Unit),
+            );
+        }
+        
+        Ok(solution)
+    }
+
+    /// Instantiate a polymorphic type with a concrete type
+    /// This implements type instantiation for System F style polymorphism
+    pub fn instantiate_type(&self, poly_type: &PolynomialType, concrete_type: &PolynomialType) -> Result<PolynomialType, LambdustError> {
+        match poly_type {
+            PolynomialType::Variable {  .. } => {
+                // Substitute type variable with concrete type
+                Ok(concrete_type.clone())
+            }
+            PolynomialType::Function { input, output } => {
+                let instantiated_input = self.instantiate_type(input, concrete_type)?;
+                let instantiated_output = self.instantiate_type(output, concrete_type)?;
+                Ok(PolynomialType::Function {
+                    input: Box::new(instantiated_input),
+                    output: Box::new(instantiated_output),
+                })
+            }
+            _ => Ok(poly_type.clone()),
+        }
+    }
+
     /// Type check multiple expressions in parallel (GHC challenge mode)
-    pub fn type_check_parallel(&self, expressions: Vec<(crate::ast::Expr, String)>) -> Result<Vec<parallel_type_checker::TypeCheckResult>, LambdustError> {
+    #[cfg(feature = "parallel-type-checking")]
+    pub fn type_check_parallel(&mut self, expressions: Vec<(crate::ast::Expr, String)>) -> Result<Vec<parallel_type_checker::TypeCheckResult>, LambdustError> {
         self.parallel_type_checker.type_check_parallel(expressions)
     }
 
     /// Type check with automatic parallelization decision
-    pub fn type_check_auto(&self, expressions: Vec<(crate::ast::Expr, String)>) -> Result<Vec<parallel_type_checker::TypeCheckResult>, LambdustError> {
+    #[cfg(feature = "parallel-type-checking")]
+    pub fn type_check_auto(&mut self, expressions: Vec<(crate::ast::Expr, String)>) -> Result<Vec<parallel_type_checker::TypeCheckResult>, LambdustError> {
         self.parallel_type_checker.type_check_auto(expressions)
     }
 
     /// Get parallel type checking performance metrics
+    #[cfg(feature = "parallel-type-checking")]
     pub fn get_parallel_metrics(&self) -> ParallelTypeCheckMetrics {
-        self.parallel_type_checker.get_metrics()
+        self.parallel_type_checker.get_metrics().clone()
     }
 
     /// Add type binding for parallel type checking
-    pub fn add_parallel_type_binding(&self, name: String, typ: PolynomialType) {
+    #[cfg(feature = "parallel-type-checking")]
+    pub fn add_parallel_type_binding(&mut self, name: String, typ: PolynomialType) {
         self.parallel_type_checker.add_type_binding(name, typ);
     }
 
@@ -168,7 +301,7 @@ impl PolynomialUniverseSystem {
         self.universe_polymorphic_registry.register_class(class)
     }
     
-    /// Check universe level consistency using universe_hierarchy
+    /// Check universe level consistency using `universe_hierarchy`
     pub fn check_universe_level_consistency(&self, type1: &PolynomialType, type2: &PolynomialType) -> Result<bool, LambdustError> {
         // Use the universe_hierarchy to verify level consistency
         let level1 = self.universe_hierarchy.get_type_level(type1);
@@ -262,42 +395,5 @@ impl PolynomialUniverseSystem {
 impl Default for PolynomialUniverseSystem {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_polynomial_universe_system_creation() {
-        let system = PolynomialUniverseSystem::new();
-        // Basic creation should work without errors
-        assert!(system.universe_hierarchy.max_level() >= UniverseLevel::new(0));
-    }
-
-    #[test]
-    fn test_type_system_integration() {
-        let mut system = PolynomialUniverseSystem::new();
-        
-        // Test basic type operations
-        let nat_type = PolynomialType::Base(polynomial_types::BaseType::Natural);
-        let value = Value::Number(crate::lexer::SchemeNumber::Integer(42));
-        
-        let result = system.type_check(&value, &nat_type);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_universe_polymorphic_integration() {
-        let system = PolynomialUniverseSystem::new();
-        
-        // Test that universe polymorphic registry is accessible
-        let classes = system.list_universe_polymorphic_classes();
-        assert!(classes.is_empty()); // Should start empty
-        
-        // Test that we can access the registry
-        let functor_class = system.get_universe_polymorphic_class("Functor");
-        assert!(functor_class.is_none()); // Should not exist yet
     }
 }

@@ -195,24 +195,24 @@ impl JitOptimizationStats {
     }
 
     /// Get pattern detection count
-    pub fn pattern_count(&self, pattern_name: &str) -> usize {
+    #[must_use] pub fn pattern_count(&self, pattern_name: &str) -> usize {
         self.pattern_detections.get(pattern_name).copied().unwrap_or(0)
     }
 
     /// Get code generation count
-    pub fn generation_count(&self, pattern_name: &str) -> usize {
+    #[must_use] pub fn generation_count(&self, pattern_name: &str) -> usize {
         self.code_generations.get(pattern_name).copied().unwrap_or(0)
     }
 
     /// Calculate overall efficiency
-    pub fn efficiency(&self) -> f64 {
+    #[must_use] pub fn efficiency(&self) -> f64 {
         self.compilation_rate * 100.0
     }
 }
 
 impl LoopPattern {
     /// Get pattern name as string
-    pub fn pattern_name(&self) -> &'static str {
+    #[must_use] pub fn pattern_name(&self) -> &'static str {
         match self {
             LoopPattern::CountingLoop { .. } => "CountingLoop",
             LoopPattern::ListIteration { .. } => "ListIteration",
@@ -223,12 +223,12 @@ impl LoopPattern {
     }
 
     /// Check if pattern is compilable to native code
-    pub fn is_compilable(&self) -> bool {
+    #[must_use] pub fn is_compilable(&self) -> bool {
         !matches!(self, LoopPattern::ComplexLoop)
     }
 
     /// Get estimated complexity
-    pub fn complexity(&self) -> f64 {
+    #[must_use] pub fn complexity(&self) -> f64 {
         match self {
             LoopPattern::CountingLoop { .. } => 1.0,
             LoopPattern::ListIteration { .. } => 2.0,
@@ -241,7 +241,7 @@ impl LoopPattern {
 
 impl IterationStrategy {
     /// Get strategy name as string
-    pub fn strategy_name(&self) -> &'static str {
+    #[must_use] pub fn strategy_name(&self) -> &'static str {
         match self {
             IterationStrategy::NativeForLoop { .. } => "NativeForLoop",
             IterationStrategy::ManualLoop { .. } => "ManualLoop",
@@ -249,7 +249,7 @@ impl IterationStrategy {
     }
 
     /// Calculate estimated performance improvement over CPS
-    pub fn performance_multiplier(&self) -> f64 {
+    #[must_use] pub fn performance_multiplier(&self) -> f64 {
         match self {
             IterationStrategy::NativeForLoop { .. } => 50.0, // 50x faster than CPS
             IterationStrategy::ManualLoop { .. } => 20.0,     // 20x faster than CPS
@@ -259,7 +259,7 @@ impl IterationStrategy {
 
 impl CompiledLoop {
     /// Create new compiled loop
-    pub fn new(pattern: LoopPattern, strategy: IterationStrategy) -> Self {
+    #[must_use] pub fn new(pattern: LoopPattern, strategy: IterationStrategy) -> Self {
         Self {
             pattern,
             strategy,
@@ -274,14 +274,14 @@ impl CompiledLoop {
     }
 
     /// Get age since compilation
-    pub fn age(&self) -> std::time::Duration {
+    #[must_use] pub fn age(&self) -> std::time::Duration {
         self.compiled_at.elapsed()
     }
 }
 
 impl GeneratedCode {
     /// Create new generated code
-    pub fn new(strategy: IterationStrategy) -> Self {
+    #[must_use] pub fn new(strategy: IterationStrategy) -> Self {
         Self {
             strategy,
             characteristics: CodeCharacteristics::default(),
@@ -290,7 +290,7 @@ impl GeneratedCode {
     }
 
     /// Create with custom characteristics
-    pub fn with_characteristics(strategy: IterationStrategy, characteristics: CodeCharacteristics) -> Self {
+    #[must_use] pub fn with_characteristics(strategy: IterationStrategy, characteristics: CodeCharacteristics) -> Self {
         Self {
             strategy,
             characteristics,
@@ -299,12 +299,12 @@ impl GeneratedCode {
     }
 
     /// Get code age
-    pub fn age(&self) -> std::time::Duration {
+    #[must_use] pub fn age(&self) -> std::time::Duration {
         self.generated_at.elapsed()
     }
 
     /// Calculate performance score (higher is better)
-    pub fn performance_score(&self) -> f64 {
+    #[must_use] pub fn performance_score(&self) -> f64 {
         let base_score = self.characteristics.iterations_per_second / 1_000_000.0;
         let cache_bonus = self.characteristics.cache_friendliness;
         let memory_penalty = (self.characteristics.memory_overhead as f64 / 1024.0).min(1.0);

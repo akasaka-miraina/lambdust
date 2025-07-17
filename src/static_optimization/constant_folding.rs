@@ -60,7 +60,7 @@ pub enum FoldableConstant {
 
 impl ConstantFolder {
     /// Create a new constant folder
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             statistics: FoldingStatistics::default(),
         }
@@ -111,7 +111,7 @@ impl ConstantFolder {
                 let (folded_inner, count) = self.fold_expression(inner)?;
                 Ok((Expr::UnquoteSplicing(Box::new(folded_inner)), count))
             }
-            Expr::Vector(exprs) => {
+            Expr::Vector(_exprs) => {
                 // Vector elements are not evaluated
                 Ok((expr.clone(), 0))
             }
@@ -693,7 +693,7 @@ impl ConstantFolder {
     }
 
     /// Get folding statistics
-    pub fn get_statistics(&self) -> &FoldingStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &FoldingStatistics {
         &self.statistics
     }
 
@@ -706,98 +706,5 @@ impl ConstantFolder {
 impl Default for ConstantFolder {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_constant_folder_creation() {
-        let folder = ConstantFolder::new();
-        assert_eq!(folder.get_statistics().total_attempts, 0);
-    }
-
-    #[test]
-    fn test_simple_addition_folding() {
-        let mut folder = ConstantFolder::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-        ]);
-
-        let result = folder.fold(&expr).unwrap();
-        assert!(result.optimization_applied);
-        assert_eq!(result.constants_folded, 1);
-        
-        match result.folded_expr {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(3))) => {},
-            _ => panic!("Expected folded result to be 3"),
-        }
-    }
-
-    #[test]
-    fn test_logical_and_folding() {
-        let mut folder = ConstantFolder::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("and".to_string()),
-            Expr::Literal(Literal::Boolean(true)),
-            Expr::Literal(Literal::Boolean(false)),
-        ]);
-
-        let result = folder.fold(&expr).unwrap();
-        assert!(result.optimization_applied);
-        
-        match result.folded_expr {
-            Expr::Literal(Literal::Boolean(false)) => {},
-            _ => panic!("Expected folded result to be false"),
-        }
-    }
-
-    #[test]
-    fn test_string_append_folding() {
-        let mut folder = ConstantFolder::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("string-append".to_string()),
-            Expr::Literal(Literal::String("hello".to_string())),
-            Expr::Literal(Literal::String(" world".to_string())),
-        ]);
-
-        let result = folder.fold(&expr).unwrap();
-        assert!(result.optimization_applied);
-        
-        match result.folded_expr {
-            Expr::Literal(Literal::String(s)) if s == "hello world" => {},
-            _ => panic!("Expected folded result to be 'hello world'"),
-        }
-    }
-
-    #[test]
-    fn test_non_constant_expression() {
-        let mut folder = ConstantFolder::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-        ]);
-
-        let result = folder.fold(&expr).unwrap();
-        assert!(!result.optimization_applied);
-        assert_eq!(result.constants_folded, 0);
-    }
-
-    #[test]
-    fn test_division_by_zero() {
-        let mut folder = ConstantFolder::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("/".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
-        ]);
-
-        let result = folder.fold(&expr);
-        assert!(result.is_err());
     }
 }

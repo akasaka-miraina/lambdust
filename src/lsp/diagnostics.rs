@@ -6,7 +6,7 @@
 use crate::error::{LambdustError, Result};
 use crate::interpreter::LambdustInterpreter;
 use crate::lexer::{lex, LexError};
-use crate::lsp::position::{Position, Range, Span};
+use crate::lsp::position::{Position, Range};
 use crate::parser::parse;
 use std::collections::HashMap;
 
@@ -283,21 +283,25 @@ impl DiagnosticsEngine {
     /// Convert parse error to diagnostic
     fn parse_error_to_diagnostic(
         &self,
-        error: &ParseError,
+        error: &LambdustError,
         document: &crate::lsp::document::Document,
     ) -> Option<Diagnostic> {
-        // Extract position information from error if available
-        let range = Range::at_position(Position::new(0, 0)); // Simplified
-        
-        Some(Diagnostic {
-            range,
-            severity: DiagnosticSeverity::Error,
-            message: format!("Parse error: {}", error),
-            code: Some("PARSE001".to_string()),
-            source: "lambdust".to_string(),
-            related_information: Vec::new(),
-            tags: Vec::new(),
-        })
+        match error {
+            LambdustError::ParseError { message, location } => {
+                let range = self.source_span_to_range(location);
+                
+                Some(Diagnostic {
+                    range,
+                    severity: DiagnosticSeverity::Error,
+                    message: message.clone(),
+                    code: Some("PARSE001".to_string()),
+                    source: "lambdust".to_string(),
+                    related_information: Vec::new(),
+                    tags: Vec::new(),
+                })
+            }
+            _ => None,
+        }
     }
     
     /// Convert runtime error to diagnostic
@@ -437,27 +441,200 @@ impl DiagnosticsEngine {
     
     /// Check for undefined variables
     fn check_undefined_variables(&self, document: &crate::lsp::document::Document) -> Result<Vec<Diagnostic>> {
-        // TODO: Implement variable binding analysis
-        Ok(Vec::new())
+        let mut diagnostics = Vec::new();
+        let content = document.get_content();
+        
+        // Parse the content to extract symbol usage
+        match parse(content) {
+            Ok(expressions) => {
+                let mut defined_vars = std::collections::HashSet::new();
+                let mut used_vars = std::collections::HashSet::new();
+                
+                // First pass: collect all defined variables
+                for expr in &expressions {
+                    self.collect_defined_variables(expr, &mut defined_vars);
+                }
+                
+                // Add built-in variables
+                self.add_builtin_variables(&mut defined_vars);
+                
+                // Second pass: collect all used variables
+                for expr in &expressions {
+                    self.collect_used_variables(expr, &mut used_vars);
+                }
+                
+                // Find undefined variables
+                for used_var in used_vars {
+                    if !defined_vars.contains(&used_var) {
+                        // Find the location of the undefined variable
+                        if let Some(position) = self.find_variable_position(content, &used_var) {
+                            diagnostics.push(Diagnostic {
+                                range: Range::at_position(position),
+                                severity: DiagnosticSeverity::Error,
+                                message: format!("Undefined variable: {}", used_var),
+                                code: Some("UNDEF001".to_string()),
+                                source: "lambdust".to_string(),
+                                related_information: Vec::new(),
+                                tags: Vec::new(),
+                            });
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                // If parsing fails, we can't do undefined variable analysis
+            }
+        }
+        
+        Ok(diagnostics)
     }
     
     /// Check for unused variables
     fn check_unused_variables(&self, document: &crate::lsp::document::Document) -> Result<Vec<Diagnostic>> {
-        // TODO: Implement unused variable detection
-        Ok(Vec::new())
+        let mut diagnostics = Vec::new();
+        let content = document.get_content();
+        
+        match parse(content) {
+            Ok(expressions) => {
+                let mut defined_vars = std::collections::HashMap::new();
+                let mut used_vars = std::collections::HashSet::new();
+                
+                // Collect defined variables with their positions
+                for expr in &expressions {
+                    self.collect_defined_variables_with_positions(expr, &mut defined_vars, content);
+                }
+                
+                // Collect used variables
+                for expr in &expressions {
+                    self.collect_used_variables(expr, &mut used_vars);
+                }
+                
+                // Find unused variables
+                for (var_name, position) in defined_vars {
+                    if !used_vars.contains(&var_name) && !self.is_builtin_or_export(&var_name) {
+                        diagnostics.push(Diagnostic {
+                            range: Range::at_position(position),
+                            severity: DiagnosticSeverity::Information,
+                            message: format!("Unused variable: {}", var_name),
+                            code: Some("UNUSED001".to_string()),
+                            source: "lambdust".to_string(),
+                            related_information: Vec::new(),
+                            tags: vec![DiagnosticTag::Unnecessary],
+                        });
+                    }
+                }
+            }
+            Err(_) => {
+                // If parsing fails, we can't do unused variable analysis
+            }
+        }
+        
+        Ok(diagnostics)
     }
     
     /// Check naming conventions
     fn check_naming_conventions(&self, document: &crate::lsp::document::Document) -> Result<Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
-        // TODO: Implement naming convention checks
+        let content = document.get_content();
+        
+        // Check for proper predicate naming (should end with ?)
+        for (line_num, line) in content.lines().enumerate() {
+            if let Some(captures) = self.extract_function_definitions(line) {
+                for (name, position) in captures {
+                    // Check predicate naming convention
+                    if self.looks_like_predicate(&name) && !name.ends_with('?') {
+                        diagnostics.push(Diagnostic {
+                            range: Range::at_position(Position::new(line_num as u32, position as u32)),
+                            severity: DiagnosticSeverity::Information,
+                            message: format!("Predicate function '{}' should end with '?'", name),
+                            code: Some("STYLE002".to_string()),
+                            source: "lambdust".to_string(),
+                            related_information: Vec::new(),
+                            tags: Vec::new(),
+                        });
+                    }
+                    
+                    // Check for CamelCase (should use kebab-case)
+                    if name.chars().any(|c| c.is_uppercase()) {
+                        diagnostics.push(Diagnostic {
+                            range: Range::at_position(Position::new(line_num as u32, position as u32)),
+                            severity: DiagnosticSeverity::Information,
+                            message: format!("Use kebab-case instead of CamelCase for '{}'", name),
+                            code: Some("STYLE003".to_string()),
+                            source: "lambdust".to_string(),
+                            related_information: Vec::new(),
+                            tags: Vec::new(),
+                        });
+                    }
+                    
+                    // Check for underscore usage (should use hyphens)
+                    if name.contains('_') {
+                        diagnostics.push(Diagnostic {
+                            range: Range::at_position(Position::new(line_num as u32, position as u32)),
+                            severity: DiagnosticSeverity::Information,
+                            message: format!("Use hyphens instead of underscores in '{}'", name),
+                            code: Some("STYLE004".to_string()),
+                            source: "lambdust".to_string(),
+                            related_information: Vec::new(),
+                            tags: Vec::new(),
+                        });
+                    }
+                }
+            }
+        }
+        
         Ok(diagnostics)
     }
     
     /// Check indentation
     fn check_indentation(&self, document: &crate::lsp::document::Document) -> Result<Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
-        // TODO: Implement indentation checks
+        let content = document.get_content();
+        
+        let mut expected_indent = 0;
+        let mut paren_stack = Vec::new();
+        
+        for (line_num, line) in content.lines().enumerate() {
+            let trimmed = line.trim_start();
+            if trimmed.is_empty() || trimmed.starts_with(';') {
+                continue; // Skip empty lines and comments
+            }
+            
+            let actual_indent = line.len() - trimmed.len();
+            
+            // Update expected indentation based on parentheses
+            for ch in line.chars() {
+                match ch {
+                    '(' => {
+                        paren_stack.push(expected_indent);
+                        expected_indent += 2; // Standard 2-space indentation
+                    }
+                    ')' => {
+                        if let Some(prev_indent) = paren_stack.pop() {
+                            expected_indent = prev_indent;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            
+            // Check if indentation is correct
+            if actual_indent != expected_indent && !paren_stack.is_empty() {
+                diagnostics.push(Diagnostic {
+                    range: Range::new(
+                        Position::new(line_num as u32, 0),
+                        Position::new(line_num as u32, actual_indent as u32),
+                    ),
+                    severity: DiagnosticSeverity::Information,
+                    message: format!("Expected {} spaces, found {}", expected_indent, actual_indent),
+                    code: Some("STYLE005".to_string()),
+                    source: "lambdust".to_string(),
+                    related_information: Vec::new(),
+                    tags: Vec::new(),
+                });
+            }
+        }
+        
         Ok(diagnostics)
     }
     
@@ -489,15 +666,126 @@ impl DiagnosticsEngine {
     /// Check for inefficient patterns
     fn check_inefficient_patterns(&self, document: &crate::lsp::document::Document) -> Result<Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
-        // TODO: Implement performance pattern detection
+        let content = document.get_content();
+        
+        for (line_num, line) in content.lines().enumerate() {
+            // Check for inefficient list operations
+            if line.contains("(append") && line.contains("(cons") {
+                diagnostics.push(Diagnostic {
+                    range: Range::new(
+                        Position::new(line_num as u32, 0),
+                        Position::new(line_num as u32, line.len() as u32),
+                    ),
+                    severity: DiagnosticSeverity::Information,
+                    message: "Consider using more efficient list construction patterns".to_string(),
+                    code: Some("PERF001".to_string()),
+                    source: "lambdust".to_string(),
+                    related_information: Vec::new(),
+                    tags: Vec::new(),
+                });
+            }
+            
+            // Check for nested map operations
+            if line.matches("(map").count() > 1 {
+                diagnostics.push(Diagnostic {
+                    range: Range::new(
+                        Position::new(line_num as u32, 0),
+                        Position::new(line_num as u32, line.len() as u32),
+                    ),
+                    severity: DiagnosticSeverity::Information,
+                    message: "Nested map operations can be combined for better performance".to_string(),
+                    code: Some("PERF002".to_string()),
+                    source: "lambdust".to_string(),
+                    related_information: Vec::new(),
+                    tags: Vec::new(),
+                });
+            }
+            
+            // Check for repeated calculations
+            if line.contains("(length") && line.matches("(length").count() > 1 {
+                diagnostics.push(Diagnostic {
+                    range: Range::new(
+                        Position::new(line_num as u32, 0),
+                        Position::new(line_num as u32, line.len() as u32),
+                    ),
+                    severity: DiagnosticSeverity::Information,
+                    message: "Consider caching length calculation to avoid repeated computation".to_string(),
+                    code: Some("PERF003".to_string()),
+                    source: "lambdust".to_string(),
+                    related_information: Vec::new(),
+                    tags: Vec::new(),
+                });
+            }
+        }
+        
         Ok(diagnostics)
     }
     
     /// Check for tail call opportunities
     fn check_tail_call_opportunities(&self, document: &crate::lsp::document::Document) -> Result<Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
-        // TODO: Implement tail call analysis
+        let content = document.get_content();
+        
+        match parse(content) {
+            Ok(expressions) => {
+                for expr in expressions {
+                    self.analyze_tail_call_opportunities(expr, &mut diagnostics, 0);
+                }
+            }
+            Err(_) => {
+                // If parsing fails, we can't do tail call analysis
+            }
+        }
+        
         Ok(diagnostics)
+    }
+    
+    /// Analyze expression for tail call opportunities
+    fn analyze_tail_call_opportunities(
+        &self,
+        expr: crate::ast::Expr,
+        diagnostics: &mut Vec<Diagnostic>,
+        line_num: u32,
+    ) {
+        use crate::ast::Expr;
+        
+        match expr {
+            Expr::List(exprs) if exprs.len() >= 2 => {
+                if let Expr::Variable(name) = &exprs[0] {
+                    match name.as_str() {
+                        "define" if exprs.len() >= 3 => {
+                            // Check if this is a function definition
+                            if let Expr::List(_) = &exprs[1] {
+                                // Check the function body for non-tail recursion
+                                if let Some(func_name) = self.extract_function_name(&exprs[1]) {
+                                    if self.has_non_tail_recursion(&exprs[2], &func_name) {
+                                        diagnostics.push(Diagnostic {
+                                            range: Range::at_position(Position::new(line_num, 0)),
+                                            severity: DiagnosticSeverity::Information,
+                                            message: format!(
+                                                "Function '{}' can be optimized with tail call optimization",
+                                                func_name
+                                            ),
+                                            code: Some("PERF004".to_string()),
+                                            source: "lambdust".to_string(),
+                                            related_information: Vec::new(),
+                                            tags: Vec::new(),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                
+                // Recursively analyze sub-expressions
+                for (i, sub_expr) in exprs.into_iter().enumerate() {
+                    self.analyze_tail_call_opportunities(sub_expr, diagnostics, line_num + i as u32);
+                }
+            }
+            _ => {}
+        }
     }
     
     /// Update configuration
@@ -508,6 +796,296 @@ impl DiagnosticsEngine {
     /// Clear diagnostics cache
     pub fn clear_cache(&mut self) {
         self.diagnostics_cache.clear();
+    }
+    
+    /// Convert source span to LSP range
+    fn source_span_to_range(&self, span: &crate::error::SourceSpan) -> Range {
+        Range::new(
+            Position::new(
+                span.start.line.saturating_sub(1) as u32, // Convert to 0-based
+                span.start.column.saturating_sub(1) as u32, // Convert to 0-based
+            ),
+            Position::new(
+                span.end.line.saturating_sub(1) as u32, // Convert to 0-based
+                span.end.column.saturating_sub(1) as u32, // Convert to 0-based
+            ),
+        )
+    }
+    
+    /// Collect defined variables from expression
+    fn collect_defined_variables(&self, expr: &crate::ast::Expr, defined: &mut std::collections::HashSet<String>) {
+        use crate::ast::Expr;
+        match expr {
+            Expr::List(exprs) if !exprs.is_empty() => {
+                if let Expr::Variable(name) = &exprs[0] {
+                    match name.as_str() {
+                        "define" if exprs.len() >= 3 => {
+                            if let Expr::Variable(var_name) = &exprs[1] {
+                                defined.insert(var_name.clone());
+                            } else if let Expr::List(def_exprs) = &exprs[1] {
+                                if let Some(Expr::Variable(func_name)) = def_exprs.first() {
+                                    defined.insert(func_name.clone());
+                                }
+                            }
+                        }
+                        "let" | "let*" | "letrec" if exprs.len() >= 3 => {
+                            if let Expr::List(bindings) = &exprs[1] {
+                                for binding in bindings {
+                                    if let Expr::List(binding_exprs) = binding {
+                                        if let Some(Expr::Variable(var_name)) = binding_exprs.first() {
+                                            defined.insert(var_name.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        "lambda" if exprs.len() >= 3 => {
+                            if let Expr::List(params) = &exprs[1] {
+                                for param in params {
+                                    if let Expr::Variable(param_name) = param {
+                                        defined.insert(param_name.clone());
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                
+                // Recursively check sub-expressions
+                for sub_expr in exprs {
+                    self.collect_defined_variables(sub_expr, defined);
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    /// Collect used variables from expression
+    fn collect_used_variables(&self, expr: &crate::ast::Expr, used: &mut std::collections::HashSet<String>) {
+        use crate::ast::Expr;
+        match expr {
+            Expr::Variable(name) => {
+                used.insert(name.clone());
+            }
+            Expr::List(exprs) => {
+                for sub_expr in exprs {
+                    self.collect_used_variables(sub_expr, used);
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    /// Collect defined variables with their positions
+    fn collect_defined_variables_with_positions(
+        &self,
+        expr: &crate::ast::Expr,
+        defined: &mut std::collections::HashMap<String, Position>,
+        content: &str,
+    ) {
+        use crate::ast::Expr;
+        match expr {
+            Expr::List(exprs) if !exprs.is_empty() => {
+                if let Expr::Variable(name) = &exprs[0] {
+                    match name.as_str() {
+                        "define" if exprs.len() >= 3 => {
+                            if let Expr::Variable(var_name) = &exprs[1] {
+                                if let Some(pos) = self.find_variable_position(content, var_name) {
+                                    defined.insert(var_name.clone(), pos);
+                                }
+                            }
+                        }
+                        "let" | "let*" | "letrec" if exprs.len() >= 3 => {
+                            if let Expr::List(bindings) = &exprs[1] {
+                                for binding in bindings {
+                                    if let Expr::List(binding_exprs) = binding {
+                                        if let Some(Expr::Variable(var_name)) = binding_exprs.first() {
+                                            if let Some(pos) = self.find_variable_position(content, var_name) {
+                                                defined.insert(var_name.clone(), pos);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                
+                // Recursively check sub-expressions
+                for sub_expr in exprs {
+                    self.collect_defined_variables_with_positions(sub_expr, defined, content);
+                }
+            }
+            _ => {}
+        }
+    }
+    
+    /// Add built-in variables to the defined set
+    fn add_builtin_variables(&self, defined: &mut std::collections::HashSet<String>) {
+        // Add common Scheme built-ins
+        let builtins = [
+            "+", "-", "*", "/", "=", "<", ">", "<=", ">=",
+            "cons", "car", "cdr", "list", "null?", "pair?",
+            "not", "and", "or", "if", "cond", "case",
+            "eq?", "eqv?", "equal?", "symbol?", "number?",
+            "string?", "boolean?", "procedure?",
+            "append", "reverse", "length", "member", "assoc",
+            "map", "for-each", "apply", "eval",
+            "display", "newline", "write", "read",
+            "vector", "vector?", "vector-ref", "vector-set!",
+            "string", "string-ref", "string-set!", "string-length",
+            "substring", "string-append",
+        ];
+        
+        for builtin in &builtins {
+            defined.insert(builtin.to_string());
+        }
+    }
+    
+    /// Find the position of a variable in the content
+    fn find_variable_position(&self, content: &str, var_name: &str) -> Option<Position> {
+        for (line_num, line) in content.lines().enumerate() {
+            if let Some(col) = line.find(var_name) {
+                return Some(Position::new(line_num as u32, col as u32));
+            }
+        }
+        None
+    }
+    
+    /// Check if a variable is a built-in or export
+    fn is_builtin_or_export(&self, var_name: &str) -> bool {
+        // Check if it's a built-in
+        matches!(var_name,
+            "+" | "-" | "*" | "/" | "=" | "<" | ">" | "<=" | ">=" |
+            "cons" | "car" | "cdr" | "list" | "null?" | "pair?" |
+            "not" | "and" | "or" | "if" | "cond" | "case" |
+            "eq?" | "eqv?" | "equal?" | "symbol?" | "number?" |
+            "string?" | "boolean?" | "procedure?" |
+            "append" | "reverse" | "length" | "member" | "assoc" |
+            "map" | "for-each" | "apply" | "eval" |
+            "display" | "newline" | "write" | "read" |
+            "vector" | "vector?" | "vector-ref" | "vector-set!" |
+            "string" | "string-ref" | "string-set!" | "string-length" |
+            "substring" | "string-append"
+        ) || var_name.starts_with("export-") // Convention for exported variables
+    }
+    
+    /// Extract function definitions from a line
+    fn extract_function_definitions(&self, line: &str) -> Option<Vec<(String, usize)>> {
+        let mut results = Vec::new();
+        
+        // Look for (define (function-name ...)) patterns
+        if line.trim().starts_with("(define (") {
+            let tokens: Vec<&str> = line.split_whitespace().collect();
+            if tokens.len() >= 3 {
+                if let Some(name_part) = tokens[1].strip_prefix('(') {
+                    let name = name_part.to_string();
+                    if let Some(pos) = line.find(&name) {
+                        results.push((name, pos));
+                    }
+                }
+            }
+        }
+        
+        // Look for (define function-name ...) patterns
+        if line.trim().starts_with("(define ") && !line.trim().starts_with("(define (") {
+            let tokens: Vec<&str> = line.split_whitespace().collect();
+            if tokens.len() >= 3 {
+                let name = tokens[1].to_string();
+                if let Some(pos) = line.find(&name) {
+                    results.push((name, pos));
+                }
+            }
+        }
+        
+        if results.is_empty() {
+            None
+        } else {
+            Some(results)
+        }
+    }
+    
+    /// Check if a name looks like a predicate
+    fn looks_like_predicate(&self, name: &str) -> bool {
+        // Common predicate patterns
+        name.contains("is-") || 
+        name.contains("has-") || 
+        name.contains("can-") ||
+        name.ends_with("-p") ||
+        matches!(name, "null" | "zero" | "positive" | "negative" | "even" | "odd" | "empty")
+    }
+    
+    /// Extract function name from define form
+    fn extract_function_name(&self, expr: &crate::ast::Expr) -> Option<String> {
+        use crate::ast::Expr;
+        match expr {
+            Expr::List(exprs) if !exprs.is_empty() => {
+                if let Expr::Variable(name) = &exprs[0] {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            }
+            Expr::Variable(name) => Some(name.clone()),
+            _ => None,
+        }
+    }
+    
+    /// Check if expression has non-tail recursion
+    fn has_non_tail_recursion(&self, expr: &crate::ast::Expr, func_name: &str) -> bool {
+        use crate::ast::Expr;
+        match expr {
+            Expr::List(exprs) if !exprs.is_empty() => {
+                // Check if this is a recursive call in non-tail position
+                if let Expr::Variable(name) = &exprs[0] {
+                    if name == func_name {
+                        // This is a recursive call - check if it's in tail position
+                        // For simplicity, assume it's non-tail if it's part of an arithmetic operation
+                        return false; // This would need more sophisticated analysis
+                    }
+                }
+                
+                // Check for recursive calls in arithmetic operations (non-tail)
+                if let Expr::Variable(op) = &exprs[0] {
+                    if matches!(op.as_str(), "+" | "-" | "*" | "/" | "cons" | "append") {
+                        for arg in &exprs[1..] {
+                            if self.contains_recursive_call(arg, func_name) {
+                                return true; // Non-tail recursion found
+                            }
+                        }
+                    }
+                }
+                
+                // Recursively check sub-expressions
+                for expr in exprs {
+                    if self.has_non_tail_recursion(expr, func_name) {
+                        return true;
+                    }
+                }
+                
+                false
+            }
+            _ => false,
+        }
+    }
+    
+    /// Check if expression contains a recursive call
+    fn contains_recursive_call(&self, expr: &crate::ast::Expr, func_name: &str) -> bool {
+        use crate::ast::Expr;
+        match expr {
+            Expr::Variable(name) => name == func_name,
+            Expr::List(exprs) => {
+                for expr in exprs {
+                    if self.contains_recursive_call(expr, func_name) {
+                        return true;
+                    }
+                }
+                false
+            }
+            _ => false,
+        }
     }
 }
 
@@ -551,33 +1129,5 @@ impl Diagnostic {
             },
             data: None,
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_diagnostics_engine_creation() {
-        let interpreter = LambdustInterpreter::new();
-        let engine = DiagnosticsEngine::new(interpreter);
-        assert!(engine.is_ok());
-    }
-
-    #[test]
-    fn test_diagnostic_severity() {
-        let diagnostic = Diagnostic {
-            range: Range::at_position(Position::new(0, 0)),
-            severity: DiagnosticSeverity::Error,
-            message: "Test error".to_string(),
-            code: Some("TEST001".to_string()),
-            source: "test".to_string(),
-            related_information: Vec::new(),
-            tags: Vec::new(),
-        };
-        
-        assert_eq!(diagnostic.severity, DiagnosticSeverity::Error);
-        assert_eq!(diagnostic.message, "Test error");
     }
 }

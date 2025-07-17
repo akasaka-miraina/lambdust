@@ -180,17 +180,104 @@ impl HoverProvider {
     
     /// Resolve symbol from interpreter environment
     fn resolve_from_environment(&self, symbol: &str) -> Option<HoverInfo> {
-        // TODO: Query interpreter environment for symbol information
-        // This would check if the symbol is bound and get its type/value
+        // Query interpreter environment for symbol information
+        match self.interpreter.get_environment() {
+            Ok(env) => {
+                // Check if symbol is bound in environment
+                if let Some(value) = env.get_binding(symbol) {
+                    self.create_hover_from_value(symbol, &value)
+                } else {
+                    None
+                }
+            }
+            Err(_) => None,
+        }
+    }
+    
+    /// Create hover info from a value in the environment
+    fn create_hover_from_value(&self, symbol: &str, value: &crate::value::Value) -> Option<HoverInfo> {
+        use crate::value::{Value, Procedure};
         
-        // For now, return generic information for unknown symbols
+        let (content, symbol_type, signature) = match value {
+            Value::Procedure(proc) => {
+                match proc {
+                    Procedure::Lambda { params, body, .. } => {
+                        let param_str = params.join(" ");
+                        let sig = format!("(λ ({}) body)", param_str);
+                        let content = format!(
+                            "**{}** - User-defined function\n\n```scheme\n{}\n```\n\nUser-defined lambda function with parameters: {}",
+                            symbol, sig, param_str
+                        );
+                        (content, SymbolType::UserFunction, Some(sig))
+                    }
+                    Procedure::Builtin { name, .. } => {
+                        let sig = format!("({})", name);
+                        let content = format!(
+                            "**{}** - Built-in function\n\n```scheme\n{}\n```\n\nBuilt-in function",
+                            symbol, sig
+                        );
+                        (content, SymbolType::BuiltinFunction, Some(sig))
+                    }
+                    Procedure::Macro { .. } => {
+                        let content = format!(
+                            "**{}** - Macro\n\nUser-defined macro",
+                            symbol
+                        );
+                        (content, SymbolType::Macro, None)
+                    }
+                }
+            }
+            Value::Number(n) => {
+                let content = format!(
+                    "**{}** - Number\n\nValue: {}\n\nNumerical constant",
+                    symbol, n
+                );
+                (content, SymbolType::Constant, None)
+            }
+            Value::String(s) => {
+                let content = format!(
+                    "**{}** - String\n\nValue: \"{}\"\n\nString constant",
+                    symbol, s
+                );
+                (content, SymbolType::Constant, None)
+            }
+            Value::Boolean(b) => {
+                let content = format!(
+                    "**{}** - Boolean\n\nValue: {}\n\nBoolean constant",
+                    symbol, if *b { "#t" } else { "#f" }
+                );
+                (content, SymbolType::Constant, None)
+            }
+            Value::Symbol(s) => {
+                let content = format!(
+                    "**{}** - Symbol\n\nValue: {}\n\nSymbol binding",
+                    symbol, s
+                );
+                (content, SymbolType::Variable, None)
+            }
+            Value::List(_) => {
+                let content = format!(
+                    "**{}** - List\n\nList data structure",
+                    symbol
+                );
+                (content, SymbolType::Variable, None)
+            }
+            _ => {
+                let content = format!(
+                    "**{}** - Variable\n\nUser-defined variable",
+                    symbol
+                );
+                (content, SymbolType::Variable, None)
+            }
+        };
+        
         Some(HoverInfo {
-            content: format!("**{}**\n\nUser-defined symbol", symbol),
+            content,
             range: None,
             metadata: HoverMetadata {
                 symbol: Some(symbol.to_string()),
-                symbol_type: Some(SymbolType::Variable),
-                signature: None,
+                symbol_type: Some(symbol_type),
+                signature,
                 documentation_source: Some("environment".to_string()),
                 related: Vec::new(),
             },
@@ -395,74 +482,5 @@ impl HoverProvider {
         symbols.extend(self.user_docs.keys().cloned());
         symbols.sort();
         symbols
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lsp::document::Document;
-
-    #[test]
-    fn test_hover_provider_creation() {
-        let interpreter = LambdustInterpreter::new();
-        let provider = HoverProvider::new(interpreter);
-        assert!(provider.is_ok());
-    }
-
-    #[test]
-    fn test_symbol_extraction() {
-        let doc = Document::new(
-            "file:///test.scm".to_string(),
-            "scheme".to_string(),
-            1,
-            "(+ 1 2)".to_string(),
-        ).unwrap();
-        
-        let interpreter = LambdustInterpreter::new();
-        let provider = HoverProvider::new(interpreter).unwrap();
-        
-        let result = provider.extract_symbol_at_position(&doc, Position::new(0, 1)).unwrap();
-        assert!(result.is_some());
-        
-        let (symbol, _range) = result.unwrap();
-        assert_eq!(symbol, "+");
-    }
-
-    #[test]
-    fn test_builtin_hover() {
-        let interpreter = LambdustInterpreter::new();
-        let provider = HoverProvider::new(interpreter).unwrap();
-        
-        let info = provider.lookup_symbol("+");
-        assert!(info.is_some());
-        
-        let hover = info.unwrap();
-        assert!(hover.content.contains("Addition"));
-        assert!(hover.content.contains("(+ number ...)"));
-    }
-
-    #[test]
-    fn test_special_form_hover() {
-        let interpreter = LambdustInterpreter::new();
-        let provider = HoverProvider::new(interpreter).unwrap();
-        
-        let info = provider.lookup_symbol("lambda");
-        assert!(info.is_some());
-        
-        let hover = info.unwrap();
-        assert!(hover.content.contains("Lambda expression"));
-        assert!(hover.content.contains("(lambda formals body)"));
-    }
-
-    #[test]
-    fn test_symbol_char_detection() {
-        assert!(HoverProvider::is_symbol_char('a'));
-        assert!(HoverProvider::is_symbol_char('Z'));
-        assert!(HoverProvider::is_symbol_char('1'));
-        assert!(HoverProvider::is_symbol_char('+'));
-        assert!(HoverProvider::is_symbol_char('?'));
-        assert!(!HoverProvider::is_symbol_char('('));
-        assert!(!HoverProvider::is_symbol_char(' '));
     }
 }

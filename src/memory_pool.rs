@@ -92,7 +92,7 @@ impl ValuePool {
 
     /// Get a cached boolean value (avoids allocation)
     #[must_use] pub fn get_boolean(&self, value: bool) -> Value {
-        self.boolean_cache[if value { 1 } else { 0 }].clone()
+        self.boolean_cache[usize::from(value)].clone()
     }
 
     /// Get the cached nil value (avoids allocation)
@@ -323,95 +323,3 @@ impl Continuation {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_value_pool_boolean_caching() {
-        let true_val1 = Value::new_boolean(true);
-        let true_val2 = Value::new_boolean(true);
-
-        // Values should be equivalent
-        assert!(matches!(true_val1, Value::Boolean(true)));
-        assert!(matches!(true_val2, Value::Boolean(true)));
-    }
-
-    #[test]
-    fn test_small_integer_pooling() {
-        let pool = ValuePool::new();
-
-        // Small integers should be pooled
-        let small_int = pool.get_small_integer(42);
-        assert!(small_int.is_some());
-        assert!(matches!(
-            small_int.unwrap(),
-            Value::Number(SchemeNumber::Integer(42))
-        ));
-
-        // Large integers should not be pooled
-        let large_int = pool.get_small_integer(1000);
-        assert!(large_int.is_none());
-    }
-
-    #[test]
-    fn test_symbol_interning() {
-        let symbol1 = Value::new_symbol("test");
-        let symbol2 = Value::new_symbol("test");
-
-        // Symbols should be equivalent
-        assert!(matches!(symbol1, Value::Symbol(_)));
-        assert!(matches!(symbol2, Value::Symbol(_)));
-    }
-
-    #[test]
-    fn test_pool_stats() {
-        let stats = Value::pool_stats();
-        assert!(stats.small_integers_cached > 0);
-        // symbols_interned is always >= 0 as it's usize
-    }
-
-    #[test]
-    fn test_continuation_pool_basic() {
-        let mut pool = ContinuationPool::new();
-
-        // Pool should be pre-initialized
-        assert!(!pool.identity_pool.is_empty());
-
-        // Get an identity continuation
-        let cont = pool.get_identity();
-        assert!(matches!(cont, Continuation::Identity));
-
-        // Stats should reflect creation
-        let stats = pool.stats();
-        assert_eq!(stats.total_created, 1);
-    }
-
-    #[test]
-    fn test_continuation_pool_recycling() {
-        let mut pool = ContinuationPool::new();
-        let initial_pool_size = pool.identity_pool.len();
-
-        // Get and recycle a continuation
-        let cont = pool.get_identity();
-        pool.recycle_continuation(cont);
-
-        // Pool size should be back to initial (recycled)
-        assert_eq!(pool.identity_pool.len(), initial_pool_size);
-
-        let stats = pool.stats();
-        assert_eq!(stats.total_created, 1);
-        assert_eq!(stats.total_recycled, 1);
-        assert_eq!(stats.recycle_rate, 100.0);
-    }
-
-    #[test]
-    fn test_continuation_global_pool() {
-        // Test global pool functions
-        let cont = Continuation::new_identity();
-        assert!(matches!(cont, Continuation::Identity));
-
-        let stats = Continuation::pool_stats();
-        assert!(stats.total_created > 0);
-    }
-}

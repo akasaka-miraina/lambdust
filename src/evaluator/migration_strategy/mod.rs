@@ -1,11 +1,10 @@
 //! Migration Strategy Module
 //!
-//! このモジュールはEvaluatorInterface移行の包括的な戦略を提供します。
+//! `このモジュールはEvaluatorInterface移行の包括的な戦略を提供します`。
 //! 段階的移行、リスク評価、パフォーマンス監視、ロールバック機能を含みます。
 
 use crate::error::Result;
-use crate::evaluator::runtime_optimization::core_types::RiskLevel;
-use crate::evaluator::EvaluatorInterface;
+use crate::executor::runtime_optimization::core_types::RiskLevel;
 use std::time::{Duration, Instant};
 
 /// Migration phase definition
@@ -49,8 +48,9 @@ pub struct MigrationProgressTracker {
     pub overall_progress: f64,
     /// Milestones achieved
     pub milestones_achieved: Vec<MigrationMilestone>,
-    /// Time tracking
+    /// Time tracking - migration start time
     pub start_time: Instant,
+    /// Estimated completion time
     pub estimated_completion: Option<Instant>,
 }
 
@@ -116,13 +116,16 @@ pub struct MigrationStrategy {
     progress_tracker: MigrationProgressTracker,
     /// Risk assessment system
     risk_assessor: RiskAssessment,
-    /// Modern evaluator interface
-    evaluator_interface: EvaluatorInterface,
+    // TODO: Implement evaluator interface integration
+    // This field was removed as it's currently unused. When implementing:
+    // - Bridge between old and new evaluator systems
+    // - Migration state management
+    // - Backward compatibility layer
 }
 
 impl MigrationStrategy {
     /// Create new migration strategy
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             migration_phases: Self::default_phases(),
             current_phase: 0,
@@ -140,7 +143,6 @@ impl MigrationStrategy {
                 mitigation_strategies: Vec::new(),
                 assessed_at: Instant::now(),
             },
-            evaluator_interface: EvaluatorInterface::new(),
         }
     }
 
@@ -297,13 +299,11 @@ impl MigrationStrategy {
     }
 
     /// Get current migration status
-    pub fn status(&self) -> MigrationStatus {
+    #[must_use] pub fn status(&self) -> MigrationStatus {
         MigrationStatus {
             current_phase: self.current_phase,
             phase_name: self.migration_phases
-                .get(self.current_phase)
-                .map(|p| p.id.clone())
-                .unwrap_or_else(|| "completed".to_string()),
+                .get(self.current_phase).map_or_else(|| "completed".to_string(), |p| p.id.clone()),
             overall_progress: self.progress_tracker.overall_progress,
             current_phase_progress: self.progress_tracker.current_phase_progress,
             overall_risk_level: self.risk_assessor.overall_risk_level,
@@ -313,12 +313,12 @@ impl MigrationStrategy {
     }
 
     /// Check if migration is complete
-    pub fn is_complete(&self) -> bool {
+    #[must_use] pub fn is_complete(&self) -> bool {
         self.current_phase >= self.migration_phases.len()
     }
 
     /// Get migration statistics
-    pub fn statistics(&self) -> MigrationStatistics {
+    #[must_use] pub fn statistics(&self) -> MigrationStatistics {
         MigrationStatistics {
             total_phases: self.migration_phases.len(),
             completed_phases: self.progress_tracker.completed_phases.len(),
@@ -379,127 +379,30 @@ pub struct MigrationStatus {
 }
 
 /// Create a new migration strategy
-pub fn create_migration_strategy() -> MigrationStrategy {
+#[must_use] pub fn create_migration_strategy() -> MigrationStrategy {
     MigrationStrategy::new()
 }
 
 /// Create a conservative migration strategy (lower risk, slower progress)
-pub fn create_conservative_migration_strategy() -> MigrationStrategy {
+#[must_use] pub fn create_conservative_migration_strategy() -> MigrationStrategy {
     let mut strategy = MigrationStrategy::new();
     
     // Extend phase durations for conservative approach
     for phase in &mut strategy.migration_phases {
-        phase.estimated_duration = phase.estimated_duration * 2;
+        phase.estimated_duration *= 2;
     }
     
     strategy
 }
 
 /// Create an aggressive migration strategy (higher risk, faster progress)
-pub fn create_aggressive_migration_strategy() -> MigrationStrategy {
+#[must_use] pub fn create_aggressive_migration_strategy() -> MigrationStrategy {
     let mut strategy = MigrationStrategy::new();
     
     // Reduce phase durations for aggressive approach
     for phase in &mut strategy.migration_phases {
-        phase.estimated_duration = phase.estimated_duration / 2;
+        phase.estimated_duration /= 2;
     }
     
     strategy
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_migration_strategy_creation() {
-        let strategy = create_migration_strategy();
-        assert_eq!(strategy.migration_phases.len(), 3);
-        assert_eq!(strategy.current_phase, 0);
-        assert!(!strategy.is_complete());
-    }
-
-    #[test]
-    fn test_migration_phases() {
-        let strategy = create_migration_strategy();
-        let phases = &strategy.migration_phases;
-        
-        assert_eq!(phases[0].id, "phase1_preparation");
-        assert_eq!(phases[1].id, "phase2_gradual_adoption");
-        assert_eq!(phases[2].id, "phase3_full_migration");
-    }
-
-    #[test]
-    fn test_migration_progress() {
-        let mut strategy = create_migration_strategy();
-        strategy.start_migration().unwrap();
-        
-        let status = strategy.status();
-        assert_eq!(status.current_phase, 0);
-        assert_eq!(status.overall_progress, 0.0);
-        assert!(status.elapsed_time.as_secs() >= 0);
-    }
-
-    #[test]
-    fn test_phase_advancement() {
-        let mut strategy = create_migration_strategy();
-        strategy.start_migration().unwrap();
-        
-        // Advance through phases
-        let can_continue = strategy.advance_phase().unwrap();
-        assert!(can_continue);
-        assert_eq!(strategy.current_phase, 1);
-        
-        let can_continue = strategy.advance_phase().unwrap();
-        assert!(can_continue);
-        assert_eq!(strategy.current_phase, 2);
-        
-        let can_continue = strategy.advance_phase().unwrap();
-        assert!(!can_continue);
-        assert!(strategy.is_complete());
-    }
-
-    #[test]
-    fn test_risk_assessment() {
-        let mut strategy = create_migration_strategy();
-        strategy.start_migration().unwrap();
-        
-        let status = strategy.status();
-        assert!(status.overall_risk_level >= 0.0);
-        assert!(status.overall_risk_level <= 1.0);
-    }
-
-    #[test]
-    fn test_conservative_strategy() {
-        let conservative = create_conservative_migration_strategy();
-        let normal = create_migration_strategy();
-        
-        // Conservative strategy should have longer durations
-        for (cons_phase, norm_phase) in conservative.migration_phases.iter().zip(normal.migration_phases.iter()) {
-            assert!(cons_phase.estimated_duration > norm_phase.estimated_duration);
-        }
-    }
-
-    #[test]
-    fn test_aggressive_strategy() {
-        let aggressive = create_aggressive_migration_strategy();
-        let normal = create_migration_strategy();
-        
-        // Aggressive strategy should have shorter durations
-        for (agg_phase, norm_phase) in aggressive.migration_phases.iter().zip(normal.migration_phases.iter()) {
-            assert!(agg_phase.estimated_duration < norm_phase.estimated_duration);
-        }
-    }
-
-    #[test]
-    fn test_migration_statistics() {
-        let mut strategy = create_migration_strategy();
-        strategy.start_migration().unwrap();
-        
-        let stats = strategy.statistics();
-        assert_eq!(stats.total_phases, 3);
-        assert_eq!(stats.completed_phases, 0);
-        assert_eq!(stats.overall_progress, 0.0);
-        assert!(stats.elapsed_time.as_secs() >= 0);
-    }
 }

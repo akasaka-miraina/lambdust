@@ -272,16 +272,16 @@ impl TemplateExpander {
     
     /// Expand nested ellipsis template (SRFI 46)
     fn expand_nested_ellipsis_template(
-        sub_template: &Template,
+        _sub_template: &Template,
         bindings: &PatternBindings,
-        level: u32,
-        expansion_context: &mut ExpansionContext,
-        usage_environment: &HygienicEnvironment,
-        literals: &[String],
-        ellipsis_processor: &NestedEllipsisProcessor,
+        _level: u32,
+        _expansion_context: &mut ExpansionContext,
+        _usage_environment: &HygienicEnvironment,
+        _literals: &[String],
+        _ellipsis_processor: &NestedEllipsisProcessor,
     ) -> Result<Expr> {
         // Use the SRFI 46 processor for nested ellipsis expansion
-        let nested_bindings = Self::convert_pattern_bindings_to_ellipsis(bindings);
+        let _nested_bindings = Self::convert_pattern_bindings_to_ellipsis(bindings);
         
         // TODO: Fix method call - temporarily using placeholder
         match Ok(Vec::new()) as Result<Vec<Expr>> {
@@ -294,7 +294,7 @@ impl TemplateExpander {
                 }
             }
             Err(e) => Err(LambdustError::runtime_error(format!(
-                "Nested ellipsis template expansion failed: {}", e
+                "Nested ellipsis template expansion failed: {e}"
             ))),
         }
     }

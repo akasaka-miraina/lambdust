@@ -279,6 +279,12 @@ pub fn parse_with_loop_detection(tokens: Vec<Token>, config: LoopDetectionConfig
 }
 
 // Include the infinite loop detection modules
+
+/// Cycle detection utilities for identifying problematic recursive patterns
 pub mod cycle_detector;
+
+/// Dependency analysis for understanding expression relationships
 pub mod dependency_analyzer;
+
+/// Loop detection and analysis for infinite loop prevention
 pub mod loop_detection;

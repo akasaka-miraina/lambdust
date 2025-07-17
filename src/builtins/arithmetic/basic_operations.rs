@@ -27,7 +27,7 @@ fn div_numbers(a: &SchemeNumber, b: &SchemeNumber) -> Result<SchemeNumber> {
 }
 
 /// Addition operation (+)
-pub fn arithmetic_add() -> Value {
+#[must_use] pub fn arithmetic_add() -> Value {
     make_builtin_procedure("+", None, |args| {
         let mut result = SchemeNumber::Integer(0);
         for arg in args {
@@ -39,7 +39,7 @@ pub fn arithmetic_add() -> Value {
 }
 
 /// Subtraction operation (-)
-pub fn arithmetic_sub() -> Value {
+#[must_use] pub fn arithmetic_sub() -> Value {
     make_builtin_procedure("-", None, |args| {
         check_arity_range(args, 1, None)?;
 
@@ -64,7 +64,7 @@ pub fn arithmetic_sub() -> Value {
 }
 
 /// Multiplication operation (*)
-pub fn arithmetic_mul() -> Value {
+#[must_use] pub fn arithmetic_mul() -> Value {
     make_builtin_procedure("*", None, |args| {
         let mut result = SchemeNumber::Integer(1);
         for arg in args {
@@ -76,7 +76,7 @@ pub fn arithmetic_mul() -> Value {
 }
 
 /// Division operation (/)
-pub fn arithmetic_div() -> Value {
+#[must_use] pub fn arithmetic_div() -> Value {
     make_builtin_procedure("/", None, |args| {
         check_arity_range(args, 1, None)?;
 
@@ -102,127 +102,4 @@ pub fn arithmetic_div() -> Value {
             Ok(Value::Number(result))
         }
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_addition() {
-        let add_proc = arithmetic_add();
-        if let Value::Procedure(proc) = add_proc {
-            // Test empty addition (identity)
-            let result = proc.call(&[]).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Integer(0)));
-
-            // Test single number
-            let args = vec![Value::Number(SchemeNumber::Integer(5))];
-            let result = proc.call(&args).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Integer(5)));
-
-            // Test multiple numbers
-            let args = vec![
-                Value::Number(SchemeNumber::Integer(1)),
-                Value::Number(SchemeNumber::Integer(2)),
-                Value::Number(SchemeNumber::Integer(3)),
-            ];
-            let result = proc.call(&args).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Integer(6)));
-        } else {
-            panic!("Expected procedure");
-        }
-    }
-
-    #[test]
-    fn test_subtraction() {
-        let sub_proc = arithmetic_sub();
-        if let Value::Procedure(proc) = sub_proc {
-            // Test unary minus
-            let args = vec![Value::Number(SchemeNumber::Integer(5))];
-            let result = proc.call(&args).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Integer(-5)));
-
-            // Test binary subtraction
-            let args = vec![
-                Value::Number(SchemeNumber::Integer(10)),
-                Value::Number(SchemeNumber::Integer(3)),
-            ];
-            let result = proc.call(&args).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Integer(7)));
-        } else {
-            panic!("Expected procedure");
-        }
-    }
-
-    #[test]
-    fn test_multiplication() {
-        let mul_proc = arithmetic_mul();
-        if let Value::Procedure(proc) = mul_proc {
-            // Test empty multiplication (identity)
-            let result = proc.call(&[]).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Integer(1)));
-
-            // Test multiple numbers
-            let args = vec![
-                Value::Number(SchemeNumber::Integer(2)),
-                Value::Number(SchemeNumber::Integer(3)),
-                Value::Number(SchemeNumber::Integer(4)),
-            ];
-            let result = proc.call(&args).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Integer(24)));
-        } else {
-            panic!("Expected procedure");
-        }
-    }
-
-    #[test]
-    fn test_division() {
-        let div_proc = arithmetic_div();
-        if let Value::Procedure(proc) = div_proc {
-            // Test reciprocal
-            let args = vec![Value::Number(SchemeNumber::Integer(4))];
-            let result = proc.call(&args).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Real(0.25)));
-
-            // Test binary division
-            let args = vec![
-                Value::Number(SchemeNumber::Integer(15)),
-                Value::Number(SchemeNumber::Integer(3)),
-            ];
-            let result = proc.call(&args).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Integer(5)));
-        } else {
-            panic!("Expected procedure");
-        }
-    }
-
-    #[test]
-    fn test_division_by_zero() {
-        let div_proc = arithmetic_div();
-        if let Value::Procedure(proc) = div_proc {
-            // Test division by zero
-            let args = vec![
-                Value::Number(SchemeNumber::Integer(5)),
-                Value::Number(SchemeNumber::Integer(0)),
-            ];
-            let result = proc.call(&args);
-            assert!(result.is_err());
-        }
-    }
-
-    #[test]
-    fn test_mixed_number_types() {
-        let add_proc = arithmetic_add();
-        if let Value::Procedure(proc) = add_proc {
-            // Test integer + real
-            let args = vec![
-                Value::Number(SchemeNumber::Integer(1)),
-                Value::Number(SchemeNumber::Real(2.5)),
-            ];
-            let result = proc.call(&args).unwrap();
-            assert_eq!(result, Value::Number(SchemeNumber::Real(3.5)));
-        }
-    }
 }

@@ -17,10 +17,13 @@ use crate::ast::Expr;
 use crate::environment::Environment;
 use crate::error::Result;
 use crate::evaluator::{
+    SemanticEvaluator, EvaluatorInterface,
+};
+use crate::executor::RuntimeExecutor;
+use crate::prover::{
     formal_verification::FormalVerificationEngine,
-    theorem_derivation_engine::TheoremDerivationEngine,
-    adaptive_theorem_learning::AdaptiveTheoremLearningSystem,
-    SemanticEvaluator, RuntimeExecutor, EvaluatorInterface,
+    theorem_derivation::TheoremDerivationEngine,
+    adaptive_learning::AdaptiveTheoremLearningSystem,
 };
 use crate::value::Value;
 use std::time::{Duration, Instant};
@@ -63,12 +66,20 @@ pub struct CompleteFormalVerificationSystem {
 impl CompleteFormalVerificationSystem {
     /// Create new complete formal verification system
     pub fn new() -> Result<Self> {
+        let semantic_evaluator = SemanticEvaluator::new();
+        let type_system = crate::type_system::PolynomialUniverseSystem::new();
+        
         Ok(Self {
-            core_verification: FormalVerificationEngine::new(),
+            core_verification: FormalVerificationEngine::new(
+                semantic_evaluator.clone(),
+                type_system.clone(),
+            ),
             theorem_system: TheoremDerivationEngine::new(
-                crate::evaluator::theorem_proving::TheoremProvingSupport::new(SemanticEvaluator::new()),
-                FormalVerificationEngine::new(),
-                SemanticEvaluator::new(),
+                crate::prover::proof_types::TheoremProvingSupport::new(),
+                crate::prover::proof_types::FormalVerificationEngine::new(
+                    crate::prover::proof_types::VerificationConfiguration::default()
+                ),
+                semantic_evaluator,
             ),
             learning_system: AdaptiveTheoremLearningSystem::new(),
             semantic_verifier: SemanticEvaluatorVerifier::new(),

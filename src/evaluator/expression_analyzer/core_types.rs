@@ -66,7 +66,7 @@ pub enum EvaluationComplexity {
 
 impl EvaluationComplexity {
     /// Convert complexity enum to numeric score (0-100)
-    pub fn complexity_score(&self) -> u32 {
+    #[must_use] pub fn complexity_score(&self) -> u32 {
         match self {
             EvaluationComplexity::Constant => 0,
             EvaluationComplexity::Variable => 10,

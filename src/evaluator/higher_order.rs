@@ -38,7 +38,7 @@ impl Default for LocationRegistry {
 
 impl LocationRegistry {
     /// Create a new location registry
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             locations: HashMap::new(),
             next_id: 0,
@@ -54,22 +54,22 @@ impl LocationRegistry {
     }
     
     /// Get the value at a location
-    pub fn get_location(&self, location_id: usize) -> Option<&Value> {
+    #[must_use] pub fn get_location(&self, location_id: usize) -> Option<&Value> {
         self.locations.get(&location_id)
     }
     
     /// Set the value at a location
     pub fn set_location(&mut self, location_id: usize, value: Value) -> Result<()> {
-        if self.locations.contains_key(&location_id) {
-            self.locations.insert(location_id, value);
+        if let std::collections::hash_map::Entry::Occupied(mut e) = self.locations.entry(location_id) {
+            e.insert(value);
             Ok(())
         } else {
-            Err(LambdustError::runtime_error(format!("Invalid location ID: {}", location_id)))
+            Err(LambdustError::runtime_error(format!("Invalid location ID: {location_id}")))
         }
     }
     
     /// Get statistics about the location registry
-    pub fn get_statistics(&self) -> LocationRegistryStats {
+    #[must_use] pub fn get_statistics(&self) -> LocationRegistryStats {
         LocationRegistryStats {
             total_locations: self.locations.len(),
             next_id: self.next_id,
@@ -100,7 +100,7 @@ impl Evaluator {
     pub fn eval_map_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if operands.len() < 2 {
@@ -112,8 +112,8 @@ impl Evaluator {
         // Evaluate procedure first
         let proc_value = self.eval_with_continuation(proc_expr.clone(), env.clone(), Continuation::Identity)?;
 
-        // Evaluate list arguments
-        let lists = self.eval_list_arguments(list_exprs, env.clone(), "map")?;
+        // Evaluate list arguments  
+        let lists = self.eval_list_arguments(list_exprs, env, "map")?;
 
         // Apply map logic
         self.apply_map_logic(proc_value, lists, cont)
@@ -123,7 +123,7 @@ impl Evaluator {
     pub fn eval_apply_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if operands.len() < 2 {
@@ -144,9 +144,10 @@ impl Evaluator {
         } else {
             // Extended form: (apply proc arg1 arg2 ... args)
             // Evaluate fixed arguments
-            let mut args = self.eval_expressions(&arg_exprs[..arg_exprs.len() - 1], env.clone())?;
+            let mut args = self.eval_expressions(&arg_exprs[..arg_exprs.len() - 1], env)?;
 
             // Evaluate and append last argument (must be a list)
+            // Environment-First: share same environment reference
             let last_arg = self.eval_with_continuation(arg_exprs[arg_exprs.len() - 1].clone(), env.clone(), Continuation::Identity)?;
             let last_list = Self::expect_proper_list(&last_arg, "apply")?;
             args.extend(last_list);
@@ -161,10 +162,11 @@ impl Evaluator {
     pub fn eval_fold_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-        let (kons, accumulator, lists) = self.eval_fold_arguments(operands, env.clone(), "fold")?;
+        // Environment-First: borrow environment reference, clone only when needed
+        let (kons, accumulator, lists) = self.eval_fold_arguments(operands, env, "fold")?;
         
         // Apply fold logic (left-to-right)
         let result = self.apply_fold_logic(kons, accumulator, lists, false)?;
@@ -175,10 +177,11 @@ impl Evaluator {
     pub fn eval_fold_right_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-        let (kons, accumulator, lists) = self.eval_fold_arguments(operands, env.clone(), "fold-right")?;
+        // Environment-First: borrow environment reference, clone only when needed
+        let (kons, accumulator, lists) = self.eval_fold_arguments(operands, env, "fold-right")?;
         
         // Apply fold logic (right-to-left)
         let result = self.apply_fold_logic(kons, accumulator, lists, true)?;
@@ -189,10 +192,11 @@ impl Evaluator {
     pub fn eval_filter_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
-        let (predicate, mut args) = self.eval_procedure_and_args(operands, env.clone(), 2, "filter")?;
+        // Environment-First: borrow environment reference, clone only when needed
+        let (predicate, mut args) = self.eval_procedure_and_args(operands, env, 2, "filter")?;
         if args.len() != 1 {
             return Err(LambdustError::arity_error(2, operands.len()));
         }
@@ -268,7 +272,7 @@ impl Evaluator {
     pub fn eval_hash_table_walk_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 2 {
@@ -279,6 +283,7 @@ impl Evaluator {
         let proc_expr = operands[1].clone();
 
         // Evaluate hash table
+        // Environment-First: share same environment reference
         let table_value = self.eval_with_continuation(table_expr, env.clone(), Continuation::Identity)?;
         let Value::HashTable(hash_table) = &table_value else {
                 return Err(LambdustError::type_error(
@@ -287,6 +292,7 @@ impl Evaluator {
             };
 
         // Evaluate procedure
+        // Environment-First: share same environment reference
         let proc_value = self.eval_with_continuation(proc_expr, env.clone(), Continuation::Identity)?;
 
         // Apply procedure to each key-value pair
@@ -310,7 +316,7 @@ impl Evaluator {
     pub fn eval_hash_table_fold_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 3 {
@@ -322,6 +328,7 @@ impl Evaluator {
         let init_expr = operands[2].clone();
 
         // Evaluate hash table
+        // Environment-First: share same environment reference
         let table_value = self.eval_with_continuation(table_expr, env.clone(), Continuation::Identity)?;
         let Value::HashTable(hash_table) = &table_value else {
                 return Err(LambdustError::type_error(
@@ -330,9 +337,11 @@ impl Evaluator {
             };
 
         // Evaluate procedure
+        // Environment-First: share same environment reference
         let proc_value = self.eval_with_continuation(proc_expr, env.clone(), Continuation::Identity)?;
 
         // Evaluate initial value
+        // Environment-First: share same environment reference
         let mut accumulator = self.eval_with_continuation(init_expr, env.clone(), Continuation::Identity)?;
 
         // Fold over each key-value pair
@@ -381,7 +390,7 @@ impl Evaluator {
     pub fn eval_memory_usage_special_form(
         &mut self,
         operands: &[Expr],
-        _env: Rc<Environment>,
+        _env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if !operands.is_empty() {
@@ -397,7 +406,7 @@ impl Evaluator {
     pub fn eval_memory_statistics_special_form(
         &mut self,
         operands: &[Expr],
-        _env: Rc<Environment>,
+        _env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if !operands.is_empty() {
@@ -469,14 +478,14 @@ impl Evaluator {
     pub fn eval_collect_garbage_special_form(
         &mut self,
         operands: &[Expr],
-        _env: Rc<Environment>,
+        _env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if !operands.is_empty() {
             return Err(LambdustError::arity_error(0, operands.len()));
         }
 
-        self.collect_garbage();
+        let _ = self.collect_garbage();
         self.apply_evaluator_continuation(cont, Value::Undefined)
     }
 
@@ -484,7 +493,7 @@ impl Evaluator {
     pub fn eval_set_memory_limit_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 1 {
@@ -492,6 +501,7 @@ impl Evaluator {
         }
 
         let limit_expr = operands[0].clone();
+        // Environment-First: share same environment reference
         let limit_value = self.eval_with_continuation(limit_expr, env.clone(), Continuation::Identity)?;
 
         let limit = match &limit_value {
@@ -512,7 +522,7 @@ impl Evaluator {
     pub fn eval_allocate_location_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 1 {
@@ -520,6 +530,7 @@ impl Evaluator {
         }
 
         let value_expr = operands[0].clone();
+        // Environment-First: share same environment reference
         let value = self.eval_with_continuation(value_expr, env.clone(), Continuation::Identity)?;
 
         let location_handle = self.allocate(value)?;
@@ -534,7 +545,7 @@ impl Evaluator {
     pub fn eval_location_ref_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         _cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 1 {
@@ -542,6 +553,7 @@ impl Evaluator {
         }
 
         let location_expr = operands[0].clone();
+        // Environment-First: share same environment reference
         let location_value = self.eval_with_continuation(location_expr, env.clone(), Continuation::Identity)?;
 
         let location_id = match &location_value {
@@ -558,7 +570,7 @@ impl Evaluator {
             if let Some(value) = location_registry.get_location(location_id) {
                 Ok(value.clone())
             } else {
-                Err(LambdustError::runtime_error(format!("Invalid location ID: {}", location_id)))
+                Err(LambdustError::runtime_error(format!("Invalid location ID: {location_id}")))
             }
         } else {
             Err(LambdustError::runtime_error("Location registry not available".to_string()))
@@ -569,7 +581,7 @@ impl Evaluator {
     pub fn eval_location_set_special_form(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         _cont: Continuation,
     ) -> Result<Value> {
         if operands.len() != 2 {
@@ -579,7 +591,9 @@ impl Evaluator {
         let location_expr = operands[0].clone();
         let value_expr = operands[1].clone();
 
+        // Environment-First: share same environment reference
         let location_value = self.eval_with_continuation(location_expr, env.clone(), Continuation::Identity)?;
+        // Environment-First: share same environment reference
         let new_value = self.eval_with_continuation(value_expr, env.clone(), Continuation::Identity)?;
 
         let location_id = match &location_value {
@@ -608,10 +622,11 @@ impl Evaluator {
     fn eval_expressions(
         &mut self,
         exprs: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
     ) -> Result<Vec<Value>> {
         let mut values = Vec::new();
         for expr in exprs {
+            // Environment-First: share same environment reference
             let value = self.eval_with_continuation(expr.clone(), env.clone(), Continuation::Identity)?;
             values.push(value);
         }
@@ -636,11 +651,12 @@ impl Evaluator {
     fn eval_list_arguments(
         &mut self,
         list_exprs: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         func_name: &str,
     ) -> Result<Vec<Vec<Value>>> {
         let mut lists = Vec::new();
         for list_expr in list_exprs {
+            // Environment-First: share same environment reference
             let list_value = self.eval_with_continuation(list_expr.clone(), env.clone(), Continuation::Identity)?;
             let list_vec = Self::expect_proper_list(&list_value, func_name)?;
             lists.push(list_vec);
@@ -652,7 +668,7 @@ impl Evaluator {
     fn eval_procedure_and_args(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         min_args: usize,
         _func_name: &str,
     ) -> Result<(Value, Vec<Value>)> {
@@ -660,6 +676,7 @@ impl Evaluator {
             return Err(LambdustError::arity_error(min_args, operands.len()));
         }
 
+        // Environment-First: share same environment reference
         let proc_value = self.eval_with_continuation(operands[0].clone(), env.clone(), Continuation::Identity)?;
         let other_values = self.eval_expressions(&operands[1..], env)?;
         
@@ -701,6 +718,7 @@ impl Evaluator {
             };
 
             // Apply kons function
+            // Environment-First: procedure shares evaluator environment
             accumulator = self.apply_procedure_with_evaluator(
                 kons.clone(),
                 call_args,
@@ -715,7 +733,7 @@ impl Evaluator {
     fn eval_fold_arguments(
         &mut self,
         operands: &[Expr],
-        env: Rc<Environment>,
+        env: &Rc<Environment>,
         func_name: &str,
     ) -> Result<(Value, Value, Vec<Vec<Value>>)> {
         if operands.len() < 3 {
@@ -727,9 +745,11 @@ impl Evaluator {
         let list_exprs = operands[2..].to_vec();
 
         // Evaluate kons procedure
+        // Environment-First: share same environment reference
         let kons = self.eval_with_continuation(kons_expr, env.clone(), Continuation::Identity)?;
 
         // Evaluate initial value
+        // Environment-First: share same environment reference
         let accumulator = self.eval_with_continuation(knil_expr, env.clone(), Continuation::Identity)?;
 
         // Evaluate list arguments
@@ -755,6 +775,7 @@ impl Evaluator {
             let args: Vec<Value> = lists.iter().map(|list| list[i].clone()).collect();
 
             // Apply procedure to arguments
+            // Environment-First: procedure shares evaluator environment
             let result = self.apply_procedure_with_evaluator(
                 procedure.clone(),
                 args,
@@ -810,7 +831,8 @@ impl Evaluator {
 
         // Create new environment for lambda body
         // Use closure environment for lambda evaluation, not the calling environment
-        let lambda_env = Environment::with_parent(closure);
+        // Environment-First: share the same environment reference
+        let lambda_env = Rc::new(Environment::with_parent(closure));
 
         // Bind parameters
         if variadic {
@@ -820,7 +842,8 @@ impl Evaluator {
         }
 
         // Evaluate body in lambda environment
-        let result = self.eval_sequence(body, Rc::new(lambda_env), Continuation::Identity)?;
+        // Environment-First: use shared reference directly
+        let result = self.eval_sequence(body, lambda_env, Continuation::Identity)?;
 
         #[cfg(debug_assertions)]
         eprintln!("DEBUG: lambda eval_sequence result: {result:?}");
@@ -831,7 +854,7 @@ impl Evaluator {
     /// Bind fixed parameters (non-variadic lambda)
     fn bind_fixed_parameters(
         &self,
-        lambda_env: &Environment,
+        lambda_env: &Rc<Environment>,
         params: &[String],
         args: &[Value],
     ) {
@@ -845,7 +868,7 @@ impl Evaluator {
     /// Bind variadic parameters (variadic lambda)
     fn bind_variadic_parameters(
         &self,
-        lambda_env: &Environment,
+        lambda_env: &Rc<Environment>,
         params: &[String],
         args: &[Value],
     ) {

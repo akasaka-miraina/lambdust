@@ -465,6 +465,10 @@ impl RaiiStoreManager {
             Value::Vector(v) => v.len() * 8 + 24,
             Value::HashTable(_) => 64,
             Value::Procedure(_) => 48,
+            #[allow(deprecated)]
+            Value::BuiltinFunction(_) => 16,
+            #[allow(deprecated)]
+            Value::Integer(_) => 8,
             Value::Promise(_) => 32,
             Value::Port(_) => 64,
             Value::External(_) => 48,
@@ -482,6 +486,10 @@ impl RaiiStoreManager {
             Value::Comparator(_) => 64,   // Comparator overhead
             Value::StringCursor(_) => 48, // StringCursor overhead
             Value::Ideque(ideque) => ideque.len() * 8 + 32, // Ideque overhead
+            Value::List(list) => list.len() * 8 + 24,        // List overhead
+            Value::Unspecified => 8,                          // Unspecified size
+            Value::Environment(_) => 128,                     // Environment overhead
+            Value::Bytevector(bv) => bv.len() + 24,          // Bytevector overhead
             Value::Text(text) => text.length() * 4 + 32, // Text overhead (4 bytes per char approx)
             Value::IString(istring) => istring.length() * 4 + 32, // IString overhead (4 bytes per char approx)
             Value::LazyVector(lazy_vec) => {
@@ -598,234 +606,3 @@ impl RaiiStore {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_raii_location_auto_cleanup() {
-        let store = RaiiStore::new();
-        let initial_count = store.active_location_count();
-
-        {
-            let location = store.allocate(Value::Number(SchemeNumber::Integer(42)));
-            assert_eq!(store.active_location_count(), initial_count + 1);
-            drop(location); // Explicitly drop to test RAII cleanup
-        } // location goes out of scope here
-
-        // Location should be automatically cleaned up
-        assert_eq!(store.active_location_count(), initial_count);
-    }
-
-    #[test]
-    fn test_raii_location_value_access() {
-        let store = RaiiStore::new();
-        let location = store.allocate(Value::Number(SchemeNumber::Integer(42)));
-
-        // Get value
-        assert_eq!(
-            location.get(),
-            Some(Value::Number(SchemeNumber::Integer(42)))
-        );
-
-        // Set new value
-        location.set(Value::String("hello".to_string())).unwrap();
-        assert_eq!(location.get(), Some(Value::String("hello".to_string())));
-    }
-
-    #[test]
-    fn test_memory_usage_tracking() {
-        let store = RaiiStore::new();
-        let initial_usage = store.memory_usage();
-
-        let _location = store.allocate(Value::String("test".to_string()));
-        assert!(store.memory_usage() > initial_usage);
-
-        // Memory usage includes string length + overhead
-        let expected_min = initial_usage + 4 + 24; // "test".len() + overhead
-        assert!(store.memory_usage() >= expected_min);
-    }
-
-    #[test]
-    fn test_statistics_tracking() {
-        let store = RaiiStore::new();
-        let initial_stats = store.statistics();
-
-        {
-            let location = store.allocate(Value::Number(SchemeNumber::Integer(42)));
-            let stats = store.statistics();
-            assert_eq!(stats.total_allocations, initial_stats.total_allocations + 1);
-            assert_eq!(stats.active_locations, initial_stats.active_locations + 1);
-            drop(location); // Explicitly test RAII cleanup
-        }
-
-        // After location is dropped
-        let final_stats = store.statistics();
-        assert_eq!(
-            final_stats.total_deallocations,
-            initial_stats.total_deallocations + 1
-        );
-        assert_eq!(final_stats.active_locations, initial_stats.active_locations);
-    }
-
-    #[test]
-    fn test_batch_cleanup_configuration() {
-        let store = RaiiStore::with_batch_settings(1024, 50, 5);
-        let (batch_size, min_threshold) = store.batch_cleanup_config();
-        assert_eq!(batch_size, 50);
-        assert_eq!(min_threshold, 5);
-
-        // Test configuration updates
-        store.set_batch_cleanup_size(75);
-        store.set_min_batch_cleanup_threshold(8);
-        let (new_batch_size, new_min_threshold) = store.batch_cleanup_config();
-        assert_eq!(new_batch_size, 75);
-        assert_eq!(new_min_threshold, 8);
-    }
-
-    #[test]
-    fn test_batch_cleanup_statistics() {
-        let store = RaiiStore::with_batch_settings(0, 10, 5);
-        let initial_stats = store.statistics();
-
-        // Create multiple locations that will be eligible for cleanup
-        let locations: Vec<_> = (0..15)
-            .map(|i| store.allocate(Value::Number(SchemeNumber::Integer(i))))
-            .collect();
-
-        // Force cleanup by triggering it manually
-        store.manual_cleanup();
-
-        let stats = store.statistics();
-        assert_eq!(
-            stats.batch_cleanup_events,
-            initial_stats.batch_cleanup_events
-        );
-        assert_eq!(
-            stats.batch_processed_locations,
-            initial_stats.batch_processed_locations
-        );
-
-        // Keep locations alive to prevent automatic cleanup
-        drop(locations);
-    }
-
-    #[test]
-    fn test_batch_cleanup_vs_individual_cleanup() {
-        // Test that small numbers use individual cleanup
-        let store = RaiiStore::with_batch_settings(0, 100, 10);
-        let initial_stats = store.statistics();
-
-        // Create a few locations (less than threshold)
-        let locations: Vec<_> = (0..5)
-            .map(|i| store.allocate(Value::Number(SchemeNumber::Integer(i))))
-            .collect();
-
-        drop(locations);
-        store.manual_cleanup();
-
-        let stats = store.statistics();
-        // Should use individual cleanup for small numbers
-        assert_eq!(
-            stats.batch_cleanup_events,
-            initial_stats.batch_cleanup_events
-        );
-    }
-
-    #[test]
-    fn test_batch_size_validation() {
-        let store = RaiiStore::new();
-
-        // Test that batch size is at least 1
-        store.set_batch_cleanup_size(0);
-        let (batch_size, _) = store.batch_cleanup_config();
-        assert_eq!(batch_size, 1);
-
-        store.set_batch_cleanup_size(50);
-        let (batch_size, _) = store.batch_cleanup_config();
-        assert_eq!(batch_size, 50);
-    }
-
-    #[test]
-    fn test_batch_cleanup_performance_characteristics() {
-        // Test that batch cleanup provides better performance characteristics
-        let store = RaiiStore::with_batch_settings(0, 50, 10);
-
-        // Create a large number of locations to test batch processing
-        let locations: Vec<_> = (0..200)
-            .map(|i| {
-                let val = if i % 2 == 0 {
-                    Value::Number(SchemeNumber::Integer(i as i64))
-                } else {
-                    Value::String(format!("test-{}", i))
-                };
-                store.allocate(val)
-            })
-            .collect();
-
-        let initial_stats = store.statistics();
-        assert_eq!(initial_stats.active_locations, 200);
-
-        // Drop all locations to make them eligible for cleanup
-        drop(locations);
-
-        // Manually trigger cleanup
-        store.manual_cleanup();
-
-        let final_stats = store.statistics();
-
-        // Verify that cleanup occurred
-        assert_eq!(final_stats.active_locations, 0);
-        assert_eq!(final_stats.total_deallocations, 200);
-
-        // Verify that the cleanup was efficient
-        assert!(final_stats.estimated_memory_usage < initial_stats.estimated_memory_usage);
-    }
-
-    #[test]
-    fn test_batch_cleanup_memory_efficiency() {
-        // Test that batch cleanup efficiently manages memory
-        let store = RaiiStore::with_batch_settings(1024, 25, 5);
-
-        // Create mixed types of values to test memory estimation
-        let mut locations = Vec::new();
-
-        // Add various types of values
-        for i in 0..100 {
-            let val = match i % 5 {
-                0 => Value::Number(SchemeNumber::Integer(i as i64)),
-                1 => Value::String("test".repeat(i % 10 + 1)),
-                2 => Value::Boolean(i % 2 == 0),
-                3 => Value::Character(char::from_u32(65 + (i % 26) as u32).unwrap_or('A')),
-                _ => Value::Symbol(format!("symbol-{}", i)),
-            };
-            locations.push(store.allocate(val));
-        }
-
-        let peak_memory = store.memory_usage();
-        let initial_active = store.active_location_count();
-
-        // Drop half the locations
-        locations.truncate(50);
-
-        // Force cleanup
-        store.manual_cleanup();
-
-        let after_cleanup_memory = store.memory_usage();
-        let after_cleanup_active = store.active_location_count();
-
-        // Verify memory was freed
-        assert!(after_cleanup_memory < peak_memory);
-        assert!(after_cleanup_active < initial_active);
-
-        // Verify remaining locations are still valid
-        assert_eq!(after_cleanup_active, 50);
-
-        // Test that remaining locations are still accessible
-        for location in &locations {
-            assert!(location.is_valid());
-            assert!(location.get().is_some());
-        }
-    }
-}

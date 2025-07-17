@@ -140,23 +140,20 @@ impl HashTable {
     pub fn compute_hash(&self, key: &HashKey) -> Result<u64> {
         if let Some(ref hash_func) = self.hash_function {
             // Apply custom hash function
-            match hash_func {
-                Value::Procedure(_) => {
-                    // In a full implementation, we would call the procedure
-                    // For now, fall back to default hash
-                    use std::collections::hash_map::DefaultHasher;
-                    use std::hash::{Hash, Hasher};
-                    let mut hasher = DefaultHasher::new();
-                    key.hash(&mut hasher);
-                    Ok(hasher.finish())
-                },
-                _ => {
-                    use std::collections::hash_map::DefaultHasher;
-                    use std::hash::{Hash, Hasher};
-                    let mut hasher = DefaultHasher::new();
-                    key.hash(&mut hasher);
-                    Ok(hasher.finish())
-                }
+            if let Value::Procedure(_) = hash_func {
+                // In a full implementation, we would call the procedure
+                // For now, fall back to default hash
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                key.hash(&mut hasher);
+                Ok(hasher.finish())
+            } else {
+                use std::collections::hash_map::DefaultHasher;
+                use std::hash::{Hash, Hasher};
+                let mut hasher = DefaultHasher::new();
+                key.hash(&mut hasher);
+                Ok(hasher.finish())
             }
         } else {
             use std::collections::hash_map::DefaultHasher;

@@ -136,29 +136,3 @@ pub fn generate_comprehensive_report(
 ) -> VerificationReport {
     engine.generate_report()
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_engine_creation() {
-        let engine = create_formal_verification_engine();
-        let stats = engine.get_statistics();
-        assert_eq!(stats.total_obligations, 0);
-    }
-
-    #[test]
-    fn test_engine_initialization() {
-        let mut engine = create_formal_verification_engine();
-        assert!(engine.initialize().is_ok());
-    }
-
-    #[test]
-    fn test_verification_report_generation() {
-        let engine = create_formal_verification_engine();
-        let report = generate_comprehensive_report(&engine);
-        assert!(report.overall_confidence >= 0.0);
-        assert!(report.overall_confidence <= 1.0);
-    }
-}

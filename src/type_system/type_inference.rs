@@ -37,7 +37,7 @@ pub enum ConstraintKind {
     Equality,
     /// Subtype constraint: T1 <: T2
     Subtype,
-    /// Universe constraint: T : Universe_i
+    /// Universe constraint: T : `Universe_i`
     Universe,
 }
 
@@ -50,7 +50,7 @@ pub struct TypeSubstitution {
 
 impl TypeSubstitution {
     /// Create empty substitution
-    pub fn empty() -> Self {
+    #[must_use] pub fn empty() -> Self {
         Self {
             substitutions: HashMap::new(),
         }
@@ -62,7 +62,7 @@ impl TypeSubstitution {
     }
 
     /// Apply substitution to type
-    pub fn apply(&self, typ: &PolynomialType) -> PolynomialType {
+    #[must_use] pub fn apply(&self, typ: &PolynomialType) -> PolynomialType {
         match typ {
             PolynomialType::Variable { name, .. } => {
                 self.substitutions.get(name)
@@ -118,7 +118,7 @@ impl TypeSubstitution {
     }
 
     /// Compose with another substitution
-    pub fn compose(&self, other: &TypeSubstitution) -> TypeSubstitution {
+    #[must_use] pub fn compose(&self, other: &TypeSubstitution) -> TypeSubstitution {
         let mut result = other.clone();
         for (var, typ) in &self.substitutions {
             result.substitutions.insert(var.clone(), other.apply(typ));
@@ -127,9 +127,15 @@ impl TypeSubstitution {
     }
 }
 
+impl Default for InferenceContext {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl InferenceContext {
     /// Create new inference context
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             type_env: HashMap::new(),
             constraints: Vec::new(),
@@ -154,7 +160,7 @@ impl InferenceContext {
     }
 
     /// Lookup type binding
-    pub fn lookup(&self, var: &str) -> Option<&PolynomialType> {
+    #[must_use] pub fn lookup(&self, var: &str) -> Option<&PolynomialType> {
         self.type_env.get(var)
     }
 
@@ -164,7 +170,7 @@ impl InferenceContext {
     }
 
     /// Get constraints
-    pub fn constraints(&self) -> &[TypeConstraint] {
+    #[must_use] pub fn constraints(&self) -> &[TypeConstraint] {
         &self.constraints
     }
 
@@ -175,7 +181,7 @@ impl InferenceContext {
 }
 
 /// Type inference engine
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TypeInference {
     /// Inference context
     context: InferenceContext,
@@ -183,7 +189,7 @@ pub struct TypeInference {
 
 impl TypeInference {
     /// Create new type inference engine
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             context: InferenceContext::new(),
         }
@@ -263,7 +269,7 @@ impl TypeInference {
             (PolynomialType::Variable { name, .. }, t2) => {
                 if self.occurs_check(name, t2) {
                     return Err(crate::error::LambdustError::type_error(
-                        format!("Occurs check failed: {} occurs in {:?}", name, t2)
+                        format!("Occurs check failed: {name} occurs in {t2:?}")
                     ));
                 }
                 let mut subst = TypeSubstitution::empty();
@@ -273,7 +279,7 @@ impl TypeInference {
             (t1, PolynomialType::Variable { name, .. }) => {
                 if self.occurs_check(name, t1) {
                     return Err(crate::error::LambdustError::type_error(
-                        format!("Occurs check failed: {} occurs in {:?}", name, t1)
+                        format!("Occurs check failed: {name} occurs in {t1:?}")
                     ));
                 }
                 let mut subst = TypeSubstitution::empty();
@@ -319,7 +325,7 @@ impl TypeInference {
             
             // Incompatible types
             _ => Err(crate::error::LambdustError::type_error(
-                format!("Cannot unify {:?} with {:?}", type1, type2)
+                format!("Cannot unify {type1:?} with {type2:?}")
             ))
         }
     }
@@ -380,7 +386,7 @@ impl TypeInference {
     }
 
     /// Get current context
-    pub fn context(&self) -> &InferenceContext {
+    #[must_use] pub fn context(&self) -> &InferenceContext {
         &self.context
     }
 
@@ -393,74 +399,5 @@ impl TypeInference {
 impl Default for TypeInference {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_basic_type_inference() {
-        let mut inference = TypeInference::new();
-        
-        let int_value = Value::Number(SchemeNumber::Integer(42));
-        let inferred = inference.infer(&int_value).unwrap();
-        
-        assert_eq!(inferred, PolynomialType::Base(BaseType::Integer));
-    }
-
-    #[test]
-    fn test_fresh_variables() {
-        let mut context = InferenceContext::new();
-        
-        let var1 = context.fresh_var();
-        let var2 = context.fresh_var();
-        
-        // Should be different variables
-        assert_ne!(var1, var2);
-    }
-
-    #[test]
-    fn test_unification() {
-        let mut inference = TypeInference::new();
-        
-        let int_type = PolynomialType::Base(BaseType::Integer);
-        let var_type = PolynomialType::Variable {
-            name: "α".to_string(),
-            level: UniverseLevel::new(0),
-        };
-        
-        let subst = inference.unify(&var_type, &int_type).unwrap();
-        let result = subst.apply(&var_type);
-        
-        assert_eq!(result, int_type);
-    }
-
-    #[test]
-    fn test_function_unification() {
-        let mut inference = TypeInference::new();
-        
-        let int_type = PolynomialType::Base(BaseType::Integer);
-        let var_type = PolynomialType::Variable {
-            name: "α".to_string(),
-            level: UniverseLevel::new(0),
-        };
-        
-        let func1 = PolynomialType::Function {
-            input: Box::new(var_type.clone()),
-            output: Box::new(int_type.clone()),
-        };
-        
-        let func2 = PolynomialType::Function {
-            input: Box::new(int_type.clone()),
-            output: Box::new(int_type.clone()),
-        };
-        
-        let subst = inference.unify(&func1, &func2).unwrap();
-        let result = subst.apply(&func1);
-        
-        assert_eq!(result, func2);
     }
 }

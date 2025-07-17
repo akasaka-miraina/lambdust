@@ -3,9 +3,9 @@
 //! このモジュールは形式検証システムで使用される基本型、結果構造体、
 //! 設定、メトリクスを定義します。
 
-use crate::evaluator::{
-    formal_verification::VerificationDepth,
-    static_semantic_optimizer::FormalProof,
+use crate::prover::{
+    proof_types::VerificationDepth,
+    optimization::FormalProof,
 };
 use crate::value::Value;
 use std::time::{Duration, Instant};

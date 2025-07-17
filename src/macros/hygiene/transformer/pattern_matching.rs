@@ -34,7 +34,7 @@ impl PatternMatcher {
         
         // Check cache for pattern matching results if optimization is enabled
         if should_cache {
-            let cache_key = format!("{}:{}:{}", macro_name, rule_index, input);
+            let cache_key = format!("{macro_name}:{rule_index}:{input}");
             if let Some(&cached_result) = pattern_cache.get(&cache_key) {
                 *pattern_cache_hits += 1;
                 return if cached_result {
@@ -67,7 +67,7 @@ impl PatternMatcher {
         
         // Cache the result
         if should_cache {
-            let cache_key = format!("{}:{}:{}", macro_name, rule_index, input);
+            let cache_key = format!("{macro_name}:{rule_index}:{input}");
             pattern_cache.insert(cache_key, result.is_ok());
         }
         
@@ -226,12 +226,12 @@ impl PatternMatcher {
     
     /// Match nested ellipsis pattern (SRFI 46)
     fn match_nested_ellipsis_pattern(
-        sub_pattern: &Pattern,
-        expr: &Expr,
-        level: u32,
+        _sub_pattern: &Pattern,
+        _expr: &Expr,
+        _level: u32,
         bindings: &mut PatternBindings,
-        usage_environment: &HygienicEnvironment,
-        ellipsis_processor: &NestedEllipsisProcessor,
+        _usage_environment: &HygienicEnvironment,
+        _ellipsis_processor: &NestedEllipsisProcessor,
     ) -> Result<()> {
         // Use the SRFI 46 processor for nested ellipsis matching
         // TODO: Fix method call - temporarily using placeholder
@@ -256,29 +256,14 @@ impl PatternMatcher {
                 Ok(())
             }
             Err(e) => Err(LambdustError::runtime_error(format!(
-                "Nested ellipsis pattern matching failed: {}", e
+                "Nested ellipsis pattern matching failed: {e}"
             ))),
         }
     }
     
-    /// Convert nested binding values to nested list structure
-    fn create_nested_list_from_values(nested_values: Vec<Vec<crate::macros::BindingValue>>) -> Expr {
-        let nested_exprs: Vec<Expr> = nested_values
-            .into_iter()
-            .map(|inner_values| {
-                let inner_exprs: Vec<Expr> = inner_values
-                    .into_iter()
-                    .map(|binding_value| match binding_value {
-                        crate::macros::BindingValue::Single(expr) => expr,
-                        crate::macros::BindingValue::List(exprs) => Expr::List(exprs),
-                        crate::macros::BindingValue::SyntaxObject(syntax_obj) => {
-                            syntax_obj.expression
-                        }
-                    })
-                    .collect();
-                Expr::List(inner_exprs)
-            })
-            .collect();
-        Expr::List(nested_exprs)
-    }
+    // TODO: Implement nested list creation from binding values
+    // This function was removed as it's currently unused. When implementing:
+    // - Proper nested pattern matching structure
+    // - Syntax object to expression conversion
+    // - Binding value list flattening
 }

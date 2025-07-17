@@ -372,7 +372,7 @@ impl DebugTracer {
         TRACE_COUNTER.load(Ordering::SeqCst)
     }
     
-    /// Filter trace log by criteria (utilizes TRACE_LOG storage)
+    /// Filter trace log by criteria (utilizes `TRACE_LOG` storage)
     #[cfg(debug_assertions)]
     pub fn filter_trace_log<F>(predicate: F) -> Vec<TraceEntry>
     where

@@ -66,7 +66,7 @@ impl DependentType for SigmaType {
 
 impl PiType {
     /// Create new Pi type
-    pub fn new(param_name: String, param_type: PolynomialType, body_type: PolynomialType) -> Self {
+    #[must_use] pub fn new(param_name: String, param_type: PolynomialType, body_type: PolynomialType) -> Self {
         Self {
             param_name,
             param_type,
@@ -81,7 +81,7 @@ impl PiType {
     }
 
     /// Check if this is a simple function type (non-dependent)
-    pub fn is_simple_function(&self) -> bool {
+    #[must_use] pub fn is_simple_function(&self) -> bool {
         // Check if body_type doesn't mention param_name
         // Placeholder implementation
         false
@@ -90,7 +90,7 @@ impl PiType {
 
 impl SigmaType {
     /// Create new Sigma type
-    pub fn new(param_name: String, param_type: PolynomialType, body_type: PolynomialType) -> Self {
+    #[must_use] pub fn new(param_name: String, param_type: PolynomialType, body_type: PolynomialType) -> Self {
         Self {
             param_name,
             param_type,
@@ -99,7 +99,7 @@ impl SigmaType {
     }
 
     /// Get first projection type
-    pub fn first_projection_type(&self) -> &PolynomialType {
+    #[must_use] pub fn first_projection_type(&self) -> &PolynomialType {
         &self.param_type
     }
 
@@ -110,7 +110,7 @@ impl SigmaType {
     }
 
     /// Check if this is a simple product type (non-dependent)
-    pub fn is_simple_product(&self) -> bool {
+    #[must_use] pub fn is_simple_product(&self) -> bool {
         // Check if body_type doesn't mention param_name
         // Placeholder implementation
         false

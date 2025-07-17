@@ -40,7 +40,7 @@ impl SemanticEvaluator {
                     // Identity reductions: Mathematical identities (check before constant folding)
                     Expr::Variable(op) if matches!(op.as_str(), "+" | "*" | "and" | "or") => {
                         let identity_result = self.attempt_identity_reduction(&expr)?;
-                        if !std::ptr::eq(&identity_result, &expr) {
+                        if !std::ptr::eq(&raw const identity_result, &raw const expr) {
                             return Ok(identity_result);
                         }
                         self.attempt_constant_folding(&expr)

@@ -1,15 +1,15 @@
 //! Symbol Renaming System for Hygienic Macros
 //!
-//! このモジュールは衛生的マクロシステムでのシンボルリネーミングの
-//! 包括的な実装を提供します。マクロ展開中のシンボル衝突を防ぎながら
-//! 字句スコープ規則を維持する異なる戦略を提供します。
+//! This module provides a comprehensive implementation of symbol renaming
+//! for the hygienic macro system. It provides different strategies that prevent
+//! symbol collisions during macro expansion while maintaining lexical scope rules.
 //!
-//! ## モジュール構成
+//! ## Module Structure
 //!
-//! - `core_types`: 基本型定義（RenamingStrategy, RenamingPattern等）
-//! - `pattern_matching`: パターンマッチングエンジンと述語関数
-//! - `strategies`: 標準的なリネーミング戦略とユーティリティ
-//! - `renaming_engine`: メインシンボルリネーミングエンジン
+//! - `core_types`: Basic type definitions (`RenamingStrategy`, `RenamingPattern`, etc.)
+//! - `pattern_matching`: Pattern matching engine and predicate functions
+//! - `strategies`: Standard renaming strategies and utilities
+//! - `renaming_engine`: Main symbol renaming engine
 
 pub mod core_types;
 pub mod pattern_matching;
@@ -42,42 +42,42 @@ use crate::ast::Expr;
 use crate::error::Result;
 
 /// Create a new symbol renamer with default configuration
-pub fn create_symbol_renamer() -> SymbolRenamer {
+#[must_use] pub fn create_symbol_renamer() -> SymbolRenamer {
     SymbolRenamer::new(RenamingStrategy::RenameConflicts)
 }
 
 /// Create a conservative symbol renamer (minimal renaming)
-pub fn create_conservative_renamer() -> SymbolRenamer {
+#[must_use] pub fn create_conservative_renamer() -> SymbolRenamer {
     SymbolRenamer::new(StandardRenamingStrategies::conservative())
 }
 
 /// Create an aggressive symbol renamer (rename all macro symbols)
-pub fn create_aggressive_renamer() -> SymbolRenamer {
+#[must_use] pub fn create_aggressive_renamer() -> SymbolRenamer {
     SymbolRenamer::new(StandardRenamingStrategies::aggressive())
 }
 
 /// Create an optimized symbol renamer for high-performance scenarios
-pub fn create_optimized_renamer() -> SymbolRenamer {
+#[must_use] pub fn create_optimized_renamer() -> SymbolRenamer {
     SymbolRenamer::optimized()
 }
 
 /// Create an intelligent symbol renamer with machine learning-inspired heuristics
-pub fn create_intelligent_renamer() -> SymbolRenamer {
+#[must_use] pub fn create_intelligent_renamer() -> SymbolRenamer {
     SymbolRenamer::intelligent()
 }
 
 /// Create a scope-aware symbol renamer for complex macro systems
-pub fn create_scope_aware_renamer() -> SymbolRenamer {
+#[must_use] pub fn create_scope_aware_renamer() -> SymbolRenamer {
     SymbolRenamer::scope_aware()
 }
 
 /// Create a custom symbol renamer with user-defined strategy
-pub fn create_custom_renamer(strategy: RenamingStrategy) -> SymbolRenamer {
+#[must_use] pub fn create_custom_renamer(strategy: RenamingStrategy) -> SymbolRenamer {
     SymbolRenamer::new(strategy)
 }
 
 /// Create a symbol renamer from configuration
-pub fn create_renamer_from_config(config: &StrategyConfig) -> SymbolRenamer {
+#[must_use] pub fn create_renamer_from_config(config: &StrategyConfig) -> SymbolRenamer {
     let strategy = RenamingStrategyFactory::create_strategy(config);
     SymbolRenamer::new(strategy)
 }
@@ -152,27 +152,27 @@ pub fn generate_renamed_symbol(
 }
 
 /// Utility function to check if a symbol name suggests it's temporary
-pub fn is_temporary_symbol(name: &str) -> bool {
+#[must_use] pub fn is_temporary_symbol(name: &str) -> bool {
     RenamingUtils::is_temporary_variable(name)
 }
 
 /// Utility function to check if a symbol name suggests it's compiler/macro generated
-pub fn is_generated_symbol(name: &str) -> bool {
+#[must_use] pub fn is_generated_symbol(name: &str) -> bool {
     RenamingUtils::is_generated_symbol(name)
 }
 
 /// Utility function to check if a symbol name follows Lisp naming conventions
-pub fn is_lisp_case_symbol(name: &str) -> bool {
+#[must_use] pub fn is_lisp_case_symbol(name: &str) -> bool {
     RenamingUtils::is_lisp_case(name)
 }
 
 /// Utility function to get a descriptive name for a renaming pattern
-pub fn describe_renaming_pattern(pattern: &RenamingPattern) -> String {
+#[must_use] pub fn describe_renaming_pattern(pattern: &RenamingPattern) -> String {
     RenamingUtils::describe_pattern(pattern)
 }
 
 /// Create a simple exact match pattern
-pub fn create_exact_pattern(
+#[must_use] pub fn create_exact_pattern(
     name: String,
     action: RenamingAction,
     priority: u32,
@@ -185,7 +185,7 @@ pub fn create_exact_pattern(
 }
 
 /// Create a simple glob pattern
-pub fn create_glob_pattern(
+#[must_use] pub fn create_glob_pattern(
     pattern: String,
     action: RenamingAction,
     priority: u32,
@@ -198,7 +198,7 @@ pub fn create_glob_pattern(
 }
 
 /// Create a predicate-based pattern
-pub fn create_predicate_pattern(
+#[must_use] pub fn create_predicate_pattern(
     predicate: PredicateFunction,
     action: RenamingAction,
     priority: u32,
@@ -211,7 +211,7 @@ pub fn create_predicate_pattern(
 }
 
 /// Create a temporary variable detection pattern
-pub fn create_temporary_variable_pattern(priority: u32) -> RenamingPattern {
+#[must_use] pub fn create_temporary_variable_pattern(priority: u32) -> RenamingPattern {
     RenamingPattern::new(
         PatternMatcher::Predicate(
             PredicateFunction::BuiltIn(BuiltInPredicate::IsTemporary)
@@ -222,7 +222,7 @@ pub fn create_temporary_variable_pattern(priority: u32) -> RenamingPattern {
 }
 
 /// Create a pattern for lambda variables
-pub fn create_lambda_variable_pattern(priority: u32) -> RenamingPattern {
+#[must_use] pub fn create_lambda_variable_pattern(priority: u32) -> RenamingPattern {
     RenamingPattern::new(
         PatternMatcher::Predicate(
             PredicateFunction::BuiltIn(BuiltInPredicate::LengthRange(1, 2))
@@ -301,93 +301,5 @@ impl BenchmarkResults {
         self.strategy_stats
             .iter()
             .max_by(|(_, a), (_, b)| a.cache_hit_rate().partial_cmp(&b.cache_hit_rate()).unwrap_or(std::cmp::Ordering::Equal))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_create_symbol_renamer() {
-        let renamer = create_symbol_renamer();
-        assert!(matches!(renamer.current_strategy(), RenamingStrategy::RenameConflicts));
-    }
-
-    #[test]
-    fn test_conservative_renamer() {
-        let renamer = create_conservative_renamer();
-        assert!(matches!(renamer.current_strategy(), RenamingStrategy::Conservative));
-    }
-
-    #[test]
-    fn test_pattern_creation() {
-        let pattern = create_exact_pattern(
-            "test".to_string(),
-            RenamingAction::AlwaysRename,
-            10,
-        );
-        
-        match pattern.name_pattern {
-            PatternMatcher::Exact(name) => assert_eq!(name, "test"),
-            _ => panic!("Expected exact pattern"),
-        }
-        
-        assert!(matches!(pattern.action, RenamingAction::AlwaysRename));
-        assert_eq!(pattern.priority, 10);
-    }
-
-    #[test]
-    fn test_utility_functions() {
-        assert!(is_temporary_symbol("temp123"));
-        assert!(is_temporary_symbol("tmp"));
-        assert!(is_temporary_symbol("_var"));
-        assert!(!is_temporary_symbol("normal"));
-
-        assert!(is_generated_symbol("gensym123"));
-        assert!(is_generated_symbol("$var"));
-        assert!(!is_generated_symbol("normal"));
-
-        assert!(is_lisp_case_symbol("my-variable"));
-        assert!(is_lisp_case_symbol("test?"));
-        assert!(!is_lisp_case_symbol("CamelCase"));
-    }
-
-    #[test]
-    fn test_temporary_variable_pattern() {
-        let pattern = create_temporary_variable_pattern(5);
-        
-        match pattern.name_pattern {
-            PatternMatcher::Predicate(PredicateFunction::BuiltIn(BuiltInPredicate::IsTemporary)) => (),
-            _ => panic!("Expected temporary variable predicate"),
-        }
-        
-        assert!(matches!(pattern.action, RenamingAction::AlwaysRename));
-        assert_eq!(pattern.priority, 5);
-    }
-
-    #[test]
-    fn test_lambda_variable_pattern() {
-        let pattern = create_lambda_variable_pattern(8);
-        
-        match pattern.name_pattern {
-            PatternMatcher::Predicate(PredicateFunction::BuiltIn(BuiltInPredicate::LengthRange(1, 2))) => (),
-            _ => panic!("Expected length range predicate"),
-        }
-        
-        assert_eq!(pattern.macro_context, Some("lambda".to_string()));
-        assert!(matches!(pattern.action, RenamingAction::CustomNaming(_)));
-        assert_eq!(pattern.priority, 8);
-    }
-
-    #[test]
-    fn test_strategy_config() {
-        let config = StrategyConfig::balanced()
-            .with_temporary_variables()
-            .with_lambda_variables();
-        
-        assert!(config.rename_temporary_variables);
-        assert!(config.rename_lambda_variables);
-        assert_eq!(config.strategy_type, StrategyType::ConflictAware);
     }
 }

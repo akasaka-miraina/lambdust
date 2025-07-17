@@ -1,0 +1,13 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: lambdust
+Description: Lambdust Scheme Interpreter - R7RS compliant Scheme interpreter for embedded applications
+Version: 0.1.1
+URL: https://github.com/lambdust/lambdust
+Requires:
+Libs: -L${libdir} -llambdust
+Libs.private: -ldl -lm
+Cflags: -I${includedir}

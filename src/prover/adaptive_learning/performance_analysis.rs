@@ -3,7 +3,6 @@
 //! This module contains structures and algorithms for analyzing performance
 //! characteristics of discovered patterns and validating optimization effectiveness.
 
-
 /// Performance analyzer that evaluates the effectiveness of learned patterns
 /// 
 /// TODO Phase 9: Implement sophisticated performance analysis algorithms
@@ -153,38 +152,103 @@ pub struct PerformanceImpactQuantification {
 // Placeholder structures for compilation
 // TODO Phase 9: Implement these structures
 
+/// Collects performance metrics during pattern analysis
 pub struct PerformanceMetricsCollector;
+
+/// Database for storing benchmark results and comparisons
 pub struct BenchmarkDatabase;
+
+/// Statistical analysis tools for performance data
 pub struct StatisticalAnalyzer;
+
+/// Rules for validating performance improvements
 pub struct PerformanceValidationRules;
+
+/// Complexity measurement for optimization patterns
 pub struct PatternComplexity;
+
+/// Rule for transforming code based on patterns
 pub struct TransformationRule;
+
+/// Conditions where patterns can be applied
 pub struct ApplicabilityCondition;
+
+/// Success metrics for pattern usage
 pub struct PatternSuccessMetrics;
+
+/// Validation status of optimization patterns
 pub struct ValidationStatus;
+
+/// Empirical evidence supporting pattern effectiveness
 pub struct EmpiricalEvidence;
+
+/// Relationships between different patterns
 pub struct PatternRelationships;
+
+/// Usage recommendations for optimization patterns
 pub struct UsageRecommendations;
+
+/// History of pattern evolution and improvements
 pub struct PatternEvolutionHistory;
+
+/// Range of expected performance improvements
 pub struct PerformanceImprovementRange;
+
+/// Performance variations based on context
 pub struct ContextualPerformanceVariation;
+
+/// Memory usage delta from optimization
 pub struct MemoryDelta;
+
+/// Changes in allocation patterns
 pub struct AllocationPatternChanges;
+
+/// Garbage collection impact metrics
 pub struct GcImpactMetrics;
+
+/// Complexity change measurements
 pub struct ComplexityChange;
+
+/// Input size scaling behavior
 pub struct InputScalingBehavior;
+
+/// Parallel execution characteristics
 pub struct ParallelExecutionCharacteristics;
+
+/// Resource utilization patterns
 pub struct ResourceUtilizationPattern;
+
+/// Points where performance degrades
 pub struct PerformanceDegradationPoint;
+
+/// Effectiveness profile across different scales
 pub struct ScaleEffectivenessProfile;
+
+/// Category of performance insight
 pub struct InsightType;
+
+/// Actionable recommendation for improvement
 pub struct ActionableRecommendation;
+
+/// Evidence supporting a performance insight
 pub struct SupportingEvidence;
+
+/// Assessment of optimization impact
 pub struct ImpactAssessment;
+
+/// Validation status of performance insights
 pub struct InsightValidationStatus;
+
+/// Measured changes in performance metrics
 pub struct MeasuredPerformanceChanges;
+
+/// Statistical significance of performance changes
 pub struct StatisticalSignificance;
+
+/// Confidence intervals for performance measurements
 pub struct ConfidenceIntervals;
+
+/// Results from benchmark comparisons
 pub struct BenchmarkComparisonResults;
 
 impl PerformanceAnalyzer {

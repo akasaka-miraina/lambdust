@@ -20,13 +20,13 @@ pub mod imports;
 pub mod inline_evaluation;
 // JIT loop optimization system for iterative constructs
 pub mod jit_loop_optimization;
-// Advanced hot path analysis system for multi-dimensional profiling
-pub mod hotpath_analysis;
+// Advanced hot path analysis system moved to src/performance_monitor/hotpath_analysis/
 pub mod memory;
 // Tests moved to tests/unit/evaluator/memory_tests.rs
 // Tail call optimization system for proper tail recursion
 pub mod tail_call_optimization;
 // LLVM backend for advanced tail call optimization
+#[cfg(feature = "development")]
 pub mod llvm_backend;
 // RAII store for memory management and resource cleanup
 pub mod raii_store;
@@ -40,10 +40,8 @@ pub mod pico_evaluator;
 pub mod pico_environment;
 // Semantic evaluator correctness proofs and verification
 pub mod semantic_correctness;
-// Runtime executor for optimized evaluation with performance tuning
-pub mod runtime_executor;
-// Runtime executor type definitions (split from main runtime_executor)
-pub mod runtime_executor_types;
+// Runtime executor moved to src/executor/runtime/
+// Runtime executor type definitions moved to src/executor/runtime_executor_types.rs
 pub mod special_forms;
 // Typed special forms for type-annotated lambda and define expressions
 pub mod typed_special_forms;
@@ -55,15 +53,10 @@ pub mod evaluation_mode_selector;
 // Migration strategy system for seamless evaluator transitions
 pub mod migration_strategy;
 // Advanced JIT compilation system with formal verification
+#[cfg(feature = "development")]
 pub mod advanced_jit_system;
-// Runtime optimization integration system for performance tuning
-pub mod runtime_optimization_integration;
-// Modular runtime optimization system (new architecture)
-pub mod runtime_optimization;
-// Performance measurement system for benchmarking and profiling
-pub mod performance_measurement_system;
-// Modular performance measurement system (new architecture)
-pub mod performance_measurement;
+// Runtime optimization systems moved to src/executor/runtime_optimization/
+// Performance measurement systems moved to src/performance_monitor/
 // Trampoline evaluator for stack overflow prevention
 pub mod trampoline;
 pub mod types;
@@ -107,6 +100,7 @@ pub use tail_call_optimization::{
     TailCallOptimizer, TailCallStats,
 };
 // LLVM backend exports
+#[cfg(feature = "development")]
 pub use llvm_backend::{
     LLVMCodeGenerator, LLVMCompilerIntegration, LLVMFunction, LLVMInstruction,
     LLVMOptimizationLevel, LLVMOptimizationStats, LLVMTailCallIntrinsic,
@@ -129,9 +123,9 @@ pub use pico_environment::{create_pico_initial_environment, get_pico_features, i
 // Semantic correctness exports
 // Temporarily disabled due to compilation issues
 pub use semantic_correctness::{CorrectnessProof, CorrectnessProperty, SemanticCorrectnessProver};
-// Runtime executor exports
-pub use runtime_executor::RuntimeExecutor;
-pub use runtime_executor_types::{RuntimeOptimizationLevel, RuntimeStats};
+// Runtime executor exports moved to src/executor/
+// Use crate::executor::runtime::RuntimeExecutor instead
+// Use crate::executor::runtime_executor_types::{RuntimeOptimizationLevel, RuntimeStats} instead
 // ===== Theorem Proving Support Systems (Re-exported from prover module) =====
 #[cfg(feature = "development")]
 pub use crate::prover::{
@@ -178,31 +172,13 @@ pub use migration_strategy::{
     MigrationPhase, MigrationProgressTracker, MigrationStatus, MigrationStrategy,
     SuccessCriterion, RiskAssessment, RiskFactor, MitigationStrategy,
 };
-// Runtime optimization integration system exports
-pub use runtime_optimization_integration::{
-    CorrectnessGuarantor, IntegratedOptimizationManager, OptimizationCache, OptimizationResult,
-    OptimizationStrategy,
-};
-// Performance measurement system exports
-pub use performance_measurement_system::{
-    BenchmarkExecutionResult, MeasurementConfiguration, MeasurementTarget, MetricType,
-    OptimizationEffectResult, PerformanceMeasurementSystem,
-};
-// Also re-export from the new modular system
-pub use performance_measurement::{
-    ComprehensiveMeasurementResult as PerformanceMeasurementResult,
-};
-// Advanced hot path analysis system exports
-pub use hotpath_analysis::{
-    AdvancedHotPathDetector, HotPathAnalysis, HotPathCategory, PerformanceOptimizationReport,
-    OptimizationRecommendation, OptimizationType, ExecutionRecord, LoopCharacteristics,
-    CallGraphComplexity, MemoryAccessPattern, BranchHistory, DynamicThresholds,
-};
+// Runtime optimization integration system exports moved to src/executor/runtime_optimization_integration/
+// Performance measurement system exports moved to src/performance_monitor/
+// Advanced hot path analysis system exports moved to src/performance_monitor/hotpath_analysis/
 // Tests moved to tests/unit/evaluator/theorem_proving_tests.rs
 // Trampoline evaluator exports
 pub use trampoline::{Bounce, ContinuationThunk, TrampolineEvaluation, TrampolineEvaluator};
 pub use types::*;
-
 
 /// Evaluate an expression with the CPS evaluator
 pub fn eval(expr: &Expr, env: &Environment) -> Result<Value> {
@@ -221,7 +197,7 @@ pub fn eval_with_formal_semantics(expr: &Expr, env: &Environment) -> Result<Valu
             Literal::Nil => Ok(Value::Nil),
         },
         Expr::Variable(name) => env.get(name).ok_or_else(|| {
-            LambdustError::runtime_error(format!("Unbound variable: {}", name))
+            LambdustError::runtime_error(format!("Unbound variable: {name}"))
         }),
         _ => Ok(Value::Nil), // Simplified for now
     }

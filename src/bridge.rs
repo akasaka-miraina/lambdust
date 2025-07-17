@@ -380,7 +380,7 @@ impl LambdustBridge {
                         func.call(function_args)
                     } else {
                         Err(LambdustError::runtime_error(format!(
-                            "External function not found: {}", function_name
+                            "External function not found: {function_name}"
                         )))
                     }
                 }),
@@ -407,13 +407,13 @@ impl LambdustBridge {
                     };
                     
                     let registry = registry_clone2.lock().unwrap();
-                    if let Some(obj) = registry.get_object(object_id) {
+                    if let Some(_obj) = registry.get_object(object_id) {
                         // For now, return a placeholder - full property access would require
                         // more sophisticated reflection capabilities
-                        Ok(Value::String(format!("Property {} of object {}", property_name, object_id)))
+                        Ok(Value::String(format!("Property {property_name} of object {object_id}")))
                     } else {
                         Err(LambdustError::runtime_error(format!(
-                            "Object not found: {}", object_id
+                            "Object not found: {object_id}"
                         )))
                     }
                 }),
@@ -433,7 +433,7 @@ impl LambdustBridge {
                         _ => return Err(LambdustError::type_error("Object ID must be an integer")),
                     };
                     
-                    let property_name = match &args[1] {
+                    let _property_name = match &args[1] {
                         Value::String(s) => s.clone(),
                         Value::Symbol(s) => s.clone(),
                         _ => return Err(LambdustError::type_error("Property name must be a string or symbol")),
@@ -448,7 +448,7 @@ impl LambdustBridge {
                         Ok(Value::Undefined)
                     } else {
                         Err(LambdustError::runtime_error(format!(
-                            "Object not found: {}", object_id
+                            "Object not found: {object_id}"
                         )))
                     }
                 }),
@@ -473,7 +473,7 @@ impl LambdustBridge {
                         registry.object_to_value(obj)
                     } else {
                         Err(LambdustError::runtime_error(format!(
-                            "Object not found: {}", object_id
+                            "Object not found: {object_id}"
                         )))
                     }
                 }),
@@ -532,7 +532,7 @@ impl LambdustBridge {
     }
     
     /// Get an external object by ID
-    pub fn get_object(&self, id: u64) -> Option<ExternalObject> {
+    #[must_use] pub fn get_object(&self, id: u64) -> Option<ExternalObject> {
         self.registry
             .lock()
             .unwrap()
@@ -549,7 +549,7 @@ impl LambdustBridge {
     }
     
     /// Check if a function is registered
-    pub fn has_function(&self, name: &str) -> bool {
+    #[must_use] pub fn has_function(&self, name: &str) -> bool {
         self.registry
             .lock()
             .unwrap()

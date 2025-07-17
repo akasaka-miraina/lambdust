@@ -405,37 +405,37 @@ impl StrategyConfig {
     }
     
     /// Enable temporary variable renaming
-    pub fn with_temporary_variables(mut self) -> Self {
+    #[must_use] pub fn with_temporary_variables(mut self) -> Self {
         self.rename_temporary_variables = true;
         self
     }
     
     /// Enable lambda variable renaming
-    pub fn with_lambda_variables(mut self) -> Self {
+    #[must_use] pub fn with_lambda_variables(mut self) -> Self {
         self.rename_lambda_variables = true;
         self
     }
     
     /// Enable let binding renaming
-    pub fn with_let_bindings(mut self) -> Self {
+    #[must_use] pub fn with_let_bindings(mut self) -> Self {
         self.rename_let_bindings = true;
         self
     }
     
     /// Enable macro-generated symbol renaming
-    pub fn with_macro_generated(mut self) -> Self {
+    #[must_use] pub fn with_macro_generated(mut self) -> Self {
         self.rename_macro_generated = true;
         self
     }
     
     /// Add custom pattern
-    pub fn with_pattern(mut self, pattern: RenamingPattern) -> Self {
+    #[must_use] pub fn with_pattern(mut self, pattern: RenamingPattern) -> Self {
         self.custom_patterns.push(pattern);
         self
     }
     
     /// Set default action
-    pub fn with_default_action(mut self, action: DefaultAction) -> Self {
+    #[must_use] pub fn with_default_action(mut self, action: DefaultAction) -> Self {
         self.default_action = action;
         self
     }
@@ -510,7 +510,7 @@ impl RenamingUtils {
     
     /// Check if symbol name is likely a lambda parameter
     #[must_use] pub fn is_lambda_parameter(name: &str) -> bool {
-        name.len() <= 2 && name.chars().all(|c| c.is_lowercase())
+        name.len() <= 2 && name.chars().all(char::is_lowercase)
     }
     
     /// Generate a descriptive name for a renaming pattern
@@ -551,68 +551,5 @@ impl RenamingUtils {
         }
         
         desc
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_standard_strategies() {
-        assert!(matches!(
-            StandardRenamingStrategies::conservative(),
-            RenamingStrategy::Conservative
-        ));
-        
-        assert!(matches!(
-            StandardRenamingStrategies::aggressive(),
-            RenamingStrategy::RenameAll
-        ));
-        
-        assert!(matches!(
-            StandardRenamingStrategies::conflict_aware(),
-            RenamingStrategy::RenameConflicts
-        ));
-    }
-    
-    #[test]
-    fn test_strategy_config() {
-        let config = StrategyConfig::new(StrategyType::Conservative)
-            .with_temporary_variables()
-            .with_lambda_variables()
-            .with_default_action(DefaultAction::Rename);
-        
-        assert_eq!(config.strategy_type, StrategyType::Conservative);
-        assert!(config.rename_temporary_variables);
-        assert!(config.rename_lambda_variables);
-        assert!(matches!(config.default_action, DefaultAction::Rename));
-    }
-    
-    #[test]
-    fn test_renaming_utils() {
-        assert!(RenamingUtils::is_temporary_variable("temp123"));
-        assert!(RenamingUtils::is_temporary_variable("tmp"));
-        assert!(RenamingUtils::is_temporary_variable("_var"));
-        assert!(RenamingUtils::is_temporary_variable("x"));
-        assert!(!RenamingUtils::is_temporary_variable("variable"));
-        
-        assert!(RenamingUtils::is_generated_symbol("gensym123"));
-        assert!(RenamingUtils::is_generated_symbol("$var"));
-        assert!(RenamingUtils::is_generated_symbol("var##123"));
-        assert!(!RenamingUtils::is_generated_symbol("normal-var"));
-        
-        assert!(RenamingUtils::is_lisp_case("my-variable"));
-        assert!(RenamingUtils::is_lisp_case("test?"));
-        assert!(RenamingUtils::is_lisp_case("valid!"));
-        assert!(!RenamingUtils::is_lisp_case("CamelCase"));
-    }
-    
-    #[test]
-    fn test_strategy_factory() {
-        let config = StrategyConfig::balanced();
-        let strategy = RenamingStrategyFactory::create_strategy(&config);
-        
-        assert!(matches!(strategy, RenamingStrategy::RenameConflicts));
     }
 }

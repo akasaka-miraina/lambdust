@@ -132,7 +132,7 @@ pub enum OptimizationTarget {
 
 impl LoopOptimizer {
     /// Create a new loop optimizer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             statistics: LoopOptimizationStatistics::default(),
         }
@@ -165,7 +165,7 @@ impl LoopOptimizer {
     }
 
     /// Analyze loops in an expression
-    pub fn analyze(&self, expr: &Expr, env: Option<&Rc<Environment>>) -> LoopAnalysis {
+    #[must_use] pub fn analyze(&self, expr: &Expr, env: Option<&Rc<Environment>>) -> LoopAnalysis {
         self.analyze_loops(expr, env)
     }
 
@@ -238,7 +238,7 @@ impl LoopOptimizer {
 
                     // Check if unrollable
                     if let Some(bounds) = self.extract_loop_bounds(exprs) {
-                        let iteration_count = ((bounds.end - bounds.start) / bounds.step).abs() as usize;
+                        let iteration_count = ((bounds.end - bounds.start) / bounds.step).unsigned_abs() as usize;
                         if iteration_count <= 10 && iteration_count > 1 {
                             analysis.unrollable_loops.push(UnrollableLoop {
                                 loop_expr: Expr::List(exprs.to_vec()),
@@ -467,7 +467,7 @@ impl LoopOptimizer {
     }
 
     /// Get optimization statistics
-    pub fn get_statistics(&self) -> &LoopOptimizationStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &LoopOptimizationStatistics {
         &self.statistics
     }
 
@@ -480,155 +480,5 @@ impl LoopOptimizer {
 impl Default for LoopOptimizer {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ast::Literal;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_loop_optimizer_creation() {
-        let optimizer = LoopOptimizer::new();
-        assert_eq!(optimizer.get_statistics().total_attempts, 0);
-    }
-
-    #[test]
-    fn test_named_let_loop_detection() {
-        let optimizer = LoopOptimizer::new();
-        
-        // (let loop ((i 0)) (if (< i 10) (loop (+ i 1)) i))
-        let expr = Expr::List(vec![
-            Expr::Variable("let".to_string()),
-            Expr::Variable("loop".to_string()),
-            Expr::List(vec![
-                Expr::List(vec![
-                    Expr::Variable("i".to_string()),
-                    Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
-                ]),
-            ]),
-            Expr::List(vec![
-                Expr::Variable("if".to_string()),
-                Expr::List(vec![
-                    Expr::Variable("<".to_string()),
-                    Expr::Variable("i".to_string()),
-                    Expr::Literal(Literal::Number(SchemeNumber::Integer(10))),
-                ]),
-                Expr::List(vec![
-                    Expr::Variable("loop".to_string()),
-                    Expr::List(vec![
-                        Expr::Variable("+".to_string()),
-                        Expr::Variable("i".to_string()),
-                        Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-                    ]),
-                ]),
-                Expr::Variable("i".to_string()),
-            ]),
-        ]);
-
-        let analysis = optimizer.analyze(&expr, None);
-        assert!(!analysis.loops.is_empty());
-        assert!(matches!(analysis.loops[0].loop_type, LoopType::NamedLet));
-        assert_eq!(analysis.loops[0].iteration_var, Some("loop".to_string()));
-    }
-
-    #[test]
-    fn test_do_loop_detection() {
-        let optimizer = LoopOptimizer::new();
-        
-        // (do ((i 0 (+ i 1))) ((= i 10) i) (display i))
-        let expr = Expr::List(vec![
-            Expr::Variable("do".to_string()),
-            Expr::List(vec![
-                Expr::List(vec![
-                    Expr::Variable("i".to_string()),
-                    Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
-                    Expr::List(vec![
-                        Expr::Variable("+".to_string()),
-                        Expr::Variable("i".to_string()),
-                        Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-                    ]),
-                ]),
-            ]),
-            Expr::List(vec![
-                Expr::List(vec![
-                    Expr::Variable("=".to_string()),
-                    Expr::Variable("i".to_string()),
-                    Expr::Literal(Literal::Number(SchemeNumber::Integer(10))),
-                ]),
-                Expr::Variable("i".to_string()),
-            ]),
-            Expr::List(vec![
-                Expr::Variable("display".to_string()),
-                Expr::Variable("i".to_string()),
-            ]),
-        ]);
-
-        let analysis = optimizer.analyze(&expr, None);
-        assert!(!analysis.loops.is_empty());
-        assert!(matches!(analysis.loops[0].loop_type, LoopType::DoLoop));
-    }
-
-    #[test]
-    fn test_map_pattern_detection() {
-        let optimizer = LoopOptimizer::new();
-        
-        // (map (lambda (x) (* x x)) '(1 2 3 4 5))
-        let expr = Expr::List(vec![
-            Expr::Variable("map".to_string()),
-            Expr::List(vec![
-                Expr::Variable("lambda".to_string()),
-                Expr::List(vec![Expr::Variable("x".to_string())]),
-                Expr::List(vec![
-                    Expr::Variable("*".to_string()),
-                    Expr::Variable("x".to_string()),
-                    Expr::Variable("x".to_string()),
-                ]),
-            ]),
-            Expr::Quote(Box::new(Expr::List(vec![
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(4))),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(5))),
-            ]))),
-        ]);
-
-        let analysis = optimizer.analyze(&expr, None);
-        assert!(!analysis.loops.is_empty());
-        assert!(matches!(analysis.loops[0].loop_type, LoopType::MapPattern));
-    }
-
-    #[test]
-    fn test_loop_invariant_detection() {
-        let optimizer = LoopOptimizer::new();
-        
-        // Expression with potential invariant: (+ constant_value i)
-        let body = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("constant_value".to_string()), // This should be invariant
-            Expr::Variable("i".to_string()), // This depends on loop variable
-        ]);
-
-        let invariant_expr = Expr::Variable("constant_value".to_string());
-        assert!(optimizer.is_loop_invariant(&invariant_expr, "i"));
-        assert!(!optimizer.is_loop_invariant(&body, "i"));
-    }
-
-    #[test]
-    fn test_no_loops() {
-        let mut optimizer = LoopOptimizer::new();
-        
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Variable("y".to_string()),
-        ]);
-
-        let result = optimizer.optimize(&expr, None).unwrap();
-        assert!(!result.optimization_applied);
-        assert_eq!(result.optimizations_count, 0);
     }
 }

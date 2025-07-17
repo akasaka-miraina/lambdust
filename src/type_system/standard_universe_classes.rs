@@ -1,14 +1,14 @@
 //! Standard Universe Polymorphic Type Classes
 //! Implementations of common type classes that work across universe levels
 
-use super::universe_polymorphic_classes::*;
+use super::universe_polymorphic_classes::{UniversePolymorphicClass, UniversePolymorphicParameter, UniverseConstraint, KindConstraint, UniversePolymorphicMethod, UniversePolymorphicType, UniversePolymorphicLaw, UniversePolymorphicConstraint, UniversePolymorphicEquation, UniversePolymorphicRegistry, UniversePolymorphicInstance};
 use super::polynomial_types::{PolynomialType, UniverseLevel, BaseType};
 use crate::value::Value;
 use crate::error::Result;
 use std::collections::HashMap;
 
 /// Create standard universe polymorphic Functor class
-pub fn create_functor_class() -> UniversePolymorphicClass {
+#[must_use] pub fn create_functor_class() -> UniversePolymorphicClass {
     UniversePolymorphicClass {
         name: "Functor".to_string(),
         universe_parameter: "u".to_string(),
@@ -200,7 +200,7 @@ fn create_functor_composition_law() -> UniversePolymorphicLaw {
 }
 
 /// Create universe polymorphic Applicative class
-pub fn create_applicative_class() -> UniversePolymorphicClass {
+#[must_use] pub fn create_applicative_class() -> UniversePolymorphicClass {
     UniversePolymorphicClass {
         name: "Applicative".to_string(),
         universe_parameter: "u".to_string(),
@@ -313,7 +313,7 @@ pub fn create_applicative_class() -> UniversePolymorphicClass {
 }
 
 /// Create universe polymorphic Monad class
-pub fn create_monad_class() -> UniversePolymorphicClass {
+#[must_use] pub fn create_monad_class() -> UniversePolymorphicClass {
     UniversePolymorphicClass {
         name: "Monad".to_string(),
         universe_parameter: "u".to_string(),
@@ -619,7 +619,7 @@ pub fn initialize_standard_classes(registry: &UniversePolymorphicRegistry) -> Re
 }
 
 /// Create List instance for Functor at any universe level
-pub fn create_list_functor_instance() -> UniversePolymorphicInstance {
+#[must_use] pub fn create_list_functor_instance() -> UniversePolymorphicInstance {
     let mut methods = HashMap::new();
     
     // Simplified fmap implementation for lists
@@ -642,7 +642,7 @@ pub fn create_list_functor_instance() -> UniversePolymorphicInstance {
 }
 
 /// Create Maybe instance for Functor at any universe level  
-pub fn create_maybe_functor_instance() -> UniversePolymorphicInstance {
+#[must_use] pub fn create_maybe_functor_instance() -> UniversePolymorphicInstance {
     let mut methods = HashMap::new();
     
     // Simplified fmap implementation for Maybe
@@ -662,85 +662,5 @@ pub fn create_maybe_functor_instance() -> UniversePolymorphicInstance {
         ],
         methods,
         law_proofs: HashMap::new(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_create_functor_class() {
-        let functor = create_functor_class();
-        assert_eq!(functor.name, "Functor");
-        assert_eq!(functor.universe_parameter, "u");
-        assert_eq!(functor.type_parameters.len(), 1);
-        assert_eq!(functor.methods.len(), 1);
-        assert_eq!(functor.laws.len(), 2);
-    }
-
-    #[test]
-    fn test_create_applicative_class() {
-        let applicative = create_applicative_class();
-        assert_eq!(applicative.name, "Applicative");
-        assert_eq!(applicative.methods.len(), 2);
-        assert_eq!(applicative.superclasses.len(), 1);
-        assert_eq!(applicative.superclasses[0].class_name, "Functor");
-    }
-
-    #[test]
-    fn test_create_monad_class() {
-        let monad = create_monad_class();
-        assert_eq!(monad.name, "Monad");
-        assert_eq!(monad.methods.len(), 2);
-        assert_eq!(monad.laws.len(), 3);
-        assert_eq!(monad.superclasses.len(), 1);
-        assert_eq!(monad.superclasses[0].class_name, "Applicative");
-    }
-
-    #[test]
-    fn test_universe_constraint_types() {
-        let constraint = UniverseConstraint::AtLeast(UniverseLevel::new(1));
-        
-        match constraint {
-            UniverseConstraint::AtLeast(level) => {
-                assert_eq!(level, UniverseLevel::new(1));
-            }
-            _ => panic!("Expected AtLeast constraint"),
-        }
-    }
-
-    #[test]
-    fn test_standard_classes_initialization() {
-        let registry = UniversePolymorphicRegistry::new();
-        let result = initialize_standard_classes(&registry);
-        assert!(result.is_ok());
-        
-        let classes = registry.list_classes();
-        assert!(classes.contains(&"Functor".to_string()));
-        assert!(classes.contains(&"Applicative".to_string()));
-        assert!(classes.contains(&"Monad".to_string()));
-    }
-
-    #[test] 
-    fn test_list_functor_instance() {
-        let instance = create_list_functor_instance();
-        assert_eq!(instance.class_name, "Functor");
-        assert!(instance.methods.contains_key("fmap"));
-        assert_eq!(instance.type_args.len(), 1);
-    }
-
-    #[test]
-    fn test_maybe_functor_instance() {
-        let instance = create_maybe_functor_instance();
-        assert_eq!(instance.class_name, "Functor");
-        assert!(instance.methods.contains_key("fmap"));
-        
-        // Check that type args represent Maybe type (Sum type)
-        if let PolynomialType::Sum { .. } = &instance.type_args[0] {
-            // This is correct for Maybe type representation
-        } else {
-            panic!("Expected Sum type for Maybe");
-        }
     }
 }

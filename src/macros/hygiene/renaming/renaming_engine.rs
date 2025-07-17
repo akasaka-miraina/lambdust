@@ -90,7 +90,7 @@ impl SymbolRenamer {
                 self.conservative_renaming(expr, context, environment)
             }
             RenamingStrategy::Custom(rule) => {
-                self.custom_renaming(expr, context, environment, &rule)
+                self.custom_renaming(expr, context, environment, rule)
             }
             RenamingStrategy::Intelligent => {
                 self.intelligent_renaming(expr, context, environment)

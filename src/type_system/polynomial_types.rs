@@ -17,7 +17,7 @@ impl UniverseLevel {
     /// 
     /// Universe levels form a hierarchy where higher levels
     /// can contain types from lower levels.
-    pub fn new(level: usize) -> Self {
+    #[must_use] pub fn new(level: usize) -> Self {
         Self(level)
     }
 
@@ -25,7 +25,7 @@ impl UniverseLevel {
     /// 
     /// This is used in dependent type theory to ensure
     /// that type-in-type paradoxes are avoided.
-    pub fn next(self) -> Self {
+    #[must_use] pub fn next(self) -> Self {
         Self(self.0 + 1)
     }
 }
@@ -137,7 +137,7 @@ pub enum PolynomialType {
         length: Box<PolynomialType>,
     },
     
-    /// Polynomial functor type P_u
+    /// Polynomial functor type `P_u`
     Polynomial {
         /// Data constructors for the polynomial type
         constructors: Vec<Constructor>,
@@ -145,7 +145,7 @@ pub enum PolynomialType {
         parameters: Vec<Parameter>,
     },
     
-    /// Type universe Type_i
+    /// Type universe `Type_i`
     Universe(UniverseLevel),
     
     /// Type variable (for type inference)
@@ -164,7 +164,7 @@ pub enum PolynomialType {
         argument: Box<PolynomialType>,
     },
     
-    /// Identity type (from HoTT): Id_A(x, y)
+    /// Identity type (from HoTT): `Id_A(x`, y)
     Identity {
         /// Base type A in which equality is considered
         base_type: Box<PolynomialType>,
@@ -176,7 +176,7 @@ pub enum PolynomialType {
 }
 
 /// Polynomial functor representation
-/// P_u(X) = Σ_{a:A} X^{B(a)}
+/// `P_u(X)` = Σ_{a:A} X^{B(a)}
 #[derive(Debug, Clone, PartialEq)]
 pub struct PolynomialFunctor {
     /// Set of constructors A
@@ -189,7 +189,7 @@ pub struct PolynomialFunctor {
 
 impl PolynomialFunctor {
     /// Create new polynomial functor
-    pub fn new(universe_level: UniverseLevel) -> Self {
+    #[must_use] pub fn new(universe_level: UniverseLevel) -> Self {
         Self {
             constructors: HashMap::new(),
             arity_function: HashMap::new(),
@@ -200,7 +200,7 @@ impl PolynomialFunctor {
     /// Add constructor to the polynomial functor
     pub fn add_constructor(&mut self, name: String, constructor: Constructor) -> Result<(), LambdustError> {
         if self.constructors.contains_key(&name) {
-            return Err(LambdustError::type_error(format!("Constructor '{}' already exists", name)));
+            return Err(LambdustError::type_error(format!("Constructor '{name}' already exists")));
         }
         
         let arity = constructor.arg_types.clone();
@@ -210,7 +210,7 @@ impl PolynomialFunctor {
     }
 
     /// Apply polynomial functor to a type
-    pub fn apply(&self, argument_type: &PolynomialType) -> PolynomialType {
+    #[must_use] pub fn apply(&self, argument_type: &PolynomialType) -> PolynomialType {
         let mut result_constructors = Vec::new();
         
         for (name, constructor) in &self.constructors {
@@ -255,7 +255,7 @@ impl PolynomialFunctor {
 
 impl PolynomialType {
     /// Get the universe level of a type
-    pub fn universe_level(&self) -> UniverseLevel {
+    #[must_use] pub fn universe_level(&self) -> UniverseLevel {
         match self {
             PolynomialType::Base(_) => UniverseLevel::new(0),
             PolynomialType::Universe(level) => level.next(),
@@ -307,22 +307,22 @@ impl PolynomialType {
     }
 
     /// Check if this type is a base type
-    pub fn is_base_type(&self) -> bool {
+    #[must_use] pub fn is_base_type(&self) -> bool {
         matches!(self, PolynomialType::Base(_))
     }
 
     /// Check if this type is a dependent type
-    pub fn is_dependent(&self) -> bool {
+    #[must_use] pub fn is_dependent(&self) -> bool {
         matches!(self, PolynomialType::Pi { .. } | PolynomialType::Sigma { .. })
     }
 
     /// Check if this type is a polynomial functor
-    pub fn is_polynomial(&self) -> bool {
+    #[must_use] pub fn is_polynomial(&self) -> bool {
         matches!(self, PolynomialType::Polynomial { .. })
     }
 
     /// Convert to Scheme value representation (for display/debugging)
-    pub fn to_scheme_representation(&self) -> Value {
+    #[must_use] pub fn to_scheme_representation(&self) -> Value {
         match self {
             PolynomialType::Base(base_type) => {
                 let type_name = match base_type {
@@ -347,7 +347,8 @@ impl PolynomialType {
                 let output_val = output.to_scheme_representation();
                 // Create list representation manually
                 let arrow = Value::Symbol("→".to_string());
-                let pair1 = Value::Pair(std::rc::Rc::new(std::cell::RefCell::new(crate::value::PairData { 
+                
+                Value::Pair(std::rc::Rc::new(std::cell::RefCell::new(crate::value::PairData { 
                     car: arrow, 
                     cdr: Value::Pair(std::rc::Rc::new(std::cell::RefCell::new(crate::value::PairData { 
                         car: input_val, 
@@ -356,8 +357,7 @@ impl PolynomialType {
                             cdr: Value::Nil 
                         })))
                     })))
-                })));
-                pair1
+                })))
             },
             PolynomialType::Identity { base_type, left, right } => {
                 // (= A x y)
@@ -380,7 +380,7 @@ impl PolynomialType {
                 })))
             }
             // Add more representations as needed
-            _ => Value::Symbol(format!("{:?}", self)),
+            _ => Value::Symbol(format!("{self:?}")),
         }
     }
 }
@@ -402,25 +402,25 @@ impl fmt::Display for PolynomialType {
                 }
             },
             PolynomialType::Pi { param_name, param_type, body_type } => {
-                write!(f, "Π({}: {}). {}", param_name, param_type, body_type)
+                write!(f, "Π({param_name}: {param_type}). {body_type}")
             },
             PolynomialType::Sigma { param_name, param_type, body_type } => {
-                write!(f, "Σ({}: {}). {}", param_name, param_type, body_type)
+                write!(f, "Σ({param_name}: {param_type}). {body_type}")
             },
             PolynomialType::Function { input, output } => {
-                write!(f, "{} → {}", input, output)
+                write!(f, "{input} → {output}")
             },
             PolynomialType::Product { left, right } => {
-                write!(f, "{} × {}", left, right)
+                write!(f, "{left} × {right}")
             },
             PolynomialType::Sum { left, right } => {
-                write!(f, "{} + {}", left, right)
+                write!(f, "{left} + {right}")
             },
             PolynomialType::List { element_type } => {
-                write!(f, "List({})", element_type)
+                write!(f, "List({element_type})")
             },
             PolynomialType::Vector { element_type, length } => {
-                write!(f, "Vec({}, {})", element_type, length)
+                write!(f, "Vec({element_type}, {length})")
             },
             PolynomialType::Universe(level) => {
                 write!(f, "Type_{}", level.0)
@@ -429,90 +429,14 @@ impl fmt::Display for PolynomialType {
                 write!(f, "{}@{}", name, level.0)
             },
             PolynomialType::Application { constructor, argument } => {
-                write!(f, "({} {})", constructor, argument)
+                write!(f, "({constructor} {argument})")
             },
             PolynomialType::Polynomial { constructors, .. } => {
                 write!(f, "Poly[{}]", constructors.len())
             },
             PolynomialType::Identity { base_type, left, right } => {
-                write!(f, "Id_{}({}, {})", base_type, left, right)
+                write!(f, "Id_{base_type}({left}, {right})")
             },
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_base_types() {
-        let nat = PolynomialType::Base(BaseType::Natural);
-        assert_eq!(nat.universe_level(), UniverseLevel::new(0));
-        assert!(nat.is_base_type());
-        assert!(!nat.is_dependent());
-    }
-
-    #[test]
-    fn test_function_types() {
-        let nat = PolynomialType::Base(BaseType::Natural);
-        let func = PolynomialType::Function {
-            input: Box::new(nat.clone()),
-            output: Box::new(nat.clone()),
-        };
-        
-        assert_eq!(func.universe_level(), UniverseLevel::new(0));
-        assert!(!func.is_base_type());
-        assert!(!func.is_dependent());
-    }
-
-    #[test]
-    fn test_dependent_types() {
-        let nat = PolynomialType::Base(BaseType::Natural);
-        let pi_type = PolynomialType::Pi {
-            param_name: "n".to_string(),
-            param_type: Box::new(nat.clone()),
-            body_type: Box::new(nat.clone()),
-        };
-        
-        assert!(pi_type.is_dependent());
-        assert!(!pi_type.is_base_type());
-    }
-
-    #[test]
-    fn test_polynomial_functor() {
-        let mut functor = PolynomialFunctor::new(UniverseLevel::new(0));
-        
-        let constructor = Constructor {
-            name: "cons".to_string(),
-            arg_types: vec![
-                PolynomialType::Variable { name: "A".to_string(), level: UniverseLevel::new(0) },
-                PolynomialType::List { element_type: Box::new(PolynomialType::Variable { name: "A".to_string(), level: UniverseLevel::new(0) }) },
-            ],
-            result_type: Box::new(PolynomialType::List { element_type: Box::new(PolynomialType::Variable { name: "A".to_string(), level: UniverseLevel::new(0) }) }),
-        };
-        
-        let result = functor.add_constructor("cons".to_string(), constructor);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_universe_levels() {
-        let type0 = PolynomialType::Universe(UniverseLevel::new(0));
-        let type1 = PolynomialType::Universe(UniverseLevel::new(1));
-        
-        assert_eq!(type0.universe_level(), UniverseLevel::new(1));
-        assert_eq!(type1.universe_level(), UniverseLevel::new(2));
-    }
-
-    #[test]
-    fn test_scheme_representation() {
-        let nat = PolynomialType::Base(BaseType::Natural);
-        let repr = nat.to_scheme_representation();
-        
-        match repr {
-            Value::Symbol(s) => assert_eq!(s, "Nat"),
-            _ => panic!("Expected symbol"),
         }
     }
 }

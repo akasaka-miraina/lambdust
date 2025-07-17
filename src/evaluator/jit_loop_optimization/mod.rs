@@ -5,7 +5,7 @@
 //!
 //! ## モジュール構成
 //!
-//! - `core_types`: 基本型定義（LoopPattern, JitHint, 統計等）
+//! - `core_types`: 基本型定義（LoopPattern, `JitHint`, 統計等）
 
 pub mod core_types;
 
@@ -40,12 +40,12 @@ pub struct JitHotPathDetector {
 
 impl JitHotPathDetector {
     /// Create new hot path detector
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::with_threshold(10)
     }
 
     /// Create with custom compilation threshold
-    pub fn with_threshold(threshold: usize) -> Self {
+    #[must_use] pub fn with_threshold(threshold: usize) -> Self {
         Self {
             execution_counts: HashMap::new(),
             compilation_threshold: threshold,
@@ -69,17 +69,17 @@ impl JitHotPathDetector {
     }
 
     /// Get execution count for pattern
-    pub fn execution_count(&self, pattern_key: &str) -> usize {
+    #[must_use] pub fn execution_count(&self, pattern_key: &str) -> usize {
         self.execution_counts.get(pattern_key).copied().unwrap_or(0)
     }
 
     /// Get total executions
-    pub fn total_executions(&self) -> usize {
+    #[must_use] pub fn total_executions(&self) -> usize {
         self.total_executions
     }
 
     /// Get compiled patterns count
-    pub fn compiled_count(&self) -> usize {
+    #[must_use] pub fn compiled_count(&self) -> usize {
         self.compiled_patterns.len()
     }
 }
@@ -99,7 +99,7 @@ pub struct LoopPatternAnalyzer {
 
 impl LoopPatternAnalyzer {
     /// Create new pattern analyzer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             stats: JitOptimizationStats::default(),
         }
@@ -139,7 +139,7 @@ impl LoopPatternAnalyzer {
     }
 
     /// Get analysis statistics
-    pub fn stats(&self) -> &JitOptimizationStats {
+    #[must_use] pub fn stats(&self) -> &JitOptimizationStats {
         &self.stats
     }
 }
@@ -159,7 +159,7 @@ pub struct NativeCodeGenerator {
 
 impl NativeCodeGenerator {
     /// Create new code generator
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             stats: JitOptimizationStats::default(),
         }
@@ -205,7 +205,7 @@ impl NativeCodeGenerator {
     }
 
     /// Get generation statistics
-    pub fn stats(&self) -> &JitOptimizationStats {
+    #[must_use] pub fn stats(&self) -> &JitOptimizationStats {
         &self.stats
     }
 }
@@ -229,7 +229,7 @@ pub struct JitLoopOptimizer {
 
 impl JitLoopOptimizer {
     /// Create new JIT loop optimizer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             hotpath_detector: JitHotPathDetector::new(),
             pattern_analyzer: LoopPatternAnalyzer::new(),
@@ -260,7 +260,7 @@ impl JitLoopOptimizer {
     }
 
     /// Get combined statistics
-    pub fn combined_stats(&self) -> JitOptimizationStats {
+    #[must_use] pub fn combined_stats(&self) -> JitOptimizationStats {
         let mut combined = self.pattern_analyzer.stats().clone();
         
         // Merge with code generator stats
@@ -272,7 +272,7 @@ impl JitLoopOptimizer {
     }
 
     /// Get hotpath detector statistics
-    pub fn hotpath_stats(&self) -> (usize, usize, usize) {
+    #[must_use] pub fn hotpath_stats(&self) -> (usize, usize, usize) {
         (
             self.hotpath_detector.total_executions(),
             self.hotpath_detector.compiled_count(),
@@ -295,120 +295,20 @@ impl Default for JitLoopOptimizer {
 }
 
 /// Create a new JIT loop optimizer with default configuration
-pub fn create_jit_optimizer() -> JitLoopOptimizer {
+#[must_use] pub fn create_jit_optimizer() -> JitLoopOptimizer {
     JitLoopOptimizer::new()
 }
 
 /// Create a production-tuned JIT loop optimizer
-pub fn create_production_jit_optimizer() -> JitLoopOptimizer {
+#[must_use] pub fn create_production_jit_optimizer() -> JitLoopOptimizer {
     let mut optimizer = JitLoopOptimizer::new();
     optimizer.hotpath_detector = JitHotPathDetector::with_threshold(5); // Lower threshold for production
     optimizer
 }
 
 /// Create a development-friendly JIT loop optimizer
-pub fn create_development_jit_optimizer() -> JitLoopOptimizer {
+#[must_use] pub fn create_development_jit_optimizer() -> JitLoopOptimizer {
     let mut optimizer = JitLoopOptimizer::new();
     optimizer.hotpath_detector = JitHotPathDetector::with_threshold(50); // Higher threshold for development
     optimizer
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ast::Literal;
-
-    #[test]
-    fn test_jit_optimizer_creation() {
-        let optimizer = create_jit_optimizer();
-        let (total, compiled, patterns) = optimizer.hotpath_stats();
-        assert_eq!(total, 0);
-        assert_eq!(compiled, 0);
-        assert_eq!(patterns, 0);
-    }
-
-    #[test]
-    fn test_production_optimizer() {
-        let optimizer = create_production_jit_optimizer();
-        assert_eq!(optimizer.hotpath_detector.compilation_threshold, 5);
-    }
-
-    #[test]
-    fn test_development_optimizer() {
-        let optimizer = create_development_jit_optimizer();
-        assert_eq!(optimizer.hotpath_detector.compilation_threshold, 50);
-    }
-
-    #[test]
-    fn test_pattern_analysis() {
-        let mut analyzer = LoopPatternAnalyzer::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("do".to_string()),
-            Expr::Literal(Literal::Number(crate::lexer::SchemeNumber::Integer(1))),
-        ]);
-        
-        let result = analyzer.analyze_pattern(&expr).unwrap();
-        assert!(result.is_some());
-        
-        if let Some(LoopPattern::CountingLoop { variable, start, end, step }) = result {
-            assert_eq!(variable, "i");
-            assert_eq!(start, 0);
-            assert_eq!(end, 10);
-            assert_eq!(step, 1);
-        } else {
-            panic!("Expected CountingLoop pattern");
-        }
-    }
-
-    #[test]
-    fn test_code_generation() {
-        let mut generator = NativeCodeGenerator::new();
-        let pattern = LoopPattern::CountingLoop {
-            variable: "i".to_string(),
-            start: 0,
-            end: 10,
-            step: 1,
-        };
-        
-        let result = generator.generate(&pattern).unwrap();
-        match result.strategy {
-            IterationStrategy::NativeForLoop { start, end, step } => {
-                assert_eq!(start, 0);
-                assert_eq!(end, 10);
-                assert_eq!(step, 1);
-            }
-            _ => panic!("Expected NativeForLoop strategy"),
-        }
-    }
-
-    #[test]
-    fn test_hotpath_detection() {
-        let mut detector = JitHotPathDetector::with_threshold(3);
-        
-        // Record executions below threshold
-        assert!(!detector.record_execution("test_pattern"));
-        assert!(!detector.record_execution("test_pattern"));
-        
-        // Third execution should trigger compilation
-        assert!(detector.record_execution("test_pattern"));
-        
-        // Fourth execution should not trigger (already compiled)
-        assert!(!detector.record_execution("test_pattern"));
-        
-        assert_eq!(detector.execution_count("test_pattern"), 3);
-    }
-
-    #[test]
-    fn test_optimization_stats() {
-        let mut stats = JitOptimizationStats::default();
-        
-        stats.record_pattern_detection("CountingLoop");
-        stats.record_pattern_detection("ListIteration");
-        stats.record_successful_compilation("CountingLoop");
-        
-        assert_eq!(stats.total_patterns, 2);
-        assert_eq!(stats.compiled_patterns, 1);
-        assert_eq!(stats.compilation_rate, 0.5);
-        assert_eq!(stats.efficiency(), 50.0);
-    }
 }

@@ -1,7 +1,7 @@
 //! Core Types Module
 //!
 //! このモジュールはevaluator型システムの基本的な型定義を提供します。
-//! LocationHandle trait、メモリ戦略、統計ラッパーを含みます。
+//! `LocationHandle` trait、メモリ戦略、統計ラッパーを含みます。
 
 use crate::error::Result;
 use crate::value::Value;

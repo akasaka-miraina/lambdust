@@ -13,9 +13,9 @@
 //! - Use `crate::static_optimization::StaticOptimizationEngine` for compile-time optimizations
 //! - Use `crate::prover::optimization` for formal verification research
 
-#[deprecated(since = "3.0.0", note = "Use crate::evaluator::runtime_optimization::EvolvingOptimizationEngine instead")]
-#[cfg(feature = "development")]
-pub use crate::evaluator::runtime_optimization::evolving_optimization::EvolvingOptimizationEngine;
+// #[deprecated(since = "3.0.0", note = "Use crate::evaluator::runtime_optimization::EvolvingOptimizationEngine instead")]
+// #[cfg(feature = "development")]
+// pub use crate::evaluator::runtime_optimization::evolving_optimization::EvolvingOptimizationEngine;
 
 #[deprecated(since = "3.0.0", note = "Use crate::prover::optimization instead")]
 #[cfg(feature = "development")]
@@ -26,13 +26,16 @@ pub use crate::prover::optimization::{InferenceRule, LearnedPattern, TheoremDeri
 pub use crate::prover::optimization::{OptimizationController, VerificationSystem, VerifiedOptimization};
 
 // Re-export for backward compatibility
-#[deprecated(since = "3.0.0", note = "Use crate::evaluator::runtime_optimization types instead")]
-#[cfg(feature = "development")]
-pub use crate::evaluator::runtime_optimization::evolving_optimization::{
-    PerformanceMetrics, OptimizationResult, EvolutionResult, TrainingResult, OptimizationStatistics
-};
+// #[deprecated(since = "3.0.0", note = "Use crate::evaluator::runtime_optimization types instead")]
+// #[cfg(feature = "development")]
+// pub use crate::evaluator::runtime_optimization::evolving_optimization::{
+//     PerformanceMetrics, OptimizationResult, EvolutionResult, TrainingResult, OptimizationStatistics
+// };
 
-// Deprecation notice for the entire module
+/// Deprecation notice for the entire module
+/// 
+/// This constant provides migration guidance for users of the deprecated
+/// optimization module, directing them to the new optimization system structure.
 #[deprecated(since = "3.0.0", note = "This module is deprecated. Use the new optimization system structure.")]
 pub const DEPRECATED_MODULE_NOTICE: &str = r#"
 This optimization module has been reorganized for better clarity:

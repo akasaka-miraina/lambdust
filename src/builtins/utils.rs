@@ -9,6 +9,10 @@ use crate::lexer::SchemeNumber;
 use crate::value::{Procedure, Value};
 
 /// Check function arity with exact count
+/// 
+/// # Errors
+/// 
+/// Returns an `ArityError` if the number of arguments does not match the expected number.
 pub fn check_arity(args: &[Value], expected: usize) -> Result<(), LambdustError> {
     if args.len() != expected {
         return Err(LambdustError::arity_error(expected, args.len()));
@@ -248,7 +252,7 @@ where
 }
 
 /// Compare two numbers and return Ordering
-pub fn compare_numbers_ordering(a: &SchemeNumber, b: &SchemeNumber) -> std::cmp::Ordering {
+#[must_use] pub fn compare_numbers_ordering(a: &SchemeNumber, b: &SchemeNumber) -> std::cmp::Ordering {
     let (x, y) = match (a, b) {
         (SchemeNumber::Integer(x), SchemeNumber::Integer(y)) => (*x as f64, *y as f64),
         (SchemeNumber::Real(x), SchemeNumber::Real(y)) => (*x, *y),
@@ -455,7 +459,7 @@ pub fn string_char_at(s: &str, index: usize, func_name: &str) -> Result<char, La
 /// This is useful for functions that require evaluator integration
 pub fn make_placeholder_procedure(name: &str, reason: &str) -> Value {
     // Create error message incorporating both name and reason
-    let full_name = format!("{}: {}", name, reason);
+    let full_name = format!("{name}: {reason}");
     
     // Use a static function that recreates the error message
     fn placeholder_error(_args: &[Value]) -> Result<Value, LambdustError> {
@@ -465,55 +469,3 @@ pub fn make_placeholder_procedure(name: &str, reason: &str) -> Value {
     make_builtin_procedure(&full_name, None, placeholder_error)
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_check_arity() {
-        let args = vec![Value::from(1i64), Value::from(2i64)];
-        assert!(check_arity(&args, 2).is_ok());
-        assert!(check_arity(&args, 1).is_err());
-        assert!(check_arity(&args, 3).is_err());
-    }
-
-    #[test]
-    fn test_check_arity_range() {
-        let args = vec![Value::from(1i64), Value::from(2i64)];
-        assert!(check_arity_range(&args, 1, Some(3)).is_ok());
-        assert!(check_arity_range(&args, 2, Some(2)).is_ok());
-        assert!(check_arity_range(&args, 3, None).is_err());
-        assert!(check_arity_range(&args, 1, Some(1)).is_err());
-    }
-
-    #[test]
-    fn test_expect_number() {
-        let value = Value::from(42i64);
-        assert!(expect_number(&value, "test").is_ok());
-
-        let value = Value::from("not a number");
-        assert!(expect_number(&value, "test").is_err());
-    }
-
-    #[test]
-    fn test_apply_numeric_operation() {
-        let a = SchemeNumber::Integer(10);
-        let b = SchemeNumber::Integer(5);
-
-        let result = apply_numeric_operation(&a, &b, "add", |x, y| x + y).unwrap();
-        assert_eq!(result, SchemeNumber::Integer(15));
-
-        let result = apply_numeric_operation(&a, &b, "divide", |x, y| x / y).unwrap();
-        assert_eq!(result, SchemeNumber::Integer(2)); // 10/5 = 2 (exact result)
-    }
-
-    #[test]
-    fn test_compare_numbers() {
-        let a = SchemeNumber::Integer(10);
-        let b = SchemeNumber::Integer(5);
-
-        assert!(compare_numbers(&a, &b, |x, y| x > y));
-        assert!(!compare_numbers(&a, &b, |x, y| x < y));
-        assert!(!compare_numbers(&a, &b, |x, y| x == y));
-    }
-}

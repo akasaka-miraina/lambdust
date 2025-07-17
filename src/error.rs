@@ -173,6 +173,7 @@ impl ErrorContext {
 }
 
 /// Main error type for the Lambdust interpreter
+#[allow(clippy::large_enum_variant)]
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum LambdustError {
     /// Lexical analysis errors
@@ -272,6 +273,28 @@ pub enum LambdustError {
         message: String,
         /// Source location where error occurred
         location: SourceSpan,
+    },
+    /// Optimization signals between `RuntimeExecutor` and Evaluator
+    /// Used for proper responsibility separation - not actual errors
+    #[error("Optimization signal: {signal_type}")]
+    OptimizationSignal {
+        /// Signal type indicating optimization status
+        signal_type: String,
+        /// Expression to be processed
+        expression: crate::ast::Expr,
+        /// Environment for evaluation
+        environment: std::rc::Rc<crate::environment::Environment>,
+        /// Continuation for evaluation
+        continuation: crate::evaluator::Continuation,
+    },
+
+    /// Custom error type for specific error conditions
+    #[error("Custom error: {message}")]
+    CustomError {
+        /// Error message
+        message: String,
+        /// Error context (boxed to reduce size)
+        context: Box<ErrorContext>,
     },
 }
 
@@ -423,6 +446,21 @@ impl LambdustError {
         }
     }
 
+    /// Create an optimization signal for RuntimeExecutor-Evaluator communication
+    #[must_use] pub fn optimization_signal(
+        signal_type: String,
+        expression: crate::ast::Expr,
+        environment: std::rc::Rc<crate::environment::Environment>,
+        continuation: crate::evaluator::Continuation,
+    ) -> Self {
+        Self::OptimizationSignal {
+            signal_type,
+            expression,
+            environment,
+            continuation,
+        }
+    }
+
     /// Create a simple parse error without location info (for backward compatibility)
     pub fn parse_error(message: impl Into<String>) -> Self {
         Self::ParseError {
@@ -498,6 +536,9 @@ impl LambdustError {
             Self::IoError { location: loc, .. } => {
                 *loc = Some(location);
             }
+            Self::OptimizationSignal { .. } | Self::CustomError { .. } => {
+                // OptimizationSignal doesn't support location setting
+            }
         }
         self
     }
@@ -536,6 +577,12 @@ impl LambdustError {
                 writeln!(output, "  at {location}").unwrap();
             }
             Self::IoError{ .. } => {}
+            Self::OptimizationSignal { .. } => {
+                // OptimizationSignal doesn't have location info to display
+            }
+            Self::CustomError { .. } => {
+                // CustomError doesn't have location info to display
+            }
         }
 
         // Add stack trace

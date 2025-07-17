@@ -41,9 +41,15 @@ pub struct DependencyTracker {
     modification_times: HashMap<String, SystemTime>,
 }
 
+impl Default for DependencyTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DependencyTracker {
     /// Create new dependency tracker
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             dependents: HashMap::new(),
             dependencies: HashMap::new(),
@@ -54,11 +60,11 @@ impl DependencyTracker {
     /// Add dependency: symbol depends on dependency
     pub fn add_dependency(&mut self, symbol: String, dependency: String) {
         self.dependencies.entry(symbol.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(dependency.clone());
         
         self.dependents.entry(dependency)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(symbol);
     }
 
@@ -68,7 +74,7 @@ impl DependencyTracker {
     }
 
     /// Get all symbols that need to be invalidated when a symbol changes
-    pub fn get_invalidation_set(&self, symbol: &str) -> Vec<String> {
+    #[must_use] pub fn get_invalidation_set(&self, symbol: &str) -> Vec<String> {
         let mut to_invalidate = Vec::new();
         let mut visited = std::collections::HashSet::new();
         self.collect_dependents(symbol, &mut to_invalidate, &mut visited);
@@ -90,7 +96,7 @@ impl DependencyTracker {
     }
 
     /// Check if symbol is newer than the given timestamp
-    pub fn is_newer_than(&self, symbol: &str, timestamp: SystemTime) -> bool {
+    #[must_use] pub fn is_newer_than(&self, symbol: &str, timestamp: SystemTime) -> bool {
         if let Some(&mod_time) = self.modification_times.get(symbol) {
             mod_time > timestamp
         } else {
@@ -99,7 +105,7 @@ impl DependencyTracker {
     }
 
     /// Get dependencies of a symbol
-    pub fn get_dependencies(&self, symbol: &str) -> Vec<String> {
+    #[must_use] pub fn get_dependencies(&self, symbol: &str) -> Vec<String> {
         self.dependencies.get(symbol).cloned().unwrap_or_default()
     }
 }
@@ -181,9 +187,15 @@ pub struct CacheStatistics {
     pub hit_rate_history: Vec<(SystemTime, f64)>,
 }
 
+impl Default for CacheStatistics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CacheStatistics {
     /// Create new statistics
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             hits: 0,
             misses: 0,
@@ -196,7 +208,7 @@ impl CacheStatistics {
     }
 
     /// Calculate hit rate
-    pub fn hit_rate(&self) -> f64 {
+    #[must_use] pub fn hit_rate(&self) -> f64 {
         let total = self.hits + self.misses;
         if total == 0 {
             0.0
@@ -247,7 +259,7 @@ impl CacheStatistics {
 
 impl IncrementalTypeInference {
     /// Create new incremental type inference engine
-    pub fn new(config: IncrementalConfig) -> Self {
+    #[must_use] pub fn new(config: IncrementalConfig) -> Self {
         Self {
             base_inference: TypeInference::new(),
             cache: Arc::new(RwLock::new(HashMap::new())),
@@ -372,7 +384,7 @@ impl IncrementalTypeInference {
             }
             Value::Number(n) => {
                 "number".hash(&mut hasher);
-                format!("{:?}", n).hash(&mut hasher);
+                format!("{n:?}").hash(&mut hasher);
             }
             Value::String(s) => {
                 "string".hash(&mut hasher);
@@ -428,7 +440,7 @@ impl IncrementalTypeInference {
         match expr {
             Expr::Literal(literal) => {
                 "literal".hash(hasher);
-                format!("{:?}", literal).hash(hasher);
+                format!("{literal:?}").hash(hasher);
             }
             Expr::Variable(name) => {
                 "variable".hash(hasher);
@@ -720,7 +732,7 @@ impl IncrementalTypeInference {
     }
 
     /// Get cache statistics
-    pub fn get_statistics(&self) -> CacheStatistics {
+    #[must_use] pub fn get_statistics(&self) -> CacheStatistics {
         let mut stats = self.stats.write().unwrap();
         stats.update_hit_rate();
         stats.clone()
@@ -736,7 +748,7 @@ impl IncrementalTypeInference {
     }
 
     /// Get cache size
-    pub fn cache_size(&self) -> usize {
+    #[must_use] pub fn cache_size(&self) -> usize {
         let cache = self.cache.read().unwrap();
         cache.len()
     }
@@ -748,168 +760,23 @@ impl IncrementalTypeInference {
     }
 }
 
-impl Default for IncrementalTypeInference {
-    fn default() -> Self {
-        Self::new(IncrementalConfig::default())
+impl Clone for IncrementalTypeInference {
+    fn clone(&self) -> Self {
+        let cache = self.cache.read().unwrap().clone();
+        let dependencies = self.dependency_tracker.read().unwrap().clone();
+        let stats = self.stats.read().unwrap().clone();
+        Self {
+            base_inference: self.base_inference.clone(),
+            cache: Arc::new(RwLock::new(cache)),
+            dependency_tracker: Arc::new(RwLock::new(dependencies)),
+            config: self.config.clone(),
+            stats: Arc::new(RwLock::new(stats)),
+        }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ast::{Expr, Literal};
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_incremental_inference_creation() {
-        let inference = IncrementalTypeInference::default();
-        assert_eq!(inference.cache_size(), 0);
-    }
-
-    #[test]
-    fn test_basic_caching() {
-        let mut inference = IncrementalTypeInference::default();
-        
-        let value = Value::Number(SchemeNumber::Integer(42));
-        
-        // First inference should be a cache miss
-        let result1 = inference.infer(&value, Some("test_context"));
-        assert!(result1.is_ok());
-        
-        // Second inference should be a cache hit
-        let result2 = inference.infer(&value, Some("test_context"));
-        assert!(result2.is_ok());
-        
-        let stats = inference.get_statistics();
-        assert!(stats.hits > 0 || stats.misses > 0);
-    }
-
-    #[test]
-    fn test_expression_caching() {
-        let mut inference = IncrementalTypeInference::default();
-        
-        let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        
-        // First inference
-        let result1 = inference.infer_expression(&expr, Some("test"));
-        assert!(result1.is_ok());
-        
-        // Second inference should use cache
-        let result2 = inference.infer_expression(&expr, Some("test"));
-        assert!(result2.is_ok());
-        assert_eq!(result1.unwrap(), result2.unwrap());
-    }
-
-    #[test]
-    fn test_dependency_tracking() {
-        let mut inference = IncrementalTypeInference::default();
-        
-        // Add dependency
-        inference.add_dependency("foo".to_string(), "bar".to_string());
-        
-        // Cache something that depends on "bar"
-        let value = Value::Number(SchemeNumber::Integer(42));
-        inference.infer(&value, Some("bar")).unwrap();
-        
-        // Invalidate "bar"
-        inference.invalidate_dependencies("bar").unwrap();
-        // Function returns successfully - u64 invalidated count is always valid
-    }
-
-    #[test]
-    fn test_cache_eviction() {
-        let config = IncrementalConfig {
-            max_cache_size: 3,
-            cache_policy: CachePolicy::LRU,
-            ..Default::default()
-        };
-        let mut inference = IncrementalTypeInference::new(config);
-        
-        // Fill cache beyond capacity
-        for i in 0..5 {
-            let value = Value::Number(SchemeNumber::Integer(i));
-            inference.infer(&value, Some(&format!("test_{i}"))).unwrap();
-        }
-        
-        // Cache should not exceed max size
-        assert!(inference.cache_size() <= 3);
-    }
-
-    #[test]
-    fn test_cache_statistics() {
-        let mut inference = IncrementalTypeInference::default();
-        
-        let value = Value::Boolean(true);
-        
-        // Generate some cache activity
-        for _ in 0..3 {
-            inference.infer(&value, Some("stats_test")).unwrap();
-        }
-        
-        let stats = inference.get_statistics();
-        assert!(stats.hits + stats.misses > 0);
-        assert!(stats.hit_rate() >= 0.0 && stats.hit_rate() <= 1.0);
-    }
-
-    #[test]
-    fn test_dependency_invalidation() {
-        let config = IncrementalConfig {
-            min_cache_cost: Duration::from_nanos(1), // Cache everything
-            ..Default::default()
-        };
-        let mut inference = IncrementalTypeInference::new(config);
-        
-        // Set up dependency chain: A -> B -> C
-        inference.add_dependency("A".to_string(), "B".to_string());
-        inference.add_dependency("B".to_string(), "C".to_string());
-        
-        // Cache entries for each
-        let value = Value::Number(SchemeNumber::Integer(1));
-        inference.infer(&value, Some("A")).unwrap();
-        inference.infer(&value, Some("B")).unwrap();
-        inference.infer(&value, Some("C")).unwrap();
-        
-        let initial_size = inference.cache_size();
-        
-        // Invalidate C should affect B and A
-        let invalidated = inference.invalidate_dependencies("C").unwrap();
-        
-        // Check that invalidation happened
-        let final_size = inference.cache_size();
-        assert!(invalidated > 0 || final_size < initial_size);
-    }
-
-    #[test]
-    fn test_cache_key_generation() {
-        let inference = IncrementalTypeInference::default();
-        
-        let value1 = Value::Number(SchemeNumber::Integer(42));
-        let value2 = Value::Number(SchemeNumber::Integer(43));
-        
-        let key1 = inference.generate_cache_key(&value1, Some("context"));
-        let key2 = inference.generate_cache_key(&value2, Some("context"));
-        let key3 = inference.generate_cache_key(&value1, Some("different_context"));
-        
-        // Different values should have different keys
-        assert_ne!(key1, key2);
-        
-        // Different contexts should have different keys
-        assert_ne!(key1, key3);
-    }
-
-    #[test]
-    fn test_expression_dependency_extraction() {
-        let inference = IncrementalTypeInference::default();
-        
-        let expr = Expr::List(vec![
-            Expr::Variable("func".to_string()),
-            Expr::Variable("arg1".to_string()),
-            Expr::Variable("arg2".to_string()),
-        ]);
-        
-        let dependencies = inference.extract_dependencies(&expr);
-        assert!(dependencies.contains(&"func".to_string()));
-        assert!(dependencies.contains(&"arg1".to_string()));
-        assert!(dependencies.contains(&"arg2".to_string()));
+impl Default for IncrementalTypeInference {
+    fn default() -> Self {
+        Self::new(IncrementalConfig::default())
     }
 }

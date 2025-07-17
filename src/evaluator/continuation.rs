@@ -873,3 +873,14 @@ impl Continuation {
         }
     }
 }
+
+impl PartialEq for Continuation {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Continuation::Identity, Continuation::Identity) => true,
+            // For simplicity, most continuations are considered unequal unless identical
+            // This is sufficient for error handling where PartialEq is required
+            _ => false,
+        }
+    }
+}

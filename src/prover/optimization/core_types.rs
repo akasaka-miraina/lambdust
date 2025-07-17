@@ -5,7 +5,7 @@
 
 use crate::ast::Expr;
 use crate::value::Value;
-use crate::evaluator::formal_verification::configuration_types::VerificationDepth;
+use crate::prover::proof_types::VerificationDepth;
 use std::collections::HashMap;
 use std::time::Duration;
 

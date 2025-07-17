@@ -30,8 +30,7 @@ impl ConstantFolder {
             "cdr" => Self::fold_cdr(args),
             "length" => Self::fold_length(args),
             _ => Err(LambdustError::runtime_error(format!(
-                "Constant folding not implemented for function: {}",
-                func_name
+                "Constant folding not implemented for function: {func_name}"
             ))),
         }
     }
@@ -228,7 +227,7 @@ impl ConstantFolder {
     }
 
     /// Infer return type for function calls
-    pub fn infer_function_return_type(func_name: &str, arg_types: &[TypeHint]) -> TypeHint {
+    #[must_use] pub fn infer_function_return_type(func_name: &str, arg_types: &[TypeHint]) -> TypeHint {
         match func_name {
             "+" | "-" | "*" | "/" | "abs" | "floor" | "ceiling" | "sqrt" | "expt" => {
                 TypeHint::Number
@@ -238,13 +237,13 @@ impl ConstantFolder {
             | "vector?" | "procedure?" => TypeHint::Boolean,
             "car" | "cdr" => {
                 // For car/cdr, we can try to infer from the argument type
-                if !arg_types.is_empty() {
+                if arg_types.is_empty() {
+                    TypeHint::Unknown
+                } else {
                     match &arg_types[0] {
                         TypeHint::List => TypeHint::Unknown, // Could be anything
                         _ => TypeHint::Unknown,
                     }
-                } else {
-                    TypeHint::Unknown
                 }
             }
             "cons" => TypeHint::List,

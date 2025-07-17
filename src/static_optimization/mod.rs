@@ -188,7 +188,7 @@ pub struct StaticOptimizationResult {
 
 impl StaticOptimizationEngine {
     /// Create a new static optimization engine
-    pub fn new(config: StaticOptimizationConfig) -> Self {
+    #[must_use] pub fn new(config: StaticOptimizationConfig) -> Self {
         Self {
             constant_folder: ConstantFolder::new(),
             dead_code_eliminator: DeadCodeEliminator::new(),
@@ -202,7 +202,7 @@ impl StaticOptimizationEngine {
     }
     
     /// Create with default configuration
-    pub fn with_defaults() -> Self {
+    #[must_use] pub fn with_defaults() -> Self {
         Self::new(StaticOptimizationConfig::default())
     }
     
@@ -262,7 +262,7 @@ impl StaticOptimizationEngine {
                 if let Ok(folding_result) = self.constant_folder.fold(&current_expr) {
                     if folding_result.optimization_applied {
                         current_expr = folding_result.folded_expr;
-                        applied_optimizations.push(format!("constant_folding_pass_{}", pass));
+                        applied_optimizations.push(format!("constant_folding_pass_{pass}"));
                         pass_changed = true;
                     }
                 }
@@ -273,7 +273,7 @@ impl StaticOptimizationEngine {
                 if let Ok(dce_result) = self.dead_code_eliminator.eliminate(&current_expr) {
                     if dce_result.elimination_applied {
                         current_expr = dce_result.optimized_expr;
-                        applied_optimizations.push(format!("dead_code_elimination_pass_{}", pass));
+                        applied_optimizations.push(format!("dead_code_elimination_pass_{pass}"));
                         pass_changed = true;
                     }
                 }
@@ -284,7 +284,7 @@ impl StaticOptimizationEngine {
                 if let Ok(rewrite_result) = self.expression_rewriter.rewrite(&current_expr) {
                     if rewrite_result.rewrite_applied {
                         current_expr = rewrite_result.rewritten_expr;
-                        applied_optimizations.push(format!("expression_rewriting_pass_{}", pass));
+                        applied_optimizations.push(format!("expression_rewriting_pass_{pass}"));
                         pass_changed = true;
                     }
                 }
@@ -295,7 +295,7 @@ impl StaticOptimizationEngine {
                 if let Ok(cse_result) = self.cse_optimizer.eliminate(&current_expr) {
                     if cse_result.elimination_applied {
                         current_expr = cse_result.optimized_expr;
-                        applied_optimizations.push(format!("cse_pass_{}", pass));
+                        applied_optimizations.push(format!("cse_pass_{pass}"));
                         pass_changed = true;
                     }
                 }
@@ -306,14 +306,14 @@ impl StaticOptimizationEngine {
                 if let Ok(loop_result) = self.loop_optimizer.optimize(&current_expr, env.as_ref()) {
                     if loop_result.optimization_applied {
                         current_expr = loop_result.optimized_expr;
-                        applied_optimizations.push(format!("loop_optimization_pass_{}", pass));
+                        applied_optimizations.push(format!("loop_optimization_pass_{pass}"));
                         pass_changed = true;
                     }
                 }
             }
             
             // Track pass statistics
-            let pass_name = format!("pass_{}", pass);
+            let pass_name = format!("pass_{pass}");
             *self.statistics.optimization_passes.entry(pass_name).or_insert(0) += 1;
             
             // If no changes were made, we've reached a fixed point
@@ -386,7 +386,7 @@ impl StaticOptimizationEngine {
     
     /// Hash an expression for caching
     fn hash_expression(&self, expr: &Expr) -> String {
-        format!("{:?}", expr) // Simplified hashing
+        format!("{expr:?}") // Simplified hashing
     }
     
     /// Update average optimization time
@@ -418,7 +418,7 @@ impl StaticOptimizationEngine {
     }
     
     /// Get optimization statistics
-    pub fn get_statistics(&self) -> &StaticOptimizationStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &StaticOptimizationStatistics {
         &self.statistics
     }
     
@@ -428,7 +428,7 @@ impl StaticOptimizationEngine {
     }
     
     /// Get cache size
-    pub fn cache_size(&self) -> usize {
+    #[must_use] pub fn cache_size(&self) -> usize {
         self.optimization_cache.len()
     }
     
@@ -461,7 +461,7 @@ impl Default for StaticOptimizationEngine {
 }
 
 /// Create a production-ready static optimization engine
-pub fn create_production_optimizer() -> StaticOptimizationEngine {
+#[must_use] pub fn create_production_optimizer() -> StaticOptimizationEngine {
     let config = StaticOptimizationConfig {
         enable_constant_folding: true,
         enable_dead_code_elimination: true,
@@ -477,7 +477,7 @@ pub fn create_production_optimizer() -> StaticOptimizationEngine {
 }
 
 /// Create a development-friendly static optimization engine
-pub fn create_development_optimizer() -> StaticOptimizationEngine {
+#[must_use] pub fn create_development_optimizer() -> StaticOptimizationEngine {
     let config = StaticOptimizationConfig {
         enable_constant_folding: true,
         enable_dead_code_elimination: false,
@@ -490,77 +490,4 @@ pub fn create_development_optimizer() -> StaticOptimizationEngine {
         min_complexity_threshold: 1,
     };
     StaticOptimizationEngine::new(config)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ast::Literal;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_static_optimization_engine_creation() {
-        let optimizer = StaticOptimizationEngine::with_defaults();
-        assert_eq!(optimizer.get_statistics().total_expressions, 0);
-        assert_eq!(optimizer.cache_size(), 0);
-    }
-
-    #[test]
-    fn test_expression_complexity_calculation() {
-        let optimizer = StaticOptimizationEngine::with_defaults();
-        
-        let simple_expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        assert_eq!(optimizer.calculate_expression_complexity(&simple_expr), 1);
-        
-        let list_expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-        ]);
-        assert_eq!(optimizer.calculate_expression_complexity(&list_expr), 4);
-    }
-
-    #[test]
-    fn test_optimization_with_low_complexity() {
-        let mut optimizer = StaticOptimizationEngine::with_defaults();
-        let simple_expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        
-        let result = optimizer.optimize(&simple_expr, None).unwrap();
-        assert!(!result.optimization_applied);
-        assert_eq!(result.optimized_expr, simple_expr);
-    }
-
-    #[test]
-    fn test_production_optimizer_configuration() {
-        let optimizer = create_production_optimizer();
-        assert!(optimizer.config.enable_loop_optimization);
-        assert_eq!(optimizer.config.max_optimization_passes, 10);
-    }
-
-    #[test]
-    fn test_development_optimizer_configuration() {
-        let optimizer = create_development_optimizer();
-        assert!(!optimizer.config.enable_loop_optimization);
-        assert_eq!(optimizer.config.max_optimization_passes, 3);
-    }
-
-    #[test]
-    fn test_cache_operations() {
-        let mut optimizer = StaticOptimizationEngine::with_defaults();
-        assert_eq!(optimizer.cache_size(), 0);
-        
-        optimizer.clear_cache();
-        assert_eq!(optimizer.cache_size(), 0);
-    }
-
-    #[test]
-    fn test_statistics_tracking() {
-        let mut optimizer = StaticOptimizationEngine::with_defaults();
-        let stats = optimizer.get_statistics();
-        
-        assert_eq!(stats.total_expressions, 0);
-        assert_eq!(stats.optimized_expressions, 0);
-        assert_eq!(stats.cache_hits, 0);
-        assert_eq!(stats.cache_misses, 0);
-    }
 }

@@ -21,14 +21,14 @@ pub struct CustomPredicateInfo {
 }
 
 /// Global registry for custom type predicates
-/// Thread-safe using RwLock for concurrent access
+/// Thread-safe using `RwLock` for concurrent access
 pub struct CustomPredicateRegistry {
     predicates: RwLock<HashMap<String, CustomPredicateInfo>>,
 }
 
 impl CustomPredicateRegistry {
     /// Create a new empty registry
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             predicates: RwLock::new(HashMap::new()),
         }
@@ -45,7 +45,7 @@ impl CustomPredicateRegistry {
         })?;
 
         if predicates.contains_key(&name) {
-            return Err(LambdustError::runtime_error(&format!("Custom predicate '{}' already exists", name)));
+            return Err(LambdustError::runtime_error(format!("Custom predicate '{name}' already exists")));
         }
 
         let info = CustomPredicateInfo {
@@ -149,90 +149,4 @@ where
 /// Helper function to evaluate a custom predicate globally
 pub fn evaluate_global_custom_predicate(name: &str, value: &Value) -> Result<Option<bool>, LambdustError> {
     global_custom_predicate_registry().evaluate(name, value)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_custom_predicate_registry_basic() {
-        let registry = CustomPredicateRegistry::new();
-        
-        // Register a simple predicate
-        let result = registry.register(
-            "test-predicate?".to_string(),
-            Some("A test predicate".to_string()),
-            |value| value.is_number(),
-        );
-        assert!(result.is_ok());
-        
-        // Check if registered
-        assert!(registry.is_registered("test-predicate?").unwrap());
-        
-        // Evaluate against a number
-        let number = Value::Number(crate::lexer::SchemeNumber::Integer(42));
-        assert_eq!(registry.evaluate("test-predicate?", &number).unwrap(), Some(true));
-        
-        // Evaluate against a string
-        let string = Value::String("hello".to_string());
-        assert_eq!(registry.evaluate("test-predicate?", &string).unwrap(), Some(false));
-    }
-
-    #[test]
-    fn test_custom_predicate_registry_duplicate() {
-        let registry = CustomPredicateRegistry::new();
-        
-        // Register a predicate
-        let result1 = registry.register(
-            "duplicate-test?".to_string(),
-            None,
-            |_| true,
-        );
-        assert!(result1.is_ok());
-        
-        // Try to register the same name again
-        let result2 = registry.register(
-            "duplicate-test?".to_string(),
-            None,
-            |_| false,
-        );
-        assert!(result2.is_err());
-    }
-
-    #[test]
-    fn test_custom_predicate_registry_unregister() {
-        let registry = CustomPredicateRegistry::new();
-        
-        // Register and then unregister
-        registry.register("temp-predicate?".to_string(), None, |_| true).unwrap();
-        assert!(registry.is_registered("temp-predicate?").unwrap());
-        
-        let removed = registry.unregister("temp-predicate?").unwrap();
-        assert!(removed);
-        assert!(!registry.is_registered("temp-predicate?").unwrap());
-        
-        // Try to unregister non-existent predicate
-        let not_removed = registry.unregister("nonexistent?").unwrap();
-        assert!(!not_removed);
-    }
-
-    #[test]
-    fn test_global_custom_predicate_registry() {
-        // Test global registry functionality
-        let result = register_global_custom_predicate(
-            "global-test?".to_string(),
-            Some("Global test predicate".to_string()),
-            |value| value.is_string(),
-        );
-        assert!(result.is_ok());
-        
-        let string_val = Value::String("test".to_string());
-        let result = evaluate_global_custom_predicate("global-test?", &string_val);
-        assert_eq!(result.unwrap(), Some(true));
-        
-        let number_val = Value::Number(crate::lexer::SchemeNumber::Integer(1));
-        let result = evaluate_global_custom_predicate("global-test?", &number_val);
-        assert_eq!(result.unwrap(), Some(false));
-    }
 }

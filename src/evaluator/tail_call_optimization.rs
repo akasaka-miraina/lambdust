@@ -727,7 +727,7 @@ impl TailCallOptimizer {
         })?;
 
         match function {
-            Value::Procedure(Procedure::Lambda { params, body, closure, .. }) => {
+            Value::Procedure(Procedure::Lambda { params, body, closure: _, .. }) => {
                 // For self-recursive lambda calls, we can reuse the environment
                 if params.len() != args.len() {
                     return Err(LambdustError::runtime_error(format!(
@@ -792,7 +792,7 @@ impl TailCallOptimizer {
         })?;
 
         match function {
-            Value::Procedure(Procedure::Lambda { params, body, closure, .. }) => {
+            Value::Procedure(Procedure::Lambda { params, body, closure: _, .. }) => {
                 // For self-recursive lambda calls with full optimization
                 if params.len() != args.len() {
                     return Err(LambdustError::runtime_error(format!(
@@ -812,7 +812,7 @@ impl TailCallOptimizer {
                 
                 // For full optimization, we use a loop-based approach to avoid
                 // recursive function calls entirely
-                let mut result = Value::Undefined;
+                let result;
                 let current_env = env;
                 let current_args = args.to_vec();
                 

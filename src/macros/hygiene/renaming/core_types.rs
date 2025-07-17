@@ -274,7 +274,7 @@ impl ScopeTracker {
     #[must_use] pub fn has_conflict_at_scope(&self, name: &str, scope: usize) -> bool {
         self.scope_conflicts
             .get(&scope)
-            .map_or(false, |conflicts| conflicts.contains(name))
+            .is_some_and(|conflicts| conflicts.contains(name))
     }
 
     /// Get scope depth for symbol
@@ -296,7 +296,7 @@ impl ScopeTracker {
 
     /// Get total number of conflicts
     #[must_use] pub fn conflict_count(&self) -> usize {
-        self.scope_conflicts.values().map(|set| set.len()).sum()
+        self.scope_conflicts.values().map(std::collections::HashSet::len).sum()
     }
 }
 
@@ -361,19 +361,19 @@ impl RenamingPattern {
     }
 
     /// Set macro context constraint
-    pub fn with_macro_context(mut self, macro_context: String) -> Self {
+    #[must_use] pub fn with_macro_context(mut self, macro_context: String) -> Self {
         self.macro_context = Some(macro_context);
         self
     }
 
     /// Set scope depth constraint
-    pub fn with_scope_constraint(mut self, scope_depth: ScopeConstraint) -> Self {
+    #[must_use] pub fn with_scope_constraint(mut self, scope_depth: ScopeConstraint) -> Self {
         self.scope_depth = Some(scope_depth);
         self
     }
 
     /// Set type constraint
-    pub fn with_type_constraint(mut self, type_constraint: TypeConstraint) -> Self {
+    #[must_use] pub fn with_type_constraint(mut self, type_constraint: TypeConstraint) -> Self {
         self.type_constraint = Some(type_constraint);
         self
     }

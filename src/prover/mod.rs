@@ -34,15 +34,21 @@ pub mod church_rosser;
 pub mod verification_system;
 
 #[cfg(feature = "development")]
+pub mod complete_formal_verification;
+
+#[cfg(feature = "development")]
 pub mod external_provers;
 
 #[cfg(feature = "development")]
 pub mod optimization;
 
+#[cfg(feature = "development")]
+pub mod proof_types;
+
 // Re-export main types for convenient access
 #[cfg(feature = "development")]
 pub use theorem_proving::{
-    GoalType, ProofGoal, ProofState, ProofTactic, Statement, TheoremProvingSupport,
+    ProofState,
     VerificationResult as TheoremVerificationResult,
 };
 
@@ -64,12 +70,17 @@ pub use adaptive_learning::{
 };
 
 #[cfg(feature = "development")]
-pub use formal_verification::{
-    CorrectnessGuarantee, FormalProof, FormalVerificationEngine, FormalVerificationResult,
+pub use proof_types::{
+    CorrectnessGuarantee, FormalProof, FormalVerificationResult,
     FormalVerificationStatus, VerificationConfiguration, VerificationDepth,
-    CompleteFormalVerificationSystem, CompleteVerificationConfig, ComprehensiveVerificationMetrics,
-    SystemCorrectnessGuarantees, CompleteSystemVerificationResult,
+    ProofMethod, ProofStep, ProofTerm, ProofTermType, Statement,
+    ProofTransformation, TheoremProvingResult, FormalVerificationEngine,
+    TheoremProvingSupport, ProofGoal, GoalType, ProofTactic, ProofResult,
 };
+
+// Note: formal_verification types moved to proof_types
+// #[cfg(feature = "development")]
+// pub use formal_verification::{};
 
 #[cfg(feature = "development")]
 pub use church_rosser::{
@@ -84,6 +95,12 @@ pub use verification_system::{
 };
 
 #[cfg(feature = "development")]
+pub use complete_formal_verification::{
+    CompleteFormalVerificationSystem, CompleteSystemVerificationResult,
+    SystemCorrectnessGuarantees, CompleteVerificationConfig,
+};
+
+#[cfg(feature = "development")]
 pub use external_provers::{
     ExternalProver, ExternalProverManager, ExternalVerificationResult, ProverConfig,
 };
@@ -91,7 +108,7 @@ pub use external_provers::{
 #[cfg(feature = "development")]
 pub use optimization::{
     StaticSemanticOptimizer, ProvenOptimization, FormalProof as OptimizerFormalProof,
-    ProofMethod, ProofStep, TypeInferenceEngine, InferredType, ConstantPropagationEngine,
+    TypeInferenceEngine, InferredType, ConstantPropagationEngine,
     DeadCodeEliminationEngine, CommonSubexpressionEngine, LoopOptimizationEngine,
     StaticOptimizerConfiguration, OptimizationStatistics as OptimizerStatistics,
 };

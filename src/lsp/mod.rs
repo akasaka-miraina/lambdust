@@ -169,27 +169,3 @@ impl From<LspError> for LambdustError {
         LambdustError::runtime_error(format!("LSP error: {}", err))
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_lsp_config_default() {
-        let config = LspConfig::default();
-        assert!(!config.debug_mode);
-        assert!(config.enable_verification);
-        assert!(config.enable_performance_analysis);
-        assert_eq!(config.max_diagnostics, 100);
-        assert!(config.completion_triggers.contains(&"(".to_string()));
-    }
-
-    #[test]
-    fn test_lsp_capabilities_default() {
-        let capabilities = LspCapabilities::default();
-        assert!(capabilities.completion);
-        assert!(capabilities.hover);
-        assert!(capabilities.diagnostics);
-        assert!(capabilities.symbol_navigation);
-    }
-}

@@ -396,6 +396,10 @@ impl Store {
             Value::Vector(v) => v.len() * 8 + 24, // Vector overhead
             Value::HashTable(_) => 64,            // Approximate hash table overhead
             Value::Procedure(_) => 48,            // Approximate procedure overhead
+            #[allow(deprecated)]
+            Value::BuiltinFunction(_) => 16,      // Function pointer size
+            #[allow(deprecated)]
+            Value::Integer(_) => 8,               // Integer size
             Value::Promise(_) => 32,
             Value::Port(_) => 64,     // Port overhead
             Value::External(_) => 48, // External object overhead
@@ -413,6 +417,10 @@ impl Store {
             Value::Comparator(_) => 64,                           // Comparator overhead
             Value::StringCursor(_) => 48,                         // StringCursor overhead
             Value::Ideque(ideque) => ideque.len() * 8 + 32,       // Ideque overhead
+            Value::List(list) => list.len() * 8 + 24,             // List overhead
+            Value::Unspecified => 8,                               // Unspecified size
+            Value::Environment(_) => 128,                          // Environment overhead
+            Value::Bytevector(bv) => bv.len() + 24,               // Bytevector overhead
             Value::Text(text) => text.length() * 4 + 32, // Text overhead (4 bytes per char approx)
             Value::IString(istring) => istring.length() * 4 + 32, // IString overhead (4 bytes per char approx)
             Value::LazyVector(lazy_vec) => {

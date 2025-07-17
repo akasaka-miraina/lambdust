@@ -54,6 +54,14 @@ impl SrfiRegistry {
         registry.register(Box::new(super::srfi_139::Srfi139)); // Syntax Parameters
         registry.register(Box::new(super::srfi_140::Srfi140)); // Immutable Strings
         registry.register(Box::new(super::srfi_141::Srfi141)); // Integer Division
+        registry.register(Box::new(super::srfi_143::Srfi143Module)); // Fixnums
+        registry.register(Box::new(super::srfi_144::Srfi144Module)); // Flonums
+        registry.register(Box::new(super::srfi_145::Srfi145Module)); // Assumptions
+        registry.register(Box::new(super::srfi_146::Srfi146Module)); // Mappings
+        registry.register(Box::new(super::srfi_147::Srfi147Module)); // Multiple-value Definitions
+        registry.register(Box::new(super::srfi_148::Srfi148Module)); // Eager Comprehensions
+        registry.register(Box::new(super::srfi_149::Srfi149Module)); // Basic Syntax-rules Template Extensions
+        registry.register(Box::new(super::srfi_150::Srfi150Module)); // Hygienic ERR5RS Record Syntax (reduced)
 
         registry
     }

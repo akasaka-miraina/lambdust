@@ -62,7 +62,6 @@ impl SemanticEvaluator {
         }
     }
 
-
     /// Create with custom global environment
     #[must_use] pub fn with_environment(env: Rc<Environment>) -> Self {
         Self {
@@ -89,7 +88,7 @@ impl SemanticEvaluator {
         &self,
         expr: Expr,
         env: Rc<Environment>,
-        cont: Continuation,
+        _cont: Continuation,
         recursion_depth: usize,
     ) -> Result<Value> {
         // Stack overflow protection (functional approach)
@@ -125,7 +124,7 @@ impl SemanticEvaluator {
             Expr::Variable(name) => {
                 // Variable lookup
                 env.get(&name).ok_or_else(|| {
-                    crate::error::LambdustError::runtime_error(format!("Unbound variable: {}", name))
+                    crate::error::LambdustError::runtime_error(format!("Unbound variable: {name}"))
                 })
             },
             Expr::List(elements) => {
@@ -177,6 +176,7 @@ impl SemanticEvaluator {
         }
     }
 
+    /// Pure evaluation method with continuation-passing style
     pub fn eval_pure(
         &mut self,
         expr: Expr,
@@ -650,7 +650,7 @@ impl SemanticEvaluator {
                             ));
                         }
                         
-                        let mut new_env = (*closure).clone();
+                        let new_env = (*closure).clone();
                         for (param, value) in params.iter().zip(operands.iter()) {
                             new_env.define(param.clone(), value.clone());
                         }
@@ -715,7 +715,7 @@ impl SemanticEvaluator {
                             };
                             Ok(Value::Number(negated))
                         },
-                        _ => return Err(crate::error::LambdustError::runtime_error("- requires numeric arguments".to_string())),
+                        _ => Err(crate::error::LambdustError::runtime_error("- requires numeric arguments".to_string())),
                     }
                 } else {
                     // Binary subtraction
@@ -802,7 +802,7 @@ impl SemanticEvaluator {
                             };
                             Ok(Value::Number(reciprocal))
                         },
-                        _ => return Err(crate::error::LambdustError::runtime_error("/ requires numeric arguments".to_string())),
+                        _ => Err(crate::error::LambdustError::runtime_error("/ requires numeric arguments".to_string())),
                     }
                 } else {
                     // Division
@@ -891,7 +891,7 @@ impl SemanticEvaluator {
                     _ => Err(crate::error::LambdustError::runtime_error("cdr: not a pair".to_string())),
                 }
             },
-            _ => Err(crate::error::LambdustError::runtime_error(format!("Unknown builtin function: {}", name))),
+            _ => Err(crate::error::LambdustError::runtime_error(format!("Unknown builtin function: {name}"))),
         }
     }
     
@@ -913,6 +913,11 @@ impl SemanticEvaluator {
             (Value::Nil, Value::Nil) => true,
             _ => false,
         }
+    }
+    
+    /// Get reference to global environment
+    #[must_use] pub fn global_environment(&self) -> &Rc<Environment> {
+        &self.global_env
     }
 }
 

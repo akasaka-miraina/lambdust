@@ -8,7 +8,8 @@ use rustyline::completion::{Completer, FilenameCompleter, Pair};
 use rustyline::highlight::{Highlighter, MatchingBracketHighlighter};
 use rustyline::hint::{Hinter, HistoryHinter};
 use rustyline::validate::{MatchingBracketValidator, Validator};
-use rustyline::{Context, Result as RustylineResult, CmdKind};
+use rustyline::{Context, Result as RustylineResult};
+use rustyline::highlight::CmdKind;
 use std::borrow::Cow::{self, Borrowed, Owned};
 use std::collections::HashSet;
 

@@ -5,7 +5,7 @@
 
 use crate::ast::Expr;
 use crate::error::Result;
-use crate::evaluator::static_semantic_optimizer::{FormalProof, ProofMethod, ProofStep};
+use crate::prover::proof_types::{FormalProof, ProofMethod, ProofStep, ProofTransformation};
 use super::theorem_types::{
     MathematicalStatement, OptimizationPattern,
     OptimizationReplacement,
@@ -395,23 +395,26 @@ impl InductionTactic {
             method: ProofMethod::MathematicalInduction,
             steps: vec![
                 ProofStep {
+                    id: "induction_base".to_string(),
                     description: "Base case".to_string(),
-                    rule: "induction_base".to_string(),
-                    input: "base_case".to_string(),
-                    output: "proven".to_string(),
+                    transformation: ProofTransformation::Simplification(Expr::Variable("base_case".to_string())),
                     justification: "Base case of induction".to_string(),
+                    dependencies: vec![],
                 },
                 ProofStep {
+                    id: "induction_step".to_string(),
                     description: "Inductive step".to_string(),
-                    rule: "induction_step".to_string(),
-                    input: "hypothesis".to_string(),
-                    output: "proven".to_string(),
+                    transformation: ProofTransformation::InductionStep { 
+                        base: Expr::Variable("base_case".to_string()), 
+                        inductive: Expr::Variable("inductive_step".to_string()) 
+                    },
                     justification: "Inductive step assuming hypothesis".to_string(),
+                    dependencies: vec!["induction_base".to_string()],
                 },
             ],
-            external_verification: None,
-            generation_time: std::time::Duration::from_millis(100),
-            is_valid: true,
+            conclusion: crate::prover::proof_types::Statement::Custom("Induction complete".to_string()),
+            is_complete: true,
+            metadata: crate::prover::proof_types::ProofMetadata::default(),
         })
     }
     
@@ -427,11 +430,11 @@ impl InductionTactic {
                 properties: Vec::new(),
             },
             steps: vec![ProofStep {
+                id: "base_case_verification".to_string(),
                 description: "Prove base case".to_string(),
-                rule: "base_case_verification".to_string(),
-                input: "base".to_string(),
-                output: "proven".to_string(),
+                transformation: ProofTransformation::Simplification(Expr::Variable("base".to_string())),
                 justification: "Direct verification".to_string(),
+                dependencies: vec![],
             }],
         })
     }
@@ -453,11 +456,14 @@ impl InductionTactic {
                 properties: Vec::new(),
             },
             steps: vec![ProofStep {
+                id: "inductive_step_verification".to_string(),
                 description: "Prove inductive step".to_string(),
-                rule: "inductive_step_verification".to_string(),
-                input: "hypothesis".to_string(),
-                output: "proven".to_string(),
+                transformation: ProofTransformation::InductionStep { 
+                    base: Expr::Variable("hypothesis".to_string()), 
+                    inductive: Expr::Variable("proven".to_string()) 
+                },
                 justification: "Using inductive hypothesis".to_string(),
+                dependencies: vec![],
             }],
         })
     }
@@ -537,10 +543,9 @@ impl CompositionTactic {
             return Ok(FormalProof {
                 method: ProofMethod::SemanticEquivalence,
                 steps: Vec::new(),
-                external_verification: None,
-                generation_time: std::time::Duration::from_millis(50),
-                is_valid: true, // conclusion: "Empty composition".to_string(),
-                // verification_status: "Verified".to_string(),
+                conclusion: crate::prover::proof_types::Statement::Custom("Empty composition".to_string()),
+                is_complete: true,
+                metadata: crate::prover::proof_types::ProofMetadata::default(),
             });
         }
         
@@ -575,20 +580,20 @@ impl CaseAnalysisTactic {
         let mut proof_steps = Vec::new();
         for (i, case) in cases.iter().enumerate() {
             proof_steps.push(ProofStep {
+                id: format!("case_{}", i + 1),
                 description: format!("Case {}: {}", i + 1, case.description),
-                rule: "case_analysis".to_string(),
-                input: format!("case_{}_input", i + 1),
-                output: format!("case_{}_proven", i + 1),
+                transformation: ProofTransformation::CaseSplit(vec![Expr::Variable(format!("case_{}_input", i + 1))]),
                 justification: "Case analysis".to_string(),
+                dependencies: vec![],
             });
         }
         
         Ok(FormalProof {
             method: ProofMethod::StructuralInduction,
             steps: proof_steps,
-            external_verification: None,
-            generation_time: std::time::Duration::from_millis(0),
-            is_valid: true,
+            conclusion: crate::prover::proof_types::Statement::Custom("Case analysis complete".to_string()),
+            is_complete: true,
+            metadata: crate::prover::proof_types::ProofMetadata::default(),
         })
     }
     

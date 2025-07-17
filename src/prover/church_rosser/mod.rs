@@ -18,9 +18,9 @@ pub mod termination_proof;
 use crate::error::Result;
 use crate::evaluator::{
     combinators::CombinatorExpr,
-    theorem_proving::{ProofMethod, ProofTerm, ProofTermType, Statement},
     SemanticEvaluator,
 };
+use crate::prover::proof_types::{ProofMethod, ProofTerm, ProofTermType, Statement};
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -52,7 +52,10 @@ pub type TerminationProof = termination_proof::TerminationProof;
 pub type NormalizationProof = normalization_proof::NormalForm;
 pub type ChurchRosserProof = ProofResult;
 
-// Legacy placeholder structures for compilation
+/// Termination pattern for proving termination properties
+/// 
+/// Represents a pattern that can be used to prove termination
+/// of rewrite systems or recursive computations.
 #[derive(Debug, Clone)]
 pub struct TerminationPattern {
     pub pattern_id: String,
@@ -65,34 +68,40 @@ pub struct TerminationPattern {
     pub metadata: termination_proof::TerminationPatternMetadata,
 }
 
-// Legacy main structures for backward compatibility
+/// Main Church-Rosser proof engine implementation
+/// 
+/// Provides comprehensive proof capabilities for Church-Rosser properties,
+/// including confluence, termination, and normalization verification.
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct ChurchRosserProofEngineImpl {
-    /// 合流性検証器
+    /// Confluence verification system
     confluence_verifier: confluence_proof::ConfluenceVerifier,
 
-    /// 終了性検証器
+    /// Termination verification system
     termination_verifier: termination_proof::TerminationVerifier,
 
-    /// 正規化検証器
+    /// Normalization verification system
     normalization_verifier: normalization_proof::NormalizationVerifier,
 
-    /// 形式的証明生成器
+    /// Formal proof generation engine
     formal_proof_generator: proof_engine::FormalProofGenerator,
 
-    /// 証明統計
+    /// Statistical tracking for proofs
     proof_statistics: proof_engine::ChurchRosserStatistics,
 
-    /// 証明キャッシュ
+    /// Cache for previously computed proofs
     proof_cache: HashMap<String, proof_engine::CachedProof>,
 
-    /// セマンティック評価器（参照用）
+    /// Semantic evaluator for reference checking
     semantic_evaluator: SemanticEvaluator,
 }
 
 impl ChurchRosserProofEngineImpl {
-    /// 新しい証明エンジンを作成
+    /// Create a new Church-Rosser proof engine
+    /// 
+    /// Initializes all verification systems and proof components
+    /// with default configurations.
     pub fn new() -> Self {
         Self {
             confluence_verifier: confluence_proof::ConfluenceVerifier::new(),
@@ -105,7 +114,17 @@ impl ChurchRosserProofEngineImpl {
         }
     }
 
-    /// 式のChurch-Rosser性を証明
+    /// Prove Church-Rosser property for a combinator expression
+    /// 
+    /// This method attempts to prove that the given expression satisfies
+    /// the Church-Rosser property through confluence and termination analysis.
+    /// 
+    /// # Arguments
+    /// * `expr` - The combinator expression to analyze
+    /// 
+    /// # Returns
+    /// * `Ok(ProofResult)` - Proof result indicating success or failure
+    /// * `Err(LambdustError)` - If proof process encounters an error
     pub fn prove_church_rosser(&mut self, expr: &CombinatorExpr) -> Result<proof_engine::ProofResult> {
         let start_time = Instant::now();
         self.proof_statistics.proof_attempts += 1;
@@ -132,14 +151,18 @@ impl ChurchRosserProofEngineImpl {
         let proof_result = match (confluence_result, termination_result) {
             (confluence_proof::ConfluenceProofResult::Confluent(_), true) => {
                 proof_engine::ProofResult::Proven(ProofTerm {
-                    method: ProofMethod::Induction("church_rosser".to_string()), // Use existing variant
+                    id: format!("church_rosser_{:?}", expr),
+                    term_type: ProofTermType::ChurchRosserProof, // Use existing variant
+                    expression: None, // CombinatorExpr cannot be directly converted to Expr
+                    sub_terms: Vec::new(),
+                    properties: HashMap::new(),
+                    method: ProofMethod::Custom("church_rosser".to_string()), // Use existing variant
                     subproofs: Vec::new(),
                     explanation: format!("Church-Rosser property holds for: {:?}", expr),
-                    term_type: ProofTermType::ChurchRosserProof, // Use existing variant
                     proof_steps: Vec::new(),
                     lemmas_used: Vec::new(),
                     tactics_used: Vec::new(),
-                    conclusion: Statement::Custom(format!("Church-Rosser property holds for: {:?}", expr), Vec::new()),
+                    conclusion: Statement::Custom(format!("Church-Rosser property holds for: {:?}", expr)),
                 })
             }
             (confluence_proof::ConfluenceProofResult::NonConfluent(_), _) => {
@@ -189,22 +212,34 @@ impl ChurchRosserProofEngineImpl {
         Ok(proof_result)
     }
 
-    /// 証明統計を取得
+    /// Get current proof statistics
+    /// 
+    /// Returns statistical information about proof attempts,
+    /// success rates, cache performance, and timing data.
     pub fn get_statistics(&self) -> &proof_engine::ChurchRosserStatistics {
         &self.proof_statistics
     }
 
-    /// 合流性検証器への参照を取得
+    /// Get reference to the confluence verifier
+    /// 
+    /// Provides access to the confluence verification subsystem
+    /// for detailed confluence analysis.
     pub fn confluence_verifier(&self) -> &confluence_proof::ConfluenceVerifier {
         &self.confluence_verifier
     }
 
-    /// 終了性検証器への参照を取得
+    /// Get reference to the termination verifier
+    /// 
+    /// Provides access to the termination verification subsystem
+    /// for detailed termination analysis.
     pub fn termination_verifier(&self) -> &termination_proof::TerminationVerifier {
         &self.termination_verifier
     }
 
-    /// 正規化検証器への参照を取得
+    /// Get reference to the normalization verifier
+    /// 
+    /// Provides access to the normalization verification subsystem
+    /// for detailed normal form analysis.
     pub fn normalization_verifier(&self) -> &normalization_proof::NormalizationVerifier {
         &self.normalization_verifier
     }

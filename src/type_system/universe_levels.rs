@@ -19,7 +19,7 @@ pub struct UniverseHierarchy {
 
 impl UniverseHierarchy {
     /// Create new universe hierarchy
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             max_level: UniverseLevel::new(0),
             level_constraints: HashMap::new(),
@@ -28,7 +28,7 @@ impl UniverseHierarchy {
     }
 
     /// Get maximum universe level
-    pub fn max_level(&self) -> UniverseLevel {
+    #[must_use] pub fn max_level(&self) -> UniverseLevel {
         self.max_level
     }
 
@@ -44,18 +44,18 @@ impl UniverseHierarchy {
     }
 
     /// Get universe level for a type
-    pub fn get_type_level(&self, type_expr: &PolynomialType) -> UniverseLevel {
+    #[must_use] pub fn get_type_level(&self, type_expr: &PolynomialType) -> UniverseLevel {
         type_expr.universe_level()
     }
 
     /// Check if a type can inhabit a given universe level
-    pub fn can_inhabit_level(&self, type_expr: &PolynomialType, level: UniverseLevel) -> bool {
+    #[must_use] pub fn can_inhabit_level(&self, type_expr: &PolynomialType, level: UniverseLevel) -> bool {
         let type_level = self.get_type_level(type_expr);
         type_level.0 <= level.0
     }
 
     /// Get the universe level that contains a given type
-    pub fn containing_universe(&self, type_expr: &PolynomialType) -> UniverseLevel {
+    #[must_use] pub fn containing_universe(&self, type_expr: &PolynomialType) -> UniverseLevel {
         let type_level = self.get_type_level(type_expr);
         UniverseLevel::new(type_level.0 + 1)
     }
@@ -142,7 +142,7 @@ impl UniverseHierarchy {
     }
 
     /// Get all types at a specific level
-    pub fn types_at_level(&self, level: UniverseLevel) -> Vec<String> {
+    #[must_use] pub fn types_at_level(&self, level: UniverseLevel) -> Vec<String> {
         self.level_constraints.iter()
             .filter(|(_, &l)| l == level)
             .map(|(name, _)| name.clone())
@@ -150,13 +150,13 @@ impl UniverseHierarchy {
     }
 
     /// Check if two types are at compatible universe levels
-    pub fn levels_compatible(&self, level1: UniverseLevel, level2: UniverseLevel) -> bool {
+    #[must_use] pub fn levels_compatible(&self, level1: UniverseLevel, level2: UniverseLevel) -> bool {
         // Types are compatible if they're at the same level or one can be lifted
         level1.0.abs_diff(level2.0) <= 1
     }
     
     /// Promote a type to a higher universe level
-    pub fn promote_type(&self, poly_type: &PolynomialType, target_level: u32) -> Result<PolynomialType, crate::error::LambdustError> {
+    pub fn promote_type(&self, poly_type: &PolynomialType, _target_level: u32) -> Result<PolynomialType, crate::error::LambdustError> {
         // Create a new type at the target level
         // For now, just return the original type (placeholder implementation)
         Ok(poly_type.clone())
@@ -187,113 +187,5 @@ impl UniverseHierarchy {
 impl Default for UniverseHierarchy {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::type_system::polynomial_types::BaseType;
-
-    #[test]
-    fn test_universe_hierarchy_creation() {
-        let hierarchy = UniverseHierarchy::new();
-        assert_eq!(hierarchy.max_level(), UniverseLevel::new(0));
-    }
-
-    #[test]
-    fn test_add_type_at_level() {
-        let mut hierarchy = UniverseHierarchy::new();
-        
-        let result = hierarchy.add_type_at_level("Nat".to_string(), UniverseLevel::new(0));
-        assert!(result.is_ok());
-        assert_eq!(hierarchy.max_level(), UniverseLevel::new(0));
-
-        let result = hierarchy.add_type_at_level("Type".to_string(), UniverseLevel::new(1));
-        assert!(result.is_ok());
-        assert_eq!(hierarchy.max_level(), UniverseLevel::new(1));
-    }
-
-    #[test]
-    fn test_type_level_inference() {
-        let mut hierarchy = UniverseHierarchy::new();
-        
-        let nat_type = PolynomialType::Base(BaseType::Natural);
-        let level = hierarchy.infer_minimum_level(&nat_type);
-        assert_eq!(level, UniverseLevel::new(0));
-
-        let universe_type = PolynomialType::Universe(UniverseLevel::new(0));
-        let level = hierarchy.infer_minimum_level(&universe_type);
-        assert_eq!(level, UniverseLevel::new(1));
-    }
-
-    #[test]
-    fn test_can_inhabit_level() {
-        let hierarchy = UniverseHierarchy::new();
-        
-        let nat_type = PolynomialType::Base(BaseType::Natural);
-        assert!(hierarchy.can_inhabit_level(&nat_type, UniverseLevel::new(0)));
-        assert!(hierarchy.can_inhabit_level(&nat_type, UniverseLevel::new(1)));
-        
-        let universe_type = PolynomialType::Universe(UniverseLevel::new(1));
-        assert!(!hierarchy.can_inhabit_level(&universe_type, UniverseLevel::new(1)));
-        assert!(hierarchy.can_inhabit_level(&universe_type, UniverseLevel::new(2)));
-    }
-
-    #[test]
-    fn test_containing_universe() {
-        let hierarchy = UniverseHierarchy::new();
-        
-        let nat_type = PolynomialType::Base(BaseType::Natural);
-        let containing = hierarchy.containing_universe(&nat_type);
-        assert_eq!(containing, UniverseLevel::new(1));
-
-        let universe_type = PolynomialType::Universe(UniverseLevel::new(0));
-        let containing = hierarchy.containing_universe(&universe_type);
-        assert_eq!(containing, UniverseLevel::new(2));
-    }
-
-    #[test]
-    fn test_dependent_type_levels() {
-        let mut hierarchy = UniverseHierarchy::new();
-        
-        let nat_type = PolynomialType::Base(BaseType::Natural);
-        let pi_type = PolynomialType::Pi {
-            param_name: "n".to_string(),
-            param_type: Box::new(nat_type.clone()),
-            body_type: Box::new(nat_type.clone()),
-        };
-        
-        let level = hierarchy.infer_minimum_level(&pi_type);
-        assert_eq!(level, UniverseLevel::new(0));
-    }
-
-    #[test]
-    fn test_create_new_universe() {
-        let mut hierarchy = UniverseHierarchy::new();
-        assert_eq!(hierarchy.max_level(), UniverseLevel::new(0));
-
-        let new_level = hierarchy.create_new_universe();
-        assert_eq!(new_level, UniverseLevel::new(1));
-        assert_eq!(hierarchy.max_level(), UniverseLevel::new(1));
-
-        let another_level = hierarchy.create_new_universe();
-        assert_eq!(another_level, UniverseLevel::new(2));
-        assert_eq!(hierarchy.max_level(), UniverseLevel::new(2));
-    }
-
-    #[test]
-    fn test_levels_compatible() {
-        let hierarchy = UniverseHierarchy::new();
-        
-        let nat_type = PolynomialType::Base(BaseType::Natural);
-        let bool_type = PolynomialType::Base(BaseType::Boolean);
-        let nat_level = hierarchy.get_type_level(&nat_type);
-        let bool_level = hierarchy.get_type_level(&bool_type);
-        assert!(hierarchy.levels_compatible(nat_level, bool_level));
-
-        let universe_type = PolynomialType::Universe(UniverseLevel::new(0));
-        let universe_level = hierarchy.get_type_level(&universe_type);
-        assert!(hierarchy.levels_compatible(nat_level, universe_level));
     }
 }

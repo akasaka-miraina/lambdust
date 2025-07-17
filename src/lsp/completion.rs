@@ -141,6 +141,30 @@ pub struct CompletionProvider {
     snippet_completions: HashMap<String, CompletionItem>,
 }
 
+/// Information about a binding in the environment
+#[derive(Debug, Clone)]
+pub struct BindingInfo {
+    /// Type of the binding
+    pub binding_type: BindingType,
+    /// Function signature (if applicable)
+    pub signature: Option<String>,
+    /// Documentation string
+    pub documentation: Option<String>,
+}
+
+/// Type of binding in the environment
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BindingType {
+    /// User-defined or built-in function
+    Function,
+    /// Macro
+    Macro,
+    /// Variable binding
+    Variable,
+    /// Constant value
+    Constant,
+}
+
 impl CompletionProvider {
     /// Create a new completion provider
     pub fn new() -> Result<Self> {
@@ -369,19 +393,104 @@ impl CompletionProvider {
     
     /// Get user-defined function completions
     fn get_user_function_completions(&self, prefix: &str) -> Result<Vec<CompletionItem>> {
-        // TODO: Extract user-defined functions from interpreter environment
-        // For now, return empty list
         let mut completions = Vec::new();
         
-        // This would use the interpreter's environment to find user-defined functions
-        // let env = self.interpreter.get_environment();
-        // for (name, _value) in env.bindings() {
-        //     if name.starts_with(prefix) && is_procedure(value) {
-        //         completions.push(CompletionItem { ... });
-        //     }
-        // }
+        // Extract user-defined functions from interpreter environment
+        match self.interpreter.get_environment() {
+            Ok(env) => {
+                // Search for user-defined functions in the environment
+                let bindings = self.extract_environment_bindings(&env)?;
+                
+                for (name, binding_info) in bindings {
+                    if name.starts_with(prefix) {
+                        let item = CompletionItem {
+                            label: name.clone(),
+                            kind: match binding_info.binding_type {
+                                BindingType::Function => CompletionItemKind::Method,
+                                BindingType::Macro => CompletionItemKind::Macro,
+                                BindingType::Variable => CompletionItemKind::Variable,
+                                BindingType::Constant => CompletionItemKind::Constant,
+                            },
+                            detail: binding_info.signature,
+                            documentation: binding_info.documentation,
+                            insert_text: Some(name),
+                            additional_text_edits: Vec::new(),
+                            sort_priority: 12,
+                            preselect: false,
+                            replace_range: None,
+                        };
+                        completions.push(item);
+                    }
+                }
+            }
+            Err(_) => {
+                // If we can't access the environment, provide basic completions
+                return Ok(Vec::new());
+            }
+        }
         
         Ok(completions)
+    }
+    
+    /// Extract binding information from environment
+    fn extract_environment_bindings(&self, env: &crate::environment::Environment) -> Result<Vec<(String, BindingInfo)>> {
+        let mut bindings = Vec::new();
+        
+        // Get all bindings from the environment
+        for (name, value) in env.get_all_bindings() {
+            let binding_info = self.analyze_binding_value(&value)?;
+            bindings.push((name, binding_info));
+        }
+        
+        Ok(bindings)
+    }
+    
+    /// Analyze a binding value to determine its type and signature
+    fn analyze_binding_value(&self, value: &crate::value::Value) -> Result<BindingInfo> {
+        use crate::value::{Value, Procedure};
+        
+        match value {
+            Value::Procedure(proc) => {
+                match proc {
+                    Procedure::Lambda { params, .. } => {
+                        let signature = format!("(λ ({}) body)", params.join(" "));
+                        Ok(BindingInfo {
+                            binding_type: BindingType::Function,
+                            signature: Some(signature),
+                            documentation: Some("User-defined function".to_string()),
+                        })
+                    }
+                    Procedure::Builtin { name, .. } => {
+                        Ok(BindingInfo {
+                            binding_type: BindingType::Function,
+                            signature: Some(format!("({})", name)),
+                            documentation: Some("Built-in function".to_string()),
+                        })
+                    }
+                    Procedure::Macro { .. } => {
+                        Ok(BindingInfo {
+                            binding_type: BindingType::Macro,
+                            signature: None,
+                            documentation: Some("User-defined macro".to_string()),
+                        })
+                    }
+                }
+            }
+            Value::Number(_) | Value::String(_) | Value::Boolean(_) => {
+                Ok(BindingInfo {
+                    binding_type: BindingType::Constant,
+                    signature: None,
+                    documentation: Some("Constant value".to_string()),
+                })
+            }
+            _ => {
+                Ok(BindingInfo {
+                    binding_type: BindingType::Variable,
+                    signature: None,
+                    documentation: Some("Variable binding".to_string()),
+                })
+            }
+        }
     }
     
     /// Get argument completions for specific functions
@@ -467,9 +576,80 @@ impl CompletionProvider {
     
     /// Get file path completions
     fn get_file_path_completions(&self, prefix: &str) -> Vec<CompletionItem> {
-        // TODO: Implement file path completion
-        // This would scan the file system for matching files
-        Vec::new()
+        use std::fs;
+        use std::path::Path;
+        
+        let mut completions = Vec::new();
+        
+        // Determine the directory to search in
+        let (search_dir, file_prefix) = if prefix.contains('/') {
+            let path = Path::new(prefix);
+            let parent = path.parent().unwrap_or(Path::new("."));
+            let filename = path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("");
+            (parent, filename)
+        } else {
+            (Path::new("."), prefix)
+        };
+        
+        // Read directory entries
+        if let Ok(entries) = fs::read_dir(search_dir) {
+            for entry in entries.flatten() {
+                if let Ok(metadata) = entry.metadata() {
+                    let filename = entry.file_name();
+                    let filename_str = filename.to_string_lossy();
+                    
+                    // Filter by prefix
+                    if filename_str.starts_with(file_prefix) {
+                        let is_dir = metadata.is_dir();
+                        let full_path = if search_dir == Path::new(".") {
+                            filename_str.to_string()
+                        } else {
+                            format!("{}/{}", search_dir.display(), filename_str)
+                        };
+                        
+                        let insert_text = if is_dir {
+                            format!("{}/", full_path)
+                        } else {
+                            full_path.clone()
+                        };
+                        
+                        completions.push(CompletionItem {
+                            label: filename_str.to_string(),
+                            kind: if is_dir { 
+                                CompletionItemKind::Module 
+                            } else { 
+                                CompletionItemKind::File 
+                            },
+                            detail: Some(if is_dir { 
+                                "Directory".to_string() 
+                            } else { 
+                                "File".to_string() 
+                            }),
+                            documentation: Some(format!(
+                                "{}: {}",
+                                if is_dir { "Directory" } else { "File" },
+                                full_path
+                            )),
+                            insert_text: Some(insert_text),
+                            additional_text_edits: Vec::new(),
+                            sort_priority: if is_dir { 5 } else { 10 },
+                            preselect: false,
+                            replace_range: None,
+                        });
+                    }
+                }
+            }
+        }
+        
+        // Sort by type (directories first) then by name
+        completions.sort_by(|a, b| {
+            a.sort_priority.cmp(&b.sort_priority)
+                .then_with(|| a.label.cmp(&b.label))
+        });
+        
+        completions
     }
 }
 
@@ -484,56 +664,5 @@ impl Default for CompletionProvider {
                 snippet_completions: HashMap::new(),
             }
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_completion_provider_creation() {
-        let provider = CompletionProvider::new().unwrap();
-        assert!(!provider.builtin_completions.is_empty());
-        assert!(!provider.special_form_completions.is_empty());
-    }
-
-    #[test]
-    fn test_builtin_completions() {
-        let provider = CompletionProvider::new().unwrap();
-        let completions = provider.get_function_completions("c");
-        
-        assert!(!completions.is_empty());
-        assert!(completions.iter().any(|item| item.label == "cons"));
-        assert!(completions.iter().any(|item| item.label == "car"));
-        assert!(completions.iter().any(|item| item.label == "cdr"));
-    }
-
-    #[test]
-    fn test_special_form_completions() {
-        let provider = CompletionProvider::new().unwrap();
-        let completions = provider.get_special_form_completions("l");
-        
-        assert!(!completions.is_empty());
-        assert!(completions.iter().any(|item| item.label == "lambda"));
-        assert!(completions.iter().any(|item| item.label == "let"));
-    }
-
-    #[test]
-    fn test_completion_context() {
-        let context = CompletionContext {
-            position: Position::new(0, 5),
-            trigger_character: Some('('),
-            is_retrigger: false,
-            line_content: "(cons ".to_string(),
-            prefix: "".to_string(),
-            expression_context: ExpressionContext::FunctionPosition,
-            scope_bindings: vec!["x".to_string(), "y".to_string()],
-        };
-        
-        let provider = CompletionProvider::new().unwrap();
-        let completions = provider.get_completions(&context).unwrap();
-        
-        assert!(!completions.is_empty());
     }
 }

@@ -14,7 +14,7 @@ pub struct SpecialFormsAnalyzer;
 
 impl SpecialFormsAnalyzer {
     /// Check if a name is a special form
-    pub fn is_special_form(name: &str) -> bool {
+    #[must_use] pub fn is_special_form(name: &str) -> bool {
         matches!(
             name,
             "if"
@@ -178,15 +178,13 @@ impl SpecialFormsAnalyzer {
         let has_side_effects = then_analysis.has_side_effects
             || else_analysis
                 .as_ref()
-                .map(|e| e.has_side_effects)
-                .unwrap_or(false);
+                .is_some_and(|e| e.has_side_effects);
 
         let complexity = std::cmp::max(
             then_analysis.complexity,
             else_analysis
                 .as_ref()
-                .map(|e| e.complexity.clone())
-                .unwrap_or(EvaluationComplexity::Constant),
+                .map_or(EvaluationComplexity::Constant, |e| e.complexity.clone()),
         );
 
         // Type hint is union of possible types

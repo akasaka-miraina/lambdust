@@ -50,25 +50,35 @@ pub use theorem_types::{
     ExperimentalValidation,
 };
 
-use crate::evaluator::{
-    formal_verification::FormalVerificationEngine,
-    theorem_proving::TheoremProvingSupport,
-    SemanticEvaluator,
-};
+use crate::evaluator::SemanticEvaluator;
 
 // Main re-exports using proper module paths
+
+/// Advanced proof tactics for theorem derivation
 pub type AdvancedProofTactics = proof_tactics::AdvancedProofTactics;
+
+/// Induction tactic for mathematical induction proofs
 pub type InductionTactic = proof_tactics::InductionTactic;
+
+/// Rewriting tactic for term rewriting proofs
 pub type RewritingTactic = proof_tactics::RewritingTactic;
+
+/// Substitution tactic for variable substitution proofs
 pub type SubstitutionTactic = proof_tactics::SubstitutionTactic;
+
+/// Composition tactic for proof composition
 pub type CompositionTactic = proof_tactics::CompositionTactic;
+
+/// Case analysis tactic for case splitting proofs
 pub type CaseAnalysisTactic = proof_tactics::CaseAnalysisTactic;
+
+/// Main theorem derivation engine
 pub type TheoremDerivationEngine = theorem_engine::TheoremDerivationEngine;
 
 /// Create a new theorem derivation engine with default configuration
 pub fn create_theorem_derivation_engine(
-    theorem_prover: TheoremProvingSupport,
-    verification_engine: FormalVerificationEngine,
+    theorem_prover: crate::prover::proof_types::TheoremProvingSupport,
+    verification_engine: crate::prover::proof_types::FormalVerificationEngine,
     semantic_evaluator: SemanticEvaluator,
 ) -> TheoremDerivationEngine {
     theorem_engine::TheoremDerivationEngine::new(

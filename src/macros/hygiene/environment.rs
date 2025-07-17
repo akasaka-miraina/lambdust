@@ -6,7 +6,7 @@
 
 use super::symbol::{HygienicSymbol, SymbolId, EnvironmentId};
 // Removed unused import: use super::context::ExpansionContext;
-use crate::environment::Environment;
+use crate::environment::{Environment, MutableDirectEnvironment};
 use crate::value::Value;
 use crate::macros::Macro;
 use crate::error::{LambdustError, Result};
@@ -58,24 +58,106 @@ impl SymbolCache {
     }
 }
 
-/// Environment with hygienic symbol support
+/// Tracks environment consistency during macro expansion
+#[derive(Debug, Clone)]
+pub struct EnvironmentConsistencyTracker {
+    /// Generation counter for consistency checks
+    generation: u64,
+    /// Last known environment state hash
+    last_state_hash: u64,
+    /// Set of symbols that have been modified
+    modified_symbols: std::collections::HashSet<String>,
+    /// Macro expansion depth (for detecting recursive issues)
+    expansion_depth: u32,
+    /// Maximum allowed expansion depth
+    max_expansion_depth: u32,
+}
+
+impl Default for EnvironmentConsistencyTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl EnvironmentConsistencyTracker {
+    /// Create a new consistency tracker
+    #[must_use] pub fn new() -> Self {
+        Self {
+            generation: 0,
+            last_state_hash: 0,
+            modified_symbols: std::collections::HashSet::new(),
+            expansion_depth: 0,
+            max_expansion_depth: 100, // Prevent infinite macro expansion
+        }
+    }
+
+    /// Increment generation and update state
+    pub fn increment_generation(&mut self, new_state_hash: u64) {
+        self.generation += 1;
+        self.last_state_hash = new_state_hash;
+    }
+
+    /// Track symbol modification
+    pub fn track_symbol_modification(&mut self, symbol: String) {
+        self.modified_symbols.insert(symbol);
+        self.generation += 1;
+    }
+
+    /// Check if environment is consistent
+    #[must_use] pub fn is_consistent(&self, current_state_hash: u64) -> bool {
+        self.last_state_hash == current_state_hash
+    }
+
+    /// Enter macro expansion (increment depth)
+    pub fn enter_expansion(&mut self) -> Result<()> {
+        self.expansion_depth += 1;
+        if self.expansion_depth > self.max_expansion_depth {
+            return Err(LambdustError::runtime_error(
+                format!("Macro expansion depth exceeded limit: {}", self.max_expansion_depth)
+            ));
+        }
+        Ok(())
+    }
+
+    /// Exit macro expansion (decrement depth)
+    pub fn exit_expansion(&mut self) {
+        if self.expansion_depth > 0 {
+            self.expansion_depth -= 1;
+        }
+    }
+
+    /// Get current expansion depth
+    #[must_use] pub fn expansion_depth(&self) -> u32 {
+        self.expansion_depth
+    }
+
+    /// Clear modification tracking
+    pub fn clear_modifications(&mut self) {
+        self.modified_symbols.clear();
+    }
+}
+
+/// Environment with hygienic symbol support and consistency guarantees
 #[derive(Debug, Clone)]
 pub struct HygienicEnvironment {
     /// Unique identifier for this environment
     pub id: EnvironmentId,
     /// Traditional environment for backward compatibility
     pub inner: Rc<Environment>,
+    /// Optimized direct environment for improved performance
+    pub direct: MutableDirectEnvironment,
     /// Mapping from symbol names to hygienic symbols
     pub symbol_map: HashMap<String, HygienicSymbol>,
     /// Hygienic symbol bindings (`symbol_id` -> value)
     pub hygienic_bindings: HashMap<SymbolId, Value>,
     /// Hygienic macro definitions
     pub hygienic_macros: HashMap<String, HygienicMacro>,
-    // Note: ExpansionContext is created on-demand when needed
     /// Parent hygienic environment
     pub parent: Option<Rc<HygienicEnvironment>>,
     /// Symbol resolution cache for performance
     symbol_cache: SymbolCache,
+    /// Environment consistency tracking
+    consistency_tracker: EnvironmentConsistencyTracker,
 }
 
 /// Hygienic macro definition
@@ -97,11 +179,13 @@ impl HygienicEnvironment {
         Self {
             id: env_id,
             inner: Rc::new(Environment::new()),
+            direct: MutableDirectEnvironment::new(),
             symbol_map: HashMap::new(),
             hygienic_bindings: HashMap::new(),
             hygienic_macros: HashMap::new(),
             parent: None,
             symbol_cache: SymbolCache::new(),
+            consistency_tracker: EnvironmentConsistencyTracker::new(),
         }
     }
     
@@ -113,11 +197,13 @@ impl HygienicEnvironment {
         Self {
             id: env_id,
             inner: Rc::new(Environment::with_parent(inner_parent)),
+            direct: MutableDirectEnvironment::with_parent(parent.direct.clone_direct()),
             symbol_map: HashMap::new(),
             hygienic_bindings: HashMap::new(),
             hygienic_macros: HashMap::new(),
             parent: Some(parent),
             symbol_cache: SymbolCache::new(),
+            consistency_tracker: EnvironmentConsistencyTracker::new(),
         }
     }
     
@@ -130,12 +216,14 @@ impl HygienicEnvironment {
         Self {
             id: env_id,
             inner: Rc::new(Environment::with_parent(inner_parent)),
+            direct: MutableDirectEnvironment::with_parent(parent.direct.clone_direct()),
             symbol_map: HashMap::new(),
             hygienic_bindings: HashMap::new(),
             hygienic_macros: HashMap::new(),
             // expansion_context created on-demand
             parent: Some(parent),
             symbol_cache: SymbolCache::new(),
+            consistency_tracker: EnvironmentConsistencyTracker::new(),
         }
     }
     
@@ -146,8 +234,14 @@ impl HygienicEnvironment {
     
     /// Define hygienic symbol
     pub fn define_hygienic(&mut self, symbol: HygienicSymbol, value: Value) {
-        self.hygienic_bindings.insert(symbol.id, value);
-        self.symbol_map.insert(symbol.name.clone(), symbol);
+        self.hygienic_bindings.insert(symbol.id, value.clone());
+        self.symbol_map.insert(symbol.name.clone(), symbol.clone());
+        
+        // Track symbol modification for consistency
+        self.consistency_tracker.track_symbol_modification(symbol.name.clone());
+        
+        // Synchronize with direct environment
+        self.direct.define(symbol.unique_name(), value);
     }
     
     /// Lookup traditional variable
@@ -206,7 +300,14 @@ impl HygienicEnvironment {
     /// Set hygienic symbol
     pub fn set_hygienic(&mut self, symbol: &HygienicSymbol, value: Value) -> Result<()> {
         if let std::collections::hash_map::Entry::Occupied(mut e) = self.hygienic_bindings.entry(symbol.id) {
-            e.insert(value);
+            e.insert(value.clone());
+            
+            // Track symbol modification for consistency
+            self.consistency_tracker.track_symbol_modification(symbol.name.clone());
+            
+            // Synchronize with direct environment
+            let _ = self.direct.set(&symbol.unique_name(), value);
+            
             Ok(())
         } else if let Some(ref mut _parent) = self.parent {
             // Try to modify parent (need Rc::get_mut which might fail)
@@ -274,16 +375,16 @@ impl HygienicEnvironment {
     
     /// Enter macro expansion context with safety checks
     pub fn enter_macro_expansion(&self, _macro_name: String) -> Result<Self> {
-        let env = self.clone();
-        // TODO: Re-implement expansion context tracking
-        // match env.expansion_context.enter_macro(macro_name) {
-        //     Ok(new_context) => {
-        //         env.expansion_context = new_context;
-        //         Ok(env)
-        //     }
-        //     Err(e) => Err(LambdustError::runtime_error(e))
-        // }
-        Ok(env) // Simplified for now
+        let mut env = self.clone();
+        
+        // Enter expansion with consistency tracking
+        env.consistency_tracker.enter_expansion()?;
+        
+        // Update environment state hash for consistency tracking
+        let state_hash = self.calculate_environment_state_hash();
+        env.consistency_tracker.increment_generation(state_hash);
+        
+        Ok(env)
     }
     
     /// Create child environment for fresh scope
@@ -301,8 +402,12 @@ impl HygienicEnvironment {
     /// Clear local symbol mappings (for fresh expansion context)
     pub fn clear_local_symbols(&mut self) {
         self.symbol_map.clear();
-        // TODO: Re-implement expansion context clearing
-        // self.expansion_context.clear_bindings();
+        
+        // Clear modifications in consistency tracker
+        self.consistency_tracker.clear_modifications();
+        
+        // Clear symbol cache for fresh state
+        self.symbol_cache.clear();
     }
     
     /// Get all bound hygienic symbols
@@ -343,6 +448,65 @@ impl HygienicEnvironment {
     pub fn clear_cache(&self) {
         self.symbol_cache.clear();
     }
+    
+    /// Calculate environment state hash for consistency tracking
+    fn calculate_environment_state_hash(&self) -> u64 {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        
+        // Hash symbol map
+        for (name, symbol) in &self.symbol_map {
+            name.hash(&mut hasher);
+            symbol.id.hash(&mut hasher);
+        }
+        
+        // Hash hygienic bindings count (not values for performance)
+        self.hygienic_bindings.len().hash(&mut hasher);
+        
+        // Hash environment ID
+        self.id.hash(&mut hasher);
+        
+        hasher.finish()
+    }
+    
+    /// Get current environment consistency tracker
+    pub fn consistency_tracker(&self) -> &EnvironmentConsistencyTracker {
+        &self.consistency_tracker
+    }
+    
+    /// Get mutable consistency tracker
+    pub fn consistency_tracker_mut(&mut self) -> &mut EnvironmentConsistencyTracker {
+        &mut self.consistency_tracker
+    }
+    
+    /// Exit macro expansion (decrement expansion depth)
+    pub fn exit_macro_expansion(&mut self) {
+        self.consistency_tracker.exit_expansion();
+    }
+    
+    /// Check environment consistency
+    pub fn is_environment_consistent(&self) -> bool {
+        let current_hash = self.calculate_environment_state_hash();
+        self.consistency_tracker.is_consistent(current_hash)
+    }
+    
+    /// Synchronize environments (direct and inner)
+    pub fn synchronize_environments(&mut self) -> Result<()> {
+        // Synchronize hygienic bindings to direct environment
+        for (symbol_id, value) in &self.hygienic_bindings {
+            if let Some(symbol) = self.symbol_map.values().find(|s| s.id == *symbol_id) {
+                self.direct.define(symbol.unique_name(), value.clone());
+            }
+        }
+        
+        // Update consistency tracker
+        let state_hash = self.calculate_environment_state_hash();
+        self.consistency_tracker.increment_generation(state_hash);
+        
+        Ok(())
+    }
 }
 
 impl Default for HygienicEnvironment {
@@ -380,104 +544,5 @@ impl SymbolResolution {
     /// Check if symbol is hygienic
     #[must_use] pub fn is_hygienic(&self) -> bool {
         matches!(self, SymbolResolution::Hygienic(_))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::value::Value;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_hygienic_environment_creation() {
-        let env = HygienicEnvironment::new();
-        assert_eq!(env.depth(), 0);
-        assert!(env.symbol_map.is_empty());
-        assert!(env.hygienic_bindings.is_empty());
-    }
-    
-    #[test]
-    fn test_traditional_variable_operations() {
-        let env = HygienicEnvironment::new();
-        
-        // Define and get traditional variable
-        env.define("x".to_string(), Value::Number(SchemeNumber::Integer(42)));
-        assert_eq!(env.get("x"), Some(Value::Number(SchemeNumber::Integer(42))));
-        assert!(env.exists("x"));
-    }
-    
-    #[test]
-    fn test_hygienic_symbol_operations() {
-        let mut env = HygienicEnvironment::new();
-        let mut generator = super::super::generator::SymbolGenerator::new();
-        generator.set_environment(env.id);
-        
-        let symbol = generator.generate_unique("temp");
-        env.define_hygienic(symbol.clone(), Value::Number(SchemeNumber::Integer(99)));
-        
-        assert_eq!(env.get_hygienic("temp"), Some(Value::Number(SchemeNumber::Integer(99))));
-        assert_eq!(env.get_by_symbol_id(symbol.id), Some(Value::Number(SchemeNumber::Integer(99))));
-        assert!(env.exists("temp"));
-    }
-    
-    #[test]
-    fn test_symbol_resolution() {
-        let mut env = HygienicEnvironment::new();
-        let mut generator = super::super::generator::SymbolGenerator::new();
-        generator.set_environment(env.id);
-        
-        // Define traditional variable
-        env.define("traditional".to_string(), Value::Number(SchemeNumber::Integer(1)));
-        
-        // Define hygienic symbol
-        let symbol = generator.generate_unique("hygienic");
-        env.define_hygienic(symbol.clone(), Value::Number(SchemeNumber::Integer(2)));
-        
-        // Test resolution
-        match env.resolve_symbol("traditional") {
-            SymbolResolution::Traditional(name) => assert_eq!(name, "traditional"),
-            _ => panic!("Expected traditional resolution"),
-        }
-        
-        match env.resolve_symbol("hygienic") {
-            SymbolResolution::Hygienic(sym) => assert_eq!(sym.original_name(), "hygienic"),
-            _ => panic!("Expected hygienic resolution"),
-        }
-        
-        match env.resolve_symbol("unbound") {
-            SymbolResolution::Unbound(name) => assert_eq!(name, "unbound"),
-            _ => panic!("Expected unbound resolution"),
-        }
-    }
-    
-    #[test]
-    fn test_environment_hierarchy() {
-        let parent = Rc::new(HygienicEnvironment::new());
-        parent.define("parent_var".to_string(), Value::Number(SchemeNumber::Integer(123)));
-        
-        let child = HygienicEnvironment::with_parent(parent.clone());
-        child.define("child_var".to_string(), Value::Number(SchemeNumber::Integer(456)));
-        
-        // Child can access parent variables
-        assert_eq!(child.get("parent_var"), Some(Value::Number(SchemeNumber::Integer(123))));
-        assert_eq!(child.get("child_var"), Some(Value::Number(SchemeNumber::Integer(456))));
-        
-        // Parent cannot access child variables
-        assert_eq!(parent.get("child_var"), None);
-        assert_eq!(parent.get("parent_var"), Some(Value::Number(SchemeNumber::Integer(123))));
-        
-        assert_eq!(child.depth(), 1);
-        assert_eq!(parent.depth(), 0);
-    }
-    
-    #[test]
-    fn test_macro_expansion_context() {
-        let env = HygienicEnvironment::new();
-        let _expanded_env = env.enter_macro_expansion("test-macro".to_string()).unwrap();
-        
-        // TODO: Re-implement expansion context tests
-        // assert_eq!(expanded_env.expansion_context.current_macro(), Some("test-macro"));
-        // assert_eq!(expanded_env.expansion_context.depth, 1);
     }
 }

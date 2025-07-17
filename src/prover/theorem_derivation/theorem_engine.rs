@@ -6,12 +6,8 @@
 use crate::ast::Expr;
 use crate::error::Result;
 use crate::value::Value;
-use crate::evaluator::{
-    formal_verification::{FormalVerificationEngine, configuration_types::VerificationDepth},
-    static_semantic_optimizer::{ProofStep, FormalProof, ProofMethod},
-    theorem_proving::TheoremProvingSupport,
-    SemanticEvaluator,
-};
+use crate::prover::proof_types::{ProofStep, FormalProof, ProofMethod, ProofTransformation, VerificationDepth, FormalVerificationEngine, TheoremProvingSupport};
+use crate::evaluator::SemanticEvaluator;
 use std::time::Instant;
 use super::{
     theorem_types::{
@@ -441,16 +437,18 @@ impl TheoremDerivationEngine {
             correctness_proof: FormalProof {
                 method: ProofMethod::SemanticEquivalence,
                 steps: vec![ProofStep {
+                    id: format!("{}_theorem", name),
                     description: format!("Apply {} theorem", name),
-                    rule: format!("{}_theorem", name),
-                    input: "expression".to_string(),
-                    output: "optimized_expression".to_string(),
+                    transformation: ProofTransformation::Rewrite { 
+                        from: Expr::Variable("expression".to_string()), 
+                        to: Expr::Variable("optimized_expression".to_string()) 
+                    },
                     justification: "Mathematical foundation".to_string(),
+                    dependencies: vec![],
                 }],
-                external_verification: None,
-                generation_time: std::time::Duration::from_millis(100),
-                is_valid: true, // conclusion: "Correctness preserved".to_string(),
-                // verification_status: "Verified".to_string(),
+                conclusion: crate::prover::proof_types::Statement::Custom("Correctness preserved".to_string()),
+                is_complete: true,
+                metadata: crate::prover::proof_types::ProofMetadata::default(),
             },
             performance_verification: super::theorem_types::PerformanceVerification {
                 benchmarks: Vec::new(),
@@ -530,15 +528,18 @@ impl TheoremDerivationEngine {
         Ok(FormalProof {
             method: ProofMethod::SemanticEquivalence,
             steps: vec![ProofStep {
+                id: "semantic_equivalence".to_string(),
                 description: "Apply mathematical foundation".to_string(),
-                rule: "semantic_equivalence".to_string(),
-                input: "mathematical_foundation".to_string(),
-                output: "optimization_theorem".to_string(),
+                transformation: ProofTransformation::Rewrite { 
+                    from: Expr::Variable("mathematical_foundation".to_string()), 
+                    to: Expr::Variable("optimization_theorem".to_string()) 
+                },
                 justification: "Theorem-based transformation".to_string(),
+                dependencies: vec![],
             }],
-            external_verification: None,
-            generation_time: std::time::Duration::from_millis(0),
-            is_valid: true,
+            conclusion: crate::prover::proof_types::Statement::Custom("Optimization theorem derived".to_string()),
+            is_complete: true,
+            metadata: crate::prover::proof_types::ProofMetadata::default(),
         })
     }
     
@@ -600,7 +601,7 @@ impl Default for TheoremDerivationConfig {
             derivation_timeout: Duration::from_secs(30),
             performance_threshold: 0.1,
             enable_experimental: false,
-            verification_level: VerificationDepth::Mathematical,
+            verification_level: VerificationDepth::Complete,
         }
     }
 }

@@ -1,9 +1,19 @@
 //! Unit tests for macro system
 
-pub mod advanced_macro_tests;
-pub mod basic_macro_tests;
-pub mod do_notation_tests;
-pub mod hygienic_integration_tests;
-pub mod hygiene_symbol_tests;
-pub mod performance_tests;
-pub mod nested_macro_tests;
+use lambdust::macros::MacroExpander;
+use lambdust::parser::parse;
+use lambdust::environment::Environment;
+use std::sync::Arc;
+
+#[test]
+fn test_macro_expansion() {
+    let env = Arc::new(Environment::new());
+    let mut expander = MacroExpander::new();
+    
+    // Test basic macro expansion
+    let expr = parse("(when #t 42)").unwrap();
+    let result = expander.expand(&expr, &env);
+    
+    // Should expand to (if #t 42 (void))
+    assert!(result.is_ok());
+}

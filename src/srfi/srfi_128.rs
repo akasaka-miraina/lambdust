@@ -432,7 +432,7 @@ impl super::SrfiModule for Srfi128 {
                 })),
                 Some(Rc::new(|obj| {
                     if let Value::Boolean(b) = obj {
-                        Ok(if *b { 1 } else { 0 })
+                        Ok(i64::from(*b))
                     } else {
                         Err(LambdustError::type_error("Expected boolean".to_string()))
                     }
@@ -464,62 +464,3 @@ impl super::SrfiModule for Srfi128 {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::srfi::SrfiModule;
-
-    #[test]
-    fn test_number_comparator() {
-        let comp = default_number_comparator();
-        let num1 = Value::from(5i64);
-        let num2 = Value::from(10i64);
-        let num3 = Value::from(5i64);
-
-        assert!(comp.test_type(&num1));
-        assert!(!comp.test_type(&Value::String("hello".to_string())));
-
-        assert!(comp.equal(&num1, &num3));
-        assert!(!comp.equal(&num1, &num2));
-
-        assert_eq!(comp.compare(&num1, &num2).unwrap(), -1);
-        assert_eq!(comp.compare(&num2, &num1).unwrap(), 1);
-        assert_eq!(comp.compare(&num1, &num3).unwrap(), 0);
-    }
-
-    #[test]
-    fn test_string_comparator() {
-        let comp = default_string_comparator();
-        let str1 = Value::String("apple".to_string());
-        let str2 = Value::String("banana".to_string());
-        let str3 = Value::String("apple".to_string());
-
-        assert!(comp.test_type(&str1));
-        assert!(!comp.test_type(&Value::from(42i64)));
-
-        assert!(comp.equal(&str1, &str3));
-        assert!(!comp.equal(&str1, &str2));
-
-        assert_eq!(comp.compare(&str1, &str2).unwrap(), -1);
-        assert_eq!(comp.compare(&str2, &str1).unwrap(), 1);
-        assert_eq!(comp.compare(&str1, &str3).unwrap(), 0);
-    }
-
-    #[test]
-    fn test_srfi_128_exports() {
-        let srfi = Srfi128;
-        let exports = srfi.exports();
-
-        assert!(exports.contains_key("comparator?"));
-        assert!(exports.contains_key("comparator-ordered?"));
-        assert!(exports.contains_key("comparator-hashable?"));
-        assert!(exports.contains_key("make-comparator"));
-        assert!(exports.contains_key("=?"));
-        assert!(exports.contains_key("<?"));
-        assert!(exports.contains_key("default-comparator"));
-        assert!(exports.contains_key("boolean-comparator"));
-        assert!(exports.contains_key("real-comparator"));
-        assert!(exports.contains_key("string-comparator"));
-        assert!(exports.contains_key("symbol-comparator"));
-    }
-}

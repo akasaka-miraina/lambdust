@@ -29,6 +29,8 @@ exclude = [
 [dependencies]
 # Core dependencies for the interpreter (optimized for 2024 edition)
 thiserror = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 # Removed: num-bigint, num-rational, num-complex, num-traits
 # Rationale: SchemeNumber already uses basic i64/f64 types directly
@@ -65,6 +67,7 @@ clap = { version = "4.5", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
+mockall = "0.13"
 
 # ===== Build Optimization Profiles =====
 
@@ -188,6 +191,7 @@ theorem-derivation = []
 runtime-verification = []
 # Type System (Polynomial Universe & Dependent Types)
 type-system = []
+parallel-type-checking = []
 
 # Memory management
 memory-pooling = []

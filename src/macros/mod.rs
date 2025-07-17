@@ -6,9 +6,7 @@ pub mod expander;
 pub mod hygiene;
 // Tests moved to tests/unit/macros/ directory
 // Tests moved to tests/ directory
-// #[cfg(test)]
 // pub mod syntax_case_tests;
-// #[cfg(test)]
 // pub mod srfi46_tests;
 pub mod pattern_matching;
 pub mod srfi46_ellipsis;

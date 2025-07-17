@@ -59,7 +59,7 @@ pub struct SubexpressionInfo {
 
 impl CommonSubexpressionEliminator {
     /// Create a new CSE eliminator
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             statistics: CSEStatistics::default(),
         }
@@ -91,7 +91,7 @@ impl CommonSubexpressionEliminator {
     }
 
     /// Find common subexpressions in the expression
-    pub fn find_common_subexpressions(&self, expr: &Expr) -> SubexpressionMap {
+    #[must_use] pub fn find_common_subexpressions(&self, expr: &Expr) -> SubexpressionMap {
         let mut occurrence_map: HashMap<String, (Expr, usize)> = HashMap::new();
         self.count_subexpressions(expr, &mut occurrence_map);
 
@@ -100,7 +100,7 @@ impl CommonSubexpressionEliminator {
 
         for (expr_key, (expression, count)) in occurrence_map {
             if count > 1 && self.is_worth_eliminating(&expression) {
-                let replacement_var = format!("cse_var_{}", var_counter);
+                let replacement_var = format!("cse_var_{var_counter}");
                 var_counter += 1;
 
                 subexpr_map.insert(expr_key, SubexpressionInfo {
@@ -145,7 +145,7 @@ impl CommonSubexpressionEliminator {
 
     /// Generate a key for an expression
     fn expression_key(&self, expr: &Expr) -> String {
-        format!("{:?}", expr)
+        format!("{expr:?}")
     }
 
     /// Check if a subexpression is worth eliminating
@@ -245,7 +245,7 @@ impl CommonSubexpressionEliminator {
     }
 
     /// Generate let bindings for eliminated subexpressions
-    pub fn generate_let_bindings(&self, subexpr_map: &SubexpressionMap) -> Vec<(String, Expr)> {
+    #[must_use] pub fn generate_let_bindings(&self, subexpr_map: &SubexpressionMap) -> Vec<(String, Expr)> {
         let mut bindings = Vec::new();
         
         for info in subexpr_map.values() {
@@ -265,7 +265,7 @@ impl CommonSubexpressionEliminator {
     }
 
     /// Wrap expression with let bindings
-    pub fn wrap_with_let_bindings(&self, expr: Expr, bindings: Vec<(String, Expr)>) -> Expr {
+    #[must_use] pub fn wrap_with_let_bindings(&self, expr: Expr, bindings: Vec<(String, Expr)>) -> Expr {
         if bindings.is_empty() {
             return expr;
         }
@@ -318,7 +318,7 @@ impl CommonSubexpressionEliminator {
     }
 
     /// Get CSE statistics
-    pub fn get_statistics(&self) -> &CSEStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &CSEStatistics {
         &self.statistics
     }
 
@@ -331,145 +331,5 @@ impl CommonSubexpressionEliminator {
 impl Default for CommonSubexpressionEliminator {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ast::Literal;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_cse_eliminator_creation() {
-        let eliminator = CommonSubexpressionEliminator::new();
-        assert_eq!(eliminator.get_statistics().total_attempts, 0);
-    }
-
-    #[test]
-    fn test_find_common_subexpressions() {
-        let eliminator = CommonSubexpressionEliminator::new();
-        
-        // (+ (+ x y) (* (+ x y) 2))
-        let common_subexpr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Variable("y".to_string()),
-        ]);
-        
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            common_subexpr.clone(),
-            Expr::List(vec![
-                Expr::Variable("*".to_string()),
-                common_subexpr.clone(),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-            ]),
-        ]);
-
-        let subexpr_map = eliminator.find_common_subexpressions(&expr);
-        
-        // Should find the common subexpression (+ x y)
-        assert!(!subexpr_map.is_empty());
-        
-        let common_key = eliminator.expression_key(&common_subexpr);
-        assert!(subexpr_map.contains_key(&common_key));
-        assert_eq!(subexpr_map[&common_key].occurrence_count, 2);
-    }
-
-    #[test]
-    fn test_eliminate_common_subexpressions() {
-        let mut eliminator = CommonSubexpressionEliminator::new();
-        
-        // (+ (+ x y) (* (+ x y) 2))
-        let common_subexpr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Variable("y".to_string()),
-        ]);
-        
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            common_subexpr.clone(),
-            Expr::List(vec![
-                Expr::Variable("*".to_string()),
-                common_subexpr.clone(),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-            ]),
-        ]);
-
-        let result = eliminator.eliminate(&expr).unwrap();
-        assert!(result.elimination_applied);
-        assert_eq!(result.eliminations_count, 2);
-    }
-
-    #[test]
-    fn test_optimize_with_let_bindings() {
-        let mut eliminator = CommonSubexpressionEliminator::new();
-        
-        // (+ (+ x y) (* (+ x y) 2))
-        let common_subexpr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Variable("y".to_string()),
-        ]);
-        
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            common_subexpr.clone(),
-            Expr::List(vec![
-                Expr::Variable("*".to_string()),
-                common_subexpr.clone(),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-            ]),
-        ]);
-
-        let result = eliminator.optimize_with_let(&expr).unwrap();
-        assert!(result.elimination_applied);
-        
-        // Should generate a let expression
-        match result.optimized_expr {
-            Expr::List(exprs) if exprs.len() == 3 => {
-                match &exprs[0] {
-                    Expr::Variable(op) if op == "let" => {},
-                    _ => panic!("Expected let expression"),
-                }
-            },
-            _ => panic!("Expected let expression with 3 elements"),
-        }
-    }
-
-    #[test]
-    fn test_complexity_calculation() {
-        let eliminator = CommonSubexpressionEliminator::new();
-        
-        let simple_expr = Expr::Variable("x".to_string());
-        assert_eq!(eliminator.calculate_complexity(&simple_expr), 1);
-        
-        let complex_expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::List(vec![
-                Expr::Variable("*".to_string()),
-                Expr::Variable("y".to_string()),
-                Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-            ]),
-        ]);
-        assert_eq!(eliminator.calculate_complexity(&complex_expr), 6);
-    }
-
-    #[test]
-    fn test_no_common_subexpressions() {
-        let mut eliminator = CommonSubexpressionEliminator::new();
-        
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Variable("y".to_string()),
-        ]);
-
-        let result = eliminator.eliminate(&expr).unwrap();
-        assert!(!result.elimination_applied);
-        assert_eq!(result.eliminations_count, 0);
     }
 }

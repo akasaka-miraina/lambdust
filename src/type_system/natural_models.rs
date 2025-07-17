@@ -28,7 +28,7 @@ pub struct UniverseFunction {
 
 impl NaturalModel {
     /// Create new natural model
-    pub fn new(level: UniverseLevel) -> Self {
+    #[must_use] pub fn new(level: UniverseLevel) -> Self {
         let universe = PolynomialType::Universe(level);
         let universe_function = UniverseFunction {
             domain: universe.clone(),
@@ -44,7 +44,7 @@ impl NaturalModel {
     }
 
     /// Check if a type belongs to this model
-    pub fn contains_type(&self, _type_expr: &PolynomialType) -> bool {
+    #[must_use] pub fn contains_type(&self, _type_expr: &PolynomialType) -> bool {
         // Placeholder implementation
         true
     }

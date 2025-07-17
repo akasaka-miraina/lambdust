@@ -99,6 +99,11 @@ impl FunctionSignature {
     }
 
     /// Validate arguments against this signature
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the number of arguments doesn't match the expected arity
+    /// or if any argument type doesn't match the expected parameter type.
     pub fn validate_args(&self, args: &[Value]) -> Result<()> {
         if let Some(ref params) = self.parameters {
             if !self.variadic && args.len() != params.len() {
@@ -132,6 +137,10 @@ impl FunctionSignature {
     }
 
     /// Validate return value against this signature
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value type doesn't match the expected return type.
     pub fn validate_return(&self, value: &Value) -> Result<()> {
         if !self.return_type.matches(value) {
             return Err(LambdustError::type_error(format!(

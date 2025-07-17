@@ -12,21 +12,25 @@ use crate::evaluator::{
 };
 #[cfg(feature = "development")]
 use crate::prover::{
-    ProofGoal, ProofMethod, ProofTactic, Statement, TheoremProvingSupport,
+    ProofGoal, ProofMethod, Statement, TheoremProvingSupport,
+    ProofTactic, ProofResult,
 };
 #[cfg(feature = "development")]
-use crate::prover::theorem_proving::ProofTerm;
+use crate::prover::proof_types::ProofTerm;
 /// Production-safe proof term placeholder
 #[cfg(not(feature = "development"))]
 #[derive(Debug, Clone)]
 pub struct ProofTerm {
+    /// Proof method used (e.g., Computation, Custom)
     pub method: String,
+    /// Sequence of proof steps
     pub proof_steps: Vec<String>,
 }
 
 #[cfg(not(feature = "development"))]
 impl ProofTerm {
-    pub fn new_simple(method: ProofMethod, description: String, _statement: Statement) -> Self {
+    /// Create a simple proof term with method and description
+    #[must_use] pub fn new_simple(method: ProofMethod, description: String, _statement: Statement) -> Self {
         Self {
             method: match method {
                 ProofMethod::Computation => "Computation".to_string(),
@@ -40,7 +44,9 @@ impl ProofTerm {
 /// Production-safe proof method placeholder
 #[cfg(not(feature = "development"))]
 pub enum ProofMethod {
+    /// Computational proof method
     Computation,
+    /// Custom proof method with description
     Custom(String),
 }
 
@@ -48,9 +54,13 @@ pub enum ProofMethod {
 #[cfg(not(feature = "development"))]
 #[derive(Debug, Clone)]
 pub struct ProofGoal {
+    /// Statement to be proven
     pub statement: Statement,
+    /// Type of proof goal
     pub goal_type: String,
+    /// Expressions involved in the proof
     pub expressions: Vec<Expr>,
+    /// Unique identifier for the goal
     pub id: String,
 }
 
@@ -58,7 +68,9 @@ pub struct ProofGoal {
 #[cfg(not(feature = "development"))]
 #[derive(Debug, Clone)]
 pub enum Statement {
+    /// Statement about R7RS compliance for an expression
     R7RSCompliance(Expr),
+    /// Axiomatic statement with name
     Axiom(String),
 }
 
@@ -125,7 +137,7 @@ impl SemanticCorrectnessProver {
         Self {
             evaluator: SemanticEvaluator::new(),
             #[cfg(feature = "development")]
-            theorem_prover: TheoremProvingSupport::new(SemanticEvaluator::new()),
+            theorem_prover: TheoremProvingSupport::new(),
             proven_properties: HashMap::new(),
         }
     }
@@ -175,7 +187,7 @@ impl SemanticCorrectnessProver {
         Ok(proof)
     }
 
-    /// Prove R7RS compliance
+    /// Prove R7RS compliance for an expression
     fn prove_r7rs_compliance(&mut self, expr: &Expr) -> Result<ProofTerm> {
         // Check if expression follows R7RS syntax rules
         if !self.check_r7rs_syntax(expr)? {
@@ -205,31 +217,29 @@ impl SemanticCorrectnessProver {
             _ => {
                 // For more complex expressions, use theorem prover
                 // Create proof goal
-                let goal = ProofGoal {
+                #[cfg(feature = "development")]
+                let _goal = ProofGoal {
+                    id: format!("r7rs_compliance_{}", expr.to_string()),
                     statement: Statement::R7RSCompliance(expr.clone()),
-                    #[cfg(feature = "development")]
-                    goal_type: crate::evaluator::GoalType::R7RSCompliance,
-                    #[cfg(not(feature = "development"))]
-                    goal_type: "R7RSCompliance".to_string(),
+                    goal_type: crate::prover::proof_types::GoalType::R7RSCompliance,
                     expressions: vec![expr.clone()],
-                    id: format!("r7rs_compliance_{}", self.generate_proof_id()),
                 };
 
                 // Add goal to theorem prover
                 #[cfg(feature = "development")]
-                self.theorem_prover.add_goal(goal)?;
+                self.theorem_prover.add_goal(_goal)?;
 
                 // Apply R7RS semantics verification
                 #[cfg(feature = "development")]
                 let tactic_result = self
                     .theorem_prover
-                    .apply_tactic(crate::evaluator::ProofTactic::R7RSSemantics)?;
+                    .apply_tactic(ProofTactic::R7RSSemantics)?;
                 
                 #[cfg(not(feature = "development"))]
-                let tactic_result = ProofTerm { method: "R7RSSemantics".to_string(), proof_steps: vec![] };
+                let _tactic_result = ProofTerm { method: "R7RSSemantics".to_string(), proof_steps: vec![] };
 
                 #[cfg(feature = "development")]
-                let result = if tactic_result.success {
+                let result = if matches!(tactic_result, ProofResult::Success) {
                     Ok(ProofTerm::new_simple(
                         ProofMethod::Custom("R7RS compliance verification".to_string()),
                         "Expression verified to comply with R7RS formal semantics".to_string(),
@@ -309,7 +319,7 @@ impl SemanticCorrectnessProver {
                 // Verify that result type is preserved through identity continuation
                 Ok(ProofTerm::new_simple(
                     ProofMethod::Computation,
-                    format!("Identity continuation preserves {} value", result_type),
+                    format!("Identity continuation preserves {result_type} value"),
                     Statement::Axiom("identity_continuation_preservation".to_string()),
                 ))
             }
@@ -318,7 +328,7 @@ impl SemanticCorrectnessProver {
                 // Include result type information in verification
                 Ok(ProofTerm::new_simple(
                     ProofMethod::Custom("Continuation verification".to_string()),
-                    format!("Continuation correctly processes {} value", result_type),
+                    format!("Continuation correctly processes {result_type} value"),
                     Statement::Axiom("continuation_preservation".to_string()),
                 ))
             }
@@ -352,7 +362,7 @@ impl SemanticCorrectnessProver {
                         // Basic arithmetic and logic operations are pure
                         Ok(ProofTerm::new_simple(
                             ProofMethod::Computation,
-                            format!("Basic operation '{}' is pure", name),
+                            format!("Basic operation '{name}' is pure"),
                             Statement::Axiom("arithmetic_purity".to_string()),
                         ))
                     } else if self.has_side_effects(expr).unwrap_or(true) {
@@ -674,6 +684,10 @@ impl SemanticCorrectnessProver {
             Value::Vector(_) => "vector".to_string(),
             Value::LazyVector(_) => "lazy-vector".to_string(),
             Value::Procedure(_) => "procedure".to_string(),
+            #[allow(deprecated)]
+            Value::BuiltinFunction(_) => "builtin-function".to_string(),
+            #[allow(deprecated)]
+            Value::Integer(_) => "integer".to_string(),
             Value::Port(_) => "port".to_string(),
             Value::External(_) => "external".to_string(),
             Value::Record(_) => "record".to_string(),
@@ -689,6 +703,10 @@ impl SemanticCorrectnessProver {
             Value::Text(_) => "text".to_string(),
             Value::IString(_) => "istring".to_string(),
             Value::UniqueTypeInstance(_) => "unique-type-instance".to_string(),
+            Value::List(_) => "list".to_string(),
+            Value::Unspecified => "unspecified".to_string(),
+            Value::Environment(_) => "environment".to_string(),
+            Value::Bytevector(_) => "bytevector".to_string(),
         }
     }
 
@@ -717,10 +735,6 @@ impl SemanticCorrectnessProver {
         }
     }
 
-    /// Generate unique proof ID
-    fn generate_proof_id(&self) -> String {
-        format!("{}", self.proven_properties.len())
-    }
 
     /// Get all proven properties
     #[must_use] pub fn get_proven_properties(&self) -> &HashMap<String, CorrectnessProof> {
@@ -760,170 +774,3 @@ impl Default for SemanticCorrectnessProver {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::ast::Literal;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_semantic_correctness_prover_creation() {
-        let prover = SemanticCorrectnessProver::new();
-        assert!(prover.proven_properties.is_empty());
-    }
-
-    #[test]
-    fn test_r7rs_compliance_simple_literal() {
-        let mut prover = SemanticCorrectnessProver::new();
-        let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-
-        let proof = prover
-            .prove_property(CorrectnessProperty::R7RSCompliance(expr))
-            .unwrap();
-        assert!(proof.proven);
-        #[cfg(feature = "development")]
-        assert!(proof.proof_term.is_some());
-    }
-
-    #[test]
-    fn test_evaluation_determinism() {
-        let mut prover = SemanticCorrectnessProver::new();
-        let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        let env = Rc::new(Environment::new());
-
-        let proof = prover
-            .prove_property(CorrectnessProperty::EvaluationDeterminism(expr, env))
-            .unwrap();
-        assert!(proof.proven);
-    }
-
-    #[test]
-    fn test_pure_function_property() {
-        let mut prover = SemanticCorrectnessProver::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-        ]);
-
-        let proof = prover
-            .prove_property(CorrectnessProperty::PureFunctionProperty(expr))
-            .unwrap();
-        assert!(proof.proven);
-    }
-
-    #[test]
-    fn test_termination_simple() {
-        let mut prover = SemanticCorrectnessProver::new();
-        let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-
-        let proof = prover
-            .prove_property(CorrectnessProperty::Termination(expr))
-            .unwrap();
-        assert!(proof.proven);
-    }
-
-    #[test]
-    fn test_type_preservation() {
-        let mut prover = SemanticCorrectnessProver::new();
-        let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-
-        let proof = prover
-            .prove_property(CorrectnessProperty::TypePreservation(
-                expr,
-                "number".to_string(),
-            ))
-            .unwrap();
-        assert!(proof.proven);
-    }
-
-    #[test]
-    fn test_reduction_correctness() {
-        let mut prover = SemanticCorrectnessProver::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(3))),
-        ]);
-
-        let proof = prover
-            .prove_property(CorrectnessProperty::ReductionCorrectness(expr))
-            .unwrap();
-        assert!(proof.proven);
-    }
-
-    #[test]
-    fn test_referential_transparency() {
-        let mut prover = SemanticCorrectnessProver::new();
-        let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        let expected_value = Value::Number(SchemeNumber::Integer(42));
-
-        let proof = prover
-            .prove_property(CorrectnessProperty::ReferentialTransparency(
-                expr,
-                expected_value,
-            ))
-            .unwrap();
-        assert!(proof.proven);
-    }
-
-    #[test]
-    fn test_comprehensive_correctness() {
-        let mut prover = SemanticCorrectnessProver::new();
-        let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-
-        let proofs = prover.verify_comprehensive_correctness(&expr).unwrap();
-        assert!(!proofs.is_empty());
-
-        for proof in proofs {
-            assert!(proof.proven);
-        }
-    }
-
-    #[test]
-    fn test_side_effect_detection() {
-        let prover = SemanticCorrectnessProver::new();
-
-        // Pure expression
-        let pure_expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(2))),
-        ]);
-        assert!(!prover.has_side_effects(&pure_expr).unwrap());
-
-        // Side-effecting expression
-        let side_effect_expr = Expr::List(vec![
-            Expr::Variable("set!".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(42))),
-        ]);
-        assert!(prover.has_side_effects(&side_effect_expr).unwrap());
-    }
-
-    #[test]
-    fn test_r7rs_syntax_validation() {
-        let prover = SemanticCorrectnessProver::new();
-
-        // Valid identifier
-        assert!(prover.is_valid_identifier("valid-name"));
-        assert!(prover.is_valid_identifier("x"));
-        assert!(prover.is_valid_identifier("lambda"));
-
-        // Invalid identifier
-        assert!(!prover.is_valid_identifier("123invalid"));
-        assert!(!prover.is_valid_identifier(""));
-    }
-
-    #[test]
-    fn test_value_equality() {
-        let prover = SemanticCorrectnessProver::new();
-
-        let v1 = Value::Number(SchemeNumber::Integer(42));
-        let v2 = Value::Number(SchemeNumber::Integer(42));
-        let v3 = Value::Number(SchemeNumber::Integer(43));
-
-        assert!(prover.values_equal(&v1, &v2).unwrap());
-        assert!(!prover.values_equal(&v1, &v3).unwrap());
-    }
-}

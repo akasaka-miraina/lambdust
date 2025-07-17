@@ -6,9 +6,9 @@
 use crate::error::Result;
 use crate::evaluator::{
     combinators::CombinatorExpr,
-    theorem_proving::{ProofMethod, ProofTerm, ProofTermType},
     SemanticEvaluator,
 };
+use crate::prover::proof_types::{ProofMethod, ProofTerm, ProofTermType};
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -214,16 +214,19 @@ impl ChurchRosserProofEngine {
 
         // 証明実行 (プレースホルダー)
         let proof_result = ProofResult::Proven(ProofTerm {
-            method: ProofMethod::Induction("church_rosser".to_string()), // Use existing variant
+            id: format!("church_rosser_{:?}", expr),
+            term_type: ProofTermType::ChurchRosserProof, // Use existing variant
+            expression: None, // CombinatorExpr cannot be directly converted to Expr
+            sub_terms: Vec::new(),
+            properties: HashMap::new(),
+            method: ProofMethod::Custom("church_rosser".to_string()), // Use existing variant
             subproofs: Vec::new(),
             explanation: format!("Church-Rosser proof for: {:?}", expr),
-            term_type: ProofTermType::ChurchRosserProof, // Use existing variant
             proof_steps: Vec::new(),
             lemmas_used: Vec::new(),
             tactics_used: Vec::new(),
-            conclusion: crate::evaluator::theorem_proving::Statement::Custom(
-                format!("Church-Rosser proof for: {:?}", expr), 
-                vec![]
+            conclusion: crate::prover::proof_types::Statement::Custom(
+                format!("Church-Rosser proof for: {:?}", expr)
             ),
         });
 

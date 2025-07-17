@@ -119,6 +119,10 @@ impl fmt::Display for Value {
             Value::Pair(pair_ref) => self.display_pair(f, pair_ref),
             Value::Nil => write!(f, "()"),
             Value::Procedure(proc) => self.display_procedure(f, proc),
+            #[allow(deprecated)]
+            Value::BuiltinFunction(_) => write!(f, "#<builtin>"),
+            #[allow(deprecated)]
+            Value::Integer(i) => write!(f, "{i}"),
             Value::Vector(values) => self.display_vector(f, values),
             Value::LazyVector(lazy_vec) => {
                 let storage = lazy_vec.borrow();
@@ -185,6 +189,28 @@ impl fmt::Display for Value {
             Value::UniqueTypeInstance(instance) => {
                 write!(f, "#<unique-type-instance:{} {:?}>", instance.type_id, instance.payload)
             }
+            Value::List(items) => {
+                write!(f, "(")?;
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                write!(f, ")")
+            }
+            Value::Unspecified => write!(f, "#<unspecified>"),
+            Value::Environment(_) => write!(f, "#<environment>"),
+            Value::Bytevector(bytes) => {
+                write!(f, "#u8(")?;
+                for (i, byte) in bytes.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{byte}")?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -209,6 +235,10 @@ impl std::fmt::Debug for Value {
             }
             Self::Nil => write!(f, "Nil"),
             Self::Procedure(arg0) => f.debug_tuple("Procedure").field(arg0).finish(),
+            #[allow(deprecated)]
+            Self::BuiltinFunction(_) => f.debug_tuple("BuiltinFunction").field(&"<builtin>").finish(),
+            #[allow(deprecated)]
+            Self::Integer(arg0) => f.debug_tuple("Integer").field(arg0).finish(),
             Self::Vector(arg0) => f.debug_tuple("Vector").field(arg0).finish(),
             Self::LazyVector(arg0) => {
                 let storage = arg0.borrow();
@@ -241,6 +271,10 @@ impl std::fmt::Debug for Value {
                 .field(&instance.type_id)
                 .field(&instance.payload)
                 .finish(),
+            Self::List(arg0) => f.debug_tuple("List").field(arg0).finish(),
+            Self::Unspecified => write!(f, "Unspecified"),
+            Self::Environment(_) => f.debug_tuple("Environment").field(&"<environment>").finish(),
+            Self::Bytevector(arg0) => f.debug_tuple("Bytevector").field(arg0).finish(),
         }
     }
 }

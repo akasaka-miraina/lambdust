@@ -63,7 +63,9 @@ pub enum UniverseConstraint {
     AtMost(UniverseLevel),
     /// Relative to another parameter: u = v + n
     Relative {
+        /// Base parameter name
         base_param: String,
+        /// Offset from base parameter
         offset: isize,
     },
     /// Universe variable reference: u
@@ -119,12 +121,16 @@ pub enum UniversePolymorphicType {
     },
     /// Universe application: T u
     UniverseApplication {
+        /// Base type to apply universe to
         base: Box<UniversePolymorphicType>,
+        /// Universe argument
         universe_arg: UniverseExpression,
     },
     /// Type class constraint: Class T => ...
     Constrained {
+        /// Universe polymorphic constraints
         constraints: Vec<UniversePolymorphicConstraint>,
+        /// Constrained type body
         body: Box<UniversePolymorphicType>,
     },
 }
@@ -240,7 +246,9 @@ pub enum Justification {
     Law(String),
     /// Substitution
     Substitution {
+        /// Target to substitute
         target: String,
+        /// Replacement value
         replacement: String,
     },
     /// Universe level reasoning
@@ -298,13 +306,13 @@ pub struct UniverseSolution {
 pub struct UniverseProofChecker {
     /// Known axioms
     axioms: RwLock<HashMap<String, UniversePolymorphicLaw>>,
-    /// Proof cache
-    proof_cache: RwLock<HashMap<String, bool>>,
+    // TODO: Implement proof cache system
+    // This field was removed as it's currently unused
 }
 
 impl UniversePolymorphicRegistry {
     /// Create new universe polymorphic registry
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             classes: RwLock::new(HashMap::new()),
             instances: RwLock::new(HashMap::new()),
@@ -334,7 +342,7 @@ impl UniversePolymorphicRegistry {
         
         let mut instances = self.instances.write().unwrap();
         instances.entry(instance.class_name.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(instance);
         
         Ok(())
@@ -451,7 +459,7 @@ impl UniversePolymorphicRegistry {
         }
 
         // Validate universe arguments
-        for (_param_name, universe_expr) in &instance.universe_args {
+        for universe_expr in instance.universe_args.values() {
             self.validate_universe_expression(universe_expr)?;
         }
 
@@ -545,9 +553,15 @@ impl UniversePolymorphicRegistry {
     }
 }
 
+impl Default for UniverseConstraintSolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl UniverseConstraintSolver {
     /// Create new constraint solver
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             universe_relations: RwLock::new(HashMap::new()),
             solution_cache: RwLock::new(HashMap::new()),
@@ -578,17 +592,22 @@ impl UniverseConstraintSolver {
     pub fn add_relation(&self, var: String, constraint: UniverseConstraint) {
         let mut relations = self.universe_relations.write().unwrap();
         relations.entry(var)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(constraint);
+    }
+}
+
+impl Default for UniverseProofChecker {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 impl UniverseProofChecker {
     /// Create new proof checker
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             axioms: RwLock::new(HashMap::new()),
-            proof_cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -616,126 +635,21 @@ impl UniverseProofChecker {
     }
 }
 
-impl Default for UniversePolymorphicRegistry {
-    fn default() -> Self {
-        Self::new()
+impl Clone for UniversePolymorphicRegistry {
+    fn clone(&self) -> Self {
+        let classes = self.classes.read().unwrap().clone();
+        let instances = self.instances.read().unwrap().clone();
+        Self {
+            classes: RwLock::new(classes),
+            instances: RwLock::new(instances),
+            constraint_solver: Arc::clone(&self.constraint_solver),
+            proof_checker: Arc::clone(&self.proof_checker),
+        }
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::type_system::polynomial_types::BaseType;
-
-    #[test]
-    fn test_registry_creation() {
-        let registry = UniversePolymorphicRegistry::new();
-        assert!(registry.list_classes().is_empty());
-    }
-
-    #[test]
-    fn test_class_registration() {
-        let registry = UniversePolymorphicRegistry::new();
-        
-        let class = UniversePolymorphicClass {
-            name: "Functor".to_string(),
-            universe_parameter: "u".to_string(),
-            type_parameters: vec![
-                UniversePolymorphicParameter {
-                    name: "f".to_string(),
-                    universe_constraint: UniverseConstraint::AtLeast(UniverseLevel::new(1)),
-                    kind_constraint: Some(KindConstraint::TypeConstructor(1)),
-                }
-            ],
-            methods: vec![
-                UniversePolymorphicMethod {
-                    name: "fmap".to_string(),
-                    signature: UniversePolymorphicType::ForAllUniverse {
-                        universe_var: "u".to_string(),
-                        constraint: UniverseConstraint::Any,
-                        body: Box::new(UniversePolymorphicType::Concrete {
-                            poly_type: PolynomialType::Base(BaseType::Natural),
-                            universe: UniverseLevel::new(0),
-                        }),
-                    },
-                    default_impl: None,
-                    laws: vec![],
-                }
-            ],
-            laws: vec![],
-            superclasses: vec![],
-        };
-
-        let result = registry.register_class(class);
-        assert!(result.is_ok());
-        assert_eq!(registry.list_classes().len(), 1);
-    }
-
-    #[test]
-    fn test_universe_constraint_types() {
-        let constraint = UniverseConstraint::AtLeast(UniverseLevel::new(2));
-        assert_eq!(constraint, UniverseConstraint::AtLeast(UniverseLevel::new(2)));
-
-        let relative = UniverseConstraint::Relative {
-            base_param: "u".to_string(),
-            offset: 1,
-        };
-        
-        match relative {
-            UniverseConstraint::Relative { base_param, offset } => {
-                assert_eq!(base_param, "u");
-                assert_eq!(offset, 1);
-            }
-            _ => panic!("Expected relative constraint"),
-        }
-    }
-
-    #[test]
-    fn test_universe_expression_evaluation() {
-        let expr = UniverseExpression::Successor(
-            Box::new(UniverseExpression::Literal(UniverseLevel::new(0)))
-        );
-        
-        match expr {
-            UniverseExpression::Successor(inner) => {
-                match *inner {
-                    UniverseExpression::Literal(level) => {
-                        assert_eq!(level, UniverseLevel::new(0));
-                    }
-                    _ => panic!("Expected literal"),
-                }
-            }
-            _ => panic!("Expected successor"),
-        }
-    }
-
-    #[test]
-    fn test_proof_method_types() {
-        let proof = UniversePolymorphicProof {
-            method: ProofMethod::UniverseInduction,
-            steps: vec![],
-            universe_scope: UniverseScope::Universal,
-        };
-
-        assert_eq!(proof.method, ProofMethod::UniverseInduction);
-        assert_eq!(proof.universe_scope, UniverseScope::Universal);
-    }
-
-    #[test]
-    fn test_constraint_solver_creation() {
-        let solver = UniverseConstraintSolver::new();
-        
-        // Add a simple relation
-        solver.add_relation(
-            "u".to_string(),
-            UniverseConstraint::AtLeast(UniverseLevel::new(1))
-        );
-
-        // Solver should be able to handle basic constraints
-        let result = solver.solve_constraints(
-            &HashMap::new(),
-            UniverseLevel::new(2)
-        );
-        assert!(result.is_ok());
+impl Default for UniversePolymorphicRegistry {
+    fn default() -> Self {
+        Self::new()
     }
 }

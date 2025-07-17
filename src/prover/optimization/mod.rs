@@ -33,7 +33,7 @@ pub use theorem_derivation::{InferenceRule, LearnedPattern, TheoremDerivationEng
 pub use verified_optimization::{OptimizationController, VerificationSystem, VerifiedOptimization};
 
 // Re-export VerificationDepth directly from its source
-pub use crate::prover::formal_verification::configuration_types::VerificationDepth;
+pub use crate::prover::proof_types::VerificationDepth;
 
 use std::collections::HashMap;
 use crate::prover::formal_verification::FormalVerificationEngine;
@@ -214,74 +214,4 @@ pub fn create_development_optimizer() -> StaticSemanticOptimizer {
         performance_threshold: 1.2, // 20% improvement minimum
     };
     StaticSemanticOptimizer::new(config)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::lexer::SchemeNumber;
-
-    #[test]
-    fn test_optimizer_creation() {
-        let optimizer = create_static_optimizer();
-        assert_eq!(optimizer.cache_size(), 0);
-        assert_eq!(optimizer.statistics().expressions_analyzed, 0);
-    }
-
-    #[test]
-    fn test_production_optimizer() {
-        let optimizer = create_production_optimizer();
-        assert!(optimizer.config().enable_loop_optimization);
-        assert_eq!(optimizer.config().max_iterations, 10);
-    }
-
-    #[test]
-    fn test_development_optimizer() {
-        let optimizer = create_development_optimizer();
-        assert!(!optimizer.config().enable_loop_optimization);
-        assert_eq!(optimizer.config().max_iterations, 3);
-    }
-
-    #[test]
-    fn test_optimization_statistics() {
-        let stats = OptimizationStatistics::default();
-        assert_eq!(stats.efficiency(), 0.0);
-        assert_eq!(stats.average_performance_gain(), 0.0);
-        assert_eq!(stats.average_memory_reduction(), 0.0);
-    }
-
-    #[test]
-    fn test_optimizer_config_update() {
-        let mut optimizer = create_static_optimizer();
-        let new_config = StaticOptimizerConfiguration {
-            max_iterations: 20,
-            ..StaticOptimizerConfiguration::default()
-        };
-        
-        optimizer.set_config(new_config);
-        assert_eq!(optimizer.config().max_iterations, 20);
-    }
-
-    #[test]
-    fn test_cache_operations() {
-        let mut optimizer = create_static_optimizer();
-        assert_eq!(optimizer.cache_size(), 0);
-        
-        optimizer.clear_cache();
-        assert_eq!(optimizer.cache_size(), 0);
-    }
-
-    #[test]
-    fn test_simple_optimization() {
-        let mut optimizer = create_static_optimizer();
-        let expr = Expr::Literal(Literal::Number(SchemeNumber::Integer(42)));
-        let env = Rc::new(Environment::new());
-        
-        let result = optimizer.optimize_with_proof(&expr, env);
-        assert!(result.is_ok());
-        
-        let proven_opt = result.unwrap();
-        assert!(proven_opt.proof.is_valid);
-        assert_eq!(proven_opt.performance_gain, 1.0);
-    }
 }

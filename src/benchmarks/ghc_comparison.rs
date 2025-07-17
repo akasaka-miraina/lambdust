@@ -260,7 +260,7 @@ pub enum ComplexityClass {
 
 impl GHCComparisonSuite {
     /// Create new GHC comparison suite
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             type_system: PolynomialUniverseSystem::new(),
             evaluator: EvaluatorInterface::new(),
@@ -395,8 +395,8 @@ impl GHCComparisonSuite {
             cpu_time: elapsed, // Simplified
             memory_used: 1024 * 1024, // 1MB estimated
             allocations: total_checks as u64 * 10,
-            throughput: total_checks as f64 / elapsed.as_secs_f64(),
-            cache_hit_rate: successful_checks as f64 / total_checks as f64,
+            throughput: f64::from(total_checks) / elapsed.as_secs_f64(),
+            cache_hit_rate: f64::from(successful_checks) / f64::from(total_checks),
         })
     }
 
@@ -406,7 +406,7 @@ impl GHCComparisonSuite {
         let mut total_inferences = 0;
         let mut successful_inferences = 0;
 
-        for _expr_str in expressions.iter() {
+        for _expr_str in expressions {
             total_inferences += 1;
             
             // Simplified: infer type of a dummy value
@@ -425,8 +425,8 @@ impl GHCComparisonSuite {
             cpu_time: elapsed,
             memory_used: 2 * 1024 * 1024, // 2MB estimated
             allocations: total_inferences as u64 * 15,
-            throughput: total_inferences as f64 / elapsed.as_secs_f64(),
-            cache_hit_rate: successful_inferences as f64 / total_inferences as f64,
+            throughput: f64::from(total_inferences) / elapsed.as_secs_f64(),
+            cache_hit_rate: f64::from(successful_inferences) / f64::from(total_inferences),
         })
     }
 
@@ -633,7 +633,7 @@ impl GHCComparisonSuite {
         match SystemTime::now().duration_since(UNIX_EPOCH) {
             Ok(duration) => {
                 let secs = duration.as_secs();
-                format!("{}Z", secs) // Simplified timestamp
+                format!("{secs}Z") // Simplified timestamp
             }
             Err(_) => "unknown".to_string(),
         }
@@ -671,7 +671,7 @@ impl GHCComparisonSuite {
                 category: GHCBenchmarkCategory::TypeInference,
                 description: "Complex type inference scenarios".to_string(),
                 test_function: GHCTestFunction::TypeInference {
-                    expressions: (0..100).map(|i| format!("expr_{}", i)).collect(),
+                    expressions: (0..100).map(|i| format!("expr_{i}")).collect(),
                 },
                 expected_complexity: ComplexityClass::Quadratic,
                 ghc_reference: Some(GHCReferenceMetrics {
@@ -689,7 +689,7 @@ impl GHCComparisonSuite {
                 category: GHCBenchmarkCategory::Parallel,
                 description: "Parallel type checking performance".to_string(),
                 test_function: GHCTestFunction::Parallel {
-                    expressions: (0..1000).map(|i| format!("parallel_expr_{}", i)).collect(),
+                    expressions: (0..1000).map(|i| format!("parallel_expr_{i}")).collect(),
                     thread_counts: vec![1, 2, 4, 8, 16],
                 },
                 expected_complexity: ComplexityClass::Logarithmic,
@@ -708,8 +708,8 @@ impl GHCComparisonSuite {
                 category: GHCBenchmarkCategory::AdvancedTypes,
                 description: "Universe polymorphic type class performance".to_string(),
                 test_function: GHCTestFunction::AdvancedTypes {
-                    type_definitions: (0..50).map(|i| format!("type_def_{}", i)).collect(),
-                    constraints: (0..20).map(|i| format!("constraint_{}", i)).collect(),
+                    type_definitions: (0..50).map(|i| format!("type_def_{i}")).collect(),
+                    constraints: (0..20).map(|i| format!("constraint_{i}")).collect(),
                 },
                 expected_complexity: ComplexityClass::Quadratic,
                 ghc_reference: Some(GHCReferenceMetrics {
@@ -758,9 +758,9 @@ impl GHCComparisonSuite {
         let wins = results.iter().filter(|r| r.performance_ratio.overall_score > 1.0).count();
         let win_rate = wins as f64 / total_tests as f64 * 100.0;
         
-        report.push_str(&format!("## Executive Summary\n"));
-        report.push_str(&format!("- Total benchmarks: {}\n", total_tests));
-        report.push_str(&format!("- Lambdust wins: {} ({:.1}%)\n", wins, win_rate));
+        report.push_str("## Executive Summary\n");
+        report.push_str(&format!("- Total benchmarks: {total_tests}\n"));
+        report.push_str(&format!("- Lambdust wins: {wins} ({win_rate:.1}%)\n"));
         report.push_str(&format!("- Average overall speedup: {:.2}x\n\n", 
                                 results.iter().map(|r| r.performance_ratio.overall_score).sum::<f64>() / total_tests as f64));
 
@@ -773,7 +773,7 @@ impl GHCComparisonSuite {
             report.push_str(&format!("- Runtime speedup: {:.2}x\n", result.performance_ratio.runtime_speedup));
             report.push_str(&format!("- Memory efficiency: {:.2}x\n", result.performance_ratio.memory_efficiency));
             report.push_str(&format!("- Overall score: {:.2}x\n", result.performance_ratio.overall_score));
-            report.push_str("\n");
+            report.push('\n');
         }
 
         report
@@ -804,92 +804,5 @@ impl GHCComparisonSuite {
 impl Default for GHCComparisonSuite {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_ghc_comparison_suite_creation() {
-        let suite = GHCComparisonSuite::new();
-        assert_eq!(suite.results_history.len(), 0);
-        assert_eq!(suite.config.iterations, 100);
-    }
-
-    #[test]
-    fn test_performance_ratio_calculation() {
-        let suite = GHCComparisonSuite::new();
-        
-        // Realistic performance data where Lambdust outperforms GHC
-        // in areas where Rust's performance and parallel type checking give advantages
-        let lambdust_metrics = PerformanceMetrics {
-            wall_time: Duration::from_millis(50),  // Faster compilation (50ms vs 200ms GHC)
-            cpu_time: Duration::from_micros(80),   // Faster execution (80μs vs 160μs GHC)
-            memory_used: 512 * 1024,              // More efficient memory (512KB vs 2MB GHC)
-            allocations: 1000,
-            throughput: 10.0,
-            cache_hit_rate: 0.9,
-        };
-        
-        let ghc_metrics = GHCReferenceMetrics {
-            compilation_time_ms: 200.0,           // GHC takes 200ms to compile
-            execution_time_us: 160.0,             // GHC takes 160μs to execute
-            memory_usage_bytes: 2 * 1024 * 1024,  // GHC uses 2MB memory
-            ghc_version: "9.8.1".to_string(),
-            optimization_level: GHCOptimizationLevel::Full,
-        };
-        
-        let ratio = suite.calculate_performance_ratio(&lambdust_metrics, &ghc_metrics);
-        
-        // Verify Lambdust outperforms GHC in all metrics
-        assert!(ratio.compilation_speedup > 1.0, "Compilation speedup should be > 1.0, got: {}", ratio.compilation_speedup);
-        assert!(ratio.runtime_speedup > 1.0, "Runtime speedup should be > 1.0, got: {}", ratio.runtime_speedup);
-        assert!(ratio.memory_efficiency > 1.0, "Memory efficiency should be > 1.0, got: {}", ratio.memory_efficiency);
-        assert!(ratio.overall_score > 1.0, "Overall score should be > 1.0, got: {}", ratio.overall_score);
-    }
-
-    #[test]
-    fn test_standard_test_cases_creation() {
-        let suite = GHCComparisonSuite::new();
-        let test_cases = suite.create_standard_test_cases().unwrap();
-        
-        assert!(!test_cases.is_empty());
-        assert!(test_cases.iter().any(|tc| matches!(tc.category, GHCBenchmarkCategory::TypeChecking)));
-        assert!(test_cases.iter().any(|tc| matches!(tc.category, GHCBenchmarkCategory::Parallel)));
-        assert!(test_cases.iter().any(|tc| matches!(tc.category, GHCBenchmarkCategory::AdvancedTypes)));
-    }
-
-    #[test]
-    fn test_benchmark_metadata_creation() {
-        let suite = GHCComparisonSuite::new();
-        let system_info = suite.get_system_info();
-        
-        assert!(!system_info.os.is_empty());
-        assert!(!system_info.rust_version.is_empty());
-    }
-
-    #[test]
-    fn test_statistical_analysis_methods() {
-        let suite = GHCComparisonSuite::new();
-        
-        let dummy_metrics = PerformanceMetrics {
-            wall_time: Duration::from_millis(100),
-            cpu_time: Duration::from_millis(80),
-            memory_used: 1024,
-            allocations: 100,
-            throughput: 1.0,
-            cache_hit_rate: 0.5,
-        };
-        
-        let measurements = vec![
-            (dummy_metrics.clone(), Duration::from_millis(10)),
-            (dummy_metrics.clone(), Duration::from_millis(15)),
-            (dummy_metrics, Duration::from_millis(12)),
-        ];
-        
-        let result = suite.calculate_average(&measurements);
-        assert!(result.is_ok());
     }
 }

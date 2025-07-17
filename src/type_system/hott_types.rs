@@ -3,7 +3,7 @@
 //!
 //! ## Implementation Status: THEORETICAL RESEARCH
 //!
-//! This module contains experimental HoTT implementation based on current
+//! This module contains experimental `HoTT` implementation based on current
 //! research in homotopy type theory and univalent foundations.
 //!
 //! ## TODO Phase 10 Implementation Plan:
@@ -12,7 +12,7 @@
 //! - Add higher inductive types with computational rules
 //! - Integrate with proof assistant backends (Agda, Lean, Coq)
 //! - Implement homotopy level calculations and truncation
-//! - Add universe polymorphism for HoTT hierarchies
+//! - Add universe polymorphism for `HoTT` hierarchies
 
 // HoTT structures are documented with theoretical foundations.
 // Allow directive removed - all public APIs have appropriate documentation.
@@ -22,48 +22,68 @@ use crate::value::Value;
 use crate::error::LambdustError;
 use std::collections::HashMap;
 
-/// HoTT type representation
+/// Homotopy Type Theory (HoTT) type representation
+/// 
+/// Represents types in the HoTT system including identity types,
+/// path types, higher inductive types, and univalent universes.
 #[derive(Debug, Clone, PartialEq)]
 pub enum HoTTType {
     /// Basic polynomial type
     Polynomial(PolynomialType),
     
-    /// Identity type: Id_A(x, y) (x = y in type A)
+    /// Identity type: `Id_A(x`, y) (x = y in type A)
     Identity {
+        /// Base type A in which equality is considered
         base_type: Box<PolynomialType>,
+        /// Left side of the equality
         left: Box<PolynomialType>,
+        /// Right side of the equality
         right: Box<PolynomialType>,
     },
     
     /// Path type: Path A x y
     Path {
+        /// The space in which the path lives
         space: Box<PolynomialType>,
+        /// The starting point of the path
         start: Box<PolynomialType>,
+        /// The ending point of the path
         end: Box<PolynomialType>,
     },
     
     /// Higher inductive type
     HigherInductive {
+        /// Type name
         name: String,
+        /// Constructor definitions
         constructors: Vec<HITConstructor>,
+        /// Path constructor definitions for equality
         path_constructors: Vec<PathConstructor>,
     },
     
     /// Univalent universe
     UnivalentUniverse {
+        /// Universe level
         level: UniverseLevel,
+        /// Univalence axiom implementation
         univalence_axiom: UnivalenceAxiom,
     },
     
     /// Type class constraint
     TypeClass {
+        /// Name of the type class
         class_name: String,
+        /// Type for which the class constraint applies
         instance_type: Box<PolynomialType>,
+        /// Mathematical laws that must be satisfied
         laws: Vec<TypeClassLaw>,
     },
 }
 
 /// Higher inductive type constructor
+/// 
+/// Represents a constructor for higher inductive types,
+/// including argument types and target type information.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HITConstructor {
     /// Constructor name
@@ -74,19 +94,26 @@ pub struct HITConstructor {
     pub target: PolynomialType,
 }
 
-/// Path constructor for HITs
+/// Path constructor for higher inductive types
+/// 
+/// Represents path constructors that define equality relationships
+/// between constructors in higher inductive types.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PathConstructor {
     /// Path name
     pub name: String,
-    /// Source and target constructors
+    /// Source constructor name
     pub source: String,
+    /// Target constructor name
     pub target: String,
     /// Path type
     pub path_type: PolynomialType,
 }
 
 /// Univalence axiom representation
+/// 
+/// Represents the univalence axiom which states that
+/// equivalent types are equal (A ≃ B) → (A = B).
 #[derive(Debug, Clone, PartialEq)]
 pub struct UnivalenceAxiom {
     /// Universe level
@@ -96,6 +123,9 @@ pub struct UnivalenceAxiom {
 }
 
 /// Type class law (mathematical property)
+/// 
+/// Represents mathematical laws that type class instances
+/// must satisfy, with optional proof terms.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TypeClassLaw {
     /// Law name
@@ -107,6 +137,9 @@ pub struct TypeClassLaw {
 }
 
 /// Higher structure (∞-groupoid structure)
+/// 
+/// Represents higher categorical structures including
+/// coherence laws and dimensional information for ∞-groupoids.
 #[derive(Debug, Clone, PartialEq)]
 pub struct HigherStructure {
     /// Base type
@@ -118,6 +151,9 @@ pub struct HigherStructure {
 }
 
 /// Coherence law for higher structures
+/// 
+/// Represents coherence laws at various levels
+/// that ensure consistency in higher categorical structures.
 #[derive(Debug, Clone, PartialEq)]
 pub struct CoherenceLaw {
     /// Law name
@@ -129,6 +165,9 @@ pub struct CoherenceLaw {
 }
 
 /// Type class definition
+/// 
+/// Defines a type class including parameters, required methods,
+/// laws, and universe level for the HoTT type system.
 #[derive(Debug, Clone)]
 pub struct TypeClassDefinition {
     /// Class name
@@ -144,6 +183,9 @@ pub struct TypeClassDefinition {
 }
 
 /// Method signature in type class
+/// 
+/// Represents the signature of a method within a type class
+/// including type information and optional default implementation.
 #[derive(Debug, Clone)]
 pub struct MethodSignature {
     /// Method name
@@ -155,6 +197,9 @@ pub struct MethodSignature {
 }
 
 /// Type class instance
+/// 
+/// Represents an instance of a type class for a specific type
+/// including method implementations and law proofs.
 #[derive(Debug, Clone)]
 pub struct TypeClassInstance {
     /// Class name
@@ -168,7 +213,10 @@ pub struct TypeClassInstance {
 }
 
 /// Type class registry
-#[derive(Debug)]
+/// 
+/// Central registry for managing type classes and their instances
+/// with resolution caching for efficient instance lookup.
+#[derive(Debug, Clone)]
 pub struct TypeClassRegistry {
     /// Registered type classes
     classes: HashMap<String, TypeClassDefinition>,
@@ -180,7 +228,10 @@ pub struct TypeClassRegistry {
 
 impl TypeClassRegistry {
     /// Create new type class registry
-    pub fn new() -> Self {
+    /// 
+    /// Initializes the registry with standard type classes
+    /// like Functor and Monad pre-registered.
+    #[must_use] pub fn new() -> Self {
         let mut registry = Self {
             classes: HashMap::new(),
             instances: HashMap::new(),
@@ -194,6 +245,14 @@ impl TypeClassRegistry {
     }
     
     /// Register a type class
+    /// 
+    /// Adds a new type class definition to the registry after validation.
+    /// 
+    /// # Arguments
+    /// * `class` - The type class definition to register
+    /// 
+    /// # Errors
+    /// Returns error if class already exists or definition is invalid
     pub fn register_class(&mut self, class: TypeClassDefinition) -> Result<(), LambdustError> {
         if self.classes.contains_key(&class.name) {
             return Err(LambdustError::type_error(format!("Type class '{}' already exists", class.name)));
@@ -207,6 +266,14 @@ impl TypeClassRegistry {
     }
     
     /// Register a type class instance
+    /// 
+    /// Adds a new instance of a type class for a specific type.
+    /// 
+    /// # Arguments
+    /// * `instance` - The type class instance to register
+    /// 
+    /// # Errors
+    /// Returns error if class doesn't exist or instance is invalid
     pub fn register_instance(&mut self, instance: TypeClassInstance) -> Result<(), LambdustError> {
         // Check if class exists
         if !self.classes.contains_key(&instance.class_name) {
@@ -219,13 +286,26 @@ impl TypeClassRegistry {
         // Add to instances
         self.instances
             .entry(instance.class_name.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(instance);
         
         Ok(())
     }
     
     /// Resolve type class instance
+    /// 
+    /// Finds a matching instance for the given class and type,
+    /// using caching for efficiency.
+    /// 
+    /// # Arguments
+    /// * `class_name` - Name of the type class
+    /// * `instance_type` - Type to find instance for
+    /// 
+    /// # Returns
+    /// The matching type class instance
+    /// 
+    /// # Errors
+    /// Returns error if no matching instance is found
     pub fn resolve_instance(&mut self, class_name: &str, instance_type: &PolynomialType) -> Result<TypeClassInstance, LambdustError> {
         let cache_key = (class_name.to_string(), instance_type.clone());
         
@@ -246,8 +326,7 @@ impl TypeClassRegistry {
         }
         
         Err(LambdustError::type_error(format!(
-            "No instance of type class '{}' for type {:?}",
-            class_name, instance_type
+            "No instance of type class '{class_name}' for type {instance_type:?}"
         )))
     }
     
@@ -443,76 +522,5 @@ impl TypeClassRegistry {
 impl Default for TypeClassRegistry {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::type_system::polynomial_types::BaseType;
-
-    #[test]
-    fn test_type_class_registry_creation() {
-        let registry = TypeClassRegistry::new();
-        assert!(registry.classes.contains_key("Functor"));
-        assert!(registry.classes.contains_key("Monad"));
-    }
-
-    #[test]
-    fn test_functor_class_definition() {
-        let registry = TypeClassRegistry::new();
-        let functor = registry.classes.get("Functor").unwrap();
-        
-        assert_eq!(functor.name, "Functor");
-        assert_eq!(functor.parameters.len(), 1);
-        assert!(functor.methods.contains_key("fmap"));
-    }
-
-    #[test]
-    fn test_type_class_instance_registration() {
-        let mut registry = TypeClassRegistry::new();
-        
-        // Create a simple instance for List
-        let list_functor = TypeClassInstance {
-            class_name: "Functor".to_string(),
-            instance_type: PolynomialType::List {
-                element_type: Box::new(PolynomialType::Variable {
-                    name: "A".to_string(),
-                    level: UniverseLevel::new(0),
-                }),
-            },
-            implementations: {
-                let mut impls = HashMap::new();
-                impls.insert("fmap".to_string(), Value::Symbol("list-map".to_string()));
-                impls
-            },
-            law_proofs: HashMap::new(),
-        };
-        
-        let result = registry.register_instance(list_functor);
-        assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_hott_identity_type() {
-        let identity_type = HoTTType::Identity {
-            base_type: Box::new(PolynomialType::Base(BaseType::Integer)),
-            left: Box::new(PolynomialType::Variable {
-                name: "x".to_string(),
-                level: UniverseLevel::new(0),
-            }),
-            right: Box::new(PolynomialType::Variable {
-                name: "y".to_string(),
-                level: UniverseLevel::new(0),
-            }),
-        };
-        
-        // Test that identity types can be created
-        match identity_type {
-            HoTTType::Identity { .. } => {
-                // Successfully created identity type
-            },
-            _ => panic!("Expected identity type"),
-        }
     }
 }

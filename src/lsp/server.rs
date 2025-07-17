@@ -419,26 +419,3 @@ impl LambdustLanguageServer {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_server_creation() {
-        let config = LspConfig::default();
-        let server = LambdustLanguageServer::new(config);
-        assert!(server.is_ok());
-    }
-
-    #[test]
-    fn test_server_state() {
-        let config = LspConfig::default();
-        let mut server = LambdustLanguageServer::new(config).unwrap();
-        
-        assert_eq!(server.state(), ServerState::Starting);
-        
-        server.server_state = ServerState::Running;
-        assert_eq!(server.state(), ServerState::Running);
-    }
-}

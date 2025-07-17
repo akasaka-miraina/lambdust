@@ -42,6 +42,9 @@ pub enum Value {
     Boolean(bool),
     /// Numeric values
     Number(SchemeNumber),
+    /// Integer values (legacy compatibility)
+    #[deprecated(note = "Use Number(SchemeNumber::Integer) instead")]
+    Integer(i64),
     /// String values
     String(String),
     /// Short string values (up to 15 bytes, no heap allocation)
@@ -58,6 +61,9 @@ pub enum Value {
     Nil,
     /// Procedure values (both user-defined and built-in)
     Procedure(Procedure),
+    /// Built-in function values (legacy compatibility)
+    #[deprecated(note = "Use Procedure(Procedure::Builtin) instead")]
+    BuiltinFunction(fn(&[Value], &crate::environment::Environment) -> crate::Result<Value>),
     /// Vector values (traditional immediate allocation)
     Vector(Vec<Value>),
     /// Lazy vector values (memory-efficient for large vectors)
@@ -90,12 +96,20 @@ pub enum Value {
     IString(std::rc::Rc<crate::srfi::srfi_140::IString>),
     /// Unique type instance values (SRFI 137)
     UniqueTypeInstance(crate::srfi::srfi_137::UniqueTypeInstance),
+    /// List values (alternative to Pair representation)
+    List(Vec<Value>),
+    /// Unspecified value (R7RS)
+    Unspecified,
+    /// Environment values (for eval)
+    Environment(std::rc::Rc<crate::environment::Environment>),
+    /// Bytevector values (R7RS)
+    Bytevector(Vec<u8>),
 }
 
 impl Value {
     /// Create a Value from an AST Literal
     /// This eliminates code duplication across evaluators
-    pub fn from_literal(lit: &crate::ast::Literal) -> Self {
+    #[must_use] pub fn from_literal(lit: &crate::ast::Literal) -> Self {
         match lit {
             crate::ast::Literal::Number(n) => Value::Number(n.clone()),
             crate::ast::Literal::String(s) => Value::String(s.clone()),

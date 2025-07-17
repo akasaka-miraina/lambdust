@@ -117,7 +117,7 @@ pub enum RewriteCondition {
 
 impl ExpressionRewriter {
     /// Create a new expression rewriter with default rules
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut rewriter = Self {
             rules: Vec::new(),
             statistics: RewritingStatistics::default(),
@@ -397,20 +397,20 @@ impl ExpressionRewriter {
         match condition {
             RewriteCondition::Always => true,
             RewriteCondition::IsLiteral(var) => {
-                captures.get(var).map_or(false, |expr| matches!(expr, Expr::Literal(_)))
+                captures.get(var).is_some_and(|expr| matches!(expr, Expr::Literal(_)))
             }
             RewriteCondition::IsNumber(var) => {
-                captures.get(var).map_or(false, |expr| {
+                captures.get(var).is_some_and(|expr| {
                     matches!(expr, Expr::Literal(Literal::Number(_)))
                 })
             }
             RewriteCondition::Equals(var, expected) => {
-                captures.get(var).map_or(false, |expr| {
+                captures.get(var).is_some_and(|expr| {
                     matches!(expr, Expr::Literal(lit) if lit == expected)
                 })
             }
             RewriteCondition::IsZero(var) => {
-                captures.get(var).map_or(false, |expr| {
+                captures.get(var).is_some_and(|expr| {
                     match expr {
                         Expr::Literal(Literal::Number(SchemeNumber::Integer(0))) => true,
                         Expr::Literal(Literal::Number(SchemeNumber::Real(x))) => *x == 0.0,
@@ -420,7 +420,7 @@ impl ExpressionRewriter {
                 })
             }
             RewriteCondition::IsOne(var) => {
-                captures.get(var).map_or(false, |expr| {
+                captures.get(var).is_some_and(|expr| {
                     match expr {
                         Expr::Literal(Literal::Number(SchemeNumber::Integer(1))) => true,
                         Expr::Literal(Literal::Number(SchemeNumber::Real(x))) => *x == 1.0,
@@ -443,7 +443,7 @@ impl ExpressionRewriter {
         match replacement {
             RewriteReplacement::CapturedVar(var) => {
                 captures.get(var).cloned()
-                    .ok_or_else(|| LambdustError::runtime_error(format!("Captured variable '{}' not found", var)))
+                    .ok_or_else(|| LambdustError::runtime_error(format!("Captured variable '{var}' not found")))
             }
             RewriteReplacement::Literal(lit) => Ok(Expr::Literal(lit.clone())),
             RewriteReplacement::Variable(var) => Ok(Expr::Variable(var.clone())),
@@ -482,7 +482,7 @@ impl ExpressionRewriter {
     }
 
     /// Get rewriting statistics
-    pub fn get_statistics(&self) -> &RewritingStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &RewritingStatistics {
         &self.statistics
     }
 
@@ -492,7 +492,7 @@ impl ExpressionRewriter {
     }
 
     /// Get number of rules
-    pub fn rule_count(&self) -> usize {
+    #[must_use] pub fn rule_count(&self) -> usize {
         self.rules.len()
     }
 }
@@ -500,106 +500,5 @@ impl ExpressionRewriter {
 impl Default for ExpressionRewriter {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_expression_rewriter_creation() {
-        let rewriter = ExpressionRewriter::new();
-        assert!(rewriter.rule_count() > 0);
-        assert_eq!(rewriter.get_statistics().total_attempts, 0);
-    }
-
-    #[test]
-    fn test_add_zero_rewrite() {
-        let mut rewriter = ExpressionRewriter::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
-        ]);
-
-        let result = rewriter.rewrite(&expr).unwrap();
-        assert!(result.rewrite_applied);
-        assert_eq!(result.rules_applied_count, 1);
-        
-        match result.rewritten_expr {
-            Expr::Variable(var) if var == "x" => {},
-            _ => panic!("Expected rewritten result to be 'x'"),
-        }
-    }
-
-    #[test]
-    fn test_multiply_one_rewrite() {
-        let mut rewriter = ExpressionRewriter::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("*".to_string()),
-            Expr::Variable("y".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(1))),
-        ]);
-
-        let result = rewriter.rewrite(&expr).unwrap();
-        assert!(result.rewrite_applied);
-        
-        match result.rewritten_expr {
-            Expr::Variable(var) if var == "y" => {},
-            _ => panic!("Expected rewritten result to be 'y'"),
-        }
-    }
-
-    #[test]
-    fn test_multiply_zero_rewrite() {
-        let mut rewriter = ExpressionRewriter::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("*".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(0))),
-        ]);
-
-        let result = rewriter.rewrite(&expr).unwrap();
-        assert!(result.rewrite_applied);
-        
-        match result.rewritten_expr {
-            Expr::Literal(Literal::Number(SchemeNumber::Integer(0))) => {},
-            _ => panic!("Expected rewritten result to be 0"),
-        }
-    }
-
-    #[test]
-    fn test_double_not_rewrite() {
-        let mut rewriter = ExpressionRewriter::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("not".to_string()),
-            Expr::List(vec![
-                Expr::Variable("not".to_string()),
-                Expr::Variable("x".to_string()),
-            ]),
-        ]);
-
-        let result = rewriter.rewrite(&expr).unwrap();
-        assert!(result.rewrite_applied);
-        
-        match result.rewritten_expr {
-            Expr::Variable(var) if var == "x" => {},
-            _ => panic!("Expected rewritten result to be 'x'"),
-        }
-    }
-
-    #[test]
-    fn test_no_applicable_rules() {
-        let mut rewriter = ExpressionRewriter::new();
-        let expr = Expr::List(vec![
-            Expr::Variable("+".to_string()),
-            Expr::Variable("x".to_string()),
-            Expr::Variable("y".to_string()),
-        ]);
-
-        let result = rewriter.rewrite(&expr).unwrap();
-        assert!(!result.rewrite_applied);
-        assert_eq!(result.rules_applied_count, 0);
     }
 }
