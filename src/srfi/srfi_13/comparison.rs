@@ -33,23 +33,17 @@ pub fn string_compare(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(5, args.len()));
     }
 
-    let s1 = match &args[0] {
-        Value::String(s) => s,
-        _ => {
+    let Value::String(s1) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
 
-    let s2 = match &args[1] {
-        Value::String(s) => s,
-        _ => {
+    let Value::String(s2) = &args[1] else {
             return Err(LambdustError::type_error(
                 "Second argument must be a string".to_string(),
             ));
-        }
-    };
+        };
 
     // Compare strings
     match s1.cmp(s2) {
@@ -80,23 +74,19 @@ pub fn string_compare_ci(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(5, args.len()));
     }
 
-    let s1 = match &args[0] {
-        Value::String(s) => s.to_lowercase(),
-        _ => {
+    let Value::String(s1_str) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
+    let s1 = s1_str.to_lowercase();
 
-    let s2 = match &args[1] {
-        Value::String(s) => s.to_lowercase(),
-        _ => {
+    let Value::String(s2_str) = &args[1] else {
             return Err(LambdustError::type_error(
                 "Second argument must be a string".to_string(),
             ));
-        }
-    };
+        };
+    let s2 = s2_str.to_lowercase();
 
     // Compare strings case-insensitively
     match s1.cmp(&s2) {
@@ -127,14 +117,11 @@ pub fn string_hash(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(1, args.len()));
     }
 
-    let string = match &args[0] {
-        Value::String(s) => s,
-        _ => {
+    let Value::String(string) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
 
     let bound = if args.len() == 2 {
         match &args[1] {
@@ -156,14 +143,14 @@ pub fn string_hash(args: &[Value]) -> Result<Value> {
         hash = hash.wrapping_mul(31).wrapping_add(c as u32);
     }
 
-    let result = if bound != u32::MAX {
-        hash % bound
-    } else {
+    let result = if bound == u32::MAX {
         hash
+    } else {
+        hash % bound
     };
 
     Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
-        result as i64,
+        i64::from(result),
     )))
 }
 
@@ -182,14 +169,12 @@ pub fn string_hash_ci(args: &[Value]) -> Result<Value> {
         return Err(LambdustError::arity_error(1, args.len()));
     }
 
-    let string = match &args[0] {
-        Value::String(s) => s.to_lowercase(),
-        _ => {
+    let Value::String(string_str) = &args[0] else {
             return Err(LambdustError::type_error(
                 "First argument must be a string".to_string(),
             ));
-        }
-    };
+        };
+    let string = string_str.to_lowercase();
 
     let bound = if args.len() == 2 {
         match &args[1] {
@@ -211,13 +196,13 @@ pub fn string_hash_ci(args: &[Value]) -> Result<Value> {
         hash = hash.wrapping_mul(31).wrapping_add(c as u32);
     }
 
-    let result = if bound != u32::MAX {
-        hash % bound
-    } else {
+    let result = if bound == u32::MAX {
         hash
+    } else {
+        hash % bound
     };
 
     Ok(Value::Number(crate::lexer::SchemeNumber::Integer(
-        result as i64,
+        i64::from(result),
     )))
 }

@@ -20,14 +20,11 @@ pub fn expand_let(args: &[Expr]) -> Result<Expr> {
     let body = &args[1..];
 
     // Parse bindings
-    let binding_list = match bindings {
-        Expr::List(bindings) => bindings,
-        _ => {
+    let Expr::List(binding_list) = bindings else {
             return Err(LambdustError::syntax_error(
                 "let: bindings must be a list".to_string(),
             ));
-        }
-    };
+        };
 
     let mut variables = Vec::new();
     let mut values = Vec::new();
@@ -78,14 +75,11 @@ pub fn expand_let_star(args: &[Expr]) -> Result<Expr> {
     let bindings = &args[0];
     let body = &args[1..];
 
-    let binding_list = match bindings {
-        Expr::List(bindings) => bindings,
-        _ => {
+    let Expr::List(binding_list) = bindings else {
             return Err(LambdustError::syntax_error(
                 "let*: bindings must be a list".to_string(),
             ));
-        }
-    };
+        };
 
     if binding_list.is_empty() {
         // No bindings, just return begin
@@ -126,14 +120,11 @@ pub fn expand_letrec(args: &[Expr]) -> Result<Expr> {
     let bindings = &args[0];
     let body = &args[1..];
 
-    let binding_list = match bindings {
-        Expr::List(bindings) => bindings,
-        _ => {
+    let Expr::List(binding_list) = bindings else {
             return Err(LambdustError::syntax_error(
                 "letrec: bindings must be a list".to_string(),
             ));
-        }
-    };
+        };
 
     let mut variables = Vec::new();
     let mut assignments = Vec::new();
@@ -150,7 +141,8 @@ pub fn expand_letrec(args: &[Expr]) -> Result<Expr> {
                             Expr::Variable(var.clone()),
                             parts[1].clone(),
                         ]));
-                        undefined_values.push(Expr::Variable("#f".to_string())); // Use #f as undefined
+                        undefined_values.push(Expr::Variable("#f".to_string()));
+                        // Use #f as undefined
                     }
                     _ => {
                         return Err(LambdustError::syntax_error(
@@ -554,17 +546,15 @@ pub fn expand_define_record_type(operands: &[Expr]) -> Result<Expr> {
         Expr::List(vec![
             Expr::Variable("lambda".to_string()),
             Expr::List(constructor_args),
-            // TODO: Create actual record construction logic
+            // Create actual record construction logic
             Expr::List(vec![
-                Expr::Variable("make-record".to_string()),
-                Expr::Quote(Box::new(Expr::Variable(type_name.clone()))),
-                Expr::List(
-                    vec![Expr::Variable("list".to_string())]
-                        .into_iter()
-                        .chain(field_names.iter().map(|name| Expr::Variable(name.clone())))
-                        .collect(),
-                ),
-            ]),
+                Expr::Variable("vector".to_string()),
+                Expr::Quote(Box::new(Expr::Variable(type_name.clone()))), // Type tag
+            ]
+                .into_iter()
+                .chain(field_names.iter().map(|name| Expr::Variable(name.clone())))
+                .collect(),
+            ),
         ]),
     ]);
     definitions.push(constructor_def);

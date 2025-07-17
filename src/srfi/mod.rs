@@ -13,7 +13,22 @@ pub mod srfi_13; // String Libraries
 pub mod srfi_130; // Cursor-based String Library
 pub mod srfi_132; // Sort Libraries
 pub mod srfi_133; // Vector Libraries
+pub mod srfi_134; // Immutable Deques
+pub mod srfi_135; // Immutable Texts
+pub mod srfi_136; // Extensible Record Types
+pub mod srfi_137; // Minimal Unique Types
+pub mod srfi_138; // Compiling Scheme to Machine Code
+pub mod srfi_139; // Syntax Parameters
+pub mod srfi_140; // Immutable Strings
 pub mod srfi_141; // Integer Division
+pub mod srfi_143; // Fixnums
+pub mod srfi_144; // Flonums
+pub mod srfi_145; // Assumptions
+pub mod srfi_146; // Mappings
+pub mod srfi_147; // Multiple-value Definitions
+pub mod srfi_148; // Eager Comprehensions
+pub mod srfi_149; // Basic Syntax-rules Template Extensions
+pub mod srfi_150; // Hygienic ERR5RS Record Syntax (reduced)
 pub mod srfi_45; // Lazy evaluation
 pub mod srfi_46; // Syntax-rules extensions
 pub mod srfi_69; // Basic Hash Tables
@@ -55,7 +70,7 @@ pub struct SrfiImport {
 
 impl SrfiImport {
     /// Create a new SRFI import for entire SRFI
-    pub fn new(id: u32) -> Self {
+    #[must_use] pub fn new(id: u32) -> Self {
         Self {
             id,
             parts: Vec::new(),
@@ -63,12 +78,12 @@ impl SrfiImport {
     }
 
     /// Create a new SRFI import with specific parts
-    pub fn with_parts(id: u32, parts: Vec<String>) -> Self {
+    #[must_use] pub fn with_parts(id: u32, parts: Vec<String>) -> Self {
         Self { id, parts }
     }
 
     /// Check if importing all parts
-    pub fn imports_all(&self) -> bool {
+    #[must_use] pub fn imports_all(&self) -> bool {
         self.parts.is_empty()
     }
 }

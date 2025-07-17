@@ -3,8 +3,11 @@
 // Re-export all submodules
 pub mod continuation;
 pub mod conversions;
+// Tests moved to tests/unit/value/conversions_tests.rs
+pub mod custom_predicates;
 pub mod display;
 pub mod equality;
+pub mod lazy_vector;
 pub mod list;
 pub mod optimized;
 pub mod pair;
@@ -16,6 +19,11 @@ pub mod record;
 
 // Re-export key types
 pub use continuation::{Continuation, StackFrame};
+pub use custom_predicates::{
+    CustomPredicateInfo, CustomPredicateRegistry, CustomPredicateFn,
+    global_custom_predicate_registry, register_global_custom_predicate, evaluate_global_custom_predicate,
+};
+pub use lazy_vector::{MemoryStats, VectorStorage};
 pub use optimized::{OptimizationStats, OptimizedValue, ShortStringData, ValueOptimizer};
 pub use pair::PairData;
 pub use port::Port;
@@ -34,20 +42,32 @@ pub enum Value {
     Boolean(bool),
     /// Numeric values
     Number(SchemeNumber),
+    /// Integer values (legacy compatibility)
+    #[deprecated(note = "Use Number(SchemeNumber::Integer) instead")]
+    Integer(i64),
     /// String values
     String(String),
+    /// Short string values (up to 15 bytes, no heap allocation)
+    ShortString(optimized::ShortStringData),
     /// Character values
     Character(char),
     /// Symbol values
     Symbol(String),
+    /// Short symbol values (up to 15 bytes, no heap allocation)
+    ShortSymbol(optimized::ShortStringData),
     /// Pair values (cons cells) - shared reference for efficient memory management
     Pair(std::rc::Rc<std::cell::RefCell<PairData>>),
     /// The empty list
     Nil,
     /// Procedure values (both user-defined and built-in)
     Procedure(Procedure),
-    /// Vector values
+    /// Built-in function values (legacy compatibility)
+    #[deprecated(note = "Use Procedure(Procedure::Builtin) instead")]
+    BuiltinFunction(fn(&[Value], &crate::environment::Environment) -> crate::Result<Value>),
+    /// Vector values (traditional immediate allocation)
     Vector(Vec<Value>),
+    /// Lazy vector values (memory-efficient for large vectors)
+    LazyVector(std::rc::Rc<std::cell::RefCell<lazy_vector::VectorStorage>>),
     /// Port values (for I/O)
     Port(Port),
     /// External object values
@@ -68,4 +88,34 @@ pub enum Value {
     Comparator(std::rc::Rc<crate::srfi::srfi_128::Comparator>),
     /// String cursor values (SRFI 130)
     StringCursor(std::rc::Rc<crate::srfi::srfi_130::StringCursor>),
+    /// Immutable deque values (SRFI 134)
+    Ideque(std::rc::Rc<crate::srfi::srfi_134::Ideque>),
+    /// Immutable text values (SRFI 135)
+    Text(std::rc::Rc<crate::srfi::srfi_135::Text>),
+    /// Immutable string values (SRFI 140)
+    IString(std::rc::Rc<crate::srfi::srfi_140::IString>),
+    /// Unique type instance values (SRFI 137)
+    UniqueTypeInstance(crate::srfi::srfi_137::UniqueTypeInstance),
+    /// List values (alternative to Pair representation)
+    List(Vec<Value>),
+    /// Unspecified value (R7RS)
+    Unspecified,
+    /// Environment values (for eval)
+    Environment(std::rc::Rc<crate::environment::Environment>),
+    /// Bytevector values (R7RS)
+    Bytevector(Vec<u8>),
+}
+
+impl Value {
+    /// Create a Value from an AST Literal
+    /// This eliminates code duplication across evaluators
+    #[must_use] pub fn from_literal(lit: &crate::ast::Literal) -> Self {
+        match lit {
+            crate::ast::Literal::Number(n) => Value::Number(n.clone()),
+            crate::ast::Literal::String(s) => Value::String(s.clone()),
+            crate::ast::Literal::Boolean(b) => Value::Boolean(*b),
+            crate::ast::Literal::Character(c) => Value::Character(*c),
+            crate::ast::Literal::Nil => Value::Nil,
+        }
+    }
 }

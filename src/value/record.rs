@@ -26,12 +26,12 @@ pub struct Record {
 
 impl Value {
     /// Check if this value is a record
-    pub fn is_record(&self) -> bool {
+    #[must_use] pub fn is_record(&self) -> bool {
         matches!(self, Value::Record(_))
     }
 
     /// Get the record if this is a record
-    pub fn as_record(&self) -> Option<&Record> {
+    #[must_use] pub fn as_record(&self) -> Option<&Record> {
         match self {
             Value::Record(r) => Some(r),
             _ => None,
@@ -39,7 +39,7 @@ impl Value {
     }
 
     /// Check if this is a record of a specific type
-    pub fn is_record_of_type(&self, type_name: &str) -> bool {
+    #[must_use] pub fn is_record_of_type(&self, type_name: &str) -> bool {
         match self {
             Value::Record(record) => record.record_type.name == type_name,
             _ => false,

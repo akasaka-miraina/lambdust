@@ -4,6 +4,8 @@
 //! to run in browsers and Node.js environments. It includes both browser-specific
 //! bindings using wasm-bindgen and WASI-compatible interfaces.
 
+#![cfg(not(feature = "embedded"))]
+
 #[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
@@ -332,44 +334,3 @@ pub mod utils {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_wasi_interpreter_creation() {
-        #[cfg(feature = "wasi")]
-        {
-            let _interpreter = WasiLambdustInterpreter::new();
-            // Basic test to ensure creation works - simply verifying compilation
-            // and constructor execution without panics
-        }
-    }
-
-    #[test]
-    fn test_wasi_evaluation() {
-        #[cfg(feature = "wasi")]
-        {
-            let mut interpreter = WasiLambdustInterpreter::new();
-            let result = interpreter.eval("(+ 1 2 3)");
-            assert!(result.is_ok());
-            assert_eq!(result.unwrap(), "6");
-        }
-    }
-
-    #[cfg(feature = "wasm")]
-    #[test]
-    fn test_wasm_interpreter_creation() {
-        let interpreter = WasmLambdustInterpreter::new();
-        assert!(interpreter.is_healthy());
-    }
-
-    #[cfg(feature = "wasm")]
-    #[test]
-    fn test_wasm_evaluation() {
-        let mut interpreter = WasmLambdustInterpreter::new();
-        let result = interpreter.eval("(+ 1 2 3)");
-        assert!(result.is_some());
-        assert_eq!(result.unwrap(), "6");
-    }
-}

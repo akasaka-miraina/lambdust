@@ -3,7 +3,7 @@
 //! Tests various scenarios to measure the impact of tail call optimization
 //! and continuation inlining improvements.
 
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 use lambdust::Interpreter;
 
 fn bench_simple_arithmetic(c: &mut Criterion) {

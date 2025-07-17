@@ -118,7 +118,7 @@ pub fn hash_table_merge(args: &[Value]) -> Result<Value> {
 
         // Simple merge: copy all entries from source to destination
         // In case of key conflicts, the source value overwrites the destination
-        for (key, value) in hash_table2_ref.table.iter() {
+        for (key, value) in &hash_table2_ref.table {
             hash_table1_ref.table.insert(key.clone(), value.clone());
         }
     }

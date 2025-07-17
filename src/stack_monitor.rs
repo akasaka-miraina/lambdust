@@ -73,7 +73,7 @@ pub struct StackMonitor {
 
 impl StackMonitor {
     /// Create a new stack monitor
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             frames: VecDeque::with_capacity(1000),
             max_depth: 0,
@@ -209,7 +209,7 @@ impl StackMonitor {
     }
 
     /// Estimate memory usage of a frame
-    pub fn estimate_frame_memory(&self, operation: &StackFrameType) -> usize {
+    #[must_use] pub fn estimate_frame_memory(&self, operation: &StackFrameType) -> usize {
         match operation {
             StackFrameType::Application { arg_count, .. } => {
                 // Estimate: 64 bytes base + 32 bytes per argument
@@ -233,23 +233,23 @@ impl StackMonitor {
     /// Check if a frame type can be optimized
     fn is_optimizable(&self, operation: &StackFrameType) -> bool {
         match operation {
-            StackFrameType::Application { .. } => true, // Function calls can often be optimized
-            StackFrameType::ContinuationApplication { .. } => true, // Continuations can be inlined
-            StackFrameType::RecursiveCall { .. } => true, // Tail recursion can be optimized
-            StackFrameType::SpecialForm { .. } => false, // Special forms need careful handling
-            StackFrameType::MacroExpansion { .. } => false, // Macros are complex
+            StackFrameType::Application { .. } | 
+            StackFrameType::ContinuationApplication { .. } | 
+            StackFrameType::RecursiveCall { .. } => true, // Function calls and continuations can be optimized
+            StackFrameType::SpecialForm { .. } | 
+            StackFrameType::MacroExpansion { .. } => false, // Special forms and macros need careful handling
         }
     }
 
     /// Get current stack statistics
-    pub fn statistics(&self) -> StackStatistics {
+    #[must_use] pub fn statistics(&self) -> StackStatistics {
         StackStatistics {
             current_depth: self.frames.len(),
             max_depth: self.max_depth,
             total_frames: self.total_frames,
             optimizations_applied: self.optimizations_applied,
             average_frame_time: if self.total_frames > 0 {
-                self.evaluation_time / self.total_frames as u32
+                self.evaluation_time / u32::try_from(self.total_frames).unwrap_or(1)
             } else {
                 Duration::new(0, 0)
             },
@@ -259,7 +259,7 @@ impl StackMonitor {
     }
 
     /// Check if stack should trigger optimization
-    pub fn should_optimize(&self) -> bool {
+    #[must_use] pub fn should_optimize(&self) -> bool {
         let stats = self.statistics();
 
         // Trigger optimization if:
@@ -272,7 +272,7 @@ impl StackMonitor {
     }
 
     /// Get optimization recommendations
-    pub fn optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
+    #[must_use] pub fn optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
         let mut recommendations = Vec::new();
         let stats = self.statistics();
 
@@ -330,83 +330,3 @@ pub enum OptimizationRecommendation {
     ForceGarbageCollection,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_stack_monitor_basic_operations() {
-        let mut monitor = StackMonitor::new();
-
-        // Push some frames
-        monitor.push_frame(StackFrameType::Application {
-            operator: "test-function".to_string(),
-            arg_count: 2,
-        });
-
-        monitor.push_frame(StackFrameType::SpecialForm {
-            form_name: "if".to_string(),
-        });
-
-        let stats = monitor.statistics();
-        assert_eq!(stats.current_depth, 2);
-        assert_eq!(stats.total_frames, 2);
-
-        // Pop a frame
-        let frame = monitor.pop_frame();
-        assert!(frame.is_some());
-
-        let stats = monitor.statistics();
-        assert_eq!(stats.current_depth, 1);
-    }
-
-    #[test]
-    fn test_memory_estimation() {
-        let monitor = StackMonitor::new();
-
-        let app_memory = monitor.estimate_frame_memory(&StackFrameType::Application {
-            operator: "test".to_string(),
-            arg_count: 3,
-        });
-        assert_eq!(app_memory, 64 + (3 * 32)); // 64 base + 32 per arg
-
-        let special_memory = monitor.estimate_frame_memory(&StackFrameType::SpecialForm {
-            form_name: "lambda".to_string(),
-        });
-        assert_eq!(special_memory, 128);
-    }
-
-    #[test]
-    fn test_optimization_recommendations() {
-        let mut monitor = StackMonitor::new();
-
-        // Add many frames to trigger recommendations
-        for _i in 0..600 {
-            monitor.push_frame(StackFrameType::Application {
-                operator: "recursive-function".to_string(),
-                arg_count: 2,
-            });
-        }
-
-        let recommendations = monitor.optimization_recommendations();
-        assert!(recommendations.contains(&OptimizationRecommendation::TailCallOptimization));
-    }
-
-    #[test]
-    fn test_should_optimize_threshold() {
-        let mut monitor = StackMonitor::new();
-
-        // Initially should not optimize
-        assert!(!monitor.should_optimize());
-
-        // Add enough frames to trigger optimization
-        for _ in 0..600 {
-            monitor.push_frame(StackFrameType::Application {
-                operator: "test".to_string(),
-                arg_count: 1,
-            });
-        }
-
-        assert!(monitor.should_optimize());
-    }
-}

@@ -26,8 +26,8 @@ pub fn eval_dynamic_wind(
     let after_expr = &operands[2];
 
     // Evaluate the before and after thunks
-    let before_thunk = evaluator.eval(before_expr.clone(), env.clone(), Continuation::Identity)?;
-    let after_thunk = evaluator.eval(after_expr.clone(), env.clone(), Continuation::Identity)?;
+    let before_thunk = evaluator.eval_with_continuation(before_expr.clone(), env.clone(), Continuation::Identity)?;
+    let after_thunk = evaluator.eval_with_continuation(after_expr.clone(), env.clone(), Continuation::Identity)?;
 
     // Validate that they are procedures
     if !matches!(before_thunk, Value::Procedure(_)) {
@@ -47,7 +47,7 @@ pub fn eval_dynamic_wind(
         evaluator.push_dynamic_point(Some(before_thunk.clone()), Some(after_thunk.clone()));
 
     // Execute before thunk
-    evaluator.apply_procedure_with_evaluator(
+    evaluator.apply_procedure_with_continuation(
         before_thunk,
         vec![],
         env.clone(),
@@ -55,7 +55,7 @@ pub fn eval_dynamic_wind(
     )?;
 
     // Evaluate the main thunk expression to get the procedure
-    let main_thunk = evaluator.eval(thunk_expr.clone(), env.clone(), Continuation::Identity)?;
+    let main_thunk = evaluator.eval_with_continuation(thunk_expr.clone(), env.clone(), Continuation::Identity)?;
 
     // Validate that it's a procedure
     if !matches!(main_thunk, Value::Procedure(_)) {
@@ -72,7 +72,7 @@ pub fn eval_dynamic_wind(
     };
 
     // Execute main thunk
-    evaluator.apply_procedure_with_evaluator(main_thunk, vec![], env, wind_cont)
+    evaluator.apply_procedure_with_continuation(main_thunk, vec![], env, wind_cont)
 }
 
 // Additional functions for Evaluator impl
@@ -84,12 +84,13 @@ impl Evaluator {
         after_thunk: Value,
         dynamic_point_id: usize,
         parent: Continuation,
+        env: std::rc::Rc<crate::environment::Environment>,
     ) -> Result<Value> {
-        // Execute after thunk
-        self.apply_procedure_with_evaluator(
+        // Execute after thunk with proper environment
+        self.apply_procedure_with_continuation(
             after_thunk,
             vec![],
-            self.global_env.clone(),
+            env,
             Continuation::Identity,
         )?;
 
@@ -100,6 +101,6 @@ impl Evaluator {
         self.pop_dynamic_point();
 
         // Continue with the parent continuation
-        self.apply_continuation(parent, value)
+        self.apply_evaluator_continuation(parent, value)
     }
 }

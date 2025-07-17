@@ -97,6 +97,22 @@ pub fn map_implementation(args: &[Value]) -> Result<Value> {
     let proc = &args[0];
     let lists = &args[1..];
 
+    // Validate that the first argument is a procedure
+    match proc {
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
+        Value::Procedure(Procedure::Lambda { .. }) => {
+            return Err(LambdustError::runtime_error(
+                "map: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
+            ));
+        }
+        _ => {
+            return Err(LambdustError::type_error(
+                "map: first argument must be a procedure".to_string(),
+            ));
+        }
+    }
+
     // Validate that all arguments (except the first) are lists
     for (i, list) in lists.iter().enumerate() {
         if !list.is_list() {
@@ -119,7 +135,7 @@ pub fn map_implementation(args: &[Value]) -> Result<Value> {
     let list_vectors = list_vectors?;
 
     // Find the minimum length (map stops at shortest list)
-    let min_length = list_vectors.iter().map(|v| v.len()).min().unwrap_or(0);
+    let min_length = list_vectors.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
     let mut results = Vec::new();
 
@@ -160,6 +176,22 @@ pub fn for_each_implementation(args: &[Value]) -> Result<Value> {
     let proc = &args[0];
     let lists = &args[1..];
 
+    // Validate that the first argument is a procedure
+    match proc {
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
+        Value::Procedure(Procedure::Lambda { .. }) => {
+            return Err(LambdustError::runtime_error(
+                "for-each: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
+            ));
+        }
+        _ => {
+            return Err(LambdustError::type_error(
+                "for-each: first argument must be a procedure".to_string(),
+            ));
+        }
+    }
+
     // Validate that all arguments (except the first) are lists
     for (i, list) in lists.iter().enumerate() {
         if !list.is_list() {
@@ -182,7 +214,7 @@ pub fn for_each_implementation(args: &[Value]) -> Result<Value> {
     let list_vectors = list_vectors?;
 
     // Find the minimum length
-    let min_length = list_vectors.iter().map(|v| v.len()).min().unwrap_or(0);
+    let min_length = list_vectors.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
     for i in 0..min_length {
         // Collect arguments for this iteration
@@ -217,6 +249,23 @@ pub fn apply_implementation(args: &[Value]) -> Result<Value> {
     }
 
     let proc = &args[0];
+
+    // Validate that the first argument is a procedure
+    match proc {
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
+        Value::Procedure(Procedure::Lambda { .. }) => {
+            return Err(LambdustError::runtime_error(
+                "apply: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
+            ));
+        }
+        _ => {
+            return Err(LambdustError::type_error(
+                "apply: first argument must be a procedure".to_string(),
+            ));
+        }
+    }
+
     let mut call_args = Vec::new();
 
     // Handle different forms of apply:
@@ -273,6 +322,22 @@ pub fn filter_implementation(args: &[Value]) -> Result<Value> {
     let predicate = &args[0];
     let list = &args[1];
 
+    // Validate that the first argument is a procedure
+    match predicate {
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
+        Value::Procedure(Procedure::Lambda { .. }) => {
+            return Err(LambdustError::runtime_error(
+                "filter: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
+            ));
+        }
+        _ => {
+            return Err(LambdustError::type_error(
+                "filter: first argument must be a procedure".to_string(),
+            ));
+        }
+    }
+
     if !list.is_list() {
         return Err(LambdustError::type_error(
             "filter: second argument must be a list".to_string(),
@@ -324,6 +389,22 @@ pub fn fold_implementation(args: &[Value]) -> Result<Value> {
     let mut accumulator = args[1].clone();
     let lists = &args[2..];
 
+    // Validate that the first argument is a procedure
+    match kons {
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
+        Value::Procedure(Procedure::Lambda { .. }) => {
+            return Err(LambdustError::runtime_error(
+                "fold: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
+            ));
+        }
+        _ => {
+            return Err(LambdustError::type_error(
+                "fold: first argument must be a procedure".to_string(),
+            ));
+        }
+    }
+
     // Validate that all arguments (after first two) are lists
     for (i, list) in lists.iter().enumerate() {
         if !list.is_list() {
@@ -346,7 +427,7 @@ pub fn fold_implementation(args: &[Value]) -> Result<Value> {
     let list_vectors = list_vectors?;
 
     // Find the minimum length
-    let min_length = list_vectors.iter().map(|v| v.len()).min().unwrap_or(0);
+    let min_length = list_vectors.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
     for i in 0..min_length {
         // Prepare arguments: accumulator + elements from each list
@@ -386,6 +467,22 @@ pub fn fold_right_implementation(args: &[Value]) -> Result<Value> {
     let mut accumulator = args[1].clone();
     let lists = &args[2..];
 
+    // Validate that the first argument is a procedure
+    match kons {
+        Value::Procedure(Procedure::Builtin { .. }) => {} // Valid builtin procedure
+        Value::Procedure(Procedure::Lambda { .. }) => {
+            return Err(LambdustError::runtime_error(
+                "fold-right: lambda functions require evaluator integration (not yet implemented)"
+                    .to_string(),
+            ));
+        }
+        _ => {
+            return Err(LambdustError::type_error(
+                "fold-right: first argument must be a procedure".to_string(),
+            ));
+        }
+    }
+
     // Validate that all arguments (after first two) are lists
     for (i, list) in lists.iter().enumerate() {
         if !list.is_list() {
@@ -408,7 +505,7 @@ pub fn fold_right_implementation(args: &[Value]) -> Result<Value> {
     let list_vectors = list_vectors?;
 
     // Find the minimum length
-    let min_length = list_vectors.iter().map(|v| v.len()).min().unwrap_or(0);
+    let min_length = list_vectors.iter().map(std::vec::Vec::len).min().unwrap_or(0);
 
     // Process from right to left
     for i in (0..min_length).rev() {

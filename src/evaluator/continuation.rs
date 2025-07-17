@@ -42,7 +42,7 @@ pub enum LightContinuation {
 
 impl LightContinuation {
     /// Check if a continuation can be converted to a lightweight variant
-    pub fn from_continuation(cont: &Continuation) -> Option<Self> {
+    #[must_use] pub fn from_continuation(cont: &Continuation) -> Option<Self> {
         match cont {
             Continuation::Identity => Some(LightContinuation::Identity),
 
@@ -135,7 +135,7 @@ pub enum CompactContinuation {
 pub enum InlineContinuation {
     /// Identity continuation (direct return)
     Identity,
-    /// Value accumulation with SmallVec optimization (up to 4 values on stack)
+    /// Value accumulation with `SmallVec` optimization (up to 4 values on stack)
     Values(Box<SmallVec<[Value; 4]>>),
     /// Variable assignment with environment reference
     Assignment {
@@ -181,7 +181,7 @@ pub struct EnvironmentRef {
 
 impl EnvironmentRef {
     /// Create new environment reference
-    pub fn new(env: Rc<Environment>) -> Self {
+    #[must_use] pub fn new(env: Rc<Environment>) -> Self {
         EnvironmentRef {
             env: Rc::downgrade(&env),
             strong_ref: Some(env),
@@ -189,7 +189,7 @@ impl EnvironmentRef {
     }
 
     /// Get environment reference, upgrading weak reference if needed
-    pub fn get(&self) -> Option<Rc<Environment>> {
+    #[must_use] pub fn get(&self) -> Option<Rc<Environment>> {
         if let Some(strong) = &self.strong_ref {
             Some(Rc::clone(strong))
         } else {
@@ -210,7 +210,7 @@ impl EnvironmentRef {
 
 impl CompactContinuation {
     /// Create compact continuation from regular continuation
-    pub fn from_continuation(cont: Continuation) -> Self {
+    #[must_use] pub fn from_continuation(cont: Continuation) -> Self {
         match &cont {
             // Convert simple cases to inline continuations
             Continuation::Identity => {
@@ -237,17 +237,20 @@ impl CompactContinuation {
                 }))
             }
 
-            Continuation::Begin {
-                remaining,
-                env,
-                parent,
-            } if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
-                CompactContinuation::Inline(Box::new(InlineContinuation::SingleBegin {
-                    expr: remaining[0].clone(),
-                    env_ref: EnvironmentRef::new(Rc::clone(env)),
-                }))
-            }
-
+            // Note: SingleBegin optimization disabled to ensure proper continuation evaluation
+            // in begin blocks where variable bindings may be established in previous expressions.
+            // This prevents premature termination of evaluation sequences.
+            //
+            // Continuation::Begin {
+            //     remaining,
+            //     env,
+            //     parent,
+            // } if matches!(**parent, Continuation::Identity) && remaining.len() == 1 => {
+            //     CompactContinuation::Inline(Box::new(InlineContinuation::SingleBegin {
+            //         expr: remaining[0].clone(),
+            //         env_ref: EnvironmentRef::new(Rc::clone(env)),
+            //     }))
+            // }
             Continuation::Define {
                 variable,
                 env,
@@ -293,12 +296,12 @@ impl CompactContinuation {
     }
 
     /// Check if this is a simple inline continuation
-    pub fn is_inline(&self) -> bool {
+    #[must_use] pub fn is_inline(&self) -> bool {
         matches!(self, CompactContinuation::Inline(_))
     }
 
     /// Get memory usage estimate in bytes
-    pub fn memory_size(&self) -> usize {
+    #[must_use] pub fn memory_size(&self) -> usize {
         match self {
             CompactContinuation::Inline(inline) => inline.memory_size(),
             CompactContinuation::Boxed(_) => std::mem::size_of::<Box<Continuation>>(),
@@ -350,7 +353,7 @@ impl InlineContinuation {
     }
 
     /// Estimate memory usage in bytes
-    pub fn memory_size(&self) -> usize {
+    #[must_use] pub fn memory_size(&self) -> usize {
         match self {
             InlineContinuation::Identity => 0,
             InlineContinuation::Values(values) => values.len() * std::mem::size_of::<Value>(),
@@ -370,12 +373,12 @@ impl InlineContinuation {
     }
 }
 
-/// Phase 6-B-Step1: DoLoop iteration state for specialized optimization
+/// `DoLoop` iteration state for specialized optimization with memory pooling
 #[derive(Debug, Clone)]
 pub struct DoLoopState {
-    /// Current variable values [(name, current_value)]
+    /// Current variable values [(name, `current_value`)]
     pub variables: Vec<(String, Value)>,
-    /// Step expressions for variable updates [var_index -> Option<step_expr>]
+    /// Step expressions for variable updates [`var_index` -> Option<`step_expr`>]
     pub step_exprs: Vec<Option<Expr>>,
     /// Test expression for termination condition
     pub test_expr: Expr,
@@ -394,8 +397,8 @@ pub struct DoLoopState {
 }
 
 impl DoLoopState {
-    /// Create new DoLoop state
-    pub fn new(
+    /// Create new `DoLoop` state
+    #[must_use] pub fn new(
         variables: Vec<(String, Value)>,
         step_exprs: Vec<Option<Expr>>,
         test_expr: Expr,
@@ -420,9 +423,10 @@ impl DoLoopState {
     pub fn next_iteration(&mut self) -> Result<(), crate::error::LambdustError> {
         self.iteration_count += 1;
         if self.iteration_count > self.max_iterations {
-            return Err(crate::error::LambdustError::runtime_error(
-                format!("DoLoop exceeded maximum iterations: {}", self.max_iterations)
-            ));
+            return Err(crate::error::LambdustError::runtime_error(format!(
+                "DoLoop exceeded maximum iterations: {}",
+                self.max_iterations
+            )));
         }
         Ok(())
     }
@@ -433,11 +437,9 @@ impl DoLoopState {
     }
 
     /// Check if this loop can be optimized for inline execution
-    pub fn can_optimize(&self) -> bool {
+    #[must_use] pub fn can_optimize(&self) -> bool {
         // Simple heuristics for optimization candidacy
-        self.variables.len() <= 3 && 
-        self.body_exprs.len() <= 2 && 
-        self.iteration_count < 1000
+        self.variables.len() <= 3 && self.body_exprs.len() <= 2 && self.iteration_count < 1000
     }
 
     /// Mark this loop as optimized
@@ -446,9 +448,11 @@ impl DoLoopState {
     }
 
     /// Get estimated memory usage for this state
-    pub fn memory_usage(&self) -> usize {
-        let vars_size = self.variables.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Value>());
-        let exprs_size = (self.step_exprs.len() + self.result_exprs.len() + self.body_exprs.len()) * std::mem::size_of::<Expr>();
+    #[must_use] pub fn memory_usage(&self) -> usize {
+        let vars_size =
+            self.variables.len() * (std::mem::size_of::<String>() + std::mem::size_of::<Value>());
+        let exprs_size = (self.step_exprs.len() + self.result_exprs.len() + self.body_exprs.len())
+            * std::mem::size_of::<Expr>();
         vars_size + exprs_size + std::mem::size_of::<Rc<Environment>>()
     }
 }
@@ -470,7 +474,7 @@ pub struct DynamicPoint {
 
 impl DynamicPoint {
     /// Create a new dynamic point
-    pub fn new(
+    #[must_use] pub fn new(
         before: Option<Value>,
         after: Option<Value>,
         parent: Option<Box<DynamicPoint>>,
@@ -491,12 +495,12 @@ impl DynamicPoint {
     }
 
     /// Check if this dynamic point is active
-    pub fn is_active(&self) -> bool {
+    #[must_use] pub fn is_active(&self) -> bool {
         self.active
     }
 
     /// Get the depth of this dynamic point
-    pub fn depth(&self) -> usize {
+    #[must_use] pub fn depth(&self) -> usize {
         match &self.parent {
             Some(parent) => parent.depth() + 1,
             None => 0,
@@ -504,14 +508,14 @@ impl DynamicPoint {
     }
 
     /// Find the common ancestor with another dynamic point
-    pub fn common_ancestor(&self, other: &DynamicPoint) -> Option<usize> {
+    #[must_use] pub fn common_ancestor(&self, other: &DynamicPoint) -> Option<usize> {
         let mut self_path = Vec::new();
         let mut current = Some(self);
 
         // Collect path from self to root
         while let Some(point) = current {
             self_path.push(point.id);
-            current = point.parent.as_ref().map(|p| p.as_ref());
+            current = point.parent.as_ref().map(std::convert::AsRef::as_ref);
         }
 
         // Check if other's path intersects with self's path
@@ -520,20 +524,20 @@ impl DynamicPoint {
             if self_path.contains(&point.id) {
                 return Some(point.id);
             }
-            other_current = point.parent.as_ref().map(|p| p.as_ref());
+            other_current = point.parent.as_ref().map(std::convert::AsRef::as_ref);
         }
 
         None
     }
 
     /// Get all dynamic points from this to root
-    pub fn path_to_root(&self) -> Vec<usize> {
+    #[must_use] pub fn path_to_root(&self) -> Vec<usize> {
         let mut path = Vec::new();
         let mut current = Some(self);
 
         while let Some(point) = current {
             path.push(point.id);
-            current = point.parent.as_ref().map(|p| p.as_ref());
+            current = point.parent.as_ref().map(std::convert::AsRef::as_ref);
         }
 
         path
@@ -741,7 +745,22 @@ pub enum Continuation {
         /// Parent continuation
         parent: Box<Continuation>,
     },
-    /// Phase 6-B-Step1: DoLoop specialized continuation for iteration optimization
+    /// Let binding continuation (for sequential binding evaluation)
+    LetBinding {
+        /// Variable name for this binding
+        variable: String,
+        /// Remaining bindings to process
+        remaining_bindings: Vec<(String, Expr)>,
+        /// Bindings that have been evaluated so far
+        evaluated_bindings: Vec<(String, Value)>,
+        /// Body expressions to evaluate after all bindings
+        body: Vec<Expr>,
+        /// Environment for evaluation
+        env: Rc<Environment>,
+        /// Parent continuation
+        parent: Box<Continuation>,
+    },
+    /// `DoLoop` specialized continuation for iteration optimization with memory pooling
     DoLoop {
         /// Current iteration state
         iteration_state: DoLoopState,
@@ -754,7 +773,7 @@ pub enum Continuation {
 
 impl Continuation {
     /// Calculate the depth of continuation chain
-    pub fn depth(&self) -> usize {
+    #[must_use] pub fn depth(&self) -> usize {
         match self {
             Continuation::Identity => 0,
             Continuation::Application { parent, .. } => parent.depth() + 1,
@@ -776,6 +795,7 @@ impl Continuation {
             Continuation::Or { parent, .. } => parent.depth() + 1,
             Continuation::CallWithValuesStep1 { parent, .. } => parent.depth() + 1,
             Continuation::CallWithValuesStep2 { parent, .. } => parent.depth() + 1,
+            Continuation::LetBinding { parent, .. } => parent.depth() + 1,
             Continuation::DoLoop { parent, .. } => parent.depth() + 1,
             Continuation::Captured { .. } => 0, // Captured continuations don't have parents
         }
@@ -783,7 +803,7 @@ impl Continuation {
 
     /// Find the root (deepest) continuation in the chain
     /// This is used for complete non-local exit in call/cc
-    pub fn find_root_continuation(&self) -> &Continuation {
+    #[must_use] pub fn find_root_continuation(&self) -> &Continuation {
         match self {
             Continuation::Identity => self,
             Continuation::Application { parent, .. } => parent.find_root_continuation(),
@@ -805,6 +825,7 @@ impl Continuation {
             Continuation::Or { parent, .. } => parent.find_root_continuation(),
             Continuation::CallWithValuesStep1 { parent, .. } => parent.find_root_continuation(),
             Continuation::CallWithValuesStep2 { parent, .. } => parent.find_root_continuation(),
+            Continuation::LetBinding { parent, .. } => parent.find_root_continuation(),
             Continuation::DoLoop { parent, .. } => parent.find_root_continuation(),
             Continuation::Captured { cont } => cont.find_root_continuation(),
         }
@@ -812,7 +833,7 @@ impl Continuation {
 
     /// Check if this continuation represents an intermediate computation
     /// These continuations should be skipped during non-local exit
-    pub fn is_intermediate_computation(&self) -> bool {
+    #[must_use] pub fn is_intermediate_computation(&self) -> bool {
         matches!(
             self,
             Continuation::Application { .. }
@@ -824,7 +845,7 @@ impl Continuation {
     }
 
     /// Get the parent continuation, if any
-    pub fn parent(&self) -> Option<&Continuation> {
+    #[must_use] pub fn parent(&self) -> Option<&Continuation> {
         match self {
             Continuation::Identity => None,
             Continuation::Application { parent, .. } => Some(parent),
@@ -846,8 +867,20 @@ impl Continuation {
             Continuation::Or { parent, .. } => Some(parent),
             Continuation::CallWithValuesStep1 { parent, .. } => Some(parent),
             Continuation::CallWithValuesStep2 { parent, .. } => Some(parent),
+            Continuation::LetBinding { parent, .. } => Some(parent),
             Continuation::DoLoop { parent, .. } => Some(parent),
             Continuation::Captured { .. } => None, // Captured continuations don't have logical parents
+        }
+    }
+}
+
+impl PartialEq for Continuation {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Continuation::Identity, Continuation::Identity) => true,
+            // For simplicity, most continuations are considered unequal unless identical
+            // This is sufficient for error handling where PartialEq is required
+            _ => false,
         }
     }
 }

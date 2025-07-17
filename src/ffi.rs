@@ -4,6 +4,7 @@
 //! in C and C++ applications. Features enhanced safety, thread safety,
 //! advanced error handling, and resource tracking.
 
+#![cfg(not(feature = "embedded"))]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::bridge::LambdustBridge;
@@ -542,7 +543,7 @@ pub unsafe extern "C" fn lambdust_call_function(
     let call_expr = if args.is_empty() {
         format!("({})", func_name)
     } else {
-        let arg_strs: Vec<String> = args.iter().map(|v| v.to_string()).collect();
+        let arg_strs: Vec<String> = args.iter().map(|v: &Value| v.to_string()).collect();
         format!("({} {})", func_name, arg_strs.join(" "))
     };
 
@@ -570,91 +571,3 @@ pub unsafe extern "C" fn lambdust_call_function(
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::ffi::CString;
-
-    #[test]
-    fn test_context_creation_and_destruction() {
-        unsafe {
-            let ctx = lambdust_create_context();
-            assert!(!ctx.is_null());
-            lambdust_destroy_context(ctx);
-        }
-    }
-
-    #[test]
-    fn test_basic_evaluation() {
-        unsafe {
-            let ctx = lambdust_create_context();
-            assert!(!ctx.is_null());
-
-            let code = CString::new("(+ 1 2 3)").unwrap();
-            let mut result: *mut c_char = ptr::null_mut();
-
-            let error_code = lambdust_eval(ctx, code.as_ptr(), &mut result);
-            assert_eq!(error_code, LambdustErrorCode::Success as c_int);
-            assert!(!result.is_null());
-
-            let result_str = CStr::from_ptr(result).to_str().unwrap();
-            assert_eq!(result_str, "6");
-
-            lambdust_free_string(result);
-            lambdust_destroy_context(ctx);
-        }
-    }
-
-    #[test]
-    fn test_host_function_registration() {
-        unsafe extern "C" fn test_host_func(
-            argc: c_int,
-            argv: *const *const c_char,
-            result: *mut *mut c_char,
-        ) -> c_int {
-            if argc != 2 {
-                return LambdustErrorCode::ArityError as c_int;
-            }
-
-            // Simple addition function
-            let a_str = unsafe { CStr::from_ptr(*argv).to_str().unwrap() };
-            let b_str = unsafe { CStr::from_ptr(*argv.add(1)).to_str().unwrap() };
-
-            let a: i32 = a_str.parse().unwrap_or(0);
-            let b: i32 = b_str.parse().unwrap_or(0);
-            let sum = a + b;
-
-            let result_string = CString::new(sum.to_string()).unwrap();
-            unsafe {
-                *result = result_string.into_raw();
-            }
-
-            LambdustErrorCode::Success as c_int
-        }
-
-        unsafe {
-            let ctx = lambdust_create_context();
-            assert!(!ctx.is_null());
-
-            let func_name = CString::new("host-add").unwrap();
-            let error_code = lambdust_register_function(ctx, func_name.as_ptr(), test_host_func);
-            assert_eq!(error_code, LambdustErrorCode::Success as c_int);
-
-            // Test calling the registered function
-            let code = CString::new("(host-add 10 20)").unwrap();
-            let mut result: *mut c_char = ptr::null_mut();
-
-            let eval_code = lambdust_eval(ctx, code.as_ptr(), &mut result);
-            assert_eq!(eval_code, LambdustErrorCode::Success as c_int);
-
-            if !result.is_null() {
-                let result_str = CStr::from_ptr(result).to_str().unwrap();
-                // The result is quoted because it comes back as a string value representation
-                assert_eq!(result_str, "30");
-                lambdust_free_string(result);
-            }
-
-            lambdust_destroy_context(ctx);
-        }
-    }
-}

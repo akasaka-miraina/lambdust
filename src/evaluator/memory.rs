@@ -13,12 +13,12 @@ pub struct Location(usize);
 
 impl Location {
     /// Create a new location
-    pub fn new(id: usize) -> Self {
+    #[must_use] pub fn new(id: usize) -> Self {
         Location(id)
     }
 
     /// Get the raw location ID
-    pub fn id(&self) -> usize {
+    #[must_use] pub fn id(&self) -> usize {
         self.0
     }
 }
@@ -71,9 +71,9 @@ pub struct Store {
     current_generation: u32,
     /// Statistics for monitoring
     pub stats: StoreStatistics,
-    /// Memory pool for reusing freed cells (Phase 3 optimization)
+    /// Memory pool for reusing freed cells
     cell_pool: Vec<MemoryCell>,
-    /// Location pool for reusing location IDs (Phase 3 optimization)
+    /// Location pool for reusing location IDs
     location_pool: Vec<usize>,
     /// Maximum pool size to prevent unbounded growth
     max_pool_size: usize,
@@ -90,9 +90,9 @@ pub struct StoreStatistics {
     pub gc_cycles: usize,
     /// Peak memory usage
     pub peak_memory_usage: usize,
-    /// Memory pool hits (Phase 3 optimization)
+    /// Memory pool hits
     pub pool_hits: usize,
-    /// Clone eliminations (Phase 3 optimization)
+    /// Clone eliminations
     pub clone_eliminations: usize,
     /// Memory pool efficiency (0.0 - 1.0)
     pub memory_pool_efficiency: f64,
@@ -106,7 +106,7 @@ impl Default for Store {
 
 impl Store {
     /// Create a new store with default settings
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Store {
             locations: HashMap::new(),
             next_location: 0,
@@ -122,7 +122,7 @@ impl Store {
     }
 
     /// Create a new store with custom memory limit
-    pub fn with_memory_limit(memory_limit: usize) -> Self {
+    #[must_use] pub fn with_memory_limit(memory_limit: usize) -> Self {
         Store {
             locations: HashMap::new(),
             next_location: 0,
@@ -163,7 +163,7 @@ impl Store {
         Location::new(loc_id)
     }
 
-    /// Allocate a new location using memory pool optimization (Phase 3)
+    /// Allocate a new location using memory pool optimization
     pub fn allocate_pooled(&mut self, value: Value) -> Location {
         // Check memory limit before allocation
         if self.should_collect_garbage() {
@@ -209,7 +209,7 @@ impl Store {
     }
 
     /// Get value at location
-    pub fn get(&self, location: Location) -> Option<&Value> {
+    #[must_use] pub fn get(&self, location: Location) -> Option<&Value> {
         self.locations.get(&location.id()).map(|cell| &cell.value)
     }
 
@@ -222,8 +222,7 @@ impl Store {
             self.estimate_value_size(&cell.value)
         } else {
             return Err(LambdustError::runtime_error(format!(
-                "Invalid location: {}",
-                location
+                "Invalid location: {location}"
             )));
         };
 
@@ -240,14 +239,13 @@ impl Store {
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
-                "Invalid location: {}",
-                location
+                "Invalid location: {location}"
             )))
         }
     }
 
     /// Check if location exists
-    pub fn contains(&self, location: Location) -> bool {
+    #[must_use] pub fn contains(&self, location: Location) -> bool {
         self.locations.contains_key(&location.id())
     }
 
@@ -258,8 +256,7 @@ impl Store {
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
-                "Invalid location for incref: {}",
-                location
+                "Invalid location for incref: {location}"
             )))
         }
     }
@@ -277,8 +274,7 @@ impl Store {
             Ok(())
         } else {
             Err(LambdustError::runtime_error(format!(
-                "Invalid location for decref: {}",
-                location
+                "Invalid location for decref: {location}"
             )))
         }
     }
@@ -290,12 +286,12 @@ impl Store {
             self.memory_usage = self.memory_usage.saturating_sub(value_size);
             self.stats.total_deallocations += 1;
 
-            // Add to memory pools if space available (Phase 3 optimization)
+            // Add to memory pools if space available
             self.pool_deallocated_resources(location.id(), cell);
         }
     }
 
-    /// Pool deallocated resources for reuse (Phase 3 optimization)
+    /// Pool deallocated resources for reuse
     fn pool_deallocated_resources(&mut self, location_id: usize, mut cell: MemoryCell) {
         // Add location ID to pool if space available
         if self.location_pool.len() < self.max_pool_size {
@@ -313,7 +309,7 @@ impl Store {
         }
     }
 
-    /// Update memory pool efficiency statistics (Phase 3 optimization)
+    /// Update memory pool efficiency statistics
     pub fn update_pool_efficiency(&mut self) {
         if self.stats.total_allocations > 0 {
             self.stats.memory_pool_efficiency =
@@ -322,7 +318,7 @@ impl Store {
     }
 
     /// Get current pool utilization for monitoring
-    pub fn get_pool_utilization(&self) -> (f64, f64) {
+    #[must_use] pub fn get_pool_utilization(&self) -> (f64, f64) {
         let cell_pool_util = self.cell_pool.len() as f64 / self.max_pool_size as f64;
         let location_pool_util = self.location_pool.len() as f64 / self.max_pool_size as f64;
         (cell_pool_util, location_pool_util)
@@ -393,11 +389,17 @@ impl Store {
             Value::Number(_) => 8,
             Value::Character(_) => 4,
             Value::String(s) => s.len() + 24, // String overhead
+            Value::ShortString(_) => 16, // Inline storage, no heap allocation
             Value::Symbol(s) => s.len() + 24,
+            Value::ShortSymbol(_) => 16, // Inline storage, no heap allocation
             Value::Pair(_) => 32,                 // Approximate size of pair
             Value::Vector(v) => v.len() * 8 + 24, // Vector overhead
             Value::HashTable(_) => 64,            // Approximate hash table overhead
             Value::Procedure(_) => 48,            // Approximate procedure overhead
+            #[allow(deprecated)]
+            Value::BuiltinFunction(_) => 16,      // Function pointer size
+            #[allow(deprecated)]
+            Value::Integer(_) => 8,               // Integer size
             Value::Promise(_) => 32,
             Value::Port(_) => 64,     // Port overhead
             Value::External(_) => 48, // External object overhead
@@ -411,19 +413,37 @@ impl Store {
             Value::Continuation(_) => 96, // Continuation overhead
             Value::Nil => 8,
             Value::Undefined => 8,
-            Value::Box(_) => 32,          // Box overhead
-            Value::Comparator(_) => 64,   // Comparator overhead
-            Value::StringCursor(_) => 48, // StringCursor overhead
+            Value::Box(_) => 32,                                  // Box overhead
+            Value::Comparator(_) => 64,                           // Comparator overhead
+            Value::StringCursor(_) => 48,                         // StringCursor overhead
+            Value::Ideque(ideque) => ideque.len() * 8 + 32,       // Ideque overhead
+            Value::List(list) => list.len() * 8 + 24,             // List overhead
+            Value::Unspecified => 8,                               // Unspecified size
+            Value::Environment(_) => 128,                          // Environment overhead
+            Value::Bytevector(bv) => bv.len() + 24,               // Bytevector overhead
+            Value::Text(text) => text.length() * 4 + 32, // Text overhead (4 bytes per char approx)
+            Value::IString(istring) => istring.length() * 4 + 32, // IString overhead (4 bytes per char approx)
+            Value::LazyVector(lazy_vec) => {
+                let storage = lazy_vec.borrow();
+                let stats = storage.memory_stats();
+                stats.estimated_bytes + 128 // Add overhead for LazyVector wrapper
+            }
+            Value::UniqueTypeInstance(instance) => {
+                // Size includes the type_id, subtype_chain, and payload size
+                let payload_size = self.estimate_value_size(&instance.payload);
+                let chain_size = instance.subtype_chain.len() * 8; // size of usize vec
+                payload_size + chain_size + 16 // base overhead for UniqueTypeInstance
+            }
         }
     }
 
     /// Get current memory usage
-    pub fn memory_usage(&self) -> usize {
+    #[must_use] pub fn memory_usage(&self) -> usize {
         self.memory_usage
     }
 
     /// Get number of allocated locations
-    pub fn location_count(&self) -> usize {
+    #[must_use] pub fn location_count(&self) -> usize {
         self.locations.len()
     }
 
@@ -434,7 +454,7 @@ impl Store {
     }
 
     /// Get memory statistics
-    pub fn get_statistics(&self) -> &StoreStatistics {
+    #[must_use] pub fn get_statistics(&self) -> &StoreStatistics {
         &self.stats
     }
 }

@@ -47,7 +47,7 @@ impl Value {
             Procedure::Continuation { .. } => write!(f, "#<continuation>"),
             Procedure::CapturedContinuation { .. } => write!(f, "#<continuation>"),
             Procedure::ReusableContinuation { reuse_id, .. } => {
-                write!(f, "#<reusable-continuation:{}>", reuse_id)
+                write!(f, "#<reusable-continuation:{reuse_id}>")
             }
         }
     }
@@ -93,7 +93,7 @@ impl Value {
                 if i > 0 {
                     write!(f, " ")?;
                 }
-                write!(f, "{}", value)?;
+                write!(f, "{value}")?;
             }
             write!(f, ")")
         }
@@ -107,6 +107,7 @@ impl fmt::Display for Value {
             Value::Boolean(b) => write!(f, "#{}", if *b { "t" } else { "f" }),
             Value::Number(n) => write!(f, "{n}"),
             Value::String(s) => write!(f, "\"{s}\""),
+            Value::ShortString(s) => write!(f, "\"{}\"", s.as_str()),
             Value::Character(c) => match c {
                 ' ' => write!(f, "#\\space"),
                 '\n' => write!(f, "#\\newline"),
@@ -114,10 +115,25 @@ impl fmt::Display for Value {
                 _ => write!(f, "#\\{c}"),
             },
             Value::Symbol(s) => write!(f, "{s}"),
+            Value::ShortSymbol(s) => write!(f, "{}", s.as_str()),
             Value::Pair(pair_ref) => self.display_pair(f, pair_ref),
             Value::Nil => write!(f, "()"),
             Value::Procedure(proc) => self.display_procedure(f, proc),
+            #[allow(deprecated)]
+            Value::BuiltinFunction(_) => write!(f, "#<builtin>"),
+            #[allow(deprecated)]
+            Value::Integer(i) => write!(f, "{i}"),
             Value::Vector(values) => self.display_vector(f, values),
+            Value::LazyVector(lazy_vec) => {
+                let storage = lazy_vec.borrow();
+                let stats = storage.memory_stats();
+                write!(
+                    f,
+                    "#<lazy-vector:{}:{:.1}%>",
+                    stats.logical_size,
+                    stats.materialization_ratio() * 100.0
+                )
+            }
             Value::Port(_) => write!(f, "#<port>"),
             Value::External(obj) => write!(f, "#<external:{}>", obj.type_name),
             Value::Record(record) => {
@@ -126,7 +142,7 @@ impl fmt::Display for Value {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    write!(f, "{}", field)?;
+                    write!(f, "{field}")?;
                 }
                 write!(f, ">")
             }
@@ -135,7 +151,7 @@ impl fmt::Display for Value {
             Value::Promise(promise) => match &promise.state {
                 crate::value::PromiseState::Lazy { .. } => write!(f, "#<promise:lazy>"),
                 crate::value::PromiseState::Eager { value } => {
-                    write!(f, "#<promise:eager:{}>", value)
+                    write!(f, "#<promise:eager:{value}>")
                 }
             },
             Value::HashTable(ht) => {
@@ -156,6 +172,45 @@ impl fmt::Display for Value {
                     cursor.string().len()
                 )
             }
+            Value::Ideque(ideque) => {
+                write!(f, "#<ideque")?;
+                let elements = ideque.to_list();
+                for element in elements {
+                    write!(f, " {element}")?;
+                }
+                write!(f, ">")
+            }
+            Value::Text(text) => {
+                write!(f, "\"{}\"", text.text_to_string())
+            }
+            Value::IString(istring) => {
+                write!(f, "\"{}\"", istring.to_string())
+            }
+            Value::UniqueTypeInstance(instance) => {
+                write!(f, "#<unique-type-instance:{} {:?}>", instance.type_id, instance.payload)
+            }
+            Value::List(items) => {
+                write!(f, "(")?;
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{item}")?;
+                }
+                write!(f, ")")
+            }
+            Value::Unspecified => write!(f, "#<unspecified>"),
+            Value::Environment(_) => write!(f, "#<environment>"),
+            Value::Bytevector(bytes) => {
+                write!(f, "#u8(")?;
+                for (i, byte) in bytes.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{byte}")?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -167,8 +222,10 @@ impl std::fmt::Debug for Value {
             Self::Boolean(arg0) => f.debug_tuple("Boolean").field(arg0).finish(),
             Self::Number(arg0) => f.debug_tuple("Number").field(arg0).finish(),
             Self::String(arg0) => f.debug_tuple("String").field(arg0).finish(),
+            Self::ShortString(arg0) => f.debug_tuple("ShortString").field(&arg0.as_str()).finish(),
             Self::Character(arg0) => f.debug_tuple("Character").field(arg0).finish(),
             Self::Symbol(arg0) => f.debug_tuple("Symbol").field(arg0).finish(),
+            Self::ShortSymbol(arg0) => f.debug_tuple("ShortSymbol").field(&arg0.as_str()).finish(),
             Self::Pair(pair_ref) => {
                 let pair = pair_ref.borrow();
                 f.debug_tuple("Pair")
@@ -178,7 +235,22 @@ impl std::fmt::Debug for Value {
             }
             Self::Nil => write!(f, "Nil"),
             Self::Procedure(arg0) => f.debug_tuple("Procedure").field(arg0).finish(),
+            #[allow(deprecated)]
+            Self::BuiltinFunction(_) => f.debug_tuple("BuiltinFunction").field(&"<builtin>").finish(),
+            #[allow(deprecated)]
+            Self::Integer(arg0) => f.debug_tuple("Integer").field(arg0).finish(),
             Self::Vector(arg0) => f.debug_tuple("Vector").field(arg0).finish(),
+            Self::LazyVector(arg0) => {
+                let storage = arg0.borrow();
+                let stats = storage.memory_stats();
+                f.debug_tuple("LazyVector")
+                    .field(&format!(
+                        "size:{}, materialized:{:.1}%",
+                        stats.logical_size,
+                        stats.materialization_ratio() * 100.0
+                    ))
+                    .finish()
+            }
             Self::Port(arg0) => f.debug_tuple("Port").field(arg0).finish(),
             Self::External(arg0) => f.debug_tuple("External").field(arg0).finish(),
             Self::Record(arg0) => f.debug_tuple("Record").field(arg0).finish(),
@@ -192,6 +264,17 @@ impl std::fmt::Debug for Value {
                 .debug_tuple("StringCursor")
                 .field(&arg0.position())
                 .finish(),
+            Self::Ideque(arg0) => f.debug_tuple("Ideque").field(arg0).finish(),
+            Self::Text(arg0) => f.debug_tuple("Text").field(&arg0.text_to_string()).finish(),
+            Self::IString(arg0) => f.debug_tuple("IString").field(&arg0.to_string()).finish(),
+            Self::UniqueTypeInstance(instance) => f.debug_tuple("UniqueTypeInstance")
+                .field(&instance.type_id)
+                .field(&instance.payload)
+                .finish(),
+            Self::List(arg0) => f.debug_tuple("List").field(arg0).finish(),
+            Self::Unspecified => write!(f, "Unspecified"),
+            Self::Environment(_) => f.debug_tuple("Environment").field(&"<environment>").finish(),
+            Self::Bytevector(arg0) => f.debug_tuple("Bytevector").field(arg0).finish(),
         }
     }
 }

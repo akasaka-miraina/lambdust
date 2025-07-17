@@ -1,17 +1,16 @@
 //! List operations and utilities
 
-use super::{PairData, Value};
-use std::cell::RefCell;
-use std::rc::Rc;
+use super::Value;
+// Removed unused imports: PairData, std::cell::RefCell, std::rc::Rc
 
 impl Value {
     /// Check if this value is nil (empty list)
-    pub fn is_nil(&self) -> bool {
+    #[must_use] pub fn is_nil(&self) -> bool {
         matches!(self, Value::Nil)
     }
 
     /// Check if this value is a list (proper list ending in nil)
-    pub fn is_list(&self) -> bool {
+    #[must_use] pub fn is_list(&self) -> bool {
         match self {
             Value::Nil => true,
             Value::Pair(pair_ref) => {
@@ -23,7 +22,7 @@ impl Value {
     }
 
     /// Convert this value to a vector if it's a list
-    pub fn to_vector(&self) -> Option<Vec<Value>> {
+    #[must_use] pub fn to_vector(&self) -> Option<Vec<Value>> {
         let mut result = Vec::new();
         let mut current = self.clone();
 
@@ -41,14 +40,14 @@ impl Value {
     }
 
     /// Create a list from a vector of values
-    pub fn from_vector(values: Vec<Value>) -> Value {
+    #[must_use] pub fn from_vector(values: Vec<Value>) -> Value {
         values.into_iter().rev().fold(Value::Nil, |acc, val| {
-            Value::Pair(Rc::new(RefCell::new(PairData::new(val, acc))))
+            Value::cons(val, acc)
         })
     }
 
     /// Get the length of a list
-    pub fn list_length(&self) -> Option<usize> {
+    #[must_use] pub fn list_length(&self) -> Option<usize> {
         let mut length = 0;
         let mut current = self.clone();
 

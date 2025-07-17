@@ -5,6 +5,7 @@ use crate::evaluator::types::Evaluator;
 use crate::value::{Procedure, Value};
 use std::any::Any;
 use std::collections::HashMap;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 /// Trait for types that can be converted to Scheme values
@@ -165,7 +166,7 @@ impl std::fmt::Debug for ObjectRegistry {
 
 impl ObjectRegistry {
     /// Create a new object registry
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         ObjectRegistry {
             next_id: 1,
             objects: HashMap::new(),
@@ -200,23 +201,22 @@ impl ObjectRegistry {
         type_name: &str,
         _converter: fn(&T) -> Result<Value>,
     ) {
-        // TODO: Implement proper type converter registration
-        // For now, just store the type name
-        let dummy_converter = |_any_obj: &dyn Any| -> Result<Value> {
-            Err(LambdustError::type_error("Type converter not implemented"))
-        };
+        // For now, just store a placeholder converter function pointer
+        fn placeholder_converter(_any_obj: &dyn Any) -> Result<Value> {
+            Err(LambdustError::type_error("Type converter not yet implemented".to_string()))
+        }
 
         self.converters
-            .insert(type_name.to_string(), dummy_converter);
+            .insert(type_name.to_string(), placeholder_converter);
     }
 
     /// Get an external object by ID
-    pub fn get_object(&self, id: u64) -> Option<&ExternalObject> {
+    #[must_use] pub fn get_object(&self, id: u64) -> Option<&ExternalObject> {
         self.objects.get(&id)
     }
 
     /// Get an external function by name
-    pub fn get_function(&self, name: &str) -> Option<&Arc<dyn Callable>> {
+    #[must_use] pub fn get_function(&self, name: &str) -> Option<&Arc<dyn Callable>> {
         self.functions.get(name)
     }
 
@@ -231,17 +231,17 @@ impl ObjectRegistry {
     }
 
     /// Check if objects registry is empty
-    pub fn objects_is_empty(&self) -> bool {
+    #[must_use] pub fn objects_is_empty(&self) -> bool {
         self.objects.is_empty()
     }
 
     /// Check if functions registry is empty  
-    pub fn functions_is_empty(&self) -> bool {
+    #[must_use] pub fn functions_is_empty(&self) -> bool {
         self.functions.is_empty()
     }
 
     /// Check if a function is registered
-    pub fn has_function(&self, name: &str) -> bool {
+    #[must_use] pub fn has_function(&self, name: &str) -> bool {
         self.functions.contains_key(name)
     }
 }
@@ -338,7 +338,7 @@ impl LambdustBridge {
     /// let bridge = LambdustBridge::new();
     /// // Bridge is ready for function registration and Scheme evaluation
     /// ```
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut evaluator = Evaluator::new();
         let registry = Arc::new(Mutex::new(ObjectRegistry::new()));
 
@@ -352,46 +352,131 @@ impl LambdustBridge {
     }
 
     /// Add bridge functions to the evaluator environment
-    fn add_bridge_functions(evaluator: &mut Evaluator, _registry: Arc<Mutex<ObjectRegistry>>) {
+    fn add_bridge_functions(evaluator: &mut Evaluator, registry: Arc<Mutex<ObjectRegistry>>) {
         let global_env = evaluator.global_env.clone();
 
-        // For now, add placeholder functions
+        // call-external function
+        let registry_clone = registry.clone();
         global_env.define(
             "call-external".to_string(),
-            Value::Procedure(Procedure::Builtin {
+            Value::Procedure(Procedure::HostFunction {
                 name: "call-external".to_string(),
                 arity: None, // Variadic
-                func: |_args| {
-                    Err(LambdustError::runtime_error(
-                        "call-external not implemented yet",
-                    ))
-                },
+                func: Rc::new(move |args: &[Value]| {
+                    if args.is_empty() {
+                        return Err(LambdustError::arity_error(1, 0));
+                    }
+                    
+                    let function_name = match &args[0] {
+                        Value::String(s) => s.clone(),
+                        Value::Symbol(s) => s.clone(),
+                        _ => return Err(LambdustError::type_error("Function name must be a string or symbol")),
+                    };
+                    
+                    let function_args = &args[1..];
+                    
+                    let registry = registry_clone.lock().unwrap();
+                    if let Some(func) = registry.get_function(&function_name) {
+                        func.call(function_args)
+                    } else {
+                        Err(LambdustError::runtime_error(format!(
+                            "External function not found: {function_name}"
+                        )))
+                    }
+                }),
             }),
         );
 
+        // get-property function
+        let registry_clone2 = registry.clone();
         global_env.define(
             "get-property".to_string(),
-            Value::Procedure(Procedure::Builtin {
+            Value::Procedure(Procedure::HostFunction {
                 name: "get-property".to_string(),
                 arity: Some(2),
-                func: |_args| {
-                    Err(LambdustError::runtime_error(
-                        "get-property not implemented yet",
-                    ))
-                },
+                func: Rc::new(move |args: &[Value]| {
+                    let object_id = match &args[0] {
+                        Value::Number(crate::lexer::SchemeNumber::Integer(id)) => (*id) as u64,
+                        _ => return Err(LambdustError::type_error("Object ID must be an integer")),
+                    };
+                    
+                    let property_name = match &args[1] {
+                        Value::String(s) => s.clone(),
+                        Value::Symbol(s) => s.clone(),
+                        _ => return Err(LambdustError::type_error("Property name must be a string or symbol")),
+                    };
+                    
+                    let registry = registry_clone2.lock().unwrap();
+                    if let Some(_obj) = registry.get_object(object_id) {
+                        // For now, return a placeholder - full property access would require
+                        // more sophisticated reflection capabilities
+                        Ok(Value::String(format!("Property {property_name} of object {object_id}")))
+                    } else {
+                        Err(LambdustError::runtime_error(format!(
+                            "Object not found: {object_id}"
+                        )))
+                    }
+                }),
             }),
         );
 
+        // set-property! function
+        let registry_clone3 = registry.clone();
         global_env.define(
             "set-property!".to_string(),
-            Value::Procedure(Procedure::Builtin {
+            Value::Procedure(Procedure::HostFunction {
                 name: "set-property!".to_string(),
                 arity: Some(3),
-                func: |_args| {
-                    Err(LambdustError::runtime_error(
-                        "set-property! not implemented yet",
-                    ))
-                },
+                func: Rc::new(move |args: &[Value]| {
+                    let object_id = match &args[0] {
+                        Value::Number(crate::lexer::SchemeNumber::Integer(id)) => (*id) as u64,
+                        _ => return Err(LambdustError::type_error("Object ID must be an integer")),
+                    };
+                    
+                    let _property_name = match &args[1] {
+                        Value::String(s) => s.clone(),
+                        Value::Symbol(s) => s.clone(),
+                        _ => return Err(LambdustError::type_error("Property name must be a string or symbol")),
+                    };
+                    
+                    let _new_value = &args[2];
+                    
+                    let registry = registry_clone3.lock().unwrap();
+                    if let Some(_obj) = registry.get_object(object_id) {
+                        // For now, return undefined - full property setting would require
+                        // more sophisticated reflection capabilities
+                        Ok(Value::Undefined)
+                    } else {
+                        Err(LambdustError::runtime_error(format!(
+                            "Object not found: {object_id}"
+                        )))
+                    }
+                }),
+            }),
+        );
+        
+        // object->scheme function for converting external objects to Scheme values
+        let registry_clone4 = registry.clone();
+        global_env.define(
+            "object->scheme".to_string(),
+            Value::Procedure(Procedure::HostFunction {
+                name: "object->scheme".to_string(),
+                arity: Some(1),
+                func: Rc::new(move |args: &[Value]| {
+                    let object_id = match &args[0] {
+                        Value::Number(crate::lexer::SchemeNumber::Integer(id)) => (*id) as u64,
+                        _ => return Err(LambdustError::type_error("Object ID must be an integer")),
+                    };
+                    
+                    let registry = registry_clone4.lock().unwrap();
+                    if let Some(obj) = registry.get_object(object_id) {
+                        registry.object_to_value(obj)
+                    } else {
+                        Err(LambdustError::runtime_error(format!(
+                            "Object not found: {object_id}"
+                        )))
+                    }
+                }),
             }),
         );
     }
@@ -432,6 +517,43 @@ impl LambdustBridge {
         self.evaluator
             .global_env
             .define(name.to_string(), procedure);
+    }
+    
+    /// Register a type converter for external objects
+    pub fn register_type_converter<T: Any + Send + Sync>(
+        &mut self,
+        type_name: &str,
+        converter: fn(&T) -> Result<Value>,
+    ) {
+        self.registry
+            .lock()
+            .unwrap()
+            .register_converter(type_name, converter);
+    }
+    
+    /// Get an external object by ID
+    #[must_use] pub fn get_object(&self, id: u64) -> Option<ExternalObject> {
+        self.registry
+            .lock()
+            .unwrap()
+            .get_object(id)
+            .cloned()
+    }
+    
+    /// Convert an external object to a Scheme value
+    pub fn object_to_scheme(&self, obj: &ExternalObject) -> Result<Value> {
+        self.registry
+            .lock()
+            .unwrap()
+            .object_to_value(obj)
+    }
+    
+    /// Check if a function is registered
+    #[must_use] pub fn has_function(&self, name: &str) -> bool {
+        self.registry
+            .lock()
+            .unwrap()
+            .has_function(name)
     }
 
     /// Evaluate Scheme code
@@ -500,7 +622,7 @@ impl std::fmt::Debug for CallableFunction {
 
 impl ToScheme for i32 {
     fn to_scheme(&self) -> Result<Value> {
-        Ok(Value::from(*self as i64))
+        Ok(Value::from(i64::from(*self)))
     }
 }
 

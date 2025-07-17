@@ -37,7 +37,7 @@ pub enum ValueType {
 
 impl ValueType {
     /// Check if a value matches this type
-    pub fn matches(&self, value: &Value) -> bool {
+    #[must_use] pub fn matches(&self, value: &Value) -> bool {
         match (self, value) {
             (ValueType::Any, _) => true,
             (ValueType::Boolean, Value::Boolean(_)) => true,
@@ -53,7 +53,7 @@ impl ValueType {
     }
 
     /// Get type name as string
-    pub fn name(&self) -> &'static str {
+    #[must_use] pub fn name(&self) -> &'static str {
         match self {
             ValueType::Any => "Any",
             ValueType::Boolean => "Boolean",
@@ -81,7 +81,7 @@ pub struct FunctionSignature {
 
 impl FunctionSignature {
     /// Create a new function signature
-    pub fn new(parameters: Vec<ValueType>, return_type: ValueType) -> Self {
+    #[must_use] pub fn new(parameters: Vec<ValueType>, return_type: ValueType) -> Self {
         Self {
             parameters: Some(parameters),
             return_type,
@@ -90,7 +90,7 @@ impl FunctionSignature {
     }
 
     /// Create a variadic function signature
-    pub fn variadic(return_type: ValueType) -> Self {
+    #[must_use] pub fn variadic(return_type: ValueType) -> Self {
         Self {
             parameters: None,
             return_type,
@@ -99,6 +99,11 @@ impl FunctionSignature {
     }
 
     /// Validate arguments against this signature
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the number of arguments doesn't match the expected arity
+    /// or if any argument type doesn't match the expected parameter type.
     pub fn validate_args(&self, args: &[Value]) -> Result<()> {
         if let Some(ref params) = self.parameters {
             if !self.variadic && args.len() != params.len() {
@@ -132,6 +137,10 @@ impl FunctionSignature {
     }
 
     /// Validate return value against this signature
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the value type doesn't match the expected return type.
     pub fn validate_return(&self, value: &Value) -> Result<()> {
         if !self.return_type.matches(value) {
             return Err(LambdustError::type_error(format!(
@@ -155,7 +164,7 @@ pub struct HostFunctionRegistry {
 
 impl HostFunctionRegistry {
     /// Create a new host function registry
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             functions: HashMap::new(),
         }
@@ -199,7 +208,7 @@ impl HostFunctionRegistry {
     }
 
     /// Get a registered function as a Scheme procedure
-    pub fn get_procedure(&self, name: &str) -> Option<Value> {
+    #[must_use] pub fn get_procedure(&self, name: &str) -> Option<Value> {
         if let Some((func, signature)) = self.functions.get(name) {
             let name_clone = name.to_string();
             let signature_clone = signature.clone();
@@ -216,7 +225,7 @@ impl HostFunctionRegistry {
             Some(Value::Procedure(Procedure::HostFunction {
                 name: name_clone,
                 func: Rc::new(wrapper),
-                arity: signature.parameters.as_ref().map(|p| p.len()),
+                arity: signature.parameters.as_ref().map(std::vec::Vec::len),
             }))
         } else {
             None
@@ -224,12 +233,12 @@ impl HostFunctionRegistry {
     }
 
     /// List all registered function names
-    pub fn list_functions(&self) -> Vec<&String> {
+    #[must_use] pub fn list_functions(&self) -> Vec<&String> {
         self.functions.keys().collect()
     }
 
     /// Get function signature
-    pub fn get_signature(&self, name: &str) -> Option<&FunctionSignature> {
+    #[must_use] pub fn get_signature(&self, name: &str) -> Option<&FunctionSignature> {
         self.functions.get(name).map(|(_, sig)| sig)
     }
 

@@ -30,7 +30,7 @@ impl Evaluator {
         }
 
         // Import returns unspecified value
-        self.apply_continuation(cont, Value::Undefined)
+        self.apply_evaluator_continuation(cont, Value::Undefined)
     }
 
     /// Process a single import specification
@@ -88,7 +88,7 @@ impl Evaluator {
         // Get exports from SRFI registry
         let exports = {
             let registry = self.srfi_registry_mut();
-            let parts_refs: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
+            let parts_refs: Vec<&str> = parts.iter().map(std::string::String::as_str).collect();
             registry.get_exports_for_parts(srfi_number, &parts_refs)?
         };
 

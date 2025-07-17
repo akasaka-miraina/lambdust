@@ -4,12 +4,12 @@
 //! comprehensive hash table (dictionary) functionality for R7RS Scheme.
 //!
 //! The implementation is divided into functional modules:
-//! - types: Core data structures (HashTable, HashKey)
+//! - types: Core data structures (`HashTable`, `HashKey`)
 //! - core: Basic operations (creation, access, modification)
 //! - queries: Query operations (exists, size, keys, values)
 //! - conversion: Conversion operations (alist conversion, copying)
-//! - hash_functions: Hash functions for different data types
-//! - higher_order: Higher-order functions (walk, fold, merge)
+//! - `hash_functions`: Hash functions for different data types
+//! - `higher_order`: Higher-order functions (walk, fold, merge)
 
 pub mod conversion;
 pub mod core;
@@ -86,7 +86,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                         "hash-table-delete!",
                     ] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -99,7 +99,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                         "hash-table-values",
                     ] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -107,7 +107,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                     // Conversion operations
                     for name in &["hash-table->alist", "alist->hash-table", "hash-table-copy"] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -115,7 +115,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                     // Hash functions
                     for name in &["hash", "string-hash", "string-ci-hash"] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -123,7 +123,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                     // Higher-order functions
                     for name in &["hash-table-walk", "hash-table-fold", "hash-table-merge!"] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -131,7 +131,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                     // Constructor operations (alias for core)
                     for name in &["make-hash-table", "hash-table?"] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -147,7 +147,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                         "hash-table-values",
                     ] {
                         if let Some(value) = all_exports.get(*name) {
-                            filtered.insert(name.to_string(), value.clone());
+                            filtered.insert((*name).to_string(), value.clone());
                         }
                     }
                 }
@@ -159,8 +159,7 @@ impl crate::srfi::SrfiModule for Srfi69 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "SRFI 69: unknown part '{}'",
-                        part
+                        "SRFI 69: unknown part '{part}'"
                     )));
                 }
             }

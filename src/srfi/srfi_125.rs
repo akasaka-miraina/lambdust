@@ -102,7 +102,7 @@ impl super::SrfiModule for Srfi125 {
 
                     // Convert to list of key-value pairs (simplified)
                     let mut result = Vec::new();
-                    for (hash_key, value) in table.table.iter() {
+                    for (hash_key, value) in &table.table {
                         // Create a simple pair representation
                         result.push(Value::from_vector(vec![hash_key.to_value(), value.clone()]));
                     }
@@ -232,7 +232,7 @@ impl super::SrfiModule for Srfi125 {
                     for other_arg in &args[1..] {
                         if let Value::HashTable(ht2) = other_arg {
                             let table2 = ht2.borrow();
-                            for (hash_key, value) in table2.table.iter() {
+                            for (hash_key, value) in &table2.table {
                                 table1.table.insert(hash_key.clone(), value.clone());
                             }
                         } else {

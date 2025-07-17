@@ -183,7 +183,7 @@ fn char_to_integer() -> Value {
     make_builtin_procedure("char->integer", Some(1), |args| {
         check_arity(args, 1)?;
         let ch = expect_character(&args[0], "char->integer")?;
-        Ok(Value::Number(SchemeNumber::Integer(ch as u8 as i64)))
+        Ok(Value::Number(SchemeNumber::Integer(i64::from(ch as u8))))
     })
 }
 
@@ -198,8 +198,7 @@ fn integer_to_char() -> Value {
                     Ok(Value::Character(*n as u8 as char))
                 } else {
                     Err(LambdustError::runtime_error(format!(
-                        "integer->char: value {} out of ASCII range",
-                        n
+                        "integer->char: value {n} out of ASCII range"
                     )))
                 }
             }
@@ -250,27 +249,20 @@ fn convert_list_to_string() -> Value {
                 return Err(LambdustError::arity_error(1, args.len()));
             }
 
-            let chars = match args[0].to_vector() {
-                Some(vec) => vec,
-                None => {
+            let Some(chars) = args[0].to_vector() else {
                     return Err(LambdustError::type_error(format!(
                         "list->string: expected list, got {}",
                         args[0]
                     )));
-                }
-            };
+                };
 
             let mut result = String::new();
             for val in chars {
-                let ch = match val {
-                    Value::Character(c) => c,
-                    _ => {
+                let Value::Character(ch) = val else {
                         return Err(LambdustError::type_error(format!(
-                            "list->string: expected list of characters, got {}",
-                            val
+                            "list->string: expected list of characters, got {val}"
                         )));
-                    }
-                };
+                    };
                 result.push(ch);
             }
 

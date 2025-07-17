@@ -55,8 +55,7 @@ impl SrfiModule for Srfi9 {
                 }
                 _ => {
                     return Err(LambdustError::runtime_error(format!(
-                        "Unknown SRFI 9 part: {}",
-                        part
+                        "Unknown SRFI 9 part: {part}"
                     )));
                 }
             }
@@ -97,7 +96,7 @@ fn record_make() -> Value {
             let record_type = crate::value::RecordType {
                 name: type_name,
                 field_names: (0..field_values.len())
-                    .map(|i| format!("field{}", i))
+                    .map(|i| format!("field{i}"))
                     .collect(),
                 constructor_name: "make-record".to_string(),
                 predicate_name: "record?".to_string(),
@@ -149,15 +148,12 @@ fn record_field_get() -> Value {
                 return Err(LambdustError::arity_error(2, args.len()));
             }
 
-            let record = match args[0].as_record() {
-                Some(r) => r,
-                None => {
+            let Some(record) = args[0].as_record() else {
                     return Err(LambdustError::type_error(format!(
                         "record-field: expected record, got {}",
                         args[0]
                     )));
-                }
-            };
+                };
 
             let index = match args[1].as_number() {
                 Some(crate::lexer::SchemeNumber::Integer(i)) if *i >= 0 => *i as usize,
@@ -192,15 +188,12 @@ fn record_field_set() -> Value {
                 return Err(LambdustError::arity_error(3, args.len()));
             }
 
-            let record = match args[0].as_record() {
-                Some(r) => r,
-                None => {
+            let Some(record) = args[0].as_record() else {
                     return Err(LambdustError::type_error(format!(
                         "record-set-field!: expected record, got {}",
                         args[0]
                     )));
-                }
-            };
+                };
 
             let index = match args[1].as_number() {
                 Some(crate::lexer::SchemeNumber::Integer(i)) if *i >= 0 => *i as usize,

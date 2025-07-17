@@ -102,6 +102,43 @@ impl std::fmt::Debug for Procedure {
     }
 }
 
+impl Procedure {
+    /// Call the procedure with the given arguments
+    pub fn call(&self, args: &[crate::value::Value]) -> crate::error::Result<crate::value::Value> {
+        match self {
+            Self::Builtin { func, .. } => (func)(args),
+            Self::Lambda { .. } => {
+                // Lambda calls require evaluator context, which is not available here
+                // This is a simplified implementation that will need proper evaluator integration
+                Err(crate::error::LambdustError::runtime_error(
+                    "Lambda procedure calls require evaluator context".to_string()
+                ))
+            }
+            Self::HostFunction { .. } => {
+                // Host function calls also require evaluator context
+                Err(crate::error::LambdustError::runtime_error(
+                    "Host function calls require evaluator context".to_string()
+                ))
+            }
+            Self::Continuation { .. } => {
+                Err(crate::error::LambdustError::runtime_error(
+                    "Continuation calls require evaluator context".to_string()
+                ))
+            }
+            Self::CapturedContinuation { .. } => {
+                Err(crate::error::LambdustError::runtime_error(
+                    "Captured continuation calls require evaluator context".to_string()
+                ))
+            }
+            Self::ReusableContinuation { .. } => {
+                Err(crate::error::LambdustError::runtime_error(
+                    "Reusable continuation calls require evaluator context".to_string()
+                ))
+            }
+        }
+    }
+}
+
 impl PartialEq for Procedure {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
@@ -167,12 +204,12 @@ impl PartialEq for Procedure {
 
 impl Value {
     /// Check if this value is a procedure
-    pub fn is_procedure(&self) -> bool {
+    #[must_use] pub fn is_procedure(&self) -> bool {
         matches!(self, Value::Procedure(_))
     }
 
     /// Get the procedure if this is a procedure
-    pub fn as_procedure(&self) -> Option<&Procedure> {
+    #[must_use] pub fn as_procedure(&self) -> Option<&Procedure> {
         match self {
             Value::Procedure(p) => Some(p),
             _ => None,

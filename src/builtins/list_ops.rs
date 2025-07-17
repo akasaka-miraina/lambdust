@@ -122,8 +122,7 @@ fn list_append() -> Value {
                 Some(vec) => result.extend(vec),
                 None => {
                     return Err(LambdustError::type_error(format!(
-                        "append: expected list, got {}",
-                        arg
+                        "append: expected list, got {arg}"
                     )));
                 }
             }

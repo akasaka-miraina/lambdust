@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="dustpanIconGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3498DB;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2980B9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1ABC9C;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="handleIconGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#BDC3C7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#95A5A6;stop-opacity:1" />
+    </linearGradient>
+    <filter id="dustpanIconShadow">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#000" flood-opacity="0.2"/>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="32" cy="32" r="28" fill="url(#dustpanIconGradient)" filter="url(#dustpanIconShadow)"/>
+  
+  <!-- Dustpan body (more dustpan-like) -->
+  <path d="M14 35 Q14 30 18 30 L38 30 Q42 30 42 35 L42 42 Q42 47 38 47 L18 47 Q14 47 14 42 Z" 
+        fill="white" 
+        opacity="0.9"/>
+  
+  <!-- Dustpan bottom reinforcement -->
+  <rect x="16" y="45" width="24" height="1.5" rx="0.5" fill="white" opacity="0.7"/>
+  
+  <!-- Dustpan handle (wooden-like) -->
+  <rect x="42" y="32" width="14" height="4" rx="2" fill="url(#handleIconGradient)" opacity="0.8"/>
+  <rect x="42" y="33" width="14" height="1" rx="0.5" fill="white" opacity="0.4"/>
+  
+  <!-- Dustpan lip (more prominent) -->
+  <path d="M14 35 Q12 36 14 37 Q12 37 14 38" 
+        stroke="white" 
+        stroke-width="1.5" 
+        fill="none" 
+        stroke-linecap="round" 
+        opacity="0.9"/>
+  
+  <!-- Collected dust particles (more concentrated) -->
+  <circle cx="20" cy="38" r="1.2" fill="#FFD23F"/>
+  <circle cx="26" cy="40" r="0.8" fill="#F7931E"/>
+  <circle cx="30" cy="38" r="1" fill="#FF6B35"/>
+  <circle cx="24" cy="42" r="0.6" fill="#FFD23F"/>
+  <circle cx="32" cy="42" r="0.8" fill="#F7931E"/>
+  <circle cx="28" cy="44" r="0.5" fill="#FF6B35"/>
+  
+  <!-- Dust pile effect -->
+  <ellipse cx="26" cy="42" rx="5" ry="1.5" fill="#FFD23F" opacity="0.2"/>
+  
+  <!-- Floating dust particles -->
+  <circle cx="46" cy="22" r="0.8" fill="white" opacity="0.6"/>
+  <circle cx="50" cy="26" r="0.6" fill="white" opacity="0.5"/>
+  <circle cx="44" cy="18" r="1" fill="white" opacity="0.4"/>
+  
+  <!-- Small lambda symbol -->
+  <path d="M48 45 L50 41 L52 45" 
+        stroke="white" 
+        stroke-width="1" 
+        fill="none" 
+        stroke-linecap="round" 
+        opacity="0.7"/>
+</svg>

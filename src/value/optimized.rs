@@ -1,8 +1,8 @@
-//! Optimized value representation for Phase 4 memory efficiency
+//! Optimized value representation for memory efficiency
 //!
 //! This module provides memory-optimized value types using:
-//! - SmallInt: Stack-allocated small integers
-//! - ShortString: Inline short strings without heap allocation
+//! - `SmallInt`: Stack-allocated small integers
+//! - `ShortString`: Inline short strings without heap allocation
 //! - Tagged union optimization: Efficient representation selection
 
 use crate::lexer::SchemeNumber;
@@ -46,7 +46,7 @@ pub struct ShortStringData {
 
 impl ShortStringData {
     /// Create new short string from string slice
-    pub fn new(s: &str) -> Option<Self> {
+    #[must_use] pub fn new(s: &str) -> Option<Self> {
         let bytes = s.as_bytes();
         if bytes.len() > 15 {
             return None;
@@ -62,19 +62,19 @@ impl ShortStringData {
     }
 
     /// Get string slice from short string data
-    pub fn as_str(&self) -> &str {
+    #[must_use] pub fn as_str(&self) -> &str {
         let bytes = &self.bytes[..self.len as usize];
         // SAFETY: We only store valid UTF-8 strings
         unsafe { std::str::from_utf8_unchecked(bytes) }
     }
 
     /// Get length of the string
-    pub fn len(&self) -> usize {
+    #[must_use] pub fn len(&self) -> usize {
         self.len as usize
     }
 
     /// Check if string is empty
-    pub fn is_empty(&self) -> bool {
+    #[must_use] pub fn is_empty(&self) -> bool {
         self.len == 0
     }
 }
@@ -93,8 +93,8 @@ impl fmt::Display for ShortStringData {
 
 impl OptimizedValue {
     /// Create an integer value using optimal representation
-    pub fn new_int(n: i64) -> Self {
-        if n >= i8::MIN as i64 && n <= i8::MAX as i64 {
+    #[must_use] pub fn new_int(n: i64) -> Self {
+        if i8::try_from(n).is_ok() {
             OptimizedValue::SmallInt(n as i8)
         } else {
             OptimizedValue::Number(SchemeNumber::Integer(n))
@@ -102,7 +102,7 @@ impl OptimizedValue {
     }
 
     /// Create a string value using optimal representation
-    pub fn new_string(s: String) -> Self {
+    #[must_use] pub fn new_string(s: String) -> Self {
         if let Some(short) = ShortStringData::new(&s) {
             OptimizedValue::ShortString(short)
         } else {
@@ -111,7 +111,7 @@ impl OptimizedValue {
     }
 
     /// Create a string value from &str using optimal representation
-    pub fn new_string_ref(s: &str) -> Self {
+    #[must_use] pub fn new_string_ref(s: &str) -> Self {
         if let Some(short) = ShortStringData::new(s) {
             OptimizedValue::ShortString(short)
         } else {
@@ -120,7 +120,7 @@ impl OptimizedValue {
     }
 
     /// Create a symbol value using optimal representation
-    pub fn new_symbol(s: String) -> Self {
+    #[must_use] pub fn new_symbol(s: String) -> Self {
         if let Some(short) = ShortStringData::new(&s) {
             OptimizedValue::ShortSymbol(short)
         } else {
@@ -129,7 +129,7 @@ impl OptimizedValue {
     }
 
     /// Create a symbol value from &str using optimal representation
-    pub fn new_symbol_ref(s: &str) -> Self {
+    #[must_use] pub fn new_symbol_ref(s: &str) -> Self {
         if let Some(short) = ShortStringData::new(s) {
             OptimizedValue::ShortSymbol(short)
         } else {
@@ -138,11 +138,11 @@ impl OptimizedValue {
     }
 
     /// Convert to standard Value (for compatibility)
-    pub fn to_standard_value(self) -> super::Value {
+    #[must_use] pub fn to_standard_value(self) -> super::Value {
         match self {
             OptimizedValue::Undefined => super::Value::Undefined,
             OptimizedValue::Boolean(b) => super::Value::Boolean(b),
-            OptimizedValue::SmallInt(n) => super::Value::Number(SchemeNumber::Integer(n as i64)),
+            OptimizedValue::SmallInt(n) => super::Value::Number(SchemeNumber::Integer(i64::from(n))),
             OptimizedValue::Number(n) => super::Value::Number(n),
             OptimizedValue::ShortString(s) => super::Value::String(s.as_str().to_string()),
             OptimizedValue::String(s) => super::Value::String(s),
@@ -154,7 +154,7 @@ impl OptimizedValue {
     }
 
     /// Create from standard Value (for compatibility)
-    pub fn from_standard_value(value: super::Value) -> Self {
+    #[must_use] pub fn from_standard_value(value: super::Value) -> Self {
         match value {
             super::Value::Undefined => OptimizedValue::Undefined,
             super::Value::Boolean(b) => OptimizedValue::Boolean(b),
@@ -168,7 +168,7 @@ impl OptimizedValue {
     }
 
     /// Get memory usage estimate in bytes
-    pub fn memory_size(&self) -> usize {
+    #[must_use] pub fn memory_size(&self) -> usize {
         match self {
             OptimizedValue::Undefined => 0,
             OptimizedValue::Boolean(_) => 1,
@@ -184,7 +184,7 @@ impl OptimizedValue {
     }
 
     /// Check if this is a numeric value
-    pub fn is_number(&self) -> bool {
+    #[must_use] pub fn is_number(&self) -> bool {
         matches!(
             self,
             OptimizedValue::SmallInt(_) | OptimizedValue::Number(_)
@@ -192,7 +192,7 @@ impl OptimizedValue {
     }
 
     /// Check if this is a string value
-    pub fn is_string(&self) -> bool {
+    #[must_use] pub fn is_string(&self) -> bool {
         matches!(
             self,
             OptimizedValue::ShortString(_) | OptimizedValue::String(_)
@@ -200,7 +200,7 @@ impl OptimizedValue {
     }
 
     /// Check if this is a symbol value
-    pub fn is_symbol(&self) -> bool {
+    #[must_use] pub fn is_symbol(&self) -> bool {
         matches!(
             self,
             OptimizedValue::ShortSymbol(_) | OptimizedValue::Symbol(_)
@@ -208,16 +208,16 @@ impl OptimizedValue {
     }
 
     /// Get as integer if possible
-    pub fn as_int(&self) -> Option<i64> {
+    #[must_use] pub fn as_int(&self) -> Option<i64> {
         match self {
-            OptimizedValue::SmallInt(n) => Some(*n as i64),
+            OptimizedValue::SmallInt(n) => Some(i64::from(*n)),
             OptimizedValue::Number(SchemeNumber::Integer(n)) => Some(*n),
             _ => None,
         }
     }
 
     /// Get as string if possible
-    pub fn as_string(&self) -> Option<String> {
+    #[must_use] pub fn as_string(&self) -> Option<String> {
         match self {
             OptimizedValue::ShortString(s) => Some(s.as_str().to_string()),
             OptimizedValue::String(s) => Some(s.clone()),
@@ -226,7 +226,7 @@ impl OptimizedValue {
     }
 
     /// Get as string reference if possible
-    pub fn as_string_ref(&self) -> Option<&str> {
+    #[must_use] pub fn as_string_ref(&self) -> Option<&str> {
         match self {
             OptimizedValue::ShortString(s) => Some(s.as_str()),
             OptimizedValue::String(s) => Some(s),
@@ -235,7 +235,7 @@ impl OptimizedValue {
     }
 
     /// Get as symbol if possible
-    pub fn as_symbol(&self) -> Option<String> {
+    #[must_use] pub fn as_symbol(&self) -> Option<String> {
         match self {
             OptimizedValue::ShortSymbol(s) => Some(s.as_str().to_string()),
             OptimizedValue::Symbol(s) => Some(s.clone()),
@@ -244,7 +244,7 @@ impl OptimizedValue {
     }
 
     /// Get as symbol reference if possible
-    pub fn as_symbol_ref(&self) -> Option<&str> {
+    #[must_use] pub fn as_symbol_ref(&self) -> Option<&str> {
         match self {
             OptimizedValue::ShortSymbol(s) => Some(s.as_str()),
             OptimizedValue::Symbol(s) => Some(s),
@@ -253,12 +253,12 @@ impl OptimizedValue {
     }
 
     /// Check if value is truthy (for conditional evaluation)
-    pub fn is_truthy(&self) -> bool {
+    #[must_use] pub fn is_truthy(&self) -> bool {
         !matches!(self, OptimizedValue::Boolean(false))
     }
 
     /// Check if this is an inline value (stored on stack)
-    pub fn is_inline(&self) -> bool {
+    #[must_use] pub fn is_inline(&self) -> bool {
         matches!(
             self,
             OptimizedValue::Undefined
@@ -271,7 +271,7 @@ impl OptimizedValue {
     }
 
     /// Get the value type as a string
-    pub fn type_name(&self) -> &'static str {
+    #[must_use] pub fn type_name(&self) -> &'static str {
         match self {
             OptimizedValue::Undefined => "undefined",
             OptimizedValue::Boolean(_) => "boolean",
@@ -303,15 +303,15 @@ impl fmt::Debug for OptimizedValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OptimizedValue::Undefined => write!(f, "Undefined"),
-            OptimizedValue::Boolean(b) => write!(f, "Boolean({})", b),
-            OptimizedValue::SmallInt(n) => write!(f, "SmallInt({})", n),
-            OptimizedValue::Number(n) => write!(f, "Number({:?})", n),
+            OptimizedValue::Boolean(b) => write!(f, "Boolean({b})"),
+            OptimizedValue::SmallInt(n) => write!(f, "SmallInt({n})"),
+            OptimizedValue::Number(n) => write!(f, "Number({n:?})"),
             OptimizedValue::ShortString(s) => write!(f, "ShortString(\"{}\")", s.as_str()),
-            OptimizedValue::String(s) => write!(f, "String(\"{}\")", s),
-            OptimizedValue::Character(c) => write!(f, "Character('{}')", c),
+            OptimizedValue::String(s) => write!(f, "String(\"{s}\")"),
+            OptimizedValue::Character(c) => write!(f, "Character('{c}')"),
             OptimizedValue::ShortSymbol(s) => write!(f, "ShortSymbol({})", s.as_str()),
-            OptimizedValue::Symbol(s) => write!(f, "Symbol({})", s),
-            OptimizedValue::Complex(v) => write!(f, "Complex({:?})", v),
+            OptimizedValue::Symbol(s) => write!(f, "Symbol({s})"),
+            OptimizedValue::Complex(v) => write!(f, "Complex({v:?})"),
         }
     }
 }
@@ -323,10 +323,10 @@ impl PartialEq for OptimizedValue {
             (OptimizedValue::Boolean(a), OptimizedValue::Boolean(b)) => a == b,
             (OptimizedValue::SmallInt(a), OptimizedValue::SmallInt(b)) => a == b,
             (OptimizedValue::SmallInt(a), OptimizedValue::Number(SchemeNumber::Integer(b))) => {
-                *a as i64 == *b
+                i64::from(*a) == *b
             }
             (OptimizedValue::Number(SchemeNumber::Integer(a)), OptimizedValue::SmallInt(b)) => {
-                *a == *b as i64
+                *a == i64::from(*b)
             }
             (OptimizedValue::Number(a), OptimizedValue::Number(b)) => a == b,
             (OptimizedValue::ShortString(a), OptimizedValue::ShortString(b)) => a == b,
@@ -365,7 +365,7 @@ pub struct OptimizationStats {
 
 impl OptimizationStats {
     /// Create new empty statistics
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         OptimizationStats {
             small_ints: 0,
             short_strings: 0,
@@ -395,7 +395,7 @@ impl OptimizationStats {
     }
 
     /// Get optimization ratio (0.0 to 1.0)
-    pub fn optimization_ratio(&self) -> f64 {
+    #[must_use] pub fn optimization_ratio(&self) -> f64 {
         if self.total_values == 0 {
             0.0
         } else {
@@ -405,7 +405,7 @@ impl OptimizationStats {
     }
 
     /// Get memory savings ratio (0.0 to 1.0)
-    pub fn memory_savings_ratio(&self) -> f64 {
+    #[must_use] pub fn memory_savings_ratio(&self) -> f64 {
         if self.total_values == 0 {
             0.0
         } else {
@@ -429,7 +429,7 @@ pub struct ValueOptimizer {
 
 impl ValueOptimizer {
     /// Create new optimizer
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         ValueOptimizer {
             stats: OptimizationStats::new(),
         }
@@ -448,7 +448,7 @@ impl ValueOptimizer {
     }
 
     /// Get optimization statistics
-    pub fn stats(&self) -> &OptimizationStats {
+    #[must_use] pub fn stats(&self) -> &OptimizationStats {
         &self.stats
     }
 

@@ -28,7 +28,7 @@ pub struct LambdustInterpreter {
 
 impl LambdustInterpreter {
     /// Create a new interpreter instance
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut interpreter = Self {
             evaluator: Evaluator::new(),
             host_registry: HostFunctionRegistry::default(),
@@ -178,28 +178,27 @@ impl LambdustInterpreter {
     }
 
     /// List all available Scheme functions
-    pub fn list_scheme_functions(&self) -> Vec<&String> {
+    #[must_use] pub fn list_scheme_functions(&self) -> Vec<&String> {
         self.scheme_functions.keys().collect()
     }
 
     /// List all available host functions  
-    pub fn list_host_functions(&self) -> Vec<&String> {
+    #[must_use] pub fn list_host_functions(&self) -> Vec<&String> {
         self.host_registry.list_functions()
     }
 
     /// Check if a Scheme function exists
-    pub fn has_scheme_function(&self, name: &str) -> bool {
+    #[must_use] pub fn has_scheme_function(&self, name: &str) -> bool {
         self.scheme_functions.contains_key(name)
             || self
                 .evaluator
                 .global_env
                 .get(name)
-                .map(|v| v.is_procedure())
-                .unwrap_or(false)
+                .is_some_and(|v| v.is_procedure())
     }
 
     /// Get the global environment (for advanced usage)
-    pub fn global_environment(&self) -> &Rc<crate::environment::Environment> {
+    #[must_use] pub fn global_environment(&self) -> &Rc<crate::environment::Environment> {
         &self.evaluator.global_env
     }
 

@@ -29,7 +29,7 @@ pub fn eval_delay(
         state: crate::value::PromiseState::Lazy { expr, env },
     });
 
-    evaluator.apply_continuation(cont, promise)
+    evaluator.apply_evaluator_continuation(cont, promise)
 }
 
 /// Evaluate lazy special form (SRFI 45)
@@ -51,7 +51,7 @@ pub fn eval_lazy(
         state: crate::value::PromiseState::Lazy { expr, env },
     });
 
-    evaluator.apply_continuation(cont, promise)
+    evaluator.apply_evaluator_continuation(cont, promise)
 }
 
 /// Evaluate force special form
@@ -73,7 +73,7 @@ pub fn eval_force(
 
     // First evaluate the promise expression
     let force_cont = Continuation::Identity; // Will be replaced with proper force continuation
-    let promise_value = evaluator.eval(promise_expr, env, force_cont)?;
+    let promise_value = evaluator.eval_with_continuation(promise_expr, env, force_cont)?;
 
     // Force the promise
     evaluator.force_promise(promise_value, cont)
@@ -94,10 +94,10 @@ pub fn eval_promise_predicate(
     }
 
     let expr = operands[0].clone();
-    let value = evaluator.eval(expr, env, Continuation::Identity)?;
+    let value = evaluator.eval_with_continuation(expr, env, Continuation::Identity)?;
 
     let is_promise = matches!(value, Value::Promise(_));
-    evaluator.apply_continuation(cont, Value::Boolean(is_promise))
+    evaluator.apply_evaluator_continuation(cont, Value::Boolean(is_promise))
 }
 
 // Additional functions for Evaluator impl
@@ -110,13 +110,13 @@ impl Evaluator {
         match promise {
             Value::Promise(promise_ref) => match &promise_ref.state {
                 crate::value::PromiseState::Lazy { expr, env } => {
-                    self.eval(expr.clone(), env.clone(), cont)
+                    self.eval_with_continuation(expr.clone(), env.clone(), cont)
                 }
                 crate::value::PromiseState::Eager { value } => {
-                    self.apply_continuation(cont, value.as_ref().clone())
+                    self.apply_evaluator_continuation(cont, value.as_ref().clone())
                 }
             },
-            other => self.apply_continuation(cont, other),
+            other => self.apply_evaluator_continuation(cont, other),
         }
     }
 }

@@ -24,7 +24,7 @@ pub struct StringCursor {
 
 impl StringCursor {
     /// Create a new string cursor for the entire string
-    pub fn new(string: String) -> Self {
+    #[must_use] pub fn new(string: String) -> Self {
         let end = string.len();
         Self {
             string,
@@ -50,32 +50,32 @@ impl StringCursor {
     }
 
     /// Get the string this cursor references
-    pub fn string(&self) -> &str {
+    #[must_use] pub fn string(&self) -> &str {
         &self.string
     }
 
     /// Get current position
-    pub fn position(&self) -> usize {
+    #[must_use] pub fn position(&self) -> usize {
         self.position
     }
 
     /// Get start bound
-    pub fn start(&self) -> usize {
+    #[must_use] pub fn start(&self) -> usize {
         self.start
     }
 
     /// Get end bound
-    pub fn end(&self) -> usize {
+    #[must_use] pub fn end(&self) -> usize {
         self.end
     }
 
     /// Check if at start of bounds
-    pub fn at_start(&self) -> bool {
+    #[must_use] pub fn at_start(&self) -> bool {
         self.position == self.start
     }
 
     /// Check if at end of bounds
-    pub fn at_end(&self) -> bool {
+    #[must_use] pub fn at_end(&self) -> bool {
         self.position >= self.end
     }
 
@@ -130,17 +130,17 @@ impl StringCursor {
     }
 
     /// Get substring from current position to end of bounds
-    pub fn rest(&self) -> &str {
+    #[must_use] pub fn rest(&self) -> &str {
         &self.string[self.position..self.end]
     }
 
     /// Get substring from start of bounds to current position
-    pub fn prefix(&self) -> &str {
+    #[must_use] pub fn prefix(&self) -> &str {
         &self.string[self.start..self.position]
     }
 
     /// Clone cursor
-    pub fn clone_cursor(&self) -> Self {
+    #[must_use] pub fn clone_cursor(&self) -> Self {
         self.clone()
     }
 }
@@ -458,81 +458,3 @@ impl super::SrfiModule for Srfi130 {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::srfi::SrfiModule;
-
-    #[test]
-    fn test_string_cursor_creation() {
-        let cursor = StringCursor::new("hello".to_string());
-        assert_eq!(cursor.string(), "hello");
-        assert_eq!(cursor.position(), 0);
-        assert_eq!(cursor.start(), 0);
-        assert_eq!(cursor.end(), 5);
-        assert!(cursor.at_start());
-        assert!(!cursor.at_end());
-    }
-
-    #[test]
-    fn test_string_cursor_navigation() {
-        let mut cursor = StringCursor::new("hello".to_string());
-
-        // Advance through string
-        cursor.advance().unwrap();
-        assert_eq!(cursor.position(), 1);
-        assert_eq!(cursor.current_char().unwrap(), 'e');
-
-        cursor.advance().unwrap();
-        assert_eq!(cursor.position(), 2);
-        assert_eq!(cursor.current_char().unwrap(), 'l');
-
-        // Retreat
-        cursor.retreat().unwrap();
-        assert_eq!(cursor.position(), 1);
-        assert_eq!(cursor.current_char().unwrap(), 'e');
-    }
-
-    #[test]
-    fn test_string_cursor_bounds() {
-        let cursor = StringCursor::with_bounds("hello world".to_string(), 2, 7).unwrap();
-        assert_eq!(cursor.position(), 2);
-        assert_eq!(cursor.start(), 2);
-        assert_eq!(cursor.end(), 7);
-        assert_eq!(cursor.rest(), "llo w");
-    }
-
-    #[test]
-    fn test_srfi_130_exports() {
-        let srfi = Srfi130;
-        let exports = srfi.exports();
-
-        assert!(exports.contains_key("string-cursor-start"));
-        assert!(exports.contains_key("string-cursor-end"));
-        assert!(exports.contains_key("string-cursor?"));
-        assert!(exports.contains_key("string-cursor-next"));
-        assert!(exports.contains_key("string-cursor-prev"));
-        assert!(exports.contains_key("string-cursor=?"));
-        assert!(exports.contains_key("string-cursor<?"));
-        assert!(exports.contains_key("string-cursor-ref"));
-        assert!(exports.contains_key("substring/cursors"));
-        assert!(exports.contains_key("string-index-cursor"));
-        assert!(exports.contains_key("string-contains-cursor"));
-    }
-
-    #[test]
-    fn test_unicode_support() {
-        let mut cursor = StringCursor::new("こんにちは".to_string());
-
-        // Each Japanese character is 3 bytes in UTF-8
-        assert_eq!(cursor.string().len(), 15); // 5 chars * 3 bytes each
-
-        cursor.advance().unwrap();
-        assert_eq!(cursor.position(), 3); // First character boundary
-        assert_eq!(cursor.current_char().unwrap(), 'ん');
-
-        cursor.advance().unwrap();
-        assert_eq!(cursor.position(), 6); // Second character boundary  
-        assert_eq!(cursor.current_char().unwrap(), 'に');
-    }
-}

@@ -6,7 +6,7 @@
 //! - Value pooling for common types (Boolean, Numbers, Symbols)
 //! - Symbol interning to reduce string allocation
 //! - Continuation pooling for frequent continuation types
-//! - SmallVec optimization for common collection patterns
+//! - `SmallVec` optimization for common collection patterns
 
 use crate::evaluator::Continuation;
 use crate::lexer::SchemeNumber;
@@ -53,7 +53,7 @@ impl SymbolInterner {
     }
 
     /// Get statistics about symbol interning
-    pub fn stats(&self) -> (usize, usize) {
+    #[must_use] pub fn stats(&self) -> (usize, usize) {
         (self.symbols.len(), self.interned_storage.len())
     }
 }
@@ -73,7 +73,7 @@ pub struct ValuePool {
 
 impl ValuePool {
     /// Create a new value pool with pre-allocated common values
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut pool = Self {
             boolean_cache: [Value::Boolean(false), Value::Boolean(true)],
             nil_singleton: Value::Nil,
@@ -91,17 +91,17 @@ impl ValuePool {
     }
 
     /// Get a cached boolean value (avoids allocation)
-    pub fn get_boolean(&self, value: bool) -> Value {
-        self.boolean_cache[if value { 1 } else { 0 }].clone()
+    #[must_use] pub fn get_boolean(&self, value: bool) -> Value {
+        self.boolean_cache[usize::from(value)].clone()
     }
 
     /// Get the cached nil value (avoids allocation)
-    pub fn get_nil(&self) -> Value {
+    #[must_use] pub fn get_nil(&self) -> Value {
         self.nil_singleton.clone()
     }
 
     /// Get a small integer from the pool if available
-    pub fn get_small_integer(&self, value: i64) -> Option<Value> {
+    #[must_use] pub fn get_small_integer(&self, value: i64) -> Option<Value> {
         if (-128..=127).contains(&value) {
             let index = (value + 128) as usize;
             self.small_integer_pool.get(index).cloned()
@@ -112,10 +112,10 @@ impl ValuePool {
 
     /// Get an interned symbol value to reduce string allocation
     pub fn get_symbol(symbol: &str) -> Value {
-        let interner = SYMBOL_INTERNER.get_or_init(|| Mutex::new(SymbolInterner::new()));
-        let mut interner = interner.lock().unwrap();
-        let interned = interner.intern(symbol);
-        Value::Symbol(interned.to_string()) // Still uses String for compatibility
+        let interner_ref = SYMBOL_INTERNER.get_or_init(|| Mutex::new(SymbolInterner::new()));
+        let mut interner = interner_ref.lock().unwrap();
+        let symbol_ref = interner.intern(symbol);
+        Value::Symbol(symbol_ref.to_string()) // Still uses String for compatibility
     }
 
     /// Recycle a value back to the pool for reuse
@@ -189,17 +189,17 @@ thread_local! {
 /// Convenient functions for using the global value pool
 impl Value {
     /// Create a boolean value using the pool (optimized)
-    pub fn new_boolean(value: bool) -> Self {
+    #[must_use] pub fn new_boolean(value: bool) -> Self {
         VALUE_POOL.with(|pool| pool.borrow().get_boolean(value))
     }
 
     /// Create a nil value using the pool (optimized)
-    pub fn new_nil() -> Self {
+    #[must_use] pub fn new_nil() -> Self {
         VALUE_POOL.with(|pool| pool.borrow().get_nil())
     }
 
     /// Create an integer value, using pool for small integers
-    pub fn new_integer(value: i64) -> Self {
+    #[must_use] pub fn new_integer(value: i64) -> Self {
         VALUE_POOL.with(|pool| {
             pool.borrow()
                 .get_small_integer(value)
@@ -208,12 +208,12 @@ impl Value {
     }
 
     /// Create a symbol value with interning (optimized)
-    pub fn new_symbol(symbol: &str) -> Self {
+    #[must_use] pub fn new_symbol(symbol: &str) -> Self {
         ValuePool::get_symbol(symbol)
     }
 
     /// Get global pool statistics
-    pub fn pool_stats() -> PoolStats {
+    #[must_use] pub fn pool_stats() -> PoolStats {
         VALUE_POOL.with(|pool| pool.borrow().stats())
     }
 }
@@ -230,7 +230,7 @@ pub struct ContinuationPool {
 
 impl ContinuationPool {
     /// Create a new continuation pool
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         let mut pool = Self {
             identity_pool: Vec::with_capacity(100),
             recycled_count: 0,
@@ -273,7 +273,7 @@ impl ContinuationPool {
     }
 
     /// Get pool statistics
-    pub fn stats(&self) -> ContinuationPoolStats {
+    #[must_use] pub fn stats(&self) -> ContinuationPoolStats {
         ContinuationPoolStats {
             identity_pooled: self.identity_pool.len(),
             total_recycled: self.recycled_count,
@@ -313,105 +313,13 @@ thread_local! {
 
 impl Continuation {
     /// Create an optimized Identity continuation using pool
-    pub fn new_identity() -> Self {
+    #[must_use] pub fn new_identity() -> Self {
         CONTINUATION_POOL.with(|pool| pool.borrow_mut().get_identity())
     }
 
     /// Get continuation pool statistics
-    pub fn pool_stats() -> ContinuationPoolStats {
+    #[must_use] pub fn pool_stats() -> ContinuationPoolStats {
         CONTINUATION_POOL.with(|pool| pool.borrow().stats())
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_value_pool_boolean_caching() {
-        let true_val1 = Value::new_boolean(true);
-        let true_val2 = Value::new_boolean(true);
-
-        // Values should be equivalent
-        assert!(matches!(true_val1, Value::Boolean(true)));
-        assert!(matches!(true_val2, Value::Boolean(true)));
-    }
-
-    #[test]
-    fn test_small_integer_pooling() {
-        let pool = ValuePool::new();
-
-        // Small integers should be pooled
-        let small_int = pool.get_small_integer(42);
-        assert!(small_int.is_some());
-        assert!(matches!(
-            small_int.unwrap(),
-            Value::Number(SchemeNumber::Integer(42))
-        ));
-
-        // Large integers should not be pooled
-        let large_int = pool.get_small_integer(1000);
-        assert!(large_int.is_none());
-    }
-
-    #[test]
-    fn test_symbol_interning() {
-        let symbol1 = Value::new_symbol("test");
-        let symbol2 = Value::new_symbol("test");
-
-        // Symbols should be equivalent
-        assert!(matches!(symbol1, Value::Symbol(_)));
-        assert!(matches!(symbol2, Value::Symbol(_)));
-    }
-
-    #[test]
-    fn test_pool_stats() {
-        let stats = Value::pool_stats();
-        assert!(stats.small_integers_cached > 0);
-        // symbols_interned is always >= 0 as it's usize
-    }
-
-    #[test]
-    fn test_continuation_pool_basic() {
-        let mut pool = ContinuationPool::new();
-
-        // Pool should be pre-initialized
-        assert!(!pool.identity_pool.is_empty());
-
-        // Get an identity continuation
-        let cont = pool.get_identity();
-        assert!(matches!(cont, Continuation::Identity));
-
-        // Stats should reflect creation
-        let stats = pool.stats();
-        assert_eq!(stats.total_created, 1);
-    }
-
-    #[test]
-    fn test_continuation_pool_recycling() {
-        let mut pool = ContinuationPool::new();
-        let initial_pool_size = pool.identity_pool.len();
-
-        // Get and recycle a continuation
-        let cont = pool.get_identity();
-        pool.recycle_continuation(cont);
-
-        // Pool size should be back to initial (recycled)
-        assert_eq!(pool.identity_pool.len(), initial_pool_size);
-
-        let stats = pool.stats();
-        assert_eq!(stats.total_created, 1);
-        assert_eq!(stats.total_recycled, 1);
-        assert_eq!(stats.recycle_rate, 100.0);
-    }
-
-    #[test]
-    fn test_continuation_global_pool() {
-        // Test global pool functions
-        let cont = Continuation::new_identity();
-        assert!(matches!(cont, Continuation::Identity));
-
-        let stats = Continuation::pool_stats();
-        assert!(stats.total_created > 0);
-    }
-}

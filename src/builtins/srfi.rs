@@ -20,7 +20,7 @@ pub fn register_srfi_functions(builtins: &mut HashMap<String, Value>) {
 }
 
 /// Implementation of srfi-available? function
-pub fn srfi_available_function() -> Value {
+#[must_use] pub fn srfi_available_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "srfi-available?".to_string(),
         arity: Some(1),
@@ -44,7 +44,7 @@ pub fn srfi_available_function() -> Value {
 }
 
 /// Implementation of srfi-supported-ids function
-pub fn srfi_supported_ids_function() -> Value {
+#[must_use] pub fn srfi_supported_ids_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "srfi-supported-ids".to_string(),
         arity: Some(0),
@@ -58,7 +58,7 @@ pub fn srfi_supported_ids_function() -> Value {
 
             let id_values: Vec<Value> = ids
                 .into_iter()
-                .map(|id| Value::Number(crate::lexer::SchemeNumber::Integer(id as i64)))
+                .map(|id| Value::Number(crate::lexer::SchemeNumber::Integer(i64::from(id))))
                 .collect();
 
             Ok(Value::Vector(id_values))
@@ -67,7 +67,7 @@ pub fn srfi_supported_ids_function() -> Value {
 }
 
 /// Implementation of srfi-name function
-pub fn srfi_name_function() -> Value {
+#[must_use] pub fn srfi_name_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "srfi-name".to_string(),
         arity: Some(1),
@@ -85,8 +85,7 @@ pub fn srfi_name_function() -> Value {
                         Ok(Value::String(name.to_string()))
                     } else {
                         Err(LambdustError::runtime_error(format!(
-                            "Unknown SRFI: {}",
-                            id
+                            "Unknown SRFI: {id}"
                         )))
                     }
                 }
@@ -99,7 +98,7 @@ pub fn srfi_name_function() -> Value {
 }
 
 /// Implementation of srfi-parts function
-pub fn srfi_parts_function() -> Value {
+#[must_use] pub fn srfi_parts_function() -> Value {
     Value::Procedure(Procedure::Builtin {
         name: "srfi-parts".to_string(),
         arity: Some(1),
@@ -121,8 +120,7 @@ pub fn srfi_parts_function() -> Value {
                         Ok(Value::Vector(part_values))
                     } else {
                         Err(LambdustError::runtime_error(format!(
-                            "Unknown SRFI: {}",
-                            id
+                            "Unknown SRFI: {id}"
                         )))
                     }
                 }
@@ -134,7 +132,7 @@ pub fn srfi_parts_function() -> Value {
     })
 }
 
-/// Helper function to extract integer from SchemeNumber
+/// Helper function to extract integer from `SchemeNumber`
 pub fn extract_integer_from_number(n: &crate::lexer::SchemeNumber) -> Result<u32> {
     match n {
         crate::lexer::SchemeNumber::Integer(i) if *i >= 0 => Ok(*i as u32),

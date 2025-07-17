@@ -18,7 +18,7 @@ use std::sync::Arc;
 pub struct GuardHandler {
     /// The condition variable name
     pub condition_var: String,
-    /// List of guard clauses: (condition_expr, result_exprs)
+    /// List of guard clauses: (`condition_expr`, `result_exprs`)
     pub clauses: Vec<(Expr, Vec<Expr>)>,
     /// Optional else clause expressions
     pub else_exprs: Option<Vec<Expr>>,
@@ -45,7 +45,7 @@ pub fn eval_raise(
     }
 
     let exception_expr = &operands[0];
-    let exception_value = evaluator.eval(exception_expr.clone(), env, Continuation::Identity)?;
+    let exception_value = evaluator.eval_with_continuation(exception_expr.clone(), env, Continuation::Identity)?;
 
     evaluator.raise_exception(exception_value, cont)
 }
@@ -66,7 +66,7 @@ pub fn eval_with_exception_handler(
 
     // Evaluate handler first
     let handler_value =
-        evaluator.eval(handler_expr.clone(), env.clone(), Continuation::Identity)?;
+        evaluator.eval_with_continuation(handler_expr.clone(), env.clone(), Continuation::Identity)?;
 
     // Install exception handler
     let handler_info = ExceptionHandlerInfo {
@@ -76,10 +76,10 @@ pub fn eval_with_exception_handler(
     evaluator.exception_handlers_mut().push(handler_info);
 
     // Evaluate thunk expression to get the procedure
-    let thunk_value = evaluator.eval(thunk_expr.clone(), env.clone(), Continuation::Identity)?;
+    let thunk_value = evaluator.eval_with_continuation(thunk_expr.clone(), env.clone(), Continuation::Identity)?;
 
     // Apply the thunk (call it with no arguments)
-    let result = evaluator.apply_procedure(thunk_value, vec![], env, cont);
+    let result = evaluator.apply_procedure_with_continuation(thunk_value, vec![], env, cont);
 
     // Remove handler
     evaluator.exception_handlers_mut().pop();
@@ -252,27 +252,26 @@ impl Evaluator {
                 }
                 Value::Symbol(ref _s) => {
                     // This is a legacy guard handler result, return it directly
-                    self.apply_continuation(cont, handler)
+                    self.apply_evaluator_continuation(cont, handler)
                 }
                 Value::Procedure(_) => {
                     // This is a real procedure, call it with the exception
-                    self.apply_procedure(handler, vec![exception], handler_env, cont)
+                    self.apply_procedure_with_continuation(handler, vec![exception], handler_env, cont)
                 }
                 _ => {
                     // Unexpected handler type, return it directly
-                    self.apply_continuation(cont, handler)
+                    self.apply_evaluator_continuation(cont, handler)
                 }
             }
         } else {
             // No handler found, convert to LambdustError
             let formatted_exception = match &exception {
-                Value::String(s) => format!("\"{}\"", s),
+                Value::String(s) => format!("\"{s}\""),
                 Value::Symbol(s) => s.clone(),
-                other => format!("{:?}", other),
+                other => format!("{other:?}"),
             };
             Err(LambdustError::runtime_error(format!(
-                "Uncaught exception: {}",
-                formatted_exception
+                "Uncaught exception: {formatted_exception}"
             )))
         }
     }
@@ -335,14 +334,11 @@ impl Evaluator {
         cont: Continuation,
     ) -> Result<Option<Value>> {
         // Evaluate the condition expression
-        let condition_result = match self.eval(
+        let Ok(condition_result) = self.eval_with_continuation(
             condition_expr.clone(),
             Rc::new(guard_env.clone()),
             Continuation::Identity,
-        ) {
-            Ok(result) => result,
-            Err(_) => return Ok(None), // Condition evaluation failed, continue to next clause
-        };
+        ) else { return Ok(None) }; // Condition evaluation failed, continue to next clause
 
         // Check if condition is true (any non-#f value is true in Scheme)
         if matches!(condition_result, Value::Boolean(false)) {
@@ -370,7 +366,7 @@ impl Evaluator {
         self.exception_handlers_mut().push(handler_info);
 
         // Apply the parent continuation with the value
-        let result = self.apply_continuation(parent, value);
+        let result = self.apply_evaluator_continuation(parent, value);
 
         // Remove the handler after processing
         self.exception_handlers_mut().pop();

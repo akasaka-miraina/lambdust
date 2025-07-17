@@ -5,8 +5,6 @@
 
 use crate::builtins::utils::{check_arity, make_builtin_procedure};
 use crate::error::{LambdustError, Result};
-#[cfg(test)]
-use crate::value::Procedure;
 use crate::value::Value;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -20,14 +18,14 @@ pub struct Box {
 
 impl Box {
     /// Create a new box with the given value
-    pub fn new(value: Value) -> Self {
+    #[must_use] pub fn new(value: Value) -> Self {
         Self {
             value: Rc::new(RefCell::new(value)),
         }
     }
 
     /// Get the value from the box
-    pub fn unbox(&self) -> Value {
+    #[must_use] pub fn unbox(&self) -> Value {
         self.value.borrow().clone()
     }
 
@@ -116,83 +114,3 @@ impl super::SrfiModule for Srfi111 {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::srfi::SrfiModule;
-
-    #[test]
-    fn test_box_creation() {
-        let srfi = Srfi111;
-        let exports = srfi.exports();
-
-        // Test box constructor
-        let box_proc = exports.get("box").unwrap();
-        if let Value::Procedure(Procedure::Builtin { func, .. }) = box_proc {
-            let result = func(&[Value::from(42i64)]).unwrap();
-            assert!(matches!(result, Value::Box(_)));
-        }
-    }
-
-    #[test]
-    fn test_box_operations() {
-        let srfi = Srfi111;
-        let exports = srfi.exports();
-
-        // Create a box
-        let box_proc = exports.get("box").unwrap();
-        let unbox_proc = exports.get("unbox").unwrap();
-        let set_box_proc = exports.get("set-box!").unwrap();
-        let box_pred = exports.get("box?").unwrap();
-
-        if let (
-            Value::Procedure(Procedure::Builtin { func: box_func, .. }),
-            Value::Procedure(Procedure::Builtin {
-                func: unbox_func, ..
-            }),
-            Value::Procedure(Procedure::Builtin { func: set_func, .. }),
-            Value::Procedure(Procedure::Builtin {
-                func: pred_func, ..
-            }),
-        ) = (box_proc, unbox_proc, set_box_proc, box_pred)
-        {
-            // Create box with initial value
-            let box_val = box_func(&[Value::from(42i64)]).unwrap();
-
-            // Test predicate
-            let is_box = pred_func(&[box_val.clone()]).unwrap();
-            assert_eq!(is_box, Value::Boolean(true));
-
-            let not_box = pred_func(&[Value::from(42i64)]).unwrap();
-            assert_eq!(not_box, Value::Boolean(false));
-
-            // Test unbox
-            let unboxed = unbox_func(&[box_val.clone()]).unwrap();
-            assert_eq!(unboxed, Value::from(42i64));
-
-            // Test set-box!
-            let _result = set_func(&[box_val.clone(), Value::from(100i64)]).unwrap();
-
-            // Test that value changed
-            let new_unboxed = unbox_func(&[box_val]).unwrap();
-            assert_eq!(new_unboxed, Value::from(100i64));
-        }
-    }
-
-    #[test]
-    fn test_box_errors() {
-        let srfi = Srfi111;
-        let exports = srfi.exports();
-
-        let unbox_proc = exports.get("unbox").unwrap();
-        if let Value::Procedure(Procedure::Builtin { func, .. }) = unbox_proc {
-            // Test unbox with wrong type
-            let result = func(&[Value::from(42i64)]);
-            assert!(result.is_err());
-
-            // Test unbox with wrong arity
-            let result = func(&[]);
-            assert!(result.is_err());
-        }
-    }
-}

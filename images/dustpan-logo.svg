@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="220" height="80" viewBox="0 0 220 80" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="dustpanGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3498DB;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#2980B9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1ABC9C;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="handleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#95A5A6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7F8C8D;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="dustpanTextGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#2C3E50;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#34495E;stop-opacity:1" />
+    </linearGradient>
+    <filter id="dustpanGlow">
+      <feGaussianBlur stdDeviation="1.5" result="coloredBlur"/>
+      <feMerge> 
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Dustpan body (more dustpan-like shape) -->
+  <path d="M12 50 Q12 45 17 45 L47 45 Q52 45 52 50 L52 60 Q52 65 47 65 L17 65 Q12 65 12 60 Z" 
+        fill="url(#dustpanGradient)" 
+        filter="url(#dustpanGlow)"/>
+  
+  <!-- Dustpan bottom reinforcement -->
+  <rect x="14" y="62" width="36" height="2" rx="1" fill="url(#dustpanGradient)" opacity="0.7"/>
+  
+  <!-- Dustpan handle (wooden-like) -->
+  <rect x="52" y="47" width="22" height="6" rx="3" fill="url(#handleGradient)"/>
+  <rect x="52" y="48" width="22" height="2" rx="1" fill="#BDC3C7" opacity="0.6"/>
+  
+  <!-- Dustpan lip (more prominent) -->
+  <path d="M12 50 Q8 52 12 54 Q8 54 12 56" 
+        stroke="url(#dustpanGradient)" 
+        stroke-width="2.5" 
+        fill="none" 
+        stroke-linecap="round"/>
+  
+  <!-- Dustpan edge highlight -->
+  <path d="M17 45 L47 45" 
+        stroke="white" 
+        stroke-width="1" 
+        opacity="0.3"/>
+  
+  <!-- Collected dust particles (more concentrated) -->
+  <circle cx="22" cy="55" r="1.5" fill="#FFD23F" opacity="0.8"/>
+  <circle cx="32" cy="58" r="1" fill="#F7931E" opacity="0.7"/>
+  <circle cx="38" cy="55" r="1.2" fill="#FF6B35" opacity="0.6"/>
+  <circle cx="27" cy="60" r="0.8" fill="#FFD23F" opacity="0.9"/>
+  <circle cx="40" cy="60" r="1" fill="#F7931E" opacity="0.7"/>
+  <circle cx="35" cy="62" r="0.6" fill="#FF6B35" opacity="0.8"/>
+  <circle cx="25" cy="62" r="0.7" fill="#FFD23F" opacity="0.7"/>
+  
+  <!-- Dust pile effect -->
+  <ellipse cx="32" cy="61" rx="8" ry="2" fill="#FFD23F" opacity="0.2"/>
+  
+  <!-- Floating dust particles -->
+  <circle cx="60" cy="35" r="1" fill="#FFD23F" opacity="0.4"/>
+  <circle cx="65" cy="40" r="0.8" fill="#F7931E" opacity="0.3"/>
+  <circle cx="58" cy="25" r="1.2" fill="#FF6B35" opacity="0.3"/>
+  
+  <!-- Text: Dustpan -->
+  <text x="80" y="50" 
+        font-family="'Segoe UI', -apple-system, sans-serif" 
+        font-size="32" 
+        font-weight="400" 
+        fill="url(#dustpanTextGradient)">Dustpan</text>
+  
+  <!-- Tagline -->
+  <text x="80" y="65" 
+        font-family="'Segoe UI', -apple-system, sans-serif" 
+        font-size="10" 
+        fill="#7F8C8D" 
+        opacity="0.8">Package Manager for λust</text>
+  
+  <!-- Lambda symbol integration -->
+  <path d="M200 35 L205 25 L210 35" 
+        stroke="url(#dustpanGradient)" 
+        stroke-width="1.5" 
+        fill="none" 
+        stroke-linecap="round" 
+        opacity="0.6"/>
+</svg>

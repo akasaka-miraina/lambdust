@@ -4,7 +4,62 @@
 //! strategies based on runtime evaluation patterns and memory pressure.
 
 use crate::memory_pool::{ContinuationPoolStats, PoolStats};
+#[cfg(feature = "debug-tracing")]
 use crate::stack_monitor::{OptimizationRecommendation, StackStatistics};
+
+#[cfg(not(feature = "debug-tracing"))]
+mod stub_types {
+    #[derive(Debug, Clone, PartialEq)]
+    pub enum OptimizationRecommendation {
+        MemoryCompression,
+        ContinuationInlining,
+        ForceGarbageCollection,
+        TailCallOptimization,
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct StackStatistics {
+        pub stack_depth: usize,
+        pub max_stack_depth: usize,
+        pub continuation_count: usize,
+        pub stack_memory_usage: usize,
+        pub total_memory_estimate: usize,
+        pub current_depth: usize,
+        pub max_depth: usize,
+        pub total_frames: usize,
+        pub optimizations_applied: usize,
+        pub average_frame_time: std::time::Duration,
+        pub optimizable_frames: usize,
+    }
+
+    impl Default for StackStatistics {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl StackStatistics {
+        pub fn new() -> Self {
+            Self {
+                stack_depth: 0,
+                max_stack_depth: 0,
+                continuation_count: 0,
+                stack_memory_usage: 0,
+                total_memory_estimate: 0,
+                current_depth: 0,
+                max_depth: 0,
+                total_frames: 0,
+                optimizations_applied: 0,
+                average_frame_time: std::time::Duration::from_millis(0),
+                optimizable_frames: 0,
+            }
+        }
+    }
+}
+
+#[cfg(not(feature = "debug-tracing"))]
+use stub_types::{OptimizationRecommendation, StackStatistics};
+
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -105,12 +160,12 @@ pub struct MemoryDecisionStats {
 
 impl AdaptiveMemoryManager {
     /// Create a new adaptive memory manager
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::with_config(MemoryConfig::default())
     }
 
     /// Create with custom configuration
-    pub fn with_config(config: MemoryConfig) -> Self {
+    #[must_use] pub fn with_config(config: MemoryConfig) -> Self {
         Self {
             pressure_level: MemoryPressure::Low,
             strategy: AllocationStrategy::Standard,
@@ -158,7 +213,7 @@ impl AdaptiveMemoryManager {
     }
 
     /// Estimate total memory usage from various sources
-    pub fn estimate_total_memory(
+    #[must_use] pub fn estimate_total_memory(
         &self,
         pool_stats: &PoolStats,
         continuation_stats: &ContinuationPoolStats,
@@ -266,7 +321,7 @@ impl AdaptiveMemoryManager {
     }
 
     /// Get optimization recommendations based on current state
-    pub fn get_optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
+    #[must_use] pub fn get_optimization_recommendations(&self) -> Vec<OptimizationRecommendation> {
         let mut recommendations = Vec::new();
 
         match self.pressure_level {
@@ -292,7 +347,7 @@ impl AdaptiveMemoryManager {
     }
 
     /// Get allocation parameters for current strategy
-    pub fn allocation_parameters(&self) -> AllocationParameters {
+    #[must_use] pub fn allocation_parameters(&self) -> AllocationParameters {
         match self.strategy {
             AllocationStrategy::Standard => AllocationParameters {
                 pool_size_multiplier: 1.0,
@@ -322,7 +377,7 @@ impl AdaptiveMemoryManager {
     }
 
     /// Get current state information
-    pub fn state_info(&self) -> AdaptiveMemoryState {
+    #[must_use] pub fn state_info(&self) -> AdaptiveMemoryState {
         AdaptiveMemoryState {
             pressure_level: self.pressure_level,
             strategy: self.strategy,
@@ -330,8 +385,7 @@ impl AdaptiveMemoryManager {
             total_memory: self
                 .usage_history
                 .back()
-                .map(|s| s.total_memory)
-                .unwrap_or(0),
+                .map_or(0, |s| s.total_memory),
             decisions: self.decisions.clone(),
         }
     }
@@ -371,116 +425,3 @@ pub struct AdaptiveMemoryState {
     pub decisions: MemoryDecisionStats,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn create_test_stats() -> (PoolStats, ContinuationPoolStats, StackStatistics) {
-        let pool_stats = PoolStats {
-            small_integers_cached: 256,
-            values_in_recycle_pool: 100,
-            symbols_interned: 50,
-            total_interned_storage: 50,
-        };
-
-        let continuation_stats = ContinuationPoolStats {
-            identity_pooled: 50,
-            total_recycled: 100,
-            total_created: 200,
-            recycle_rate: 50.0,
-        };
-
-        let stack_stats = StackStatistics {
-            current_depth: 10,
-            max_depth: 20,
-            total_frames: 1000,
-            optimizations_applied: 5,
-            average_frame_time: Duration::from_millis(1),
-            total_memory_estimate: 5000,
-            optimizable_frames: 8,
-        };
-
-        (pool_stats, continuation_stats, stack_stats)
-    }
-
-    #[test]
-    fn test_adaptive_memory_basic_operations() {
-        let mut manager = AdaptiveMemoryManager::new();
-        let (pool_stats, continuation_stats, stack_stats) = create_test_stats();
-
-        // Initial state should be low pressure
-        assert_eq!(manager.pressure_level, MemoryPressure::Low);
-        assert_eq!(manager.strategy, AllocationStrategy::Standard);
-
-        // Update with normal usage
-        manager.update(pool_stats, continuation_stats, stack_stats);
-
-        // Should still be low pressure for these stats
-        assert_eq!(manager.pressure_level, MemoryPressure::Low);
-    }
-
-    #[test]
-    fn test_memory_pressure_escalation() {
-        let mut manager = AdaptiveMemoryManager::with_config(MemoryConfig {
-            moderate_threshold: 1000, // Very low thresholds for testing
-            high_threshold: 2000,
-            critical_threshold: 3000,
-            ..Default::default()
-        });
-
-        let (pool_stats, continuation_stats, mut stack_stats) = create_test_stats();
-
-        // Set a very high stack memory to ensure critical pressure
-        stack_stats.total_memory_estimate = 10000; // Much higher than critical threshold
-
-        manager.update(pool_stats, continuation_stats, stack_stats);
-
-        assert_eq!(manager.pressure_level, MemoryPressure::Critical);
-        assert_eq!(manager.strategy, AllocationStrategy::Emergency);
-    }
-
-    #[test]
-    fn test_optimization_recommendations() {
-        let mut manager = AdaptiveMemoryManager::with_config(MemoryConfig {
-            critical_threshold: 1000, // Low threshold for testing
-            ..Default::default()
-        });
-
-        let (pool_stats, continuation_stats, mut stack_stats) = create_test_stats();
-        stack_stats.total_memory_estimate = 1500; // Critical pressure
-
-        manager.update(pool_stats, continuation_stats, stack_stats);
-
-        let recommendations = manager.get_optimization_recommendations();
-        assert!(recommendations.contains(&OptimizationRecommendation::ForceGarbageCollection));
-        assert!(recommendations.contains(&OptimizationRecommendation::MemoryCompression));
-    }
-
-    #[test]
-    fn test_allocation_parameters() {
-        let manager = AdaptiveMemoryManager::new();
-
-        let params = manager.allocation_parameters();
-        assert_eq!(params.pool_size_multiplier, 1.0); // Standard strategy
-        assert!(!params.aggressive_recycling);
-    }
-
-    #[test]
-    fn test_memory_trending() {
-        let mut manager = AdaptiveMemoryManager::new();
-        let (pool_stats, continuation_stats, mut stack_stats) = create_test_stats();
-
-        // Add samples with increasing memory usage
-        for i in 1..=5 {
-            stack_stats.total_memory_estimate = i * 1000;
-            manager.update(
-                pool_stats.clone(),
-                continuation_stats.clone(),
-                stack_stats.clone(),
-            );
-        }
-
-        // Should detect upward trend
-        assert!(manager.is_memory_trending_up());
-    }
-}

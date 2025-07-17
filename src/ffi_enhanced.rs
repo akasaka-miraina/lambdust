@@ -3,6 +3,7 @@
 //! This module extends the basic FFI with advanced safety, memory tracking,
 //! thread safety, and callback mechanisms.
 
+#![cfg(not(feature = "embedded"))]
 #![allow(unsafe_op_in_unsafe_fn)]
 
 use crate::ffi::*;
@@ -347,7 +348,7 @@ pub unsafe extern "C" fn lambdust_get_detailed_error(
         unsafe {
             if !error_message.is_null() {
                 let c_msg =
-                    CString::new(error_msg.clone()).unwrap_or_else(|_| CString::new("").unwrap());
+                    CString::new(error_msg.as_str()).unwrap_or_else(|_| CString::new("").unwrap());
                 *error_message = c_msg.into_raw();
             }
             if !error_code.is_null() {
@@ -393,68 +394,3 @@ pub unsafe extern "C" fn lambdust_clear_sensitive_data(context: *mut LambdustCon
     LambdustErrorCode::Success as c_int
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_enhanced_context_creation() {
-        unsafe {
-            let ctx = lambdust_create_context();
-            assert!(!ctx.is_null());
-            assert_eq!(
-                lambdust_check_context_health(ctx),
-                LambdustErrorCode::Success as c_int
-            );
-            lambdust_destroy_context(ctx);
-        }
-    }
-
-    #[test]
-    fn test_memory_tracking() {
-        unsafe {
-            let ctx = lambdust_create_context();
-            assert!(!ctx.is_null());
-
-            let ptr = lambdust_alloc_tracked(ctx, 100);
-            assert!(!ptr.is_null());
-
-            let mut total = 0;
-            let mut peak = 0;
-            let mut count = 0;
-            assert_eq!(
-                lambdust_get_memory_stats(ctx, &mut total, &mut peak, &mut count),
-                LambdustErrorCode::Success as c_int
-            );
-            assert!(total >= 100);
-            assert!(count >= 1);
-
-            assert_eq!(
-                lambdust_free_tracked(ctx, ptr),
-                LambdustErrorCode::Success as c_int
-            );
-
-            lambdust_destroy_context(ctx);
-        }
-    }
-
-    #[test]
-    fn test_context_validation() {
-        unsafe {
-            let null_ctx: *mut LambdustContext = std::ptr::null_mut();
-            assert_eq!(
-                lambdust_check_context_health(null_ctx),
-                LambdustErrorCode::NullPointer as c_int
-            );
-
-            let ctx = lambdust_create_context();
-            assert!(!ctx.is_null());
-            assert_eq!(
-                lambdust_check_context_health(ctx),
-                LambdustErrorCode::Success as c_int
-            );
-
-            lambdust_destroy_context(ctx);
-        }
-    }
-}

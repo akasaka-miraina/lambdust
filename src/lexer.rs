@@ -2,6 +2,7 @@
 
 use crate::error::{LambdustError, Result};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 
 /// Token types in Scheme
 #[derive(Debug, Clone, PartialEq)]
@@ -14,7 +15,7 @@ pub enum Token {
     VectorStart,
     /// Quote '
     Quote,
-    /// Quasiquote `
+    /// Quasiquote \`
     Quasiquote,
     /// Unquote ,
     Unquote,
@@ -81,9 +82,37 @@ impl fmt::Display for SchemeNumber {
     }
 }
 
+impl Eq for SchemeNumber {}
+
+impl Hash for SchemeNumber {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            SchemeNumber::Integer(i) => {
+                0u8.hash(state);
+                i.hash(state);
+            }
+            SchemeNumber::Rational(n, d) => {
+                1u8.hash(state);
+                n.hash(state);
+                d.hash(state);
+            }
+            SchemeNumber::Real(r) => {
+                2u8.hash(state);
+                // Use bit representation for floating point hashing
+                r.to_bits().hash(state);
+            }
+            SchemeNumber::Complex(r, i) => {
+                3u8.hash(state);
+                r.to_bits().hash(state);
+                i.to_bits().hash(state);
+            }
+        }
+    }
+}
+
 impl SchemeNumber {
     /// Convert number to f64 for comparison purposes
-    pub fn to_f64(&self) -> f64 {
+    #[must_use] pub fn to_f64(&self) -> f64 {
         match self {
             SchemeNumber::Integer(i) => *i as f64,
             SchemeNumber::Rational(n, d) => *n as f64 / *d as f64,
@@ -93,7 +122,7 @@ impl SchemeNumber {
     }
 
     /// Convert number to i64 for indexing and counting
-    pub fn to_i64(&self) -> i64 {
+    #[must_use] pub fn to_i64(&self) -> i64 {
         match self {
             SchemeNumber::Integer(i) => *i,
             SchemeNumber::Rational(n, d) => n / d,
@@ -112,7 +141,7 @@ pub struct Lexer<'a> {
 
 impl<'a> Lexer<'a> {
     /// Create a new lexer
-    pub fn new(input: &'a str) -> Self {
+    #[must_use] pub fn new(input: &'a str) -> Self {
         let mut lexer = Lexer {
             input,
             position: 0,
@@ -124,7 +153,7 @@ impl<'a> Lexer<'a> {
 
     /// Advance to the next character
     fn advance(&mut self) {
-        self.position += self.current_char.map_or(0, |c| c.len_utf8());
+        self.position += self.current_char.map_or(0, char::len_utf8);
         self.current_char = self.input[self.position..].chars().next();
     }
 
@@ -183,7 +212,7 @@ impl<'a> Lexer<'a> {
         self.parse_number(&number_str)
     }
 
-    /// Parse a number string into a SchemeNumber
+    /// Parse a number string into a `SchemeNumber`
     fn parse_number(&self, s: &str) -> Result<Token> {
         // Handle complex numbers
         if let Some(real_part) = s.strip_suffix('i') {
@@ -318,6 +347,13 @@ impl<'a> Lexer<'a> {
     }
 
     /// Get the next token
+    /// 
+    /// # Errors
+    /// Returns `LambdustError` if:
+    /// - Invalid number format is encountered
+    /// - Unterminated string literal
+    /// - Invalid character escape sequence
+    /// - Malformed token structure
     pub fn next_token(&mut self) -> Result<Option<Token>> {
         self.skip_whitespace_and_comments();
 

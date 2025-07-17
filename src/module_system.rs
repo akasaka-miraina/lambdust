@@ -3,8 +3,9 @@
 //! This module implements the `(import ...)` special form and module management.
 
 use crate::error::{LambdustError, Result};
-use crate::srfi::{SrfiRegistry, parse_srfi_import};
+use crate::srfi::{parse_srfi_import, SrfiRegistry};
 use crate::value::Value;
+use crate::macros::Macro;
 use std::collections::HashMap;
 
 /// Module import specification
@@ -29,14 +30,23 @@ pub struct ModuleSystem {
     srfi_registry: SrfiRegistry,
     /// Currently imported bindings
     imported_bindings: HashMap<String, Value>,
+    /// Currently imported macros
+    imported_macros: HashMap<String, Macro>,
+    /// Exported bindings for this module
+    exported_bindings: HashMap<String, Value>,
+    /// Exported macros for this module
+    exported_macros: HashMap<String, Macro>,
 }
 
 impl ModuleSystem {
     /// Create a new module system
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self {
             srfi_registry: SrfiRegistry::with_standard_srfis(),
             imported_bindings: HashMap::new(),
+            imported_macros: HashMap::new(),
+            exported_bindings: HashMap::new(),
+            exported_macros: HashMap::new(),
         }
     }
 
@@ -65,8 +75,7 @@ impl ModuleSystem {
                         }
                         _ => {
                             return Err(LambdustError::syntax_error(format!(
-                                "Unknown import type: {}",
-                                name
+                                "Unknown import type: {name}"
                             )));
                         }
                     }
@@ -112,8 +121,7 @@ impl ModuleSystem {
                         if let Some(existing) = self.imported_bindings.get(&name) {
                             if !values_equivalent(&value, existing) {
                                 return Err(LambdustError::runtime_error(format!(
-                                    "Import conflict for binding '{}'",
-                                    name
+                                    "Import conflict for binding '{name}'"
                                 )));
                             }
                         }
@@ -128,8 +136,7 @@ impl ModuleSystem {
                         if let Some(existing) = self.imported_bindings.get(&name) {
                             if !values_equivalent(&value, existing) {
                                 return Err(LambdustError::runtime_error(format!(
-                                    "Import conflict for binding '{}'",
-                                    name
+                                    "Import conflict for binding '{name}'"
                                 )));
                             }
                         }
@@ -144,7 +151,7 @@ impl ModuleSystem {
 
     /// Import from standard library
     fn import_library(&self, library: &LibraryImport) -> Result<HashMap<String, Value>> {
-        let parts_str: Vec<&str> = library.parts.iter().map(|s| s.as_str()).collect();
+        let parts_str: Vec<&str> = library.parts.iter().map(std::string::String::as_str).collect();
         match parts_str.as_slice() {
             ["scheme", "base"] => {
                 // Core Scheme functions (already available in builtins)
@@ -162,28 +169,89 @@ impl ModuleSystem {
     }
 
     /// Get all imported bindings
-    pub fn imported_bindings(&self) -> &HashMap<String, Value> {
+    #[must_use] pub fn imported_bindings(&self) -> &HashMap<String, Value> {
         &self.imported_bindings
     }
 
     /// Check if a binding is imported
-    pub fn has_binding(&self, name: &str) -> bool {
+    #[must_use] pub fn has_binding(&self, name: &str) -> bool {
         self.imported_bindings.contains_key(name)
     }
 
     /// Get an imported binding
-    pub fn get_binding(&self, name: &str) -> Option<&Value> {
+    #[must_use] pub fn get_binding(&self, name: &str) -> Option<&Value> {
         self.imported_bindings.get(name)
     }
 
     /// List available SRFIs
-    pub fn available_srfis(&self) -> Vec<u32> {
+    #[must_use] pub fn available_srfis(&self) -> Vec<u32> {
         self.srfi_registry.available_srfis()
     }
 
     /// Get SRFI information
-    pub fn srfi_info(&self, id: u32) -> Option<(u32, &str, Vec<&str>)> {
+    #[must_use] pub fn srfi_info(&self, id: u32) -> Option<(u32, &str, Vec<&str>)> {
         self.srfi_registry.get_srfi_info(id)
+    }
+
+    /// Export a macro for use by other modules
+    pub fn export_macro(&mut self, name: String, macro_def: Macro) -> crate::error::Result<()> {
+        if self.exported_macros.contains_key(&name) {
+            return Err(LambdustError::runtime_error(format!(
+                "Macro '{name}' is already exported"
+            )));
+        }
+        self.exported_macros.insert(name, macro_def);
+        Ok(())
+    }
+
+    /// Import a macro from another module
+    pub fn import_macro(&mut self, name: String, macro_def: Macro) -> crate::error::Result<()> {
+        if let Some(existing) = self.imported_macros.get(&name) {
+            if !macros_equivalent(&macro_def, existing) {
+                return Err(LambdustError::runtime_error(format!(
+                    "Import conflict for macro '{name}'"
+                )));
+            }
+        }
+        self.imported_macros.insert(name, macro_def);
+        Ok(())
+    }
+
+    /// Get all exported macros
+    #[must_use] pub fn get_exported_macros(&self) -> &HashMap<String, Macro> {
+        &self.exported_macros
+    }
+
+    /// Get all imported macros
+    #[must_use] pub fn get_imported_macros(&self) -> &HashMap<String, Macro> {
+        &self.imported_macros
+    }
+
+    /// Check if a macro is available (imported or exported)
+    #[must_use] pub fn has_macro(&self, name: &str) -> bool {
+        self.imported_macros.contains_key(name) || self.exported_macros.contains_key(name)
+    }
+
+    /// Get a macro by name
+    #[must_use] pub fn get_macro(&self, name: &str) -> Option<&Macro> {
+        self.imported_macros.get(name)
+            .or_else(|| self.exported_macros.get(name))
+    }
+
+    /// Export a binding for use by other modules
+    pub fn export_binding(&mut self, name: String, value: Value) -> crate::error::Result<()> {
+        if self.exported_bindings.contains_key(&name) {
+            return Err(LambdustError::runtime_error(format!(
+                "Binding '{name}' is already exported"
+            )));
+        }
+        self.exported_bindings.insert(name, value);
+        Ok(())
+    }
+
+    /// Get all exported bindings
+    #[must_use] pub fn get_exported_bindings(&self) -> &HashMap<String, Value> {
+        &self.exported_bindings
     }
 }
 
@@ -207,5 +275,21 @@ fn values_equivalent(a: &Value, b: &Value) -> bool {
             }
         }
         _ => a == b,
+    }
+}
+
+/// Check if two macros are equivalent for conflict detection
+fn macros_equivalent(a: &Macro, b: &Macro) -> bool {
+    match (a, b) {
+        (Macro::SyntaxRules { name: name_a, .. }, Macro::SyntaxRules { name: name_b, .. }) => {
+            name_a == name_b
+        }
+        (Macro::SyntaxCase { name: name_a, .. }, Macro::SyntaxCase { name: name_b, .. }) => {
+            name_a == name_b
+        }
+        (Macro::Builtin { name: name_a, .. }, Macro::Builtin { name: name_b, .. }) => {
+            name_a == name_b
+        }
+        _ => false,
     }
 }

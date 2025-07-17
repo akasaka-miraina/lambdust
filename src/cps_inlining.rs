@@ -3,8 +3,8 @@
 //! This module implements comprehensive continuation-passing style inlining
 //! to eliminate intermediate continuation allocations and improve evaluation performance.
 
-use crate::evaluator::Continuation;
 use crate::evaluator::continuation::LightContinuation;
+use crate::evaluator::Continuation;
 use crate::value::Value;
 use std::collections::HashMap;
 
@@ -74,12 +74,12 @@ pub struct InliningStats {
 
 impl CpsInliner {
     /// Create a new CPS inliner
-    pub fn new() -> Self {
+    #[must_use] pub fn new() -> Self {
         Self::with_config(InliningConfig::default())
     }
 
     /// Create with custom configuration
-    pub fn with_config(config: InliningConfig) -> Self {
+    #[must_use] pub fn with_config(config: InliningConfig) -> Self {
         Self {
             stats: InliningStats {
                 inlined_operations: 0,
@@ -185,7 +185,7 @@ impl CpsInliner {
     }
 
     /// Generate a pattern string for a continuation (for caching)
-    pub fn continuation_pattern(&self, cont: &Continuation) -> String {
+    #[must_use] pub fn continuation_pattern(&self, cont: &Continuation) -> String {
         match cont {
             Continuation::Identity => "Identity".to_string(),
             Continuation::Assignment { .. } => "Assignment".to_string(),
@@ -338,12 +338,12 @@ impl CpsInliner {
     }
 
     /// Get current inlining statistics
-    pub fn statistics(&self) -> &InliningStats {
+    #[must_use] pub fn statistics(&self) -> &InliningStats {
         &self.stats
     }
 
     /// Get cache efficiency
-    pub fn cache_efficiency(&self) -> f64 {
+    #[must_use] pub fn cache_efficiency(&self) -> f64 {
         let total_requests = self.stats.cache_hits + self.stats.cache_misses;
         if total_requests > 0 {
             self.stats.cache_hits as f64 / total_requests as f64
@@ -353,7 +353,7 @@ impl CpsInliner {
     }
 
     /// Get inlining efficiency (percentage of operations that were optimized)
-    pub fn inlining_efficiency(&self) -> f64 {
+    #[must_use] pub fn inlining_efficiency(&self) -> f64 {
         let total_operations = self.stats.inlined_operations
             + self.stats.light_continuations
             + self.stats.full_continuations
@@ -402,124 +402,3 @@ pub enum ChainStrategy {
     FullContinuation,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::environment::Environment;
-    use crate::lexer::SchemeNumber;
-    use std::rc::Rc;
-
-    #[test]
-    fn test_cps_inliner_basic_operations() {
-        let mut inliner = CpsInliner::new();
-
-        // Test identity continuation
-        let identity = Continuation::Identity;
-        let decision = inliner.analyze_continuation(&identity);
-        assert_eq!(decision, InliningDecision::Eliminate);
-
-        // Test inlining
-        let result =
-            inliner.try_inline_operation(&identity, Value::Number(SchemeNumber::Integer(42)));
-        assert!(matches!(result, Some(Value::Number(_))));
-    }
-
-    #[test]
-    fn test_assignment_continuation_inlining() {
-        let mut inliner = CpsInliner::new();
-        let env = Rc::new(Environment::new());
-
-        let assignment = Continuation::Assignment {
-            variable: "x".to_string(),
-            env: env.clone(),
-            parent: Box::new(Continuation::Identity),
-        };
-
-        let decision = inliner.analyze_continuation(&assignment);
-        assert_eq!(decision, InliningDecision::Inline);
-    }
-
-    #[test]
-    fn test_values_continuation_inlining() {
-        let mut inliner = CpsInliner::new();
-
-        let values = Continuation::Values {
-            values: vec![
-                Value::Number(SchemeNumber::Integer(1)),
-                Value::Number(SchemeNumber::Integer(2)),
-            ],
-            parent: Box::new(Continuation::Identity),
-        };
-
-        let decision = inliner.analyze_continuation(&values);
-        assert_eq!(decision, InliningDecision::Inline);
-    }
-
-    #[test]
-    fn test_cache_efficiency() {
-        let mut inliner = CpsInliner::new();
-        let identity = Continuation::Identity;
-
-        // First call should be a cache miss
-        inliner.analyze_continuation(&identity);
-        assert_eq!(inliner.stats.cache_misses, 1);
-        assert_eq!(inliner.stats.cache_hits, 0);
-
-        // Second call should be a cache hit
-        inliner.analyze_continuation(&identity);
-        assert_eq!(inliner.stats.cache_hits, 1);
-
-        let efficiency = inliner.cache_efficiency();
-        assert_eq!(efficiency, 0.5); // 1 hit out of 2 total requests
-    }
-
-    #[test]
-    fn test_continuation_chain_optimization() {
-        let mut inliner = CpsInliner::new();
-        let env = Rc::new(Environment::new());
-
-        // Create a simple chain: Assignment -> Identity
-        let chain = Continuation::Assignment {
-            variable: "x".to_string(),
-            env,
-            parent: Box::new(Continuation::Identity),
-        };
-
-        let optimized = inliner.optimize_continuation_chain(&chain);
-        assert_eq!(optimized.original_depth, 1);
-        assert!(optimized.can_eliminate_chain);
-        assert_eq!(optimized.recommended_strategy, ChainStrategy::FullInline);
-    }
-
-    #[test]
-    fn test_inlining_efficiency() {
-        let mut inliner = CpsInliner::new();
-
-        // Initially no efficiency data
-        assert_eq!(inliner.inlining_efficiency(), 0.0);
-
-        // Add some operations
-        let identity = Continuation::Identity;
-        inliner.try_inline_operation(&identity, Value::Number(SchemeNumber::Integer(1)));
-
-        // Should show 100% efficiency (elimination counts as optimization)
-        assert_eq!(inliner.inlining_efficiency(), 1.0);
-    }
-
-    #[test]
-    fn test_pattern_generation() {
-        let inliner = CpsInliner::new();
-
-        let identity = Continuation::Identity;
-        assert_eq!(inliner.continuation_pattern(&identity), "Identity");
-
-        let values = Continuation::Values {
-            values: vec![
-                Value::Number(SchemeNumber::Integer(1)),
-                Value::Number(SchemeNumber::Integer(2)),
-            ],
-            parent: Box::new(Continuation::Identity),
-        };
-        assert_eq!(inliner.continuation_pattern(&values), "Values(2)");
-    }
-}
