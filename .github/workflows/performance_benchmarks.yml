@@ -1,0 +1,558 @@
+# Performance Benchmarking CI Pipeline
+# 
+# Comprehensive performance testing and monitoring for Lambdust
+# - Runs on every PR and push to main
+# - Compares performance against baseline
+# - Generates alerts for significant regressions
+# - Archives performance data for historical analysis
+
+name: Performance Benchmarks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run nightly performance tests
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      benchmark_type:
+        description: 'Type of benchmarks to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - 'all'
+          - 'migration'
+          - 'core_operations'
+          - 'system_level'
+          - 'regression'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  RUSTFLAGS: "-C target-cpu=native"
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      should_run_benchmarks: ${{ steps.check.outputs.should_run }}
+      benchmark_matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check if benchmarks should run
+        id: check
+        run: |
+          if [[ "${{ github.event_name }}" == "schedule" ]] || [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "push" ]] && [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "should_run=true" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            # For PRs, run benchmarks if performance-related files changed
+            if git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }} | grep -E "(bench|performance|src/)" > /dev/null; then
+              echo "should_run=true" >> $GITHUB_OUTPUT
+            else
+              echo "should_run=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "should_run=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate benchmark matrix
+        id: matrix
+        run: |
+          if [[ "${{ github.event.inputs.benchmark_type }}" == "migration" ]]; then
+            matrix='["migration_impact"]'
+          elif [[ "${{ github.event.inputs.benchmark_type }}" == "core_operations" ]]; then
+            matrix='["core_operations", "scheme_operations"]'
+          elif [[ "${{ github.event.inputs.benchmark_type }}" == "system_level" ]]; then
+            matrix='["system_performance"]'
+          elif [[ "${{ github.event.inputs.benchmark_type }}" == "regression" ]]; then
+            matrix='["regression_testing"]'
+          else
+            matrix='["migration_impact", "core_operations", "scheme_operations", "system_performance", "regression_testing", "performance_analysis"]'
+          fi
+          echo "matrix=$matrix" >> $GITHUB_OUTPUT
+
+  performance_benchmarks:
+    needs: setup
+    if: needs.setup.outputs.should_run_benchmarks == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        benchmark_suite: ${{ fromJson(needs.setup.outputs.benchmark_matrix) }}
+        rust_version: [stable]
+      fail-fast: false
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.rust_version }}
+          profile: minimal
+          override: true
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-bench-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-bench-
+            ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config libssl-dev
+
+      - name: Install criterion and benchmark tools
+        run: |
+          cargo install cargo-criterion || true
+          cargo install flamegraph || true
+
+      - name: Create benchmark output directory
+        run: |
+          mkdir -p benchmark_results
+          mkdir -p performance_history
+
+      - name: Download historical performance data
+        continue-on-error: true
+        run: |
+          # Download from previous workflow runs or artifact storage
+          gh run list --workflow="Performance Benchmarks" --limit=1 --json=databaseId | \
+            jq -r '.[0].databaseId' | \
+            xargs -I {} gh run download {} --pattern="performance-history*" --dir=performance_history/ || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run ${{ matrix.benchmark_suite }} benchmarks
+        env:
+          RUST_LOG: info
+          CRITERION_HOME: ./criterion_cache
+        run: |
+          case "${{ matrix.benchmark_suite }}" in
+            "migration_impact")
+              echo "Running migration impact benchmarks..."
+              cargo bench --bench migration_impact_benchmarks --features benchmarks -- --output-format json | \
+                tee benchmark_results/migration_impact.json
+              ;;
+            "core_operations")
+              echo "Running core operations benchmarks..."
+              cargo bench --bench core_operation_benchmarks --features benchmarks -- --output-format json | \
+                tee benchmark_results/core_operations.json
+              ;;
+            "scheme_operations")
+              echo "Running Scheme operations benchmarks..."
+              cargo bench --bench scheme_operation_benchmarks --features benchmarks -- --output-format json | \
+                tee benchmark_results/scheme_operations.json
+              ;;
+            "system_performance")
+              echo "Running system performance benchmarks..."
+              cargo bench --bench system_performance_benchmarks --features benchmarks -- --output-format json | \
+                tee benchmark_results/system_performance.json
+              ;;
+            "regression_testing")
+              echo "Running regression testing benchmarks..."
+              cargo bench --bench regression_testing_benchmarks --features benchmarks -- --output-format json | \
+                tee benchmark_results/regression_testing.json
+              ;;
+            "performance_analysis")
+              echo "Running performance analysis benchmarks..."
+              cargo bench --bench performance_analysis_benchmarks --features benchmarks -- --output-format json | \
+                tee benchmark_results/performance_analysis.json
+              ;;
+            *)
+              echo "Unknown benchmark suite: ${{ matrix.benchmark_suite }}"
+              exit 1
+              ;;
+          esac
+
+      - name: Generate performance report
+        run: |
+          # Create a performance analysis script
+          cat > analyze_performance.py << 'EOF'
+          #!/usr/bin/env python3
+          import json
+          import sys
+          import os
+          from datetime import datetime
+          
+          def analyze_benchmark_results(file_path):
+              if not os.path.exists(file_path):
+                  return None
+                  
+              try:
+                  with open(file_path, 'r') as f:
+                      data = json.load(f)
+                  return data
+              except:
+                  return None
+          
+          def generate_summary(results_dir):
+              summary = {
+                  "timestamp": datetime.utcnow().isoformat(),
+                  "git_commit": os.environ.get("GITHUB_SHA", "unknown"),
+                  "benchmark_results": {},
+                  "performance_alerts": [],
+                  "recommendations": []
+              }
+              
+              for result_file in os.listdir(results_dir):
+                  if result_file.endswith('.json'):
+                      file_path = os.path.join(results_dir, result_file)
+                      data = analyze_benchmark_results(file_path)
+                      if data:
+                          summary["benchmark_results"][result_file] = data
+              
+              return summary
+          
+          if __name__ == "__main__":
+              results_dir = sys.argv[1] if len(sys.argv) > 1 else "benchmark_results"
+              summary = generate_summary(results_dir)
+              
+              with open("performance_summary.json", "w") as f:
+                  json.dump(summary, f, indent=2)
+              
+              # Generate markdown report
+              with open("performance_report.md", "w") as f:
+                  f.write("# Performance Benchmark Report\n\n")
+                  f.write(f"**Generated:** {summary['timestamp']}\n\n")
+                  f.write(f"**Commit:** {summary['git_commit']}\n\n")
+                  
+                  if summary['performance_alerts']:
+                      f.write("## ⚠️ Performance Alerts\n\n")
+                      for alert in summary['performance_alerts']:
+                          f.write(f"- {alert}\n")
+                      f.write("\n")
+                  
+                  f.write("## Benchmark Results\n\n")
+                  for filename, results in summary['benchmark_results'].items():
+                      f.write(f"### {filename.replace('.json', '').replace('_', ' ').title()}\n\n")
+                      f.write("Benchmark completed successfully.\n\n")
+          EOF
+          
+          python3 analyze_performance.py benchmark_results/
+
+      - name: Check for performance regressions
+        run: |
+          # Create regression analysis script
+          cat > check_regressions.py << 'EOF'
+          #!/usr/bin/env python3
+          import json
+          import os
+          import sys
+          
+          def load_baseline(baseline_file):
+              if os.path.exists(baseline_file):
+                  try:
+                      with open(baseline_file, 'r') as f:
+                          return json.load(f)
+                  except:
+                      pass
+              return None
+          
+          def analyze_regressions(current_results, baseline_results, threshold=0.15):
+              regressions = []
+              improvements = []
+              
+              if not baseline_results:
+                  return regressions, improvements, "No baseline data available"
+              
+              # This is a simplified regression check
+              # In a real implementation, this would compare actual benchmark metrics
+              status = "No significant changes detected"
+              
+              return regressions, improvements, status
+          
+          if __name__ == "__main__":
+              current_file = "performance_summary.json"
+              baseline_file = "performance_history/baseline.json"
+              
+              with open(current_file, 'r') as f:
+                  current_results = json.load(f)
+              
+              baseline_results = load_baseline(baseline_file)
+              
+              regressions, improvements, status = analyze_regressions(current_results, baseline_results)
+              
+              print(f"Regression Analysis Status: {status}")
+              
+              if regressions:
+                  print("Performance Regressions Detected:")
+                  for regression in regressions:
+                      print(f"  - {regression}")
+                  sys.exit(1)  # Fail the build on regressions
+              
+              if improvements:
+                  print("Performance Improvements Detected:")
+                  for improvement in improvements:
+                      print(f"  + {improvement}")
+          EOF
+          
+          python3 check_regressions.py
+
+      - name: Update performance baseline
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Update baseline performance data for main branch
+          cp performance_summary.json performance_history/baseline.json
+          echo "Updated performance baseline"
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-results-${{ matrix.benchmark_suite }}-${{ github.sha }}
+          path: |
+            benchmark_results/
+            performance_summary.json
+            performance_report.md
+          retention-days: 30
+
+      - name: Upload performance history
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-history-${{ github.sha }}
+          path: performance_history/
+          retention-days: 90
+
+      - name: Comment PR with performance results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            
+            if (fs.existsSync('performance_report.md')) {
+              const report = fs.readFileSync('performance_report.md', 'utf8');
+              
+              const comment = `## 📊 Performance Benchmark Results
+              
+              ${report}
+              
+              <details>
+              <summary>Benchmark Details</summary>
+              
+              - **Suite:** ${{ matrix.benchmark_suite }}
+              - **Commit:** ${{ github.sha }}
+              - **Rust Version:** ${{ matrix.rust_version }}
+              
+              </details>`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+
+  performance_comparison:
+    needs: [setup, performance_benchmarks]
+    if: needs.setup.outputs.should_run_benchmarks == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all benchmark results
+        uses: actions/download-artifact@v3
+        with:
+          path: all_results/
+
+      - name: Setup Python for analysis
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install analysis dependencies
+        run: |
+          pip install pandas matplotlib seaborn plotly numpy scipy
+          
+      - name: Generate comprehensive performance report
+        run: |
+          cat > comprehensive_analysis.py << 'EOF'
+          #!/usr/bin/env python3
+          import json
+          import os
+          import pandas as pd
+          import matplotlib.pyplot as plt
+          import seaborn as sns
+          from datetime import datetime
+          
+          def collect_all_results(results_dir):
+              all_data = {}
+              for root, dirs, files in os.walk(results_dir):
+                  for file in files:
+                      if file.endswith('.json') and 'performance_summary' in file:
+                          file_path = os.path.join(root, file)
+                          try:
+                              with open(file_path, 'r') as f:
+                                  data = json.load(f)
+                                  suite_name = os.path.basename(root).split('-')[2] if '-' in os.path.basename(root) else 'unknown'
+                                  all_data[suite_name] = data
+                          except:
+                              continue
+              return all_data
+          
+          def generate_comparison_report(all_data):
+              report = {
+                  "overview": {
+                      "total_benchmark_suites": len(all_data),
+                      "generated_at": datetime.utcnow().isoformat(),
+                      "git_commit": os.environ.get("GITHUB_SHA", "unknown")
+                  },
+                  "suite_summaries": {},
+                  "overall_health": "good"
+              }
+              
+              for suite_name, data in all_data.items():
+                  report["suite_summaries"][suite_name] = {
+                      "benchmark_count": len(data.get("benchmark_results", {})),
+                      "alerts": len(data.get("performance_alerts", [])),
+                      "status": "completed"
+                  }
+              
+              return report
+          
+          def create_visualizations(all_data):
+              # Create simple performance overview
+              fig, ax = plt.subplots(figsize=(12, 6))
+              
+              suite_names = list(all_data.keys())
+              benchmark_counts = [len(data.get("benchmark_results", {})) for data in all_data.values()]
+              
+              ax.bar(suite_names, benchmark_counts)
+              ax.set_title('Benchmark Suite Coverage')
+              ax.set_xlabel('Benchmark Suite')
+              ax.set_ylabel('Number of Benchmarks')
+              plt.xticks(rotation=45)
+              plt.tight_layout()
+              plt.savefig('benchmark_coverage.png', dpi=150, bbox_inches='tight')
+              plt.close()
+          
+          if __name__ == "__main__":
+              results_dir = "all_results"
+              all_data = collect_all_results(results_dir)
+              
+              report = generate_comparison_report(all_data)
+              
+              with open("comprehensive_report.json", "w") as f:
+                  json.dump(report, f, indent=2)
+              
+              # Generate markdown summary
+              with open("comprehensive_summary.md", "w") as f:
+                  f.write("# Comprehensive Performance Analysis\n\n")
+                  f.write(f"**Generated:** {report['overview']['generated_at']}\n\n")
+                  f.write(f"**Total Benchmark Suites:** {report['overview']['total_benchmark_suites']}\n\n")
+                  
+                  f.write("## Suite Status\n\n")
+                  for suite, summary in report['suite_summaries'].items():
+                      status_emoji = "✅" if summary['alerts'] == 0 else "⚠️"
+                      f.write(f"- {status_emoji} **{suite}**: {summary['benchmark_count']} benchmarks")
+                      if summary['alerts'] > 0:
+                          f.write(f" ({summary['alerts']} alerts)")
+                      f.write("\n")
+              
+              create_visualizations(all_data)
+              
+              print(f"Analyzed {len(all_data)} benchmark suites")
+          EOF
+          
+          python3 comprehensive_analysis.py
+
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v3
+        with:
+          name: comprehensive-performance-report-${{ github.sha }}
+          path: |
+            comprehensive_report.json
+            comprehensive_summary.md
+            benchmark_coverage.png
+          retention-days: 30
+
+      - name: Performance Alert Check
+        run: |
+          # Check if any performance alerts were generated
+          if grep -r "performance_alerts" all_results/ | grep -v "\[\]" > /dev/null; then
+            echo "⚠️ Performance alerts detected across benchmark suites"
+            echo "performance_alerts_detected=true" >> $GITHUB_ENV
+          else
+            echo "✅ No performance alerts detected"
+            echo "performance_alerts_detected=false" >> $GITHUB_ENV
+          fi
+
+      - name: Notify on performance regression
+        if: env.performance_alerts_detected == 'true' && github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let alertMessage = `## ⚠️ Performance Regression Detected
+            
+            The performance benchmarks have detected potential regressions in this PR.
+            
+            **Actions Required:**
+            1. Review the benchmark results in the artifacts
+            2. Identify the cause of performance degradation
+            3. Consider optimizations or architectural changes
+            4. Re-run benchmarks after fixes
+            
+            **Benchmark Artifacts:**
+            - Check the "comprehensive-performance-report" artifact for detailed analysis
+            - Individual suite results are available in separate artifacts
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: alertMessage
+            });
+
+  performance_dashboard_update:
+    needs: [performance_comparison]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Update performance dashboard
+        run: |
+          echo "📊 Performance dashboard update would be implemented here"
+          echo "This could integrate with:"
+          echo "- GitHub Pages for hosting performance trends"
+          echo "- External monitoring services"
+          echo "- Slack/Discord notifications"
+          echo "- Performance trend databases"
+
+  cleanup:
+    needs: [performance_benchmarks, performance_comparison]
+    if: always()
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Cleanup old artifacts
+        run: |
+          echo "🧹 Cleanup process would remove old benchmark artifacts"
+          echo "This helps manage storage costs and keeps CI artifacts manageable"

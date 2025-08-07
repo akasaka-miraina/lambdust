@@ -1,0 +1,503 @@
+;; Test suite for SRFI-111: Boxes
+;; 
+;; Comprehensive tests for box operations, mutability,
+;; and integration with existing Lambdust functionality.
+
+(import (scheme base)
+        (srfi 111)
+        (srfi 1))
+
+;; ============= BASIC BOX OPERATIONS =============
+
+;; Test box creation and type checking
+(define test-box-creation
+  (lambda ()
+    (display "Testing box creation and predicates...\n")
+    
+    ;; Test box creation
+    (define test-box (box 42))
+    (assert (box? test-box) "box should create a box")
+    
+    ;; Test box contents
+    (assert (= (unbox test-box) 42) "unbox should return stored value")
+    
+    ;; Test different types of values
+    (define string-box (box "hello"))
+    (assert (box? string-box) "string box should be a box")
+    (assert (equal? (unbox string-box) "hello") "string box contents")
+    
+    (define list-box (box '(1 2 3)))
+    (assert (box? list-box) "list box should be a box")
+    (assert (equal? (unbox list-box) '(1 2 3)) "list box contents")
+    
+    (define boolean-box (box #t))
+    (assert (box? boolean-box) "boolean box should be a box")
+    (assert (eq? (unbox boolean-box) #t) "boolean box contents")
+    
+    ;; Test box with #f value (important edge case)
+    (define false-box (box #f))
+    (assert (box? false-box) "box with #f should still be a box")
+    (assert (eq? (unbox false-box) #f) "box should preserve #f value")
+    
+    ;; Test non-boxes
+    (assert (not (box? 42)) "number should not be a box")
+    (assert (not (box? "hello")) "string should not be a box")
+    (assert (not (box? '(1 2 3))) "list should not be a box")
+    (assert (not (box? #(1 2 3))) "vector should not be a box")
+    (assert (not (box? #t)) "boolean should not be a box")
+    (assert (not (box? #f)) "#f should not be a box")
+    
+    (display "Box creation tests passed!\n")))
+
+;; Test box mutation
+(define test-box-mutation
+  (lambda ()
+    (display "Testing box mutation...\n")
+    
+    (define test-box (box 10))
+    
+    ;; Test initial value
+    (assert (= (unbox test-box) 10) "Initial value should be 10")
+    
+    ;; Test set-box!
+    (set-box! test-box 20)
+    (assert (= (unbox test-box) 20) "Value after set-box! should be 20")
+    
+    ;; Test multiple mutations
+    (set-box! test-box 30)
+    (assert (= (unbox test-box) 30) "Value after second set-box! should be 30")
+    
+    ;; Test mutation with different types
+    (set-box! test-box "new value")
+    (assert (equal? (unbox test-box) "new value") "Box can hold different types")
+    
+    (set-box! test-box '(a b c))
+    (assert (equal? (unbox test-box) '(a b c)) "Box can hold lists")
+    
+    ;; Test mutation preserves box identity
+    (assert (box? test-box) "Box remains a box after mutation")
+    
+    (display "Box mutation tests passed!\n")))
+
+;; Test box sharing and identity
+(define test-box-sharing
+  (lambda ()
+    (display "Testing box sharing and identity...\n")
+    
+    (define box1 (box 100))
+    (define box2 box1)  ; Share the same box
+    (define box3 (box 100))  ; Different box with same value
+    
+    ;; Test shared reference
+    (assert (= (unbox box1) 100) "box1 initial value")
+    (assert (= (unbox box2) 100) "box2 initial value")
+    (assert (= (unbox box3) 100) "box3 initial value")
+    
+    ;; Modify through box1
+    (set-box! box1 200)
+    
+    ;; box2 should see the change (shared reference)
+    (assert (= (unbox box1) 200) "box1 after mutation")
+    (assert (= (unbox box2) 200) "box2 should see box1's change")
+    (assert (= (unbox box3) 100) "box3 should be unchanged")
+    
+    ;; Modify through box2
+    (set-box! box2 300)
+    
+    ;; box1 should see the change
+    (assert (= (unbox box1) 300) "box1 should see box2's change")
+    (assert (= (unbox box2) 300) "box2 after mutation")
+    (assert (= (unbox box3) 100) "box3 still unchanged")
+    
+    (display "Box sharing tests passed!\n")))
+
+;; ============= CONVENIENCE OPERATIONS =============
+
+;; Test box-cas! (compare-and-swap)
+(define test-box-cas
+  (lambda ()
+    (display "Testing box-cas!...\n")
+    
+    (define test-box (box 42))
+    
+    ;; Successful compare-and-swap
+    (define success1 (box-cas! test-box 42 100))
+    (assert success1 "CAS should succeed when expected value matches")
+    (assert (= (unbox test-box) 100) "Value should be updated after successful CAS")
+    
+    ;; Failed compare-and-swap
+    (define failure1 (box-cas! test-box 42 200))  ; Expected 42, but actual is 100
+    (assert (not failure1) "CAS should fail when expected value doesn't match")
+    (assert (= (unbox test-box) 100) "Value should be unchanged after failed CAS")
+    
+    ;; Another successful CAS
+    (define success2 (box-cas! test-box 100 300))
+    (assert success2 "Second CAS should succeed")
+    (assert (= (unbox test-box) 300) "Value should be updated after second CAS")
+    
+    ;; Test with different data types
+    (define string-box (box "hello"))
+    (define string-success (box-cas! string-box "hello" "world"))
+    (assert string-success "String CAS should succeed")
+    (assert (equal? (unbox string-box) "world") "String value updated")
+    
+    (define string-failure (box-cas! string-box "hello" "fail"))
+    (assert (not string-failure) "String CAS should fail with wrong expected value")
+    (assert (equal? (unbox string-box) "world") "String value unchanged after failed CAS")
+    
+    ;; Test with lists
+    (define list-box (box '(1 2 3)))
+    (define list-success (box-cas! list-box '(1 2 3) '(4 5 6)))
+    (assert list-success "List CAS should succeed")
+    (assert (equal? (unbox list-box) '(4 5 6)) "List value updated")
+    
+    (display "Box CAS tests passed!\n")))
+
+;; Test box-swap!
+(define test-box-swap
+  (lambda ()
+    (display "Testing box-swap!...\n")
+    
+    (define test-box (box 10))
+    
+    ;; Simple transformation
+    (define old-value1 (box-swap! test-box (lambda (x) (* x 2))))
+    (assert (= old-value1 10) "box-swap! should return old value")
+    (assert (= (unbox test-box) 20) "Value should be transformed")
+    
+    ;; Another transformation
+    (define old-value2 (box-swap! test-box (lambda (x) (+ x 5))))
+    (assert (= old-value2 20) "Second swap returns previous value")
+    (assert (= (unbox test-box) 25) "Value should be transformed again")
+    
+    ;; Complex transformation
+    (define old-value3 (box-swap! test-box (lambda (x) (if (> x 20) (- x 10) x))))
+    (assert (= old-value3 25) "Complex transformation old value")
+    (assert (= (unbox test-box) 15) "Complex transformation result")
+    
+    ;; Test with non-numeric values
+    (define string-box (box "hello"))
+    (define old-string (box-swap! string-box (lambda (s) (string-append s " world"))))
+    (assert (equal? old-string "hello") "String swap old value")
+    (assert (equal? (unbox string-box) "hello world") "String swap result")
+    
+    ;; Test with list operations
+    (define list-box (box '(1 2 3)))
+    (define old-list (box-swap! list-box (lambda (lst) (cons 0 lst))))
+    (assert (equal? old-list '(1 2 3)) "List swap old value")
+    (assert (equal? (unbox list-box) '(0 1 2 3)) "List swap result")
+    
+    (display "Box swap tests passed!\n")))
+
+;; ============= ERROR HANDLING TESTS =============
+
+;; Test error conditions
+(define test-error-handling
+  (lambda ()
+    (display "Testing error handling...\n")
+    
+    ;; unbox with non-box should error
+    (define (test-unbox-non-box)
+      (guard (condition (else #t))
+        (unbox 42)
+        #f))
+    (assert (test-unbox-non-box) "unbox with non-box should error")
+    
+    (define (test-unbox-string)
+      (guard (condition (else #t))
+        (unbox "not a box")
+        #f))
+    (assert (test-unbox-string) "unbox with string should error")
+    
+    ;; set-box! with non-box should error
+    (define (test-set-non-box)
+      (guard (condition (else #t))
+        (set-box! 42 100)
+        #f))
+    (assert (test-set-non-box) "set-box! with non-box should error")
+    
+    (define (test-set-list)
+      (guard (condition (else #t))
+        (set-box! '(1 2 3) 100)
+        #f))
+    (assert (test-set-list) "set-box! with list should error")
+    
+    ;; box-cas! with non-box should error
+    (define (test-cas-non-box)
+      (guard (condition (else #t))
+        (box-cas! 42 10 20)
+        #f))
+    (assert (test-cas-non-box) "box-cas! with non-box should error")
+    
+    ;; box-swap! with non-box should error
+    (define (test-swap-non-box)
+      (guard (condition (else #t))
+        (box-swap! 42 (lambda (x) x))
+        #f))
+    (assert (test-swap-non-box) "box-swap! with non-box should error")
+    
+    (display "Error handling tests passed!\n")))
+
+;; ============= USAGE PATTERN TESTS =============
+
+;; Test counter pattern
+(define test-counter-pattern
+  (lambda ()
+    (display "Testing counter pattern...\n")
+    
+    (define counter (box 0))
+    
+    (define (increment!)
+      (box-swap! counter (lambda (n) (+ n 1))))
+    
+    (define (decrement!)
+      (box-swap! counter (lambda (n) (- n 1))))
+    
+    (define (get-count)
+      (unbox counter))
+    
+    (define (reset!)
+      (set-box! counter 0))
+    
+    ;; Test operations
+    (assert (= (get-count) 0) "Initial count is 0")
+    
+    (define old1 (increment!))
+    (assert (= old1 0) "First increment returns old value")
+    (assert (= (get-count) 1) "Count is now 1")
+    
+    (increment!)
+    (increment!)
+    (assert (= (get-count) 3) "Count is now 3")
+    
+    (define old2 (decrement!))
+    (assert (= old2 3) "Decrement returns old value")
+    (assert (= (get-count) 2) "Count is now 2")
+    
+    (reset!)
+    (assert (= (get-count) 0) "Count reset to 0")
+    
+    (display "Counter pattern tests passed!\n")))
+
+;; Test accumulator pattern
+(define test-accumulator-pattern
+  (lambda ()
+    (display "Testing accumulator pattern...\n")
+    
+    (define (make-accumulator initial op)
+      (let ((acc (box initial)))
+        (lambda (value)
+          (box-swap! acc (lambda (current) (op current value))))))
+    
+    ;; Sum accumulator
+    (define sum-acc (make-accumulator 0 +))
+    
+    (define old1 (sum-acc 5))
+    (assert (= old1 0) "Sum accumulator initial")
+    
+    (define old2 (sum-acc 10))
+    (assert (= old2 5) "Sum accumulator after first add")
+    
+    (define old3 (sum-acc 3))
+    (assert (= old3 15) "Sum accumulator after second add")
+    
+    ;; Product accumulator
+    (define product-acc (make-accumulator 1 *))
+    
+    (product-acc 2)
+    (product-acc 3)
+    (define result (product-acc 4))
+    (assert (= result 6) "Product accumulator returns old value")
+    
+    ;; List accumulator
+    (define list-acc (make-accumulator '() cons))
+    
+    (list-acc 'a)
+    (list-acc 'b)
+    (define old-list (list-acc 'c))
+    (assert (equal? old-list '(b a)) "List accumulator builds list in reverse")
+    
+    (display "Accumulator pattern tests passed!\n")))
+
+;; Test memoization pattern
+(define test-memoization-pattern
+  (lambda ()
+    (display "Testing memoization pattern...\n")
+    
+    (define call-count 0)
+    
+    (define (expensive-function n)
+      (set! call-count (+ call-count 1))
+      (* n n))
+    
+    (define (make-memoized-proc proc)
+      (let ((cache (box '())))
+        (lambda (arg)
+          (let ((cached (assoc arg (unbox cache))))
+            (if cached
+                (cdr cached)
+                (let ((result (proc arg)))
+                  (set-box! cache (cons (cons arg result) (unbox cache)))
+                  result))))))
+    
+    (define memoized-expensive (make-memoized-proc expensive-function))
+    
+    ;; First call should compute result
+    (define result1 (memoized-expensive 5))
+    (assert (= result1 25) "First memoized call result")
+    (assert (= call-count 1) "Function called once")
+    
+    ;; Second call should use cache
+    (define result2 (memoized-expensive 5))
+    (assert (= result2 25) "Second memoized call result")
+    (assert (= call-count 1) "Function still called only once (cached)")
+    
+    ;; Different argument should compute new result
+    (define result3 (memoized-expensive 10))
+    (assert (= result3 100) "Different argument result")
+    (assert (= call-count 2) "Function called twice now")
+    
+    ;; Original argument still cached
+    (define result4 (memoized-expensive 5))
+    (assert (= result4 25) "Original argument still cached")
+    (assert (= call-count 2) "Function still called only twice")
+    
+    (display "Memoization pattern tests passed!\n")))
+
+;; Test state machine pattern
+(define test-state-machine-pattern
+  (lambda ()
+    (display "Testing state machine pattern...\n")
+    
+    (define (make-state-machine initial-state transitions)
+      (let ((current-state (box initial-state)))
+        (lambda (event)
+          (let* ((state (unbox current-state))
+                 (key (cons state event))
+                 (transition (assoc key transitions)))
+            (if transition
+                (let ((new-state (cdr transition)))
+                  (set-box! current-state new-state)
+                  new-state)
+                (error "Invalid transition" state event))))))
+    
+    ;; Simple light switch state machine
+    (define transitions
+      '(((off . press) . on)
+        ((on . press) . off)
+        ((off . reset) . off)
+        ((on . reset) . off)))
+    
+    (define light-switch (make-state-machine 'off transitions))
+    
+    ;; Test transitions
+    (define state1 (light-switch 'press))
+    (assert (eq? state1 'on) "Light should turn on")
+    
+    (define state2 (light-switch 'press))
+    (assert (eq? state2 'off) "Light should turn off")
+    
+    (define state3 (light-switch 'press))
+    (assert (eq? state3 'on) "Light should turn on again")
+    
+    (define state4 (light-switch 'reset))
+    (assert (eq? state4 'off) "Light should turn off on reset")
+    
+    ;; Test invalid transition
+    (define (test-invalid-transition)
+      (guard (condition (else #t))
+        (light-switch 'invalid-event)
+        #f))
+    (assert (test-invalid-transition) "Invalid event should cause error")
+    
+    (display "State machine pattern tests passed!\n")))
+
+;; ============= INTEGRATION TESTS =============
+
+;; Test integration with other data structures
+(define test-integration
+  (lambda ()
+    (display "Testing integration with other data structures...\n")
+    
+    ;; Box containing vector
+    (define vector-box (box #(1 2 3 4 5)))
+    (assert (equal? (unbox vector-box) #(1 2 3 4 5)) "Box can contain vectors")
+    
+    ;; Modify vector contents (vector is mutable, box reference stays same)
+    (vector-set! (unbox vector-box) 0 10)
+    (assert (= (vector-ref (unbox vector-box) 0) 10) "Vector in box can be modified")
+    
+    ;; Box containing nested boxes
+    (define nested-box (box (box 42)))
+    (assert (box? (unbox nested-box)) "Box can contain other boxes")
+    (assert (= (unbox (unbox nested-box)) 42) "Nested box access")
+    
+    ;; Modify inner box
+    (set-box! (unbox nested-box) 100)
+    (assert (= (unbox (unbox nested-box)) 100) "Inner box can be modified")
+    
+    ;; Box in list
+    (define box-list (list (box 1) (box 2) (box 3)))
+    (assert (every box? box-list) "List can contain boxes")
+    
+    ;; Modify boxes in list
+    (for-each (lambda (b) (set-box! b (* 2 (unbox b)))) box-list)
+    (assert (equal? (map unbox box-list) '(2 4 6)) "Boxes in list modified")
+    
+    (display "Integration tests passed!\n")))
+
+;; Test performance characteristics
+(define test-performance
+  (lambda ()
+    (display "Testing performance characteristics...\n")
+    
+    ;; Test that box operations are constant time
+    (define large-value (make-list 10000 'x))
+    (define large-box (box large-value))
+    
+    ;; These should all be fast regardless of contained value size
+    (assert (box? large-box) "Type check on large value box")
+    (assert (equal? (unbox large-box) large-value) "Unbox large value")
+    
+    (set-box! large-box (make-list 20000 'y))
+    (assert (= (length (unbox large-box)) 20000) "Set large value")
+    
+    ;; Test many small boxes
+    (define many-boxes (map box (iota 1000)))
+    (assert (= (length many-boxes) 1000) "Can create many boxes")
+    (assert (every box? many-boxes) "All are boxes")
+    
+    ;; Modify all boxes
+    (for-each (lambda (b) (set-box! b (* 2 (unbox b)))) many-boxes)
+    (assert (= (unbox (list-ref many-boxes 100)) 200) "Box 100 modified correctly")
+    
+    (display "Performance tests passed!\n")))
+
+;; ============= TEST RUNNER =============
+
+;; Simple assertion function
+(define (assert condition message)
+  (unless condition
+    (error "Assertion failed:" message)))
+
+;; Main test runner
+(define (run-all-tests)
+  (display "Starting SRFI-111 (Boxes) test suite...\n\n")
+  
+  (test-box-creation)
+  (test-box-mutation)
+  (test-box-sharing)
+  (test-box-cas)
+  (test-box-swap)
+  (test-error-handling)
+  (test-counter-pattern)
+  (test-accumulator-pattern)
+  (test-memoization-pattern)
+  (test-state-machine-pattern)
+  (test-integration)
+  (test-performance)
+  
+  (display "\n=== All SRFI-111 tests passed! ===\n"))
+
+;; Run the tests
+(run-all-tests)

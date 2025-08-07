@@ -1,0 +1,570 @@
+{
+  "implementations": [
+    {
+      "name": "Lambdust",
+      "id": "lambdust",
+      "runtime": {
+        "type": "Lambdust",
+        "target_dir": "./target",
+        "profile": "release",
+        "features": []
+      },
+      "version": "0.1.0",
+      "expected_baseline": 5000000.0,
+      "limitations": [],
+      "r7rs_compliant": true
+    },
+    {
+      "name": "Chez Scheme",
+      "id": "chez",
+      "runtime": {
+        "type": "Native",
+        "binary_path": "scheme",
+        "args": ["--quiet", "--script"],
+        "env_vars": {}
+      },
+      "version": "9.5+",
+      "expected_baseline": 8000000.0,
+      "limitations": [],
+      "r7rs_compliant": true
+    },
+    {
+      "name": "Racket",
+      "id": "racket",
+      "runtime": {
+        "type": "Native",
+        "binary_path": "racket",
+        "args": ["-t"],
+        "env_vars": {}
+      },
+      "version": "8.11+",
+      "expected_baseline": 3000000.0,
+      "limitations": ["Different numeric tower"],
+      "r7rs_compliant": true
+    },
+    {
+      "name": "Gambit Scheme",
+      "id": "gambit",
+      "runtime": {
+        "type": "Native",
+        "binary_path": "gsi",
+        "args": ["-:d-", "-f"],
+        "env_vars": {}
+      },
+      "version": "4.9+",
+      "expected_baseline": 6000000.0,
+      "limitations": [],
+      "r7rs_compliant": true
+    },
+    {
+      "name": "Gauche",
+      "id": "gauche",
+      "runtime": {
+        "type": "Native",
+        "binary_path": "gosh",
+        "args": ["-b"],
+        "env_vars": {}
+      },
+      "version": "0.9.12+",
+      "expected_baseline": 2000000.0,
+      "limitations": [],
+      "r7rs_compliant": true
+    },
+    {
+      "name": "Chicken Scheme",
+      "id": "chicken",
+      "runtime": {
+        "type": "Native",
+        "binary_path": "csi",
+        "args": ["-script"],
+        "env_vars": {}
+      },
+      "version": "5.3+",
+      "expected_baseline": 4000000.0,
+      "limitations": ["Compilation required for optimal performance"],
+      "r7rs_compliant": true
+    },
+    {
+      "name": "MIT/GNU Scheme",
+      "id": "mit-scheme",
+      "runtime": {
+        "type": "Native",
+        "binary_path": "mit-scheme",
+        "args": ["--quiet", "--load"],
+        "env_vars": {}
+      },
+      "version": "12.1+",
+      "expected_baseline": 1500000.0,
+      "limitations": ["Memory intensive", "Slower startup"],
+      "r7rs_compliant": false
+    },
+    {
+      "name": "Guile",
+      "id": "guile",
+      "runtime": {
+        "type": "Native",
+        "binary_path": "guile",
+        "args": ["--no-auto-compile", "-s"],
+        "env_vars": {}
+      },
+      "version": "3.0+",
+      "expected_baseline": 2500000.0,
+      "limitations": ["Compilation overhead"],
+      "r7rs_compliant": true
+    },
+    {
+      "name": "Cyclone Scheme",
+      "id": "cyclone",
+      "runtime": {
+        "type": "Native",
+        "binary_path": "cyclone",
+        "args": ["-i"],
+        "env_vars": {}
+      },
+      "version": "0.35+",
+      "expected_baseline": 3500000.0,
+      "limitations": ["Requires compilation"],
+      "r7rs_compliant": true
+    }
+  ],
+  "test_categories": [
+    {
+      "name": "arithmetic",
+      "description": "Core arithmetic operations and numeric tower performance",
+      "weight": 0.25,
+      "critical": true,
+      "tests": [
+        {
+          "name": "integer_arithmetic",
+          "description": "Basic integer arithmetic operations with loop optimization",
+          "code_template": "(define (arithmetic-benchmark n)\n  (let loop ((i 0) (sum 0))\n    (if (< i n)\n        (loop (+ i 1) (+ sum (* i i)))\n        sum)))\n(arithmetic-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 10000},
+                {"type": "Integer", "value": 50000},
+                {"type": "Integer", "value": 100000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 30,
+            "max_memory_mb": 100,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["+", "*", "<"],
+            "memory_patterns": ["constant memory"],
+            "complexity": "Linear",
+            "critical_operations": ["arithmetic", "loop optimization"]
+          }
+        },
+        {
+          "name": "floating_point_arithmetic",
+          "description": "Floating point operations with mathematical functions",
+          "code_template": "(define (float-benchmark n)\n  (let loop ((i 0.0) (sum 0.0))\n    (if (< i n)\n        (loop (+ i 1.0) (+ sum (sqrt (* i 3.14159))))\n        sum)))\n(float-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 10000},
+                {"type": "Integer", "value": 25000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 45,
+            "max_memory_mb": 100,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["+", "*", "sqrt"],
+            "memory_patterns": ["constant memory"],
+            "complexity": "Linear",
+            "critical_operations": ["floating point", "math functions"]
+          }
+        },
+        {
+          "name": "complex_arithmetic",
+          "description": "Complex number arithmetic operations",
+          "code_template": "(define (complex-benchmark n)\n  (let loop ((i 0) (z 0+0i))\n    (if (< i n)\n        (loop (+ i 1) (* z (+ i (* i 1i))))\n        (real-part z))))\n(complex-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 5000},
+                {"type": "Integer", "value": 15000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 60,
+            "max_memory_mb": 150,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["*", "+", "real-part"],
+            "memory_patterns": ["complex number allocation"],
+            "complexity": "Linear",
+            "critical_operations": ["complex arithmetic", "numeric tower"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "lists",
+      "description": "List operations and functional programming constructs",
+      "weight": 0.20,
+      "critical": true,
+      "tests": [
+        {
+          "name": "list_creation_traversal",
+          "description": "List creation, traversal, and length calculation",
+          "code_template": "(define (list-benchmark n)\n  (let ((lst (let loop ((i 0) (acc '()))\n               (if (< i n)\n                   (loop (+ i 1) (cons i acc))\n                   acc))))\n    (length lst)))\n(list-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 1000},
+                {"type": "Integer", "value": 10000},
+                {"type": "Integer", "value": 50000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 60,
+            "max_memory_mb": 200,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["cons", "length", "<"],
+            "memory_patterns": ["linear allocation"],
+            "complexity": "Linear",
+            "critical_operations": ["cons", "list traversal"]
+          }
+        },
+        {
+          "name": "list_mapping",
+          "description": "Higher-order function performance with map",
+          "code_template": "(define (map-benchmark n)\n  (let ((lst (let loop ((i 0) (acc '()))\n               (if (< i n)\n                   (loop (+ i 1) (cons i acc))\n                   acc))))\n    (length (map (lambda (x) (* x x)) lst))))\n(map-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 1000},
+                {"type": "Integer", "value": 5000},
+                {"type": "Integer", "value": 15000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 120,
+            "max_memory_mb": 300,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["map", "*", "length"],
+            "memory_patterns": ["list allocation", "closure creation"],
+            "complexity": "Linear",
+            "critical_operations": ["higher-order functions", "lambda"]
+          }
+        },
+        {
+          "name": "list_folding",
+          "description": "List reduction operations with fold",
+          "code_template": "(define (fold-benchmark n)\n  (let ((lst (let loop ((i 0) (acc '()))\n               (if (< i n)\n                   (loop (+ i 1) (cons i acc))\n                   acc))))\n    (fold + 0 lst)))\n(fold-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 1000},
+                {"type": "Integer", "value": 10000},
+                {"type": "Integer", "value": 25000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 90,
+            "max_memory_mb": 200,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["fold", "+"],
+            "memory_patterns": ["constant additional memory"],
+            "complexity": "Linear",
+            "critical_operations": ["fold", "tail recursion"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "recursion",
+      "description": "Recursive algorithms and tail call optimization",
+      "weight": 0.15,
+      "critical": true,
+      "tests": [
+        {
+          "name": "fibonacci_recursive",
+          "description": "Classic recursive Fibonacci (exponential complexity)",
+          "code_template": "(define (fib n)\n  (if (<= n 1)\n      n\n      (+ (fib (- n 1)) (fib (- n 2)))))\n(fib {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 25},
+                {"type": "Integer", "value": 30},
+                {"type": "Integer", "value": 35}
+              ],
+              "scaling_behavior": "Exponential"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 180,
+            "max_memory_mb": 500,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["+", "-", "<="],
+            "memory_patterns": ["exponential stack growth"],
+            "complexity": "Exponential",
+            "critical_operations": ["recursion", "function calls"]
+          }
+        },
+        {
+          "name": "tail_recursive_factorial",
+          "description": "Tail recursive factorial (stack optimization test)",
+          "code_template": "(define (factorial n)\n  (define (fact-iter n acc)\n    (if (<= n 1)\n        acc\n        (fact-iter (- n 1) (* n acc))))\n  (fact-iter n 1))\n(factorial {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 10000},
+                {"type": "Integer", "value": 50000},
+                {"type": "Integer", "value": 100000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 60,
+            "max_memory_mb": 100,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["*", "-", "<="],
+            "memory_patterns": ["constant stack (tail call optimized)"],
+            "complexity": "Linear",
+            "critical_operations": ["tail call optimization"]
+          }
+        },
+        {
+          "name": "mutual_recursion",
+          "description": "Mutually recursive functions (even/odd test)",
+          "code_template": "(define (even? n)\n  (if (= n 0)\n      #t\n      (odd? (- n 1))))\n(define (odd? n)\n  (if (= n 0)\n      #f\n      (even? (- n 1))))\n(even? {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 1000},
+                {"type": "Integer", "value": 5000},
+                {"type": "Integer", "value": 10000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Boolean",
+          "resource_limits": {
+            "max_time_seconds": 45,
+            "max_memory_mb": 150,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["-", "="],
+            "memory_patterns": ["linear stack growth"],
+            "complexity": "Linear",
+            "critical_operations": ["mutual recursion", "tail calls"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "memory",
+      "description": "Memory allocation patterns and garbage collection stress",
+      "weight": 0.15,
+      "critical": false,
+      "tests": [
+        {
+          "name": "allocation_stress",
+          "description": "High allocation rate with garbage collection pressure",
+          "code_template": "(define (allocation-benchmark n)\n  (let loop ((i 0) (acc '()))\n    (if (< i n)\n        (let ((big-list (make-list 100 i)))\n          (loop (+ i 1) (cons big-list acc)))\n        (length acc))))\n(allocation-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 100},
+                {"type": "Integer", "value": 500},
+                {"type": "Integer", "value": 1000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 180,
+            "max_memory_mb": 1000,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["make-list", "cons"],
+            "memory_patterns": ["high allocation rate", "GC pressure"],
+            "complexity": "Linear",
+            "critical_operations": ["allocation", "GC"]
+          }
+        },
+        {
+          "name": "vector_operations",
+          "description": "Vector allocation and access patterns",
+          "code_template": "(define (vector-benchmark n)\n  (let ((vec (make-vector n 0)))\n    (let loop ((i 0))\n      (if (< i n)\n          (begin\n            (vector-set! vec i (* i i))\n            (loop (+ i 1)))\n          (vector-ref vec (- n 1))))))\n(vector-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 10000},
+                {"type": "Integer", "value": 50000},
+                {"type": "Integer", "value": 100000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 60,
+            "max_memory_mb": 300,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["vector-set!", "vector-ref", "*"],
+            "memory_patterns": ["large contiguous allocation"],
+            "complexity": "Linear",
+            "critical_operations": ["vector access", "mutation"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "io",
+      "description": "Input/output operations and string handling",
+      "weight": 0.10,
+      "critical": false,
+      "tests": [
+        {
+          "name": "string_port_operations",
+          "description": "String port I/O performance",
+          "code_template": "(define (io-benchmark n)\n  (let ((output-port (open-output-string)))\n    (let loop ((i 0))\n      (if (< i n)\n          (begin\n            (write i output-port)\n            (newline output-port)\n            (loop (+ i 1)))\n          (string-length (get-output-string output-port))))))\n(io-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 1000},
+                {"type": "Integer", "value": 5000},
+                {"type": "Integer", "value": 10000}
+              ],
+              "scaling_behavior": "Linear"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 90,
+            "max_memory_mb": 200,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["write", "string-length"],
+            "memory_patterns": ["string buffer growth"],
+            "complexity": "Linear",
+            "critical_operations": ["I/O", "string operations"]
+          }
+        }
+      ]
+    },
+    {
+      "name": "strings",
+      "description": "String manipulation and processing",
+      "weight": 0.05,
+      "critical": false,
+      "tests": [
+        {
+          "name": "string_concatenation",
+          "description": "String concatenation performance (quadratic behavior test)",
+          "code_template": "(define (string-benchmark n)\n  (let loop ((i 0) (result \"\"))\n    (if (< i n)\n        (loop (+ i 1) (string-append result (number->string i) \" \"))\n        (string-length result))))\n(string-benchmark {n})",
+          "parameters": [
+            {
+              "name": "n",
+              "values": [
+                {"type": "Integer", "value": 100},
+                {"type": "Integer", "value": 300},
+                {"type": "Integer", "value": 500}
+              ],
+              "scaling_behavior": "Quadratic"
+            }
+          ],
+          "expected_result_type": "Number",
+          "resource_limits": {
+            "max_time_seconds": 120,
+            "max_memory_mb": 300,
+            "max_cpu_percent": 100.0
+          },
+          "performance_hints": {
+            "fast_path_candidates": ["string-append", "number->string"],
+            "memory_patterns": ["quadratic memory growth"],
+            "complexity": "Quadratic",
+            "critical_operations": ["string operations"]
+          }
+        }
+      ]
+    }
+  ],
+  "statistical_config": {
+    "iterations": 10,
+    "warmup_iterations": 3,
+    "confidence_level": 0.95,
+    "min_detectable_difference": 5.0,
+    "outlier_detection": {"IQR": {"multiplier": 1.5}},
+    "normality_tests": true
+  },
+  "output_config": {
+    "output_dir": "./comprehensive_benchmark_results",
+    "formats": ["JSON", "HTML", "CSV"],
+    "generate_charts": true,
+    "chart_types": ["BarChart", "BoxPlot", "PerformanceProfile", "ImplementationComparison"],
+    "external_reporting": null
+  },
+  "resource_config": {
+    "monitor_cpu": true,
+    "monitor_memory": true,
+    "monitor_disk_io": true,
+    "monitor_network_io": false,
+    "sampling_interval_ms": 100,
+    "limits": {
+      "max_total_memory_mb": 4096,
+      "max_cpu_percent": 95.0,
+      "max_disk_usage_mb": 1024,
+      "global_timeout_seconds": 3600
+    }
+  }
+}

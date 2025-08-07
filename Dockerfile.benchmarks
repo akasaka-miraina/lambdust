@@ -1,0 +1,220 @@
+# Multi-stage Dockerfile for comprehensive Scheme benchmarking environment
+# Builds all major Scheme implementations for performance comparison with Lambdust
+
+FROM ubuntu:22.04 as base
+
+# Set environment variables to avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=UTC
+
+# Install base system packages and development tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    git \
+    build-essential \
+    cmake \
+    pkg-config \
+    libtool \
+    autoconf \
+    automake \
+    m4 \
+    uuid-dev \
+    libffi-dev \
+    libssl-dev \
+    zlib1g-dev \
+    libbz2-dev \
+    libreadline-dev \
+    libsqlite3-dev \
+    libncurses5-dev \
+    libncursesw5-dev \
+    libgdbm-dev \
+    libnss3-dev \
+    liblzma-dev \
+    tk-dev \
+    python3-dev \
+    python3-pip \
+    valgrind \
+    time \
+    jq \
+    bc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Python tools for analysis
+RUN pip3 install numpy scipy matplotlib pandas seaborn
+
+# Create benchmarks directory structure
+RUN mkdir -p /benchmarks/{schemes,tests,results,scripts,tools}
+WORKDIR /benchmarks
+
+# Stage 1: Install Chez Scheme
+FROM base as chez-builder
+RUN git clone https://github.com/cisco/ChezScheme.git /tmp/chez && \
+    cd /tmp/chez && \
+    git submodule init && \
+    git submodule update && \
+    ./configure --installprefix=/benchmarks/schemes/chez && \
+    make install && \
+    rm -rf /tmp/chez
+
+# Stage 2: Install Racket
+FROM base as racket-builder
+RUN wget -O /tmp/racket-installer.sh https://download.racket-lang.org/installers/8.11.1/racket-8.11.1-x86_64-linux-cs.sh && \
+    chmod +x /tmp/racket-installer.sh && \
+    /tmp/racket-installer.sh --in-place --dest /benchmarks/schemes/racket && \
+    rm /tmp/racket-installer.sh
+
+# Stage 3: Install Gambit Scheme
+FROM base as gambit-builder
+RUN git clone https://github.com/gambit/gambit.git /tmp/gambit && \
+    cd /tmp/gambit && \
+    ./configure --prefix=/benchmarks/schemes/gambit \
+                --enable-single-host \
+                --enable-gcc-opts \
+                --enable-cplusplus \
+                --enable-shared && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/gambit
+
+# Stage 4: Install Gauche
+FROM base as gauche-builder
+RUN git clone https://github.com/shirok/Gauche.git /tmp/gauche && \
+    cd /tmp/gauche && \
+    ./DIST gen && \
+    ./configure --prefix=/benchmarks/schemes/gauche \
+                --enable-multibyte=utf-8 \
+                --with-local=/benchmarks/schemes/gauche && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/gauche
+
+# Stage 5: Install Chicken Scheme
+FROM base as chicken-builder
+RUN wget -O /tmp/chicken-5.3.0.tar.gz https://code.call-cc.org/releases/5.3.0/chicken-5.3.0.tar.gz && \
+    cd /tmp && \
+    tar xzf chicken-5.3.0.tar.gz && \
+    cd chicken-5.3.0 && \
+    make PLATFORM=linux PREFIX=/benchmarks/schemes/chicken && \
+    make PLATFORM=linux PREFIX=/benchmarks/schemes/chicken install && \
+    rm -rf /tmp/chicken-5.3.0*
+
+# Stage 6: Install MIT/GNU Scheme
+FROM base as mit-scheme-builder
+RUN apt-get update && apt-get install -y libx11-dev && \
+    rm -rf /var/lib/apt/lists/* && \
+    git clone https://git.savannah.gnu.org/git/mit-scheme.git /tmp/mit-scheme && \
+    cd /tmp/mit-scheme/src && \
+    ./configure --prefix=/benchmarks/schemes/mit-scheme && \
+    make compile-microcode && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/mit-scheme
+
+# Stage 7: Install Guile
+FROM base as guile-builder
+RUN apt-get update && apt-get install -y \
+    libgmp-dev \
+    libunistring-dev \
+    libgc-dev \
+    flex \
+    gettext \
+    && rm -rf /var/lib/apt/lists/* && \
+    wget -O /tmp/guile-3.0.9.tar.gz https://ftp.gnu.org/gnu/guile/guile-3.0.9.tar.gz && \
+    cd /tmp && \
+    tar xzf guile-3.0.9.tar.gz && \
+    cd guile-3.0.9 && \
+    ./configure --prefix=/benchmarks/schemes/guile \
+                --disable-error-on-warning && \
+    make -j$(nproc) && \
+    make install && \
+    rm -rf /tmp/guile-3.0.9*
+
+# Stage 8: Install Cyclone Scheme
+FROM base as cyclone-builder
+RUN git clone https://github.com/justinethier/cyclone.git /tmp/cyclone && \
+    cd /tmp/cyclone && \
+    make && \
+    make PREFIX=/benchmarks/schemes/cyclone install && \
+    rm -rf /tmp/cyclone
+
+# Stage 9: Install Loko Scheme (if available)
+FROM base as loko-builder
+RUN git clone https://gitlab.com/weinholt/loko.git /tmp/loko 2>/dev/null && \
+    if [ -d /tmp/loko ]; then \
+        cd /tmp/loko && \
+        make && \
+        mkdir -p /benchmarks/schemes/loko/bin && \
+        cp loko /benchmarks/schemes/loko/bin/ && \
+        rm -rf /tmp/loko; \
+    else \
+        mkdir -p /benchmarks/schemes/loko && \
+        echo "Loko Scheme not available" > /benchmarks/schemes/loko/README; \
+    fi
+
+# Final stage: Combine all implementations
+FROM base as final
+
+# Copy all Scheme implementations from builder stages
+COPY --from=chez-builder /benchmarks/schemes/chez /benchmarks/schemes/chez
+COPY --from=racket-builder /benchmarks/schemes/racket /benchmarks/schemes/racket
+COPY --from=gambit-builder /benchmarks/schemes/gambit /benchmarks/schemes/gambit
+COPY --from=gauche-builder /benchmarks/schemes/gauche /benchmarks/schemes/gauche
+COPY --from=chicken-builder /benchmarks/schemes/chicken /benchmarks/schemes/chicken
+COPY --from=mit-scheme-builder /benchmarks/schemes/mit-scheme /benchmarks/schemes/mit-scheme
+COPY --from=guile-builder /benchmarks/schemes/guile /benchmarks/schemes/guile
+COPY --from=cyclone-builder /benchmarks/schemes/cyclone /benchmarks/schemes/cyclone
+COPY --from=loko-builder /benchmarks/schemes/loko /benchmarks/schemes/loko
+
+# Install Rust for Lambdust compilation
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    echo 'source $HOME/.cargo/env' >> ~/.bashrc
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Set up PATH for all Scheme implementations
+ENV PATH="/benchmarks/schemes/chez/bin:\
+/benchmarks/schemes/racket/bin:\
+/benchmarks/schemes/gambit/bin:\
+/benchmarks/schemes/gauche/bin:\
+/benchmarks/schemes/chicken/bin:\
+/benchmarks/schemes/mit-scheme/bin:\
+/benchmarks/schemes/guile/bin:\
+/benchmarks/schemes/cyclone/bin:\
+/benchmarks/schemes/loko/bin:\
+${PATH}"
+
+# Set up library paths
+ENV LD_LIBRARY_PATH="/benchmarks/schemes/chez/lib:\
+/benchmarks/schemes/racket/lib:\
+/benchmarks/schemes/gambit/lib:\
+/benchmarks/schemes/gauche/lib:\
+/benchmarks/schemes/chicken/lib:\
+/benchmarks/schemes/mit-scheme/lib:\
+/benchmarks/schemes/guile/lib:\
+/benchmarks/schemes/cyclone/lib:\
+/benchmarks/schemes/loko/lib:\
+${LD_LIBRARY_PATH}"
+
+# Create benchmark execution environment
+WORKDIR /benchmarks
+
+# Set up permissions and create result directories
+RUN chmod -R 755 /benchmarks && \
+    mkdir -p /benchmarks/results/{raw,processed,reports} && \
+    mkdir -p /benchmarks/logs
+
+# Health check to verify installations
+RUN echo "#!/bin/bash" > /benchmarks/health_check.sh && \
+    echo "echo 'Checking Scheme implementations...'" >> /benchmarks/health_check.sh && \
+    echo "scheme --version 2>/dev/null || echo 'Chez Scheme: Not available'" >> /benchmarks/health_check.sh && \
+    echo "racket --version 2>/dev/null || echo 'Racket: Not available'" >> /benchmarks/health_check.sh && \
+    echo "gsc -v 2>/dev/null || echo 'Gambit: Not available'" >> /benchmarks/health_check.sh && \
+    echo "gosh -V 2>/dev/null || echo 'Gauche: Not available'" >> /benchmarks/health_check.sh && \
+    echo "csi -version 2>/dev/null || echo 'Chicken: Not available'" >> /benchmarks/health_check.sh && \
+    echo "mit-scheme --version 2>/dev/null || echo 'MIT Scheme: Not available'" >> /benchmarks/health_check.sh && \
+    echo "guile --version 2>/dev/null || echo 'Guile: Not available'" >> /benchmarks/health_check.sh && \
+    echo "cyclone --version 2>/dev/null || echo 'Cyclone: Not available'" >> /benchmarks/health_check.sh && \
+    chmod +x /benchmarks/health_check.sh
+
+# Default command
+CMD ["/bin/bash"]

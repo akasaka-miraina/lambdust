@@ -1,0 +1,1099 @@
+//! Parsing for special forms.
+
+#![allow(missing_docs)]
+
+use super::Parser;
+use crate::ast::{Binding, CaseClause, CaseLambdaClause, CondClause, Expr, Formals, GuardClause, KeywordParam, ParameterBinding};
+use crate::diagnostics::{Error, Result, Span, Spanned};
+use crate::lexer::TokenKind;
+use std::collections::HashMap;
+
+impl Parser {
+    /// Parses a quote form: (quote <datum>)
+    pub fn parse_quote_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let expr = self.parse_expression()?;
+        
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after quote")?;
+        let end_span = self.current_span();
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Quote(Box::new(expr)), span))
+    }
+
+    /// Parses a lambda form: (lambda <formals> <body>)
+    pub fn parse_lambda_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let formals = self.parse_formals()?;
+        let metadata = self.parse_metadata_exprs()?;
+        
+        let mut body = Vec::new();
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            body.push(self.parse_expression()?);
+        }
+        
+        if body.is_empty() {
+            return Err(Box::new(Error::parse_error(
+                "Lambda body cannot be empty",
+                self.current_span(),
+            ).into())))
+        }
+        
+        let end_span = self.current_span();
+        self.advance(); // consume ')'
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(
+            Expr::Lambda { formals, metadata, body },
+            span,
+        ))
+    }
+
+    /// Parses an if form: (if <test> <consequent> [<alternative>])
+    pub fn parse_if_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let test = Box::new(self.parse_expression()?);
+        let consequent = Box::new(self.parse_expression()?);
+        
+        let alternative = if !self.check(&TokenKind::RightParen) {
+            Some(Box::new(self.parse_expression()?))
+        } else {
+            None
+        };
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after if")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(
+            Expr::If { test, consequent, alternative },
+            span,
+        ))
+    }
+
+    /// Parses a define form: (define <identifier> <expression>) or (define (<identifier> <formals>) <body>)
+    pub fn parse_define_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        self.with_context("define form", |parser| {
+            let first = parser.parse_expression()?;
+            
+            match first.inner {
+                Expr::Identifier(name) => {
+                    // (define <identifier> <expression>)
+                    let metadata = parser.parse_metadata_exprs()?;
+                    let value = Box::new(parser.parse_expression()?);
+                    
+                    let end_span = parser.current_span();
+                    parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after define")?;
+                    let span = start_span.combine(end_span);
+                    
+                    Ok(Spanned::new(
+                        Expr::Define { name, value, metadata },
+                        span,
+                    ))
+                }
+                Expr::Application { operator, operands } => {
+                    // (define (<identifier> <formals>) <body>)
+                    // This is syntactic sugar for (define <identifier> (lambda <formals> <body>))
+                    if let Expr::Identifier(name) = &operator.inner {
+                        // Convert operands to formals
+                        let formals = parser.operands_to_formals(operands)?;
+                        let metadata = parser.parse_metadata_exprs()?;
+                        
+                        // Parse the body
+                        let body = parser.parse_body()?;
+                        
+                        let end_span = parser.current_span();
+                        parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after define")?;
+                        let span = start_span.combine(end_span);
+                        
+                        // Create a lambda expression as the value
+                        let lambda_span = operator.span.combine(end_span);
+                        let lambda_expr = Spanned::new(
+                            Expr::Lambda { formals, metadata: HashMap::new(), body },
+                            lambda_span,
+                        );
+                        
+                        Ok(Spanned::new(
+                            Expr::Define { 
+                                name: name.clone(), 
+                                value: Box::new(lambda_expr), 
+                                metadata 
+                            },
+                            span,
+                        ))
+                    } else {
+                        Err(Box::new(Error::parse_error(
+                            "Expected identifier as function name in define",
+                            operator.span,
+                        ).into())))
+                    }
+                }
+                _ => {
+                    Err(Box::new(Error::parse_error(
+                        "Expected identifier or function signature in define",
+                        first.span,
+                    ).into())))
+                }
+            }
+        })
+    }
+
+    /// Parses a set! form: (set! <identifier> <expression>)
+    pub fn parse_set_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        self.with_context("set! form", |parser| {
+            let name_expr = parser.parse_expression()?;
+            let name = match name_expr.inner {
+                Expr::Identifier(name) => name,
+                _ => return Err(Box::new(Error::parse_error(
+                    "Expected identifier in set!",
+                    name_expr.span,
+                ).into()))),
+            };
+            
+            let value = Box::new(parser.parse_expression()?);
+            
+            let end_span = parser.current_span();
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after set!")?;
+            let span = start_span.combine(end_span);
+            
+            Ok(Spanned::new(Expr::Set { name, value }, span))
+        })
+    }
+
+    /// Parses a define-syntax form: (define-syntax <identifier> <transformer>)
+    pub fn parse_define_syntax_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        self.with_context("define-syntax form", |parser| {
+            let name_expr = parser.parse_expression()?;
+            let name = match name_expr.inner {
+                Expr::Identifier(name) => name,
+                _ => return Err(Box::new(Error::parse_error(
+                    "Expected identifier in define-syntax",
+                    name_expr.span,
+                ).into()))),
+            };
+            
+            let transformer = Box::new(parser.parse_expression()?);
+            
+            let end_span = parser.current_span();
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after define-syntax")?;
+            let span = start_span.combine(end_span);
+            
+            Ok(Spanned::new(
+                Expr::DefineSyntax { name, transformer },
+                span,
+            ))
+        })
+    }
+
+    /// Parses a syntax-rules form: (syntax-rules (literal ...) (pattern template) ...)
+    pub fn parse_syntax_rules_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        self.with_context("syntax-rules form", |parser| {
+            // Parse literals list
+            parser.consume(&TokenKind::LeftParen, "Expected opening parenthesis for literals list")?;
+            parser.skip_whitespace();
+            
+            let mut literals = Vec::new();
+            while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                if !parser.check(&TokenKind::Identifier) {
+                    return Err(Box::new(Error::parse_error(
+                        "Expected identifier in literals list",
+                        parser.current_span(),
+                    ).into())))
+                }
+                
+                literals.push(parser.current_token().text.clone());
+                parser.advance();
+                parser.skip_whitespace();
+            }
+            
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for literals list")?;
+            parser.skip_whitespace();
+            
+            // Parse syntax rules
+            let mut rules = Vec::new();
+            while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                // Each rule is (pattern template)
+                parser.consume(&TokenKind::LeftParen, "Expected opening parenthesis for syntax rule")?;
+                parser.skip_whitespace();
+                
+                // Parse pattern
+                let pattern = parser.parse_expression()?;
+                parser.skip_whitespace();
+                
+                // Parse template
+                let template = parser.parse_expression()?;
+                parser.skip_whitespace();
+                
+                parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for syntax rule")?;
+                parser.skip_whitespace();
+                
+                rules.push((pattern, template).into()))
+            }
+            
+            if rules.is_empty() {
+                return Err(Box::new(Error::parse_error(
+                    "syntax-rules must have at least one rule",
+                    parser.current_span(),
+                ).into())))
+            }
+            
+            let end_span = parser.current_span();
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after syntax-rules")?;
+            let span = start_span.combine(end_span);
+            
+            // Create a SyntaxRules expression
+            Ok(Spanned::new(
+                Expr::SyntaxRules { literals, rules },
+                span,
+            ))
+        })
+    }
+
+    /// Parses a call/cc form: (call-with-current-continuation <procedure>)
+    pub fn parse_call_cc_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let expr = Box::new(self.parse_expression()?);
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after call/cc")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::CallCC(expr), span))
+    }
+
+    /// Parses a primitive form: (primitive <symbol> <arguments>*)
+    pub fn parse_primitive_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let name_expr = self.parse_expression()?;
+        let name = match name_expr.inner {
+            Expr::Identifier(name) => name,
+            Expr::Literal(crate::ast::Literal::String(name)) => name,
+            _ => return Err(crate::diagnostics::Error::parse_error(
+                "Expected symbol or string in primitive",
+                name_expr.span,
+            )),
+        };
+        
+        let mut args = Vec::new();
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            args.push(self.parse_expression()?);
+        }
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after primitive")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Primitive { name, args }, span))
+    }
+
+    /// Parses a type annotation form: (:: <expression> <type>)
+    pub fn parse_type_annotation_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let expr = Box::new(self.parse_expression()?);
+        let type_expr = Box::new(self.parse_expression()?);
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after type annotation")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(
+            Expr::TypeAnnotation { expr, type_expr },
+            span,
+        ))
+    }
+
+    // Derived forms
+
+    /// Parses a begin form: (begin <expressions>+)
+    pub fn parse_begin_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let mut exprs = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            exprs.push(self.parse_expression()?);
+        }
+        
+        if exprs.is_empty() {
+            return Err(crate::diagnostics::Error::parse_error(
+                "Begin form cannot be empty",
+                self.current_span(),
+            ).into()))
+        }
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after begin")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Begin(exprs), span))
+    }
+
+    /// Parses a let form: (let (<bindings>*) <body>)
+    pub fn parse_let_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let bindings = self.parse_bindings()?;
+        let body = self.parse_body()?;
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after let")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Let { bindings, body }, span))
+    }
+
+    /// Parses a let* form: (let* (<bindings>*) <body>)
+    pub fn parse_let_star_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let bindings = self.parse_bindings()?;
+        let body = self.parse_body()?;
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after let*")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::LetStar { bindings, body }, span))
+    }
+
+    /// Parses a letrec form: (letrec (<bindings>*) <body>)
+    pub fn parse_letrec_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let bindings = self.parse_bindings()?;
+        let body = self.parse_body()?;
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after letrec")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::LetRec { bindings, body }, span))
+    }
+
+    /// Parses a cond form: (cond <clauses>+)
+    pub fn parse_cond_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let mut clauses = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            // Each clause is (test body...) or (else body...)
+            self.consume(&TokenKind::LeftParen, "Expected opening parenthesis for cond clause")?;
+            self.skip_whitespace();
+            
+            // Parse test expression
+            let test = self.parse_expression()?;
+            self.skip_whitespace();
+            
+            // Parse body expressions
+            let mut body = Vec::new();
+            while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+                body.push(self.parse_expression()?);
+                self.skip_whitespace();
+            }
+            
+            if body.is_empty() {
+                return Err(Box::new(Error::parse_error(
+                    "Cond clause must have at least one body expression",
+                    self.current_span(),
+                ).into())))
+            }
+            
+            self.consume(&TokenKind::RightParen, "Expected closing parenthesis for cond clause")?;
+            self.skip_whitespace();
+            
+            clauses.push(CondClause { test, body });
+        }
+        
+        if clauses.is_empty() {
+            return Err(Box::new(Error::parse_error(
+                "Cond form must have at least one clause",
+                self.current_span(),
+            ).into()))
+        }
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after cond")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Cond(clauses), span))
+    }
+
+    /// Parses a case form: (case <expression> <clauses>+)
+    pub fn parse_case_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let expr = Box::new(self.parse_expression()?);
+        self.skip_whitespace();
+        
+        let mut clauses = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            // Each clause is ((value1 value2 ...) body...) or (else body...)
+            self.consume(&TokenKind::LeftParen, "Expected opening parenthesis for case clause")?;
+            self.skip_whitespace();
+            
+            // Parse values list or else
+            let values = if self.check(&TokenKind::Identifier) 
+                && self.current_token().text == "else" {
+                // else clause - no values
+                self.advance(); // consume 'else'
+                Vec::new()
+            } else {
+                // Parse list of values
+                self.consume(&TokenKind::LeftParen, "Expected opening parenthesis for case values")?;
+                self.skip_whitespace();
+                
+                let mut values = Vec::new();
+                while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+                    values.push(self.parse_expression()?);
+                    self.skip_whitespace();
+                }
+                
+                self.consume(&TokenKind::RightParen, "Expected closing parenthesis for case values")?;
+                values
+            };
+            
+            self.skip_whitespace();
+            
+            // Parse body expressions
+            let mut body = Vec::new();
+            while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+                body.push(self.parse_expression()?);
+                self.skip_whitespace();
+            }
+            
+            if body.is_empty() {
+                return Err(Box::new(Error::parse_error(
+                    "Case clause must have at least one body expression",
+                    self.current_span(),
+                ).into()))
+            }
+            
+            self.consume(&TokenKind::RightParen, "Expected closing parenthesis for case clause")?;
+            self.skip_whitespace();
+            
+            clauses.push(CaseClause { values, body });
+        }
+        
+        if clauses.is_empty() {
+            return Err(Box::new(Error::parse_error(
+                "Case form must have at least one clause",
+                self.current_span(),
+            ).into()))
+        }
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after case")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Case { expr, clauses }, span))
+    }
+
+    /// Parses an and form: (and <expressions>*)
+    pub fn parse_and_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let mut exprs = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            exprs.push(self.parse_expression()?);
+        }
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after and")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::And(exprs), span))
+    }
+
+    /// Parses an or form: (or <expressions>*)
+    pub fn parse_or_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let mut exprs = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            exprs.push(self.parse_expression()?);
+        }
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after or")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Or(exprs), span))
+    }
+
+    /// Parses a when form: (when <test> <expressions>+)
+    pub fn parse_when_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let test = Box::new(self.parse_expression()?);
+        let body = self.parse_body()?;
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after when")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::When { test, body }, span))
+    }
+
+    /// Parses an unless form: (unless <test> <expressions>+)
+    pub fn parse_unless_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let test = Box::new(self.parse_expression()?);
+        let body = self.parse_body()?;
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after unless")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Unless { test, body }, span))
+    }
+
+    /// Parses a parameterize form: (parameterize ((<parameter> <value>) ...) <body>)
+    pub fn parse_parameterize_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        self.with_context("parameterize form", |parser| {
+            let bindings = parser.parse_parameter_bindings()?;
+            let body = parser.parse_body()?;
+            
+            let end_span = parser.current_span();
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after parameterize")?;
+            let span = start_span.combine(end_span);
+            
+            Ok(Spanned::new(Expr::Parameterize { bindings, body }, span))
+        })
+    }
+
+    /// Parses a guard form: (guard (<variable> <clauses>*) <body>)
+    pub fn parse_guard_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        self.with_context("guard form", |parser| {
+            // Parse (variable clauses...)
+            parser.consume(&TokenKind::LeftParen, "Expected opening parenthesis for guard variable and clauses")?;
+            parser.skip_whitespace();
+            
+            // Parse variable
+            if !parser.check(&TokenKind::Identifier) {
+                return Err(Box::new(Error::parse_error(
+                    "Expected identifier for guard variable",
+                    parser.current_span(),
+                ).into()))
+            }
+            
+            let variable = parser.current_token().text.clone());
+            parser.advance();
+            parser.skip_whitespace();
+            
+            // Parse clauses
+            let mut clauses = Vec::new();
+            while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                // Each clause is (test body...) or (test => proc) or (else body...)
+                parser.consume(&TokenKind::LeftParen, "Expected opening parenthesis for guard clause")?;
+                parser.skip_whitespace();
+                
+                // Parse test expression
+                let test = parser.parse_expression()?;
+                parser.skip_whitespace();
+                
+                // Check for => clause
+                let mut arrow = None;
+                let mut body = Vec::new();
+                
+                if parser.check(&TokenKind::Identifier) && parser.current_token().text == "=>" {
+                    // => clause: (test => proc)
+                    parser.advance(); // consume '=>'
+                    parser.skip_whitespace();
+                    arrow = Some(parser.parse_expression()?);
+                } else {
+                    // Regular clause: (test body...)
+                    while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                        body.push(parser.parse_expression()?);
+                        parser.skip_whitespace();
+                    }
+                    
+                    if body.is_empty() && arrow.is_none() {
+                        return Err(Box::new(Error::parse_error(
+                            "Guard clause must have at least one body expression or => clause",
+                            parser.current_span(),
+                        ).into()))
+                    }
+                }
+                
+                parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for guard clause")?;
+                parser.skip_whitespace();
+                
+                clauses.push(GuardClause { test, body, arrow });
+            }
+            
+            if clauses.is_empty() {
+                return Err(Box::new(Error::parse_error(
+                    "Guard form must have at least one clause",
+                    parser.current_span(),
+                ).into()))
+            }
+            
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for guard clauses")?;
+            parser.skip_whitespace();
+            
+            // Parse body
+            let body = parser.parse_body()?;
+            
+            let end_span = parser.current_span();
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after guard")?;
+            let span = start_span.combine(end_span);
+            
+            Ok(Spanned::new(Expr::Guard { variable, clauses, body }, span))
+        })
+    }
+
+    /// Parses a case-lambda form: (case-lambda (<formals1> <body1>...) (<formals2> <body2>...) ...)
+    pub fn parse_case_lambda_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        self.with_context("case-lambda form", |parser| {
+            let metadata = HashMap::new(); // For now, no metadata support in case-lambda
+            let mut clauses = Vec::new();
+            
+            while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                // Each clause is (formals body...)
+                parser.skip_whitespace();
+                parser.consume(&TokenKind::LeftParen, "Expected opening parenthesis for case-lambda clause")?;
+                parser.skip_whitespace();
+                
+                // Parse formals
+                let formals = parser.parse_formals()?;
+                parser.skip_whitespace();
+                
+                // Parse body expressions 
+                let mut body = Vec::new();
+                while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                    body.push(parser.parse_expression()?);
+                    parser.skip_whitespace();
+                }
+                
+                if body.is_empty() {
+                    return Err(Box::new(Error::parse_error(
+                        "Case-lambda clause must have at least one body expression",
+                        parser.current_span(),
+                    ).into()))
+                }
+                
+                parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for case-lambda clause")?;
+                parser.skip_whitespace();
+                
+                clauses.push(CaseLambdaClause { formals, body });
+            }
+            
+            if clauses.is_empty() {
+                return Err(Box::new(Error::parse_error(
+                    "Case-lambda form must have at least one clause",
+                    parser.current_span(),
+                ).into()))
+            }
+            
+            let end_span = parser.current_span();
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after case-lambda")?;
+            let span = start_span.combine(end_span);
+            
+            Ok(Spanned::new(Expr::CaseLambda { clauses, metadata }, span))
+        })
+    }
+
+    // Helper methods
+
+    /// Parses formal parameters for lambda expressions.
+    /// 
+    /// Supports all R7RS parameter patterns plus Lambdust keyword extensions:
+    /// 1. Single identifier: x (variable arity)
+    /// 2. List of identifiers: (x y z) (fixed arity)
+    /// 3. Dotted pair: (x y . z) (mixed: fixed + rest)
+    /// 4. Keyword parameters: (x y #:key default #:key2 default2)
+    /// 5. Mixed keyword: (x #:key default . rest)
+    pub fn parse_formals(&mut self) -> Result<Formals> {
+        
+        if self.check(&TokenKind::LeftParen) {
+            self.advance(); // consume '('
+            self.skip_whitespace();
+            
+            let mut fixed = Vec::new();
+            let mut rest = None;
+            let mut keywords = Vec::new();
+            let mut seen_keyword = false;
+            
+            while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+                if self.check(&TokenKind::Dot) {
+                    // Dotted pair syntax: (x y . rest)
+                    self.advance(); // consume '.'
+                    self.skip_whitespace();
+                    
+                    if !self.check(&TokenKind::Identifier) {
+                        return Err(Box::new(Error::parse_error(
+                            "Expected identifier after dot in formals",
+                            self.current_span(),
+                        ).into()))
+                    }
+                    
+                    let rest_name = self.current_token().text.clone());
+                    self.advance();
+                    rest = Some(rest_name);
+                    break;
+                } else if self.check(&TokenKind::Keyword) {
+                    // Keyword parameter: #:key [default]
+                    seen_keyword = true;
+                    let keyword_token = self.current_token();
+                    let keyword_name = keyword_token.text
+                        .strip_prefix("#:")
+                        .unwrap_or(&keyword_token.text)
+                        .to_string();
+                    self.advance();
+                    self.skip_whitespace();
+                    
+                    // Check for optional default value
+                    let default = if !self.check(&TokenKind::RightParen) 
+                        && !self.check(&TokenKind::Keyword) {
+                        Some(self.parse_expression()?)
+                    } else {
+                        None
+                    };
+                    
+                    keywords.push(KeywordParam {
+                        name: keyword_name,
+                        default,
+                    });
+                } else if self.check(&TokenKind::Identifier) {
+                    if seen_keyword {
+                        return Err(Box::new(Error::parse_error(
+                            "Cannot mix positional and keyword parameters",
+                            self.current_span(),
+                        ).into()))
+                    }
+                    
+                    let param_name = self.current_token().text.clone());
+                    self.advance();
+                    fixed.push(param_name);
+                } else {
+                    return Err(Box::new(Error::parse_error(
+                        "Expected identifier or keyword in formals",
+                        self.current_span(),
+                    ).into()))
+                }
+                
+                self.skip_whitespace();
+            }
+            
+            if !self.check(&TokenKind::RightParen) {
+                return Err(Box::new(Error::parse_error(
+                    "Expected closing parenthesis in formals",
+                    self.current_span(),
+                ).into()))
+            }
+            self.advance(); // consume ')'
+            
+            // Determine the type of formals based on what we parsed
+            let formals = if !keywords.is_empty() {
+                Formals::Keyword { fixed, rest, keywords }
+            } else if let Some(rest_param) = rest {
+                if fixed.is_empty() {
+                    // Just a rest parameter - convert to Variable
+                    Formals::Variable(rest_param)
+                } else {
+                    Formals::Mixed { fixed, rest: rest_param }
+                }
+            } else {
+                Formals::Fixed(fixed)
+            };
+            
+            // Validate the formals before returning
+            Parser::validate_formals(&formals, self.current_span())?;
+            Ok(formals)
+            
+        } else if self.check(&TokenKind::Identifier) {
+            // Single identifier - variable arity
+            let name = self.current_token().text.clone());
+            
+            // Validate the identifier
+            Parser::validate_identifier(&name, self.current_span())?;
+            
+            self.advance();
+            Ok(Formals::Variable(name))
+        } else {
+            Err(Box::new(Error::parse_error(
+                format!("Expected formals list or identifier, found {}", 
+                       self.current_token_text()),
+                self.current_span(),
+            ))
+        }
+    }
+
+    /// Parses parameter bindings for parameterize forms.
+    fn parse_parameter_bindings(&mut self) -> Result<Vec<ParameterBinding>> {
+        self.consume(&TokenKind::LeftParen, "Expected opening parenthesis for parameter bindings")?;
+        self.skip_whitespace();
+        
+        let mut bindings = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            // Each binding is (parameter value)
+            self.consume(&TokenKind::LeftParen, "Expected opening parenthesis for parameter binding")?;
+            self.skip_whitespace();
+            
+            // Parse parameter expression
+            let parameter = self.parse_expression()?;
+            self.skip_whitespace();
+            
+            // Parse value expression
+            let value = self.parse_expression()?;
+            self.skip_whitespace();
+            
+            self.consume(&TokenKind::RightParen, "Expected closing parenthesis for parameter binding")?;
+            self.skip_whitespace();
+            
+            bindings.push(ParameterBinding { parameter, value });
+        }
+        
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis for parameter bindings")?;
+        Ok(bindings)
+    }
+
+    /// Parses variable bindings for let forms.
+    fn parse_bindings(&mut self) -> Result<Vec<Binding>> {
+        self.consume(&TokenKind::LeftParen, "Expected opening parenthesis for bindings")?;
+        self.skip_whitespace();
+        
+        let mut bindings = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            // Each binding is (identifier expression)
+            self.consume(&TokenKind::LeftParen, "Expected opening parenthesis for binding")?;
+            self.skip_whitespace();
+            
+            // Parse identifier
+            if !self.check(&TokenKind::Identifier) {
+                return Err(Box::new(Error::parse_error(
+                    "Expected identifier in binding",
+                    self.current_span(),
+                ).into()))
+            }
+            
+            let name = self.current_token().text.clone());
+            self.advance();
+            self.skip_whitespace();
+            
+            // Parse value expression
+            let value = self.parse_expression()?;
+            self.skip_whitespace();
+            
+            self.consume(&TokenKind::RightParen, "Expected closing parenthesis for binding")?;
+            self.skip_whitespace();
+            
+            bindings.push(Binding { name, value });
+        }
+        
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis for bindings")?;
+        Ok(bindings)
+    }
+
+    /// Parses a body (sequence of expressions).
+    pub fn parse_body(&mut self) -> Result<Vec<Spanned<Expr>>> {
+        let mut body = Vec::new();
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            body.push(self.parse_expression()?);
+        }
+        
+        if body.is_empty() {
+            return Err(Box::new(Error::parse_error(
+                "Body cannot be empty",
+                self.current_span(),
+            ).into()))
+        }
+        
+        Ok(body)
+    }
+    
+    /// Converts a list of operand expressions to formal parameters.
+    /// Used for function definition syntax: (define (f x y) body)
+    pub fn operands_to_formals(&self, operands: Vec<Spanned<Expr>>) -> Result<Formals> {
+        let mut fixed_params = Vec::new();
+        let mut rest_param = None;
+        let mut _found_dot = false;
+        
+        for (i, operand) in operands.iter().enumerate() {
+            match &operand.inner {
+                Expr::Identifier(name) => {
+                    if name == "." {
+                        if _found_dot {
+                            return Err(Box::new(Error::parse_error(
+                                "Multiple dots in formal parameter list",
+                                operand.span,
+                            ).into()))
+                        }
+                        if i == operands.len() - 1 {
+                            return Err(Box::new(Error::parse_error(
+                                "Expected rest parameter after dot",
+                                operand.span,
+                            ).into()))
+                        }
+                        if i == operands.len() - 2 {
+                            // Next parameter should be the rest parameter
+                            if let Expr::Identifier(rest_name) = &operands[i + 1].inner {
+                                rest_param = Some(rest_name.clone());
+                                _found_dot = true;
+                                break;
+                            } else {
+                                return Err(Box::new(Error::parse_error(
+                                    "Expected identifier as rest parameter",
+                                    operands[i + 1].span,
+                                ).into()))
+                            }
+                        } else {
+                            return Err(Box::new(Error::parse_error(
+                                "Dot must be followed by exactly one rest parameter",
+                                operand.span,
+                            ).into()))
+                        }
+                    } else if !_found_dot {
+                        fixed_params.push(name.clone());
+                    }
+                }
+                _ => {
+                    return Err(Box::new(Error::parse_error(
+                        "Expected identifier in formal parameter list",
+                        operand.span,
+                    ).into()))
+                }
+            }
+        }
+        
+        let formals = if let Some(rest) = rest_param {
+            Formals::Mixed { fixed: fixed_params, rest }
+        } else {
+            Formals::Fixed(fixed_params)
+        };
+        
+        // Validate the formals
+        Parser::validate_formals(&formals, operands.first().map(|e| e.span).unwrap_or(Span::new(0, 0)))?;
+        
+        Ok(formals)
+    }
+
+    /// Parses an import form: (import <import-spec>+)
+    pub fn parse_import_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        let mut import_specs = Vec::new();
+        
+        // Parse one or more import specifications
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            import_specs.push(self.parse_expression()?);
+            self.skip_whitespace();
+        }
+        
+        if import_specs.is_empty() {
+            return Err(Box::new(Error::parse_error(
+                "Import form requires at least one import specification",
+                self.current_span(),
+            ).into()))
+        }
+        
+        let end_span = self.current_span();
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis after import")?;
+        let span = start_span.combine(end_span);
+        
+        Ok(Spanned::new(Expr::Import { import_specs }, span))
+    }
+
+    /// Parses a define-library form: (define-library <name> <library-declaration>*)
+    pub fn parse_define_library_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
+        println!("Debug: parse_define_library_form called");
+        self.with_context("define-library form", |parser| {
+            println!("Debug: About to parse library name");
+            // Parse library name (a list of identifiers/numbers)
+            parser.consume(&TokenKind::LeftParen, "Expected opening parenthesis for library name")?;
+            parser.skip_whitespace();
+            
+            let mut name_parts = Vec::new();
+            while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                if parser.check(&TokenKind::Identifier) {
+                    let name = parser.current_token().text.clone());
+                    println!("Debug: Found library name part: {}", name);
+                    name_parts.push(name);
+                    parser.advance();
+                } else if parser.check(&TokenKind::IntegerNumber) {
+                    let name = parser.current_token().text.clone());
+                    println!("Debug: Found library name part (number): {}", name);
+                    name_parts.push(name);
+                    parser.advance();
+                } else {
+                    return Err(Box::new(Error::parse_error(
+                        "Library name parts must be identifiers or numbers",
+                        parser.current_span(),
+                    ).into()))
+                }
+                parser.skip_whitespace();
+            }
+            
+            if name_parts.is_empty() {
+                return Err(Box::new(Error::parse_error(
+                    "Library name cannot be empty",
+                    parser.current_span(),
+                ).into()))
+            }
+            
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for library name")?;
+            parser.skip_whitespace();
+            
+            // Parse library declarations
+            let mut imports = Vec::new();
+            let mut exports = Vec::new();
+            let mut body = Vec::new();
+            
+            println!("Debug: About to parse library declarations");
+            while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                println!("Debug: Parsing library declaration, current token: {:?}", parser.current_token);
+                // Parse each library declaration
+                if parser.check(&TokenKind::LeftParen) {
+                    let declaration_start_span = parser.current_span();
+                    parser.advance(); // consume '('
+                    parser.skip_whitespace();
+                    
+                    if parser.check(&TokenKind::Identifier) {
+                        let keyword = parser.current_token().text.clone());
+                        println!("Debug: Found library declaration keyword: {}", keyword);
+                        parser.advance();
+                        parser.skip_whitespace();
+                        
+                        match keyword.as_str() {
+                            "import" => {
+                                // Parse import declaration - get all import specs
+                                while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                                    imports.push(parser.parse_expression()?);
+                                    parser.skip_whitespace();
+                                }
+                                parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for import declaration")?;
+                            }
+                            "export" => {
+                                // Parse export declaration - get all export specs
+                                while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                                    exports.push(parser.parse_expression()?);
+                                    parser.skip_whitespace();
+                                }
+                                parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for export declaration")?;
+                            }
+                            _ => {
+                                // Parse as a general library form (begin, include, etc.)
+                                // Collect remaining content as body expressions
+                                let mut content = Vec::new();
+                                while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
+                                    content.push(parser.parse_expression()?);
+                                    parser.skip_whitespace();
+                                }
+                                parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for library declaration")?;
+                                
+                                // Create a compound expression for this declaration
+                                let declaration_expr = Expr::List({
+                                    let mut decl = vec![Spanned::new(Expr::Identifier(keyword), declaration_start_span)];
+                                    decl.extend(content);
+                                    decl
+                                });
+                                body.push(Spanned::new(declaration_expr, declaration_start_span).into()))
+                            }
+                        }
+                    } else {
+                        return Err(Box::new(Error::parse_error(
+                            "Expected identifier in library declaration",
+                            parser.current_span(),
+                        ).into()))
+                    }
+                } else {
+                    println!("Debug: Expected library declaration but found: {:?}", parser.current_token);
+                    return Err(Box::new(Error::parse_error(
+                        "Expected library declaration (list starting with identifier)",
+                        parser.current_span(),
+                    ).into()))
+                }
+                parser.skip_whitespace();
+            }
+            
+            let end_span = parser.current_span();
+            parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after define-library")?;
+            let span = start_span.combine(end_span);
+            
+            Ok(Spanned::new(
+                Expr::DefineLibrary { name: name_parts, imports, exports, body },
+                span,
+            ))
+        })
+    }
+}

@@ -1,0 +1,236 @@
+# Comprehensive Scheme Benchmarking Configuration
+# Configuration file for cross-implementation performance comparison
+
+# Scheme implementations to benchmark
+implementations:
+  lambdust:
+    name: "Lambdust"
+    binary: "/benchmarks/lambdust/target/release/lambdust"
+    args: ["--batch"]
+    file_extension: ".ldust"
+    compile_command: null
+    startup_time_test: true
+    memory_profiling: true
+    
+  chez:
+    name: "Chez Scheme"
+    binary: "scheme"
+    args: ["--quiet", "--script"]
+    file_extension: ".scm"
+    compile_command: null
+    startup_time_test: true
+    memory_profiling: true
+    
+  racket:
+    name: "Racket"
+    binary: "racket"
+    args: ["-t"]
+    file_extension: ".rkt"
+    compile_command: null
+    startup_time_test: true
+    memory_profiling: true
+    
+  gambit:
+    name: "Gambit Scheme"
+    binary: "gsi"
+    args: ["-:d-", "-f"]
+    file_extension: ".scm"
+    compile_command: "gsc -exe"
+    startup_time_test: true
+    memory_profiling: true
+    
+  gauche:
+    name: "Gauche"
+    binary: "gosh"
+    args: ["-b"]
+    file_extension: ".scm"
+    compile_command: null
+    startup_time_test: true
+    memory_profiling: true
+    
+  chicken:
+    name: "Chicken Scheme"
+    binary: "csi"
+    args: ["-script"]
+    file_extension: ".scm"
+    compile_command: "csc -O3"
+    startup_time_test: true
+    memory_profiling: true
+    
+  mit-scheme:
+    name: "MIT/GNU Scheme"
+    binary: "mit-scheme"
+    args: ["--quiet", "--load"]
+    file_extension: ".scm"
+    compile_command: null
+    startup_time_test: true
+    memory_profiling: false  # Can be resource intensive
+    
+  guile:
+    name: "Guile"
+    binary: "guile"
+    args: ["--no-auto-compile", "-s"]
+    file_extension: ".scm"
+    compile_command: null
+    startup_time_test: true
+    memory_profiling: true
+    
+  cyclone:
+    name: "Cyclone Scheme"
+    binary: "cyclone"
+    args: ["-i"]
+    file_extension: ".scm"
+    compile_command: "cyclone"
+    startup_time_test: true
+    memory_profiling: true
+
+# Benchmark categories and tests
+benchmark_suites:
+  micro_benchmarks:
+    name: "Micro-benchmarks"
+    description: "Small, focused performance tests"
+    tests:
+      - arithmetic_ops
+      - list_operations  
+      - vector_operations
+      - string_operations
+      - function_calls
+      - closure_creation
+      - recursion_depth
+      - tail_call_optimization
+      
+  data_structure_benchmarks:
+    name: "Data Structure Performance"
+    description: "Performance of core data structures"
+    tests:
+      - list_creation_access
+      - vector_creation_access
+      - hash_table_operations
+      - tree_operations
+      - queue_operations
+      
+  algorithm_benchmarks:
+    name: "Algorithm Performance"  
+    description: "Common algorithmic patterns"
+    tests:
+      - fibonacci
+      - factorial
+      - quicksort
+      - mergesort
+      - binary_search
+      - tree_traversal
+      - dynamic_programming
+      
+  r7rs_compliance_benchmarks:
+    name: "R7RS Compliance Performance"
+    description: "Performance of R7RS standard procedures"
+    tests:
+      - r7rs_arithmetic
+      - r7rs_lists
+      - r7rs_vectors  
+      - r7rs_strings
+      - r7rs_io
+      - r7rs_macros
+      
+  macro_system_benchmarks:
+    name: "Macro System Performance"
+    description: "Macro expansion and hygiene performance"
+    tests:
+      - macro_expansion_speed
+      - hygiene_overhead
+      - complex_macros
+      - nested_macros
+      
+  memory_benchmarks:
+    name: "Memory Management"
+    description: "Garbage collection and memory usage"
+    tests:
+      - allocation_rate
+      - gc_pressure
+      - memory_fragmentation
+      - large_data_structures
+
+# Test execution configuration
+execution:
+  # Number of iterations for each test
+  iterations: 10
+  
+  # Warm-up iterations (not counted in results)
+  warmup_iterations: 3
+  
+  # Timeout for individual tests (seconds)
+  timeout: 300
+  
+  # Memory limit for tests (MB) 
+  memory_limit: 2048
+  
+  # Enable detailed profiling
+  detailed_profiling: true
+  
+  # Parallel execution of different implementations
+  parallel_implementations: true
+  
+  # Maximum parallel processes
+  max_parallel: 4
+
+# Output and analysis configuration
+output:
+  # Output formats
+  formats: ["json", "csv", "html", "markdown"]
+  
+  # Statistical analysis
+  statistics:
+    - mean
+    - median  
+    - std_dev
+    - min
+    - max
+    - percentiles: [25, 75, 90, 95, 99]
+    
+  # Comparison analysis
+  comparisons:
+    baseline: "chez"  # Use Chez as baseline for comparisons
+    relative_performance: true
+    statistical_significance: true
+    
+  # Visualization
+  charts:
+    - bar_charts
+    - box_plots  
+    - scatter_plots
+    - performance_profiles
+    - memory_usage_over_time
+    
+# Resource monitoring
+monitoring:
+  # System metrics to collect
+  metrics:
+    - cpu_usage
+    - memory_usage
+    - disk_io
+    - network_io
+    - context_switches
+    - cache_misses
+    
+  # Profiling tools
+  profiling_tools:
+    - time_command
+    - valgrind_massif
+    - perf_stat
+    - custom_instrumentation
+    
+# Environment configuration  
+environment:
+  # Docker container settings
+  container_limits:
+    memory: "4g"
+    cpus: "2.0" 
+    
+  # Environment variables
+  env_vars:
+    SCHEME_HEAP_SIZE: "256m"
+    GC_INITIAL_HEAP_SIZE: "64m"
+    
+  # Reproducibility settings
+  deterministic: true
+  random_seed: 12345

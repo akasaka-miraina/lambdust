@@ -1,0 +1,553 @@
+{
+  "timestamp": "2025-08-06T08:17:17.911195+00:00",
+  "system_info": {
+    "cpu_count": 8,
+    "total_memory_mb": 8192,
+    "platform": "macos",
+    "architecture": "aarch64",
+    "rust_version": "1.70+"
+  },
+  "test_configuration": {
+    "quick_mode": true,
+    "iterations_per_test": 100,
+    "warmup_iterations": 10,
+    "test_duration_seconds": 1,
+    "memory_profiling_enabled": false
+  },
+  "categories": [
+    {
+      "name": "Arithmetic Operations",
+      "description": "Performance of numeric computations and type promotions",
+      "results": [
+        {
+          "test_name": "integer_addition: Add two integers repeatedly",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 1012227.7107458094,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "integer_multiplication: Multiply two integers repeatedly",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 5466870.763175159,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "float_operations: Mixed floating point operations",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 3238866.396761134,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "complex_operations: Complex number arithmetic",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 4888063.349301007,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "numeric_tower_promotions: Number type promotions across numeric tower",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 3755868.544600939,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        }
+      ],
+      "summary": {
+        "total_tests": 5,
+        "avg_ops_per_second": 3672379.3529168093,
+        "performance_grade": "Excellent",
+        "optimization_opportunities": [
+          "Performance looks good in this category!"
+        ]
+      }
+    },
+    {
+      "name": "List Operations",
+      "description": "Performance of list construction, traversal, and manipulation",
+      "results": [
+        {
+          "test_name": "list_construction_small: Construct 10-element list",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 251757.26571468852,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 2517572.657146885,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "list_construction_large: Construct 1000-element list",
+          "iterations": 100,
+          "total_time_ms": 27.0,
+          "ops_per_second": 3621.36788118292,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 3621367.88118292,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "list_traversal_small: Traverse 10-element list",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 5430060.816681147,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 54300608.166811466,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "list_traversal_large: Traverse 1000-element list",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 106676.2248564138,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 106676224.8564138,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "cons_car_cdr_operations: Basic cons, car, cdr operations",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 2046035.8056265984,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        }
+      ],
+      "summary": {
+        "total_tests": 5,
+        "avg_ops_per_second": 1567630.2961520061,
+        "performance_grade": "Excellent",
+        "optimization_opportunities": [
+          "Performance looks good in this category!"
+        ]
+      }
+    },
+    {
+      "name": "Recursion Performance",
+      "description": "Performance of recursive algorithms and deep call stacks",
+      "results": [
+        {
+          "test_name": "factorial_10: Compute factorial of 10",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 8080808.080808082,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "factorial_15: Compute factorial of 15",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 6593261.686556339,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "fibonacci_15: Compute fibonacci number 15",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 190945.73513153297,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "fibonacci_20: Compute fibonacci number 20",
+          "iterations": 100,
+          "total_time_ms": 5.0,
+          "ops_per_second": 17979.144192736425,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "tree_sum_recursion: Recursive tree sum computation",
+          "iterations": 100,
+          "total_time_ms": 15.0,
+          "ops_per_second": 6512.006512006512,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        }
+      ],
+      "summary": {
+        "total_tests": 5,
+        "avg_ops_per_second": 2977901.3306401395,
+        "performance_grade": "Excellent",
+        "optimization_opportunities": [
+          "Performance looks good in this category!"
+        ]
+      }
+    },
+    {
+      "name": "Memory Allocation",
+      "description": "Performance of various memory allocation patterns",
+      "results": [
+        {
+          "test_name": "small_object_allocation: Allocate many small objects",
+          "iterations": 100,
+          "total_time_ms": 1.0,
+          "ops_per_second": 60307.55647651895,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 60307556.47651895,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "large_object_allocation: Allocate large string objects",
+          "iterations": 100,
+          "total_time_ms": 2.0,
+          "ops_per_second": 39032.006245120996,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 3903200.6245120997,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "mixed_allocation_patterns: Mixed object type allocations",
+          "iterations": 100,
+          "total_time_ms": 4.0,
+          "ops_per_second": 24388.25715173447,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 12194128.575867236,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "nested_structure_allocation: Allocate deeply nested structures",
+          "iterations": 100,
+          "total_time_ms": 6.0,
+          "ops_per_second": 16012.702556684166,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 1601270.2556684166,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        }
+      ],
+      "summary": {
+        "total_tests": 4,
+        "avg_ops_per_second": 34935.13060751465,
+        "performance_grade": "Fair",
+        "optimization_opportunities": [
+          "Performance looks good in this category!"
+        ]
+      }
+    },
+    {
+      "name": "Function Calls",
+      "description": "Performance of function calls and environment operations",
+      "results": [
+        {
+          "test_name": "direct_function_calls: Direct Rust function invocation overhead",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 1389699.5469579475,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "environment_lookups: Symbol lookup in environment chains",
+          "iterations": 100,
+          "total_time_ms": 1.0,
+          "ops_per_second": 87831.63027802225,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "symbol_interning: Symbol interning and lookup performance",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 330851.9437551696,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": null,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        }
+      ],
+      "summary": {
+        "total_tests": 3,
+        "avg_ops_per_second": 602794.3736637131,
+        "performance_grade": "Excellent",
+        "optimization_opportunities": [
+          "Performance looks good in this category!"
+        ]
+      }
+    },
+    {
+      "name": "Realistic Programs",
+      "description": "Performance of realistic Scheme program patterns",
+      "results": [
+        {
+          "test_name": "sorting_algorithm: Bubble sort on list of integers",
+          "iterations": 100,
+          "total_time_ms": 23.0,
+          "ops_per_second": 4207.957247154369,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 420795.72471543687,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "higher_order_map: Map square function over list",
+          "iterations": 100,
+          "total_time_ms": 0.0,
+          "ops_per_second": 105411.06626455858,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 105411066.26455858,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        },
+        {
+          "test_name": "nested_data_processing: Process nested associative structures",
+          "iterations": 100,
+          "total_time_ms": 7.0,
+          "ops_per_second": 14014.680377695635,
+          "memory_usage_mb": 0.0,
+          "throughput_items_per_sec": 1401468.0377695635,
+          "statistical_metrics": {
+            "mean_time_ms": 0.0,
+            "median_time_ms": 0.0,
+            "std_deviation_ms": 0.0,
+            "min_time_ms": 0.0,
+            "max_time_ms": 0.0,
+            "p95_time_ms": 0.0,
+            "p99_time_ms": 0.0
+          }
+        }
+      ],
+      "summary": {
+        "total_tests": 3,
+        "avg_ops_per_second": 41211.234629802864,
+        "performance_grade": "Fair",
+        "optimization_opportunities": [
+          "Performance looks good in this category!"
+        ]
+      }
+    }
+  ],
+  "overall_summary": {
+    "total_categories": 6,
+    "total_tests": 25,
+    "total_execution_time_seconds": 0.110461875,
+    "overall_performance_score": 82.17391304347827,
+    "lambdust_strengths": [
+      "Excellent performance in Arithmetic Operations",
+      "Excellent performance in List Operations",
+      "Excellent performance in Recursion Performance",
+      "Excellent performance in Function Calls"
+    ],
+    "performance_characteristics": {
+      "Recursion Performance": 2977901.3306401395,
+      "Memory Allocation": 34935.13060751465,
+      "Function Calls": 602794.3736637131,
+      "Realistic Programs": 41211.234629802864,
+      "Arithmetic Operations": 3672379.3529168093,
+      "List Operations": 1567630.2961520061
+    }
+  },
+  "performance_recommendations": [
+    "Performance looks good in this category!",
+    "Monitor memory allocation patterns for optimization opportunities",
+    "Consider implementing JIT compilation for hot code paths"
+  ]
+}

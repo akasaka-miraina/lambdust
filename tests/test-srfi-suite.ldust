@@ -1,0 +1,433 @@
+;; Master test suite for SRFI implementations
+;; 
+;; This file provides a unified test runner for all implemented SRFIs
+;; and validates their integration with the Lambdust system.
+
+(import (scheme base)
+        (scheme write)
+        (scheme time)
+        (srfi 41)   ; Streams
+        (srfi 111)  ; Boxes  
+        (srfi 125)  ; Hash tables
+        (srfi 1))   ; List library
+
+;; ============= TEST UTILITIES =============
+
+;; Simple assertion with better error reporting
+(define-syntax assert
+  (syntax-rules ()
+    ((_ condition message)
+     (unless condition
+       (begin
+         (display "ASSERTION FAILED: ")
+         (display message)
+         (newline)
+         (error "Test failed" message))))))
+
+;; Test timing utility
+(define (time-test name thunk)
+  (display "Running ")
+  (display name)
+  (display "...")
+  (let ((start (current-jiffy)))
+    (thunk)
+    (let ((end (current-jiffy)))
+      (display " [")
+      (display (exact (round (/ (* (- end start) 1000) (jiffies-per-second)))))
+      (display "ms]")
+      (newline))))
+
+;; Test section separator
+(define (section-header title)
+  (newline)
+  (display "=== ")
+  (display title)
+  (display " ===")
+  (newline))
+
+;; ============= INTEGRATION TESTS =============
+
+;; Test SRFI-41 + SRFI-111 integration
+(define test-streams-boxes-integration
+  (lambda ()
+    (section-header "Testing Streams + Boxes Integration")
+    
+    ;; Stream of boxes
+    (define box-stream 
+      (stream-map box (stream-range 1 6)))
+    
+    (assert (stream? box-stream) "Should create stream of boxes")
+    (assert (box? (stream-car box-stream)) "Stream elements should be boxes")
+    (assert (= (unbox (stream-car box-stream)) 1) "First box should contain 1")
+    
+    ;; Modify boxes through stream
+    (stream-for-each (lambda (b) (set-box! b (* 2 (unbox b))))
+                     (stream-take 3 box-stream))
+    
+    (assert (= (unbox (stream-car box-stream)) 2) "First box should be doubled")
+    (assert (= (unbox (stream-car (stream-cdr box-stream))) 4) "Second box should be doubled")
+    
+    ;; Box containing a stream
+    (define stream-box (box (stream-from 10)))
+    (assert (box? stream-box) "Should create box containing stream")
+    (assert (stream? (unbox stream-box)) "Box should contain stream")
+    (assert (= (stream-ref (unbox stream-box) 0) 10) "Boxed stream should work")
+    
+    ;; Update box with transformed stream
+    (set-box! stream-box (stream-map (lambda (x) (* x x)) (unbox stream-box)))
+    (assert (= (stream-ref (unbox stream-box) 0) 100) "Updated stream should be squared")
+    
+    (display "✓ Streams + Boxes integration tests passed\n")))
+
+;; Test SRFI-41 + SRFI-125 integration
+(define test-streams-hashtables-integration
+  (lambda ()
+    (section-header "Testing Streams + Hash Tables Integration")
+    
+    ;; Stream from hash table keys
+    (define ht (make-hash-table))
+    (hash-table-set! ht 'a 1 'b 2 'c 3 'd 4 'e 5)
+    
+    (define key-stream (list->stream (hash-table-keys ht)))
+    (assert (stream? key-stream) "Should create stream from hash table keys")
+    (assert (= (stream-length key-stream) 5) "Key stream should have 5 elements")
+    
+    ;; Stream from hash table values
+    (define value-stream (list->stream (hash-table-values ht)))
+    (assert (= (stream-fold + 0 value-stream) 15) "Value stream should sum to 15")
+    
+    ;; Build hash table from stream
+    (define number-stream (stream-range 1 6))
+    (define square-ht (make-hash-table))
+    
+    (stream-for-each (lambda (n) (hash-table-set! square-ht n (* n n)))
+                     number-stream)
+    
+    (assert (= (hash-table-size square-ht) 5) "Hash table built from stream")
+    (assert (= (hash-table-ref square-ht 3) 9) "Stream-built hash table lookup")
+    
+    ;; Hash table containing streams
+    (define stream-ht (make-hash-table))
+    (hash-table-set! stream-ht 'evens (stream-filter even? (stream-from 0)))
+    (hash-table-set! stream-ht 'odds (stream-filter odd? (stream-from 1)))
+    
+    (assert (= (stream-ref (hash-table-ref stream-ht 'evens) 2) 4) "Hash table of streams")
+    (assert (= (stream-ref (hash-table-ref stream-ht 'odds) 2) 5) "Multiple streams in hash table")
+    
+    (display "✓ Streams + Hash Tables integration tests passed\n")))
+
+;; Test SRFI-111 + SRFI-125 integration  
+(define test-boxes-hashtables-integration
+  (lambda ()
+    (section-header "Testing Boxes + Hash Tables Integration")
+    
+    ;; Hash table of boxes
+    (define box-ht (make-hash-table))
+    (hash-table-set! box-ht 'counter (box 0))
+    (hash-table-set! box-ht 'total (box 100))
+    (hash-table-set! box-ht 'multiplier (box 2))
+    
+    ;; Use boxes in hash table
+    (define counter-box (hash-table-ref box-ht 'counter))
+    (set-box! counter-box (+ (unbox counter-box) 1))
+    (assert (= (unbox (hash-table-ref box-ht 'counter)) 1) "Box in hash table modified")
+    
+    ;; Calculate using multiple boxes
+    (define total (unbox (hash-table-ref box-ht 'total)))
+    (define mult (unbox (hash-table-ref box-ht 'multiplier)))
+    (assert (= (* total mult) 200) "Multiple boxes from hash table")
+    
+    ;; Box containing hash table
+    (define ht-box (box (make-hash-table)))
+    (hash-table-set! (unbox ht-box) 'test 'value)
+    (assert (hash-table-contains? (unbox ht-box) 'test) "Hash table in box")
+    
+    ;; Atomic operations with boxes and hash tables
+    (define stats-ht (make-hash-table))
+    (hash-table-set! stats-ht 'count (box 0))
+    (hash-table-set! stats-ht 'sum (box 0))
+    
+    (define (add-measurement! value)
+      (box-swap! (hash-table-ref stats-ht 'count) (lambda (c) (+ c 1)))
+      (box-swap! (hash-table-ref stats-ht 'sum) (lambda (s) (+ s value))))
+    
+    (add-measurement! 10)
+    (add-measurement! 20)
+    (add-measurement! 30)
+    
+    (define count (unbox (hash-table-ref stats-ht 'count)))
+    (define sum (unbox (hash-table-ref stats-ht 'sum)))
+    (assert (= count 3) "Statistics count")
+    (assert (= sum 60) "Statistics sum")
+    (assert (= (/ sum count) 20) "Statistics average")
+    
+    (display "✓ Boxes + Hash Tables integration tests passed\n")))
+
+;; Test all three SRFIs together
+(define test-triple-integration
+  (lambda ()
+    (section-header "Testing Three-way Integration")
+    
+    ;; Create a complex data structure: hash table of boxes of streams
+    (define complex-ht (make-hash-table))
+    
+    ;; Add streams in boxes to hash table
+    (hash-table-set! complex-ht 'fibonacci
+                     (box (let fibs ()
+                            (stream-cons 0
+                              (stream-cons 1
+                                (stream-map + (fibs) (stream-cdr (fibs))))))))
+    
+    (hash-table-set! complex-ht 'primes
+                     (box (let sieve ((s (stream-from 2)))
+                            (stream-cons (stream-car s)
+                              (sieve (stream-filter 
+                                      (lambda (n) (not (zero? (modulo n (stream-car s)))))
+                                      (stream-cdr s)))))))
+    
+    ;; Access nested structure
+    (define fib-stream (unbox (hash-table-ref complex-ht 'fibonacci)))
+    (assert (= (stream-ref fib-stream 5) 5) "Nested Fibonacci access")
+    (assert (= (stream-ref fib-stream 10) 55) "Nested Fibonacci 10th element")
+    
+    (define prime-stream (unbox (hash-table-ref complex-ht 'primes)))
+    (assert (= (stream-ref prime-stream 0) 2) "Nested prime access")
+    (assert (= (stream-ref prime-stream 4) 11) "Nested 5th prime")
+    
+    ;; Create stream of hash tables containing boxes
+    (define table-stream
+      (stream-map (lambda (n)
+                    (let ((ht (make-hash-table)))
+                      (hash-table-set! ht 'value (box n))
+                      (hash-table-set! ht 'square (box (* n n)))
+                      ht))
+                  (stream-range 1 6)))
+    
+    ;; Access deeply nested structure
+    (define third-table (stream-ref table-stream 2))  ; n=3
+    (assert (= (unbox (hash-table-ref third-table 'value)) 3) "Triple nested access value")
+    (assert (= (unbox (hash-table-ref third-table 'square)) 9) "Triple nested access square")
+    
+    ;; Modify through all three structures
+    (stream-for-each (lambda (ht)
+                       (let ((value-box (hash-table-ref ht 'value)))
+                         (set-box! value-box (+ (unbox value-box) 100))))
+                     (stream-take 3 table-stream))
+    
+    (assert (= (unbox (hash-table-ref (stream-ref table-stream 0) 'value)) 101) 
+            "Modified through stream/hash/box")
+    
+    (display "✓ Three-way integration tests passed\n")))
+
+;; ============= PERFORMANCE INTEGRATION TESTS =============
+
+;; Test performance with integrated data structures
+(define test-performance-integration
+  (lambda ()
+    (section-header "Testing Performance Integration")
+    
+    ;; Large-scale integration test
+    (define large-ht (make-hash-table))
+    
+    ;; Create hash table with 100 entries, each containing a box with a stream
+    (do ((i 0 (+ i 1)))
+        ((= i 100))
+      (let ((stream-box (box (stream-map (lambda (x) (+ x i)) (stream-from 0)))))
+        (hash-table-set! large-ht i stream-box)))
+    
+    (assert (= (hash-table-size large-ht) 100) "Large integrated structure size")
+    
+    ;; Access elements efficiently
+    (define box-50 (hash-table-ref large-ht 50))
+    (define stream-50 (unbox box-50))
+    (assert (= (stream-ref stream-50 10) 60) "Large structure access: 10+50=60")
+    
+    ;; Bulk operations on integrated structures
+    (define sum-of-first-elements
+      (hash-table-fold (lambda (k v acc)
+                        (+ acc (stream-ref (unbox v) 0)))
+                      0
+                      large-ht))
+    
+    ;; Sum should be 0+1+2+...+99 = 4950
+    (assert (= sum-of-first-elements 4950) "Bulk operations on integrated structures")
+    
+    ;; Memory efficiency test - streams should be lazy
+    (define lazy-ht (make-hash-table))
+    (hash-table-set! lazy-ht 'infinite (box (stream-from 0)))
+    
+    ;; This should not consume infinite memory
+    (define finite-result (stream-ref (unbox (hash-table-ref lazy-ht 'infinite)) 1000))
+    (assert (= finite-result 1000) "Lazy evaluation in integrated structures")
+    
+    (display "✓ Performance integration tests passed\n")))
+
+;; ============= CORRECTNESS VERIFICATION TESTS =============
+
+;; Verify that integration doesn't break individual SRFI behavior
+(define test-correctness-preservation
+  (lambda ()
+    (section-header "Testing Correctness Preservation")
+    
+    ;; Verify streams still work correctly after integration
+    (define test-stream (stream-cons 1 (stream-cons 2 (stream-cons 3 stream-null))))
+    (assert (= (stream-length test-stream) 3) "Basic stream operations preserved")
+    (assert (equal? (stream->list test-stream) '(1 2 3)) "Stream to list preserved")
+    
+    ;; Verify boxes still work correctly
+    (define test-box (box 42))
+    (assert (= (unbox test-box) 42) "Basic box operations preserved")
+    (set-box! test-box 84)
+    (assert (= (unbox test-box) 84) "Box mutation preserved")
+    
+    ;; Verify hash tables still work correctly
+    (define test-ht (make-hash-table))
+    (hash-table-set! test-ht 'key 'value)
+    (assert (hash-table-contains? test-ht 'key) "Basic hash table operations preserved")
+    (assert (eq? (hash-table-ref test-ht 'key) 'value) "Hash table lookup preserved")
+    
+    ;; Verify error handling is preserved
+    (define (test-stream-error-preserved)
+      (guard (condition (else #t))
+        (stream-car stream-null)
+        #f))
+    (assert (test-stream-error-preserved) "Stream error handling preserved")
+    
+    (define (test-box-error-preserved)
+      (guard (condition (else #t))
+        (unbox "not a box")
+        #f))
+    (assert (test-box-error-preserved) "Box error handling preserved")
+    
+    (define (test-hash-error-preserved)
+      (guard (condition (else #t))
+        (hash-table-ref test-ht 'nonexistent)
+        #f))
+    (assert (test-hash-error-preserved) "Hash table error handling preserved")
+    
+    (display "✓ Correctness preservation tests passed\n")))
+
+;; ============= REAL-WORLD USAGE PATTERNS =============
+
+;; Test realistic usage scenarios
+(define test-realistic-usage
+  (lambda ()
+    (section-header "Testing Realistic Usage Patterns")
+    
+    ;; Pattern 1: Event processing system
+    (define event-system (make-hash-table))
+    (hash-table-set! event-system 'handlers (box '()))
+    (hash-table-set! event-system 'event-log (box stream-null))
+    
+    (define (register-handler! name handler)
+      (let ((handlers-box (hash-table-ref event-system 'handlers)))
+        (set-box! handlers-box 
+                 (cons (cons name handler) (unbox handlers-box)))))
+    
+    (define (emit-event! event)
+      (let ((log-box (hash-table-ref event-system 'event-log))
+            (handlers (unbox (hash-table-ref event-system 'handlers))))
+        ;; Add to log
+        (set-box! log-box (stream-cons event (unbox log-box)))
+        ;; Call handlers
+        (for-each (lambda (h) ((cdr h) event)) handlers)))
+    
+    (define events-received '())
+    (register-handler! 'logger (lambda (e) (set! events-received (cons e events-received))))
+    
+    (emit-event! 'start)
+    (emit-event! 'process)
+    (emit-event! 'end)
+    
+    (assert (equal? (reverse events-received) '(start process end)) "Event system works")
+    (assert (= (stream-length (stream-take 3 (unbox (hash-table-ref event-system 'event-log)))) 3)
+            "Event log stream works")
+    
+    ;; Pattern 2: Caching system with TTL
+    (define cache-system (make-hash-table))
+    
+    (define (cache-set! key value ttl)
+      (hash-table-set! cache-system key (box (cons value ttl))))
+    
+    (define (cache-get key)
+      (if (hash-table-contains? cache-system key)
+          (let* ((entry-box (hash-table-ref cache-system key))
+                 (entry (unbox entry-box)))
+            (car entry))  ; Simplified - real system would check TTL
+          #f))
+    
+    (cache-set! 'user:123 '(name "Alice" age 30) 300)
+    (cache-set! 'session:abc '(valid #t) 3600)
+    
+    (assert (equal? (cache-get 'user:123) '(name "Alice" age 30)) "Cache retrieval works")
+    (assert (equal? (cache-get 'session:abc) '(valid #t)) "Multiple cache entries work")
+    (assert (not (cache-get 'missing)) "Cache miss returns #f")
+    
+    ;; Pattern 3: Data processing pipeline
+    (define (make-pipeline . stages)
+      (let ((pipeline-ht (make-hash-table)))
+        (hash-table-set! pipeline-ht 'stages stages)
+        (hash-table-set! pipeline-ht 'results (box '()))
+        pipeline-ht))
+    
+    (define (process-stream pipeline input-stream)
+      (let ((stages (hash-table-ref pipeline 'stages))
+            (results-box (hash-table-ref pipeline 'results)))
+        (let process ((stages stages) (current-stream input-stream))
+          (if (null? stages)
+              (begin
+                (set-box! results-box (stream->list (stream-take 10 current-stream)))
+                current-stream)
+              (process (cdr stages) ((car stages) current-stream))))))
+    
+    (define number-pipeline
+      (make-pipeline (lambda (s) (stream-filter even? s))
+                     (lambda (s) (stream-map (lambda (x) (* x x)) s))))
+    
+    (define input (stream-range 1 21))  ; 1 to 20
+    (process-stream number-pipeline input)
+    
+    (define results (unbox (hash-table-ref number-pipeline 'results)))
+    ;; Should be squares of even numbers: 4, 16, 36, 64, 100, 144, 196, 256, 324, 400
+    (assert (equal? (take results 3) '(4 16 36)) "Data pipeline works")
+    
+    (display "✓ Realistic usage pattern tests passed\n")))
+
+;; ============= MAIN TEST RUNNER =============
+
+(define (run-integration-test-suite)
+  (display "Starting SRFI Integration Test Suite\n")
+  (display "====================================\n")
+  
+  ;; Run all integration tests with timing
+  (time-test "Streams + Boxes Integration" test-streams-boxes-integration)
+  (time-test "Streams + Hash Tables Integration" test-streams-hashtables-integration)
+  (time-test "Boxes + Hash Tables Integration" test-boxes-hashtables-integration)
+  (time-test "Three-way Integration" test-triple-integration)
+  (time-test "Performance Integration" test-performance-integration)
+  (time-test "Correctness Preservation" test-correctness-preservation)
+  (time-test "Realistic Usage Patterns" test-realistic-usage)
+  
+  (section-header "INTEGRATION TEST SUMMARY")
+  (display "✓ All SRFI integration tests passed successfully!\n")
+  (display "✓ SRFI-41 (Streams), SRFI-111 (Boxes), and SRFI-125 (Hash Tables)\n")
+  (display "✓ work correctly both individually and in combination\n")
+  (display "✓ Performance characteristics are maintained in integrated usage\n")
+  (display "✓ Real-world usage patterns are supported\n")
+  (newline))
+
+;; Run individual SRFI tests if needed (would include the other test files)
+(define (run-individual-srfi-tests)
+  (display "Individual SRFI tests should be run separately:\n")
+  (display "- test-srfi-41.ldust for SRFI-41 (Streams) tests\n")
+  (display "- test-srfi-111.ldust for SRFI-111 (Boxes) tests\n")
+  (display "- test-srfi-125.ldust for SRFI-125 (Hash Tables) tests\n")
+  (newline))
+
+;; Main entry point
+(define (run-all-srfi-tests)
+  (run-individual-srfi-tests)
+  (run-integration-test-suite))
+
+;; Execute the test suite
+(run-all-srfi-tests)

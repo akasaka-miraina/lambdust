@@ -1,0 +1,28 @@
+Category,Test Name,Iterations,Total Time (ms),Ops/sec,Memory (MB),Throughput (items/sec),Mean (ms),Median (ms),Std Dev (ms)
+Arithmetic Operations,integer_addition: Add two integers repeatedly,1000,0.00,7597341,0.00,0,0.000,0.000,0.000
+Arithmetic Operations,integer_multiplication: Multiply two integers repeatedly,1000,0.00,7853424,0.00,0,0.000,0.000,0.000
+Arithmetic Operations,float_operations: Mixed floating point operations,1000,0.00,4347826,0.00,0,0.000,0.000,0.000
+Arithmetic Operations,complex_operations: Complex number arithmetic,1000,0.00,7100609,0.00,0,0.000,0.000,0.000
+Arithmetic Operations,numeric_tower_promotions: Number type promotions across numeric tower,1000,0.00,5015674,0.00,0,0.000,0.000,0.000
+List Operations,list_construction_small: Construct 10-element list,1000,3.00,325023,0.00,3250227,0.000,0.000,0.000
+List Operations,list_construction_large: Construct 1000-element list,1000,194.00,5150,0.00,5149757,0.000,0.000,0.000
+List Operations,list_traversal_small: Traverse 10-element list,1000,0.00,6474252,0.00,64742519,0.000,0.000,0.000
+List Operations,list_traversal_large: Traverse 1000-element list,1000,7.00,139375,0.00,139375250,0.000,0.000,0.000
+List Operations,cons_car_cdr_operations: Basic cons, car, cdr operations,1000,0.00,2595993,0.00,0,0.000,0.000,0.000
+Recursion Performance,factorial_10: Compute factorial of 10,1000,0.00,10033411,0.00,0,0.000,0.000,0.000
+Recursion Performance,factorial_15: Compute factorial of 15,1000,0.00,9070295,0.00,0,0.000,0.000,0.000
+Recursion Performance,factorial_20: Compute factorial of 20,1000,0.00,6344171,0.00,0,0.000,0.000,0.000
+Recursion Performance,fibonacci_15: Compute fibonacci number 15,1000,4.00,236330,0.00,0,0.000,0.000,0.000
+Recursion Performance,fibonacci_20: Compute fibonacci number 20,1000,47.00,20999,0.00,0,0.000,0.000,0.000
+Recursion Performance,fibonacci_25: Compute fibonacci number 25,1000,525.00,1901,0.00,0,0.000,0.000,0.000
+Recursion Performance,tree_sum_recursion: Recursive tree sum computation,1000,1148.00,871,0.00,0,1.007,1.000,0.105
+Memory Allocation,small_object_allocation: Allocate many small objects,1000,15.00,64159,0.00,64159456,0.000,0.000,0.000
+Memory Allocation,large_object_allocation: Allocate large string objects,1000,24.00,41531,0.00,4153147,0.000,0.000,0.000
+Memory Allocation,mixed_allocation_patterns: Mixed object type allocations,1000,39.00,25495,0.00,12747595,0.000,0.000,0.000
+Memory Allocation,nested_structure_allocation: Allocate deeply nested structures,1000,59.00,16918,0.00,1691775,0.000,0.000,0.000
+Function Calls,direct_function_calls: Direct Rust function invocation overhead,1000,0.00,1549287,0.00,0,0.000,0.000,0.000
+Function Calls,environment_lookups: Symbol lookup in environment chains,1000,11.00,89176,0.00,0,0.000,0.000,0.000
+Function Calls,symbol_interning: Symbol interning and lookup performance,1000,3.00,320611,0.00,0,0.000,0.000,0.000
+Realistic Programs,sorting_algorithm: Bubble sort on list of integers,1000,236.00,4230,0.00,423011,0.000,0.000,0.000
+Realistic Programs,higher_order_map: Map square function over list,1000,9.00,105673,0.00,105673337,0.000,0.000,0.000
+Realistic Programs,nested_data_processing: Process nested associative structures,1000,69.00,14429,0.00,1442853,0.000,0.000,0.000

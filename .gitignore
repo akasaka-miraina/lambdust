@@ -1,0 +1,89 @@
+# Rust build artifacts
+/target/
+Cargo.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary and test files
+*.tmp
+*.temp
+/tmp/
+debug_*.rs
+
+# Development and temporary documents (generated during development)
+*_REPORT.md
+*_SUMMARY.md
+*_GUIDE.md
+*_IMPLEMENTATION*.md
+*_MIGRATION*.md
+*_COMPLETE*.md
+*_STATUS.md
+*_PRIORITY*.md
+*_ANALYSIS*.md
+*_TEST_SUITE*.md
+*_FINAL*.md
+*_COMPREHENSIVE*.md
+THREAD_SAFETY_*.md
+PERFORMANCE_*.md
+EFFECT_SYSTEM_*.md
+MODULE_SYSTEM_*.md
+MACRO_SYSTEM_*.md
+FFI_USAGE.md
+MINIMAL_PRIMITIVE_*.md
+SCHEME_LIBRARY_SYSTEM.md
+TYPE_SYSTEM_IMPLEMENTATION.md
+
+# Test files (temporary development tests)
+test_*.ldust
+test_*.scm
+test_*.rs
+simple_*.ldust
+simple_*.scm
+minimal_*.ldust
+debug_*.ldust
+*_demo.scm
+*_demo.ldust
+*_test.ldust
+final_compliance_test.ldust
+r7rs_compliance_test.ldust
+comprehensive_io_demo.ldust
+call_cc_demo.scm
+string_test.ldust
+arithmetic_implementation_demo.scm
+manual_string_verification.scm
+simple_bytevector_test.scm
+simple_exception_validation.scm
+verify_vector_implementation.scm
+srfi23_demo.scm
+srfi9_demo.scm
+performance_config.toml
+master_design.md
+
+# Single character temporary files
+1
+
+# Log files
+*.log
+
+# Coverage reports
+*.profraw
+*.gcda
+*.gcno
+
+# Benchmark results  
+benchmark_results/
+*.criterion/
+
+# Documentation build artifacts
+docs/_build/
+docs/.doctrees/
+
+# OS generated files
+Thumbs.db
+ehthumbs.db

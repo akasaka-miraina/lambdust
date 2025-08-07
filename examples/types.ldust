@@ -1,0 +1,58 @@
+;; Type system examples for Lambdust
+
+;; Basic type annotations
+(:: 42 Number)
+(:: "hello" String)
+(:: #t Boolean)
+
+;; Function type annotations
+(define (add x y)
+  #:type (-> Number Number Number)
+  (+ x y))
+
+;; Polymorphic functions (future feature)
+; (define (identity x)
+;   #:type (∀ (a) (-> a a))
+;   x)
+
+;; Type classes (future feature)
+; (define-type-class <Eq : *>
+;   [(eq? : (∀ (a) (-> a a Boolean)))])
+
+; (define-instance (<Eq> Number)
+;   [(define (eq? x y) (= x y))])
+
+;; Gradual typing - mixing typed and untyped code
+(define untyped-double (lambda (x) (* x 2)))
+
+(define (typed-quadruple x)
+  #:type (-> Number Number)
+  (untyped-double (untyped-double x)))
+
+;; Contract checking (runtime type verification)
+(define (safe-divide x y)
+  #:contract (-> Number (and Number (not zero?)) Number)
+  (/ x y))
+
+;; Dependent types (experimental)
+; (define (vector-ref v i)
+;   #:type (∀ (n a) (-> (Vector a n) (Range 0 n) a))
+;   (primitive 'vector-ref v i))
+
+;; Effect annotations
+(define (pure-computation x)
+  #:effect Pure
+  #:type (-> Number Number)
+  (* x x))
+
+(define (io-operation)
+  #:effect IO
+  #:type (→ () String)
+  (read-line))
+
+;; Monad types (future feature)
+; (define (maybe-divide x y)
+;   #:type (-> Number Number (Maybe Number))
+;   (if (zero? y)
+;       (nothing)
+;       (just (/ x y))))
