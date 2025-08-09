@@ -9,7 +9,7 @@
 //! 3. Load core Scheme libraries in dependency order
 //! 4. Provide runtime services for library management
 
-use crate::diagnostics::{Result, Error};
+use crate::diagnostics::{Result, Error, error::helpers};
 use crate::eval::Value;
 use crate::runtime::{GlobalEnvironmentManager, LibraryPathResolver};
 use crate::module_system::{SchemeLibraryLoader, BootstrapConfig};
@@ -349,136 +349,136 @@ impl MinimalPrimitivesRegistry {
     fn register_essential_primitives(&mut self) {
         // Arithmetic primitives
         self.register_primitive(MinimalPrimitive {
-            name: "+".to_string(),
+            name: "+".to_owned(),
             implementation: primitive_add,
             arity_min: 0,
             arity_max: None,
             category: PrimitiveCategory::Arithmetic,
-            documentation: "Addition of numbers".to_string(),
+            documentation: "Addition of numbers".to_owned(),
         });
 
         self.register_primitive(MinimalPrimitive {
-            name: "-".to_string(),
+            name: "-".to_owned(),
             implementation: primitive_subtract,
             arity_min: 1,
             arity_max: None,
             category: PrimitiveCategory::Arithmetic,
-            documentation: "Subtraction of numbers".to_string(),
+            documentation: "Subtraction of numbers".to_owned(),
         });
 
         self.register_primitive(MinimalPrimitive {
-            name: "*".to_string(),
+            name: "*".to_owned(),
             implementation: primitive_multiply,
             arity_min: 0,
             arity_max: None,
             category: PrimitiveCategory::Arithmetic,
-            documentation: "Multiplication of numbers".to_string(),
+            documentation: "Multiplication of numbers".to_owned(),
         });
 
         // Comparison primitives
         self.register_primitive(MinimalPrimitive {
-            name: "=".to_string(),
+            name: "=".to_owned(),
             implementation: primitive_numeric_equal,
             arity_min: 2,
             arity_max: None,
             category: PrimitiveCategory::Comparison,
-            documentation: "Numeric equality comparison".to_string(),
+            documentation: "Numeric equality comparison".to_owned(),
         });
 
         self.register_primitive(MinimalPrimitive {
-            name: "<".to_string(),
+            name: "<".to_owned(),
             implementation: primitive_less_than,
             arity_min: 2,
             arity_max: None,
             category: PrimitiveCategory::Comparison,
-            documentation: "Numeric less-than comparison".to_string(),
+            documentation: "Numeric less-than comparison".to_owned(),
         });
 
         // List primitives
         self.register_primitive(MinimalPrimitive {
-            name: "cons".to_string(),
+            name: "cons".to_owned(),
             implementation: primitive_cons,
             arity_min: 2,
             arity_max: Some(2),
             category: PrimitiveCategory::Lists,
-            documentation: "Construct a pair".to_string(),
+            documentation: "Construct a pair".to_owned(),
         });
 
         self.register_primitive(MinimalPrimitive {
-            name: "car".to_string(),
+            name: "car".to_owned(),
             implementation: primitive_car,
             arity_min: 1,
             arity_max: Some(1),
             category: PrimitiveCategory::Lists,
-            documentation: "First element of a pair".to_string(),
+            documentation: "First element of a pair".to_owned(),
         });
 
         self.register_primitive(MinimalPrimitive {
-            name: "cdr".to_string(),
+            name: "cdr".to_owned(),
             implementation: primitive_cdr,
             arity_min: 1,
             arity_max: Some(1),
             category: PrimitiveCategory::Lists,
-            documentation: "Rest of a pair".to_string(),
+            documentation: "Rest of a pair".to_owned(),
         });
 
         // Predicate primitives
         self.register_primitive(MinimalPrimitive {
-            name: "null?".to_string(),
+            name: "null?".to_owned(),
             implementation: primitive_null_p,
             arity_min: 1,
             arity_max: Some(1),
             category: PrimitiveCategory::Predicates,
-            documentation: "Test for null value".to_string(),
+            documentation: "Test for null value".to_owned(),
         });
 
         self.register_primitive(MinimalPrimitive {
-            name: "pair?".to_string(),
+            name: "pair?".to_owned(),
             implementation: primitive_pair_p,
             arity_min: 1,
             arity_max: Some(1),
             category: PrimitiveCategory::Predicates,
-            documentation: "Test for pair".to_string(),
+            documentation: "Test for pair".to_owned(),
         });
 
         // Control primitives
         self.register_primitive(MinimalPrimitive {
-            name: "apply".to_string(),
+            name: "apply".to_owned(),
             implementation: primitive_apply,
             arity_min: 2,
             arity_max: None,
             category: PrimitiveCategory::Control,
-            documentation: "Apply procedure to arguments".to_string(),
+            documentation: "Apply procedure to arguments".to_owned(),
         });
 
         // Error handling
         self.register_primitive(MinimalPrimitive {
-            name: "error".to_string(),
+            name: "error".to_owned(),
             implementation: primitive_error,
             arity_min: 1,
             arity_max: None,
             category: PrimitiveCategory::Errors,
-            documentation: "Signal an error".to_string(),
+            documentation: "Signal an error".to_owned(),
         });
 
         // String primitives (minimal)
         self.register_primitive(MinimalPrimitive {
-            name: "string?".to_string(),
+            name: "string?".to_owned(),
             implementation: primitive_string_p,
             arity_min: 1,
             arity_max: Some(1),
             category: PrimitiveCategory::Predicates,
-            documentation: "Test for string".to_string(),
+            documentation: "Test for string".to_owned(),
         });
 
         // I/O primitives (minimal)
         self.register_primitive(MinimalPrimitive {
-            name: "display".to_string(),
+            name: "display".to_owned(),
             implementation: primitive_display,
             arity_min: 1,
             arity_max: Some(2),
             category: PrimitiveCategory::IO,
-            documentation: "Display a value".to_string(),
+            documentation: "Display a value".to_owned(),
         });
     }
 
@@ -530,7 +530,7 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
             Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => {
                 result += *n as i64;
             }
-            _ => return Err(Box::new(Error::runtime_error("+ expects numeric arguments".to_string(), None))),
+            _ => return Err(helpers::runtime_error_simple("+ expects numeric arguments")),
         }
     }
     Ok(Value::integer(result))
@@ -539,20 +539,20 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
 /// Subtraction primitive (-)
 fn primitive_subtract(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::runtime_error("- requires at least one argument".to_string(), None)));
+        return Err(helpers::runtime_error_simple("- requires at least one argument"));
     }
     
     if args.len() == 1 {
         // Negation
         match &args[0] {
             Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => Ok(Value::integer(-(*n as i64))),
-            _ => Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None))),
+            _ => Err(helpers::runtime_error_simple("- expects numeric arguments")),
         }
     } else {
         // Subtraction
         let mut result = match &args[0] {
             Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None))),
+            _ => return Err(Box::new(Error::runtime_error("- expects numeric arguments", None))),
         };
         
         for arg in &args[1..] {
@@ -560,7 +560,7 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
                 Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => {
                     result -= *n as i64;
                 }
-                _ => return Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None))),
+                _ => return Err(Box::new(Error::runtime_error("- expects numeric arguments", None))),
             }
         }
         Ok(Value::integer(result))
@@ -579,7 +579,7 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
             Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => {
                 result *= *n as i64;
             }
-            _ => return Err(Box::new(Error::runtime_error("* expects numeric arguments".to_string(), None))),
+            _ => return Err(Box::new(Error::runtime_error("* expects numeric arguments", None))),
         }
     }
     Ok(Value::integer(result))
@@ -588,12 +588,12 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
 /// Numeric equality primitive (=)
 fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("= requires at least 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("= requires at least 2 arguments", None)));
     }
     
     let first = match &args[0] {
         Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-        _ => return Err(Box::new(Error::runtime_error("= expects numeric arguments".to_string(), None))),
+        _ => return Err(Box::new(Error::runtime_error("= expects numeric arguments", None))),
     };
     
     for arg in &args[1..] {
@@ -604,7 +604,7 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
                     return Ok(Value::boolean(false));
                 }
             }
-            _ => return Err(Box::new(Error::runtime_error("= expects numeric arguments".to_string(), None))),
+            _ => return Err(Box::new(Error::runtime_error("= expects numeric arguments", None))),
         }
     }
     Ok(Value::boolean(true))
@@ -613,18 +613,18 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
 /// Less-than primitive (<)
 fn primitive_less_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("< requires at least 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("< requires at least 2 arguments", None)));
     }
     
     for i in 0..args.len() - 1 {
         let current = match &args[i] {
             Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("< expects numeric arguments".to_string(), None))),
+            _ => return Err(Box::new(Error::runtime_error("< expects numeric arguments", None))),
         };
         
         let next = match &args[i + 1] {
             Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("< expects numeric arguments".to_string(), None))),
+            _ => return Err(Box::new(Error::runtime_error("< expects numeric arguments", None))),
         };
         
         if current >= next {
@@ -637,7 +637,7 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
 /// cons primitive
 fn primitive_cons(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::runtime_error("cons requires exactly 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("cons requires exactly 2 arguments", None)));
     }
     Ok(Value::pair(args[0].clone(), args[1].clone()))
 }
@@ -645,31 +645,31 @@ fn primitive_cons(args: &[Value]) -> Result<Value> {
 /// car primitive
 fn primitive_car(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("car requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("car requires exactly 1 argument", None)));
     }
     
     match &args[0] {
         Value::Pair(car, _) => Ok((**car).clone()),
-        _ => Err(Box::new(Error::runtime_error("car expects a pair".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error("car expects a pair", None))),
     }
 }
 
 /// cdr primitive
 fn primitive_cdr(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("cdr requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("cdr requires exactly 1 argument", None)));
     }
     
     match &args[0] {
         Value::Pair(_, cdr) => Ok((**cdr).clone()),
-        _ => Err(Box::new(Error::runtime_error("cdr expects a pair".to_string(), None))),
+        _ => Err(Box::new(Error::runtime_error("cdr expects a pair", None))),
     }
 }
 
 /// null? primitive
 fn primitive_null_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("null? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("null? requires exactly 1 argument", None)));
     }
     
     Ok(Value::boolean(matches!(args[0], Value::Nil)))
@@ -678,7 +678,7 @@ fn primitive_null_p(args: &[Value]) -> Result<Value> {
 /// pair? primitive
 fn primitive_pair_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("pair? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("pair? requires exactly 1 argument", None)));
     }
     
     Ok(Value::boolean(matches!(args[0], Value::Pair(_, _))))
@@ -687,7 +687,7 @@ fn primitive_pair_p(args: &[Value]) -> Result<Value> {
 /// string? primitive
 fn primitive_string_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("string? requires exactly 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("string? requires exactly 1 argument", None)));
     }
     
     Ok(Value::boolean(matches!(args[0], Value::Literal(crate::ast::Literal::String(_)))))
@@ -696,13 +696,13 @@ fn primitive_string_p(args: &[Value]) -> Result<Value> {
 /// apply primitive (simplified)
 fn primitive_apply(_args: &[Value]) -> Result<Value> {
     // Simplified implementation - in practice this would need access to the evaluator
-    Err(Box::new(Error::runtime_error("apply not fully implemented in minimal primitives".to_string(), None)))
+    Err(Box::new(Error::runtime_error("apply not fully implemented in minimal primitives", None)))
 }
 
 /// error primitive
 fn primitive_error(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::runtime_error("error requires at least 1 argument".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("error requires at least 1 argument", None)));
     }
     
     let message = match &args[0] {
@@ -716,7 +716,7 @@ fn primitive_error(args: &[Value]) -> Result<Value> {
 /// display primitive (simplified)
 fn primitive_display(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(Box::new(Error::runtime_error("display requires 1 or 2 arguments".to_string(), None)));
+        return Err(Box::new(Error::runtime_error("display requires 1 or 2 arguments", None)));
     }
     
     println!("{}", args[0]);

@@ -312,23 +312,59 @@ impl Evaluator {
         Ok(result)
     }
 
+    /// Evaluates a self-evaluating literal expression.
+    fn eval_self_evaluating_literal(&mut self, lit: &crate::ast::Literal) -> EvalStep {
+        EvalStep::Return(Value::Literal(lit.clone()))
+    }
+
+    /// Evaluates a self-evaluating keyword expression.
+    fn eval_self_evaluating_keyword(&mut self, k: &str) -> EvalStep {
+        EvalStep::Return(Value::Keyword(k.to_string()))
+    }
+
+    /// Evaluates an identifier (variable lookup).
+    fn eval_identifier(&mut self, name: &str, env: &Rc<Environment>, span: Span) -> EvalStep {
+        match env.lookup(name) {
+            Some(value) => EvalStep::Return(value),
+            None => EvalStep::Error(Error::runtime_error(
+                format!("Unbound variable: {name}"),
+                Some(span),
+            )),
+        }
+    }
+
+    /// Evaluates a type annotation expression.
+    fn eval_type_annotation(&mut self, inner_expr: &Spanned<Expr>, env: Rc<Environment>) -> EvalStep {
+        // For now, just evaluate the expression and ignore the type
+        // TODO: Integrate with type system
+        EvalStep::Continue {
+            expr: (*inner_expr).clone(),
+            env,
+        }
+    }
+
+    /// Evaluates a pair construction expression.
+    fn eval_pair_construction(&mut self, car: &Spanned<Expr>, cdr: &Spanned<Expr>, env: Rc<Environment>) -> EvalStep {
+        // Evaluate both car and cdr, then construct pair
+        // For simplicity, not using trampoline here since it's not a tail position
+        match self.eval(car, env.clone()) {
+            Ok(car_val) => match self.eval(cdr, env) {
+                Ok(cdr_val) => EvalStep::Return(Value::pair(car_val, cdr_val)),
+                Err(e) => EvalStep::Error(*e),
+            },
+            Err(e) => EvalStep::Error(*e),
+        }
+    }
+
     /// Performs a single evaluation step.
     fn eval_step(&mut self, expr: &Spanned<Expr>, env: Rc<Environment>) -> EvalStep {
         match &expr.inner {
             // Self-evaluating expressions
-            Expr::Literal(lit) => EvalStep::Return(Value::Literal(lit.clone())),
-            Expr::Keyword(k) => EvalStep::Return(Value::Keyword(k.clone())),
+            Expr::Literal(lit) => self.eval_self_evaluating_literal(lit),
+            Expr::Keyword(k) => self.eval_self_evaluating_keyword(k),
 
             // Variable lookup
-            Expr::Identifier(name) => {
-                match env.lookup(name) {
-                    Some(value) => EvalStep::Return(value),
-                    None => EvalStep::Error(Error::runtime_error(
-                        format!("Unbound variable: {name}"),
-                        Some(expr.span),
-                    )),
-                }
-            }
+            Expr::Identifier(name) => self.eval_identifier(name, &env, expr.span),
 
             // Special forms
             Expr::Quote(quoted) => self.eval_quote(quoted),
@@ -360,12 +396,7 @@ impl Evaluator {
                 self.eval_primitive(name, args, env, expr.span)
             }
             Expr::TypeAnnotation { expr: inner_expr, type_expr: _ } => {
-                // For now, just evaluate the expression and ignore the type
-                // TODO: Integrate with type system
-                EvalStep::Continue {
-                    expr: (**inner_expr).clone(),
-                    env,
-                }
+                self.eval_type_annotation(inner_expr, env)
             }
             Expr::Parameterize { bindings, body } => {
                 self.eval_parameterize(bindings, body, env, expr.span)
@@ -397,15 +428,7 @@ impl Evaluator {
 
             // Compound data structures
             Expr::Pair { car, cdr } => {
-                // Evaluate both car and cdr, then construct pair
-                // For simplicity, not using trampoline here since it's not a tail position
-                match self.eval(car, env.clone()) {
-                    Ok(car_val) => match self.eval(cdr, env) {
-                        Ok(cdr_val) => EvalStep::Return(Value::pair(car_val, cdr_val)),
-                        Err(e) => EvalStep::Error(*e),
-                    },
-                    Err(e) => EvalStep::Error(*e),
-                }
+                self.eval_pair_construction(car, cdr, env)
             }
 
             // Unimplemented forms

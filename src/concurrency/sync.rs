@@ -4,7 +4,7 @@
 //! mutexes, semaphores, condition variables, barriers, and lock-free data structures.
 
 use crate::eval::Value;
-use crate::diagnostics::{Error, Result};
+use crate::diagnostics::{Error, Result, error::helpers};
 use super::ConcurrencyError;
 use std::sync::{Arc, Mutex as StdMutex};
 use std::sync::atomic::{AtomicBool, AtomicUsize, AtomicI64, Ordering};
@@ -654,10 +654,10 @@ impl SyncRegistry {
     /// Gets a named mutex.
     pub fn get_mutex(&self, name: &str) -> Result<Mutex> {
         let mutexes = self.mutexes.lock()
-            .map_err(|_| Box::new(Error::runtime_error("Failed to lock mutex registry".to_string(), None)))?;
+            .map_err(|_| helpers::runtime_error_simple("Failed to lock mutex registry"))?;
         mutexes.get(name)
             .cloned()
-            .ok_or_else(|| Box::new(Error::runtime_error(format!("Mutex '{name}' not found"), None)))
+            .ok_or_else(|| helpers::runtime_error_simple(format!("Mutex '{name}' not found")))
     }
 
     // Similar methods for other primitives...

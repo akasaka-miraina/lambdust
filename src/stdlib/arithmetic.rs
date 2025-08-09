@@ -10,6 +10,23 @@ use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnv
 use crate::effects::Effect;
 use std::sync::Arc;
 
+/// Helper function to bind a pure arithmetic primitive.
+fn bind_pure_arithmetic_primitive(
+    env: &Arc<ThreadSafeEnvironment>,
+    name: &str,
+    arity_min: usize,
+    arity_max: Option<usize>,
+    implementation: fn(&[Value]) -> Result<Value>,
+) {
+    env.define(name.to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: name.to_string(),
+        arity_min,
+        arity_max,
+        implementation: PrimitiveImpl::RustFn(implementation),
+        effects: vec![Effect::Pure],
+    })));
+}
+
 /// Creates arithmetic operation bindings for the standard library.
 pub fn create_arithmetic_bindings(env: &Arc<ThreadSafeEnvironment>) {
     // Basic arithmetic operations
@@ -31,94 +48,34 @@ pub fn create_arithmetic_bindings(env: &Arc<ThreadSafeEnvironment>) {
 /// Binds basic arithmetic operations (+, -, *, /, modulo, etc.)
 fn bind_basic_arithmetic(env: &Arc<ThreadSafeEnvironment>) {
     // Addition
-    env.define("+".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "+".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_add),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "+", 0, None, primitive_add);
     
     // Subtraction
-    env.define("-".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "-".to_string(),
-        arity_min: 1,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_subtract),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "-", 1, None, primitive_subtract);
     
     // Multiplication
-    env.define("*".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "*".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_multiply),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "*", 0, None, primitive_multiply);
     
     // Division
-    env.define("/".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "/".to_string(),
-        arity_min: 1,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_divide),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "/", 1, None, primitive_divide);
     
     // Quotient (integer division)
-    env.define("quotient".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "quotient".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_quotient),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "quotient", 2, Some(2), primitive_quotient);
     
     // Remainder
-    env.define("remainder".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "remainder".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_remainder),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "remainder", 2, Some(2), primitive_remainder);
     
     // Modulo
-    env.define("modulo".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "modulo".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_modulo),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "modulo", 2, Some(2), primitive_modulo);
     
     // Absolute value
-    env.define("abs".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "abs".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_abs),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "abs", 1, Some(1), primitive_abs);
     
     // GCD
-    env.define("gcd".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "gcd".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_gcd),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "gcd", 0, None, primitive_gcd);
     
     // LCM
-    env.define("lcm".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "lcm".to_string(),
-        arity_min: 0,
-        arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_lcm),
-        effects: vec![Effect::Pure],
-    })));
+    bind_pure_arithmetic_primitive(env, "lcm", 0, None, primitive_lcm);
     
     // Floor-quotient
     env.define("floor-quotient".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {

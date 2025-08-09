@@ -4,7 +4,7 @@
 //! processes, message passing, supervisor hierarchies, and fault tolerance.
 
 use crate::eval::Value;
-use crate::diagnostics::{Error, Result};
+use crate::diagnostics::{Error, Result, error::helpers};
 use super::ConcurrencyError;
 use std::sync::{Arc, Mutex as StdMutex};
 use std::collections::HashMap;
@@ -91,9 +91,9 @@ impl Message {
     pub fn reply(self, response: Value) -> Result<()> {
         if let Some(reply_to) = self.reply_to {
             reply_to.send(response)
-                .map_err(|_| Box::new(Error::runtime_error("Failed to send reply".to_string(), None)))
+                .map_err(|_| helpers::runtime_error_simple("Failed to send reply"))
         } else {
-            Err(Box::new(Error::runtime_error("No reply channel available".to_string(), None)))
+            Err(helpers::runtime_error_simple("No reply channel available"))
         }
     }
 }
@@ -219,7 +219,7 @@ impl ActorContext {
         if let Some(child) = self.children.remove(&child_id) {
             child.stop()
         } else {
-            Err(Box::new(Error::runtime_error("Child actor not found".to_string(), None)))
+            Err(helpers::runtime_error_simple("Child actor not found"))
         }
     }
 
@@ -505,7 +505,7 @@ impl Actor for CounterActor {
                 }
             }
             _ => {
-                return Err(Box::new(Error::runtime_error("Unknown message".to_string(), None)));
+                return Err(helpers::runtime_error_simple("Unknown message"));
             }
         }
         Ok(())

@@ -16,14 +16,15 @@ use std::hash::{Hash, Hasher};
 macro_rules! bind_primitive {
     ($env:expr, $name:expr, $arity_min:expr, $arity_max:expr, $implementation:expr, $effects:expr) => {
         let proc = Arc::new(PrimitiveProcedure {
-            name: $name.to_string(),
+            name: $name.to_owned(),
             arity_min: $arity_min,
             arity_max: $arity_max,
             implementation: PrimitiveImpl::RustFn($implementation),
             effects: $effects,
         });
-        $env.define($name.to_string(), Value::Primitive(proc.clone()));
-        $env.define(format!("builtin:{}", $name), Value::Primitive(proc));
+        let name_owned = $name.to_owned();
+        $env.define(name_owned.clone(), Value::Primitive(proc.clone()));
+        $env.define(format!("builtin:{}", name_owned), Value::Primitive(proc));
     };
 }
 

@@ -40,7 +40,7 @@ impl<'a> Lexer<'a> {
                         continue;
                     }
 
-                    let token = Token::new(kind, span, self.source[span.start..span.end()].to_string());
+                    let token = Token::new(kind, span, self.source[span.start..span.end()].to_owned());
                     tokens.push(token);
                 }
                 Err(()) => {

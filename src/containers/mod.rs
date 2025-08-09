@@ -76,6 +76,39 @@ pub trait Persistent<T>: Clone {
     fn remove(&self, element: &T) -> Self;
 }
 
+/// Trait for containers that support debugging and introspection
+pub trait Debuggable {
+    /// Returns the debug name of the container, if set
+    fn debug_name(&self) -> Option<&str>;
+    
+    /// Sets the debug name of the container for easier identification
+    fn set_debug_name(&mut self, name: impl Into<String>);
+    
+    /// Clears the debug name
+    fn clear_debug_name(&mut self);
+}
+
+/// Trait for containers that can report and manage capacity
+pub trait Capacity: Container {
+    /// Returns the current capacity of the container
+    fn capacity(&self) -> usize;
+    
+    /// Reserves space for at least `additional` more elements
+    fn reserve(&mut self, additional: usize);
+    
+    /// Shrinks the container's capacity as much as possible
+    fn shrink_to_fit(&mut self);
+    
+    /// Returns the current load factor (elements/capacity)
+    fn load_factor(&self) -> f64 {
+        if self.capacity() == 0 {
+            0.0
+        } else {
+            self.len() as f64 / self.capacity() as f64
+        }
+    }
+}
+
 /// Load factor constants for hash-based containers
 pub mod load_factors {
     /// Default load factor for hash tables (0.75)

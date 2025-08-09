@@ -7,6 +7,7 @@ pub mod advanced_memory_pool;
 pub mod gc;
 pub mod profiler;
 pub mod symbol_id;
+pub mod cache;
 
 pub use symbol::*;
 pub use string_interner::{
@@ -23,3 +24,4 @@ pub use advanced_memory_pool::{
 pub use gc::*;
 pub use profiler::*;
 pub use symbol_id::*;
+pub use cache::{LruCache, MemoCache, CacheStats};
