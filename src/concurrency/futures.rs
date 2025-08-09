@@ -61,7 +61,7 @@ impl Future {
     /// Creates an already rejected future.
     pub fn rejected(error: Error) -> Self {
         Self {
-            inner: Arc::new(Mutex::new(FutureState::Rejected(error))),
+            inner: Arc::new(Mutex::new(FutureState::Rejected(Box::new(error)))),
         }
     }
 
@@ -186,7 +186,7 @@ impl Future {
         let future = async move {
             match self.await_result().await {
                 Ok(value) => Ok(value),
-                Err(error) => f(error),
+                Err(error) => f(*error),
             }
         };
         Future::new(future)
@@ -222,24 +222,24 @@ impl Promise {
 
     /// Gets the associated future.
     pub fn future(&self) -> Future {
-        self.future.clone())
+        self.future.clone()
     }
 
     /// Resolves the promise with a value.
     pub fn resolve(mut self, value: Value) -> Result<()> {
         if let Some(sender) = self.sender.take() {
-            sender.send(Ok(value)).map_err(|_| ConcurrencyError::Cancelled)
+            sender.send(Ok(value)).map_err(|_| ConcurrencyError::Cancelled.into())
         } else {
-            Err(Box::new(Error::runtime_error("Promise already completed".to_string(), None))
+            Err(Error::runtime_error("Promise already completed".to_string(), None).into())
         }
     }
 
     /// Rejects the promise with an error.
     pub fn reject(mut self, error: Error) -> Result<()> {
         if let Some(sender) = self.sender.take() {
-            sender.send(Err(error)).map_err(|_| ConcurrencyError::Cancelled)
+            sender.send(Err(error.into())).map_err(|_| ConcurrencyError::Cancelled.into())
         } else {
-            Err(Box::new(Error::runtime_error("Promise already completed".to_string(), None))
+            Err(Error::runtime_error("Promise already completed".to_string(), None).into())
         }
     }
 
@@ -364,7 +364,7 @@ impl FutureOps {
                         }
                         
                         sleep(delay).await;
-                        delay = delay * 2; // Exponential backoff
+                        delay *= 2; // Exponential backoff
                     }
                 }
             }
@@ -388,13 +388,14 @@ impl ValueFutureExt for Result<Value> {
     fn to_future(self) -> Future {
         match self {
             Ok(value) => Future::resolved(value),
-            Err(error) => Future::rejected(error),
+            Err(error) => Future::rejected(*error),
         }
     }
 }
 
 /// Helper trait for creating futures from async functions.
 pub trait IntoFuture<T> {
+    /// Converts self into a Future.
     fn into_future(self) -> Future;
 }
 

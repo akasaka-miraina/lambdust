@@ -52,19 +52,19 @@ impl Default for ColorScheme {
         {
             // Fallback for when enhanced REPL features are not available
             Self {
-                keyword: Style::default(),
-                function: Style::default(),
-                macro_name: Style::default(),
-                string: Style::default(),
-                number: Style::default(),
-                boolean: Style::default(),
-                comment: Style::default(),
-                paren: Style::default(),
-                bracket: Style::default(),
-                quote: Style::default(),
-                error: Style::default(),
-                warning: Style::default(),
-                success: Style::default(),
+                keyword: Style::new(),
+                function: Style::new(),
+                macro_name: Style::new(),
+                string: Style::new(),
+                number: Style::new(),
+                boolean: Style::new(),
+                comment: Style::new(),
+                paren: Style::new(),
+                bracket: Style::new(),
+                quote: Style::new(),
+                error: Style::new(),
+                warning: Style::new(),
+                success: Style::new(),
             }
         }
     }

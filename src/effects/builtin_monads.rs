@@ -525,7 +525,7 @@ impl<T: Send + Sync + 'static + Clone> IO<T> {
         
         IO {
             action: IOAction::Read {
-                continuation: IOFunc::new(id, |input| IO::pure(input)),
+                continuation: IOFunc::new(id, IO::pure),
             },
         }
     }
@@ -841,7 +841,7 @@ impl From<Either<Error, Value>> for Result<Value> {
     fn from(either: Either<Error, Value>) -> Self {
         match either {
             Either::Right(value) => Ok(value),
-            Either::Left(error) => Err(error),
+            Either::Left(error) => Err(error.boxed()),
         }
     }
 }
@@ -883,19 +883,19 @@ impl IOContext {
             }
             
             IOAction::Write { value, continuation } => {
-                print!("{}", value);
+                print!("{value}");
                 self.run_io(*continuation)
             }
             
             IOAction::Print { value, continuation } => {
-                println!("{}", value);
+                println!("{value}");
                 self.run_io(*continuation)
             }
             
             IOAction::OpenFile { path, mode, continuation } => {
                 let handle = FileHandle {
                     id: *self.next_handle_id.lock().unwrap(),
-                    path: path.clone()),
+                    path: path.clone(),
                     mode,
                     is_open: true,
                 };
@@ -920,7 +920,7 @@ impl IOContext {
                 self.run_io(final_io)
             }
             
-            IOAction::Error { error } => Err(error),
+            IOAction::Error { error } => Err(error.boxed()),
         }
     }
 }
@@ -940,7 +940,7 @@ impl Monoid for String {
     
     #[inline]
     fn mappend(&self, other: &Self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         result.push_str(other);
         result
     }
@@ -960,14 +960,14 @@ impl<T: Clone + Send + Sync + 'static> Monoid for Vec<T> {
     
     #[inline]
     fn mappend(&self, other: &Self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         result.extend_from_slice(other);
         result
     }
     
     #[inline]
     fn mconcat(values: &[Self]) -> Self {
-        values.iter().flat_map(|v| v.iter()).clone())().collect()
+        values.iter().flat_map(|v| v.iter()).cloned().collect()
     }
 }
 
@@ -975,14 +975,10 @@ impl<T: Clone + Send + Sync + 'static> Monoid for Vec<T> {
 /// Unit monoid - trivial monoid for computations with no output
 impl Monoid for () {
     #[inline]
-    fn mempty() -> Self {
-        ()
-    }
+    fn mempty() -> Self {}
     
     #[inline]
-    fn mappend(&self, _other: &Self) -> Self {
-        ()
-    }
+    fn mappend(&self, _other: &Self) -> Self {}
 }
 
 /// Sum monoid for numeric types
@@ -1000,7 +996,7 @@ where
     
     #[inline]
     fn mappend(&self, other: &Self) -> Self {
-        Sum(self.0.clone()) + other.0.clone())
+        Sum(self.0.clone() + other.0.clone())
     }
 }
 
@@ -1129,7 +1125,7 @@ impl<W: Monoid, A> Writer<W, A> {
     /// Returns a Writer containing the original value paired with the output.
     #[inline]
     pub fn listen(self) -> Writer<W, (A, W)> {
-        let output_copy = self.output.clone());
+        let output_copy = self.output.clone();
         Writer {
             value: (self.value, output_copy.clone()),
             output: output_copy,
@@ -1144,13 +1140,9 @@ impl<W: Monoid, A> Writer<W, A> {
         F: FnOnce(&W) -> W,
         A: Clone,
     {
-        match self.value {
-            // For simplicity, assuming the value contains the transformation function
-            // In a full implementation, this would be more sophisticated
-            _ => Writer {
-                value: self.value,
-                output: self.output, // Placeholder - would apply transformation
-            }
+        Writer {
+            value: self.value,
+            output: self.output, // Placeholder - would apply transformation
         }
     }
     
@@ -1322,7 +1314,7 @@ impl<A: fmt::Display> fmt::Display for Identity<A> {
 impl<T: fmt::Display> fmt::Display for Maybe<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Maybe::Just(value) => write!(f, "Just({})", value),
+            Maybe::Just(value) => write!(f, "Just({value})"),
             Maybe::Nothing => write!(f, "Nothing"),
         }
     }
@@ -1331,8 +1323,8 @@ impl<T: fmt::Display> fmt::Display for Maybe<T> {
 impl<L: fmt::Display, R: fmt::Display> fmt::Display for Either<L, R> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Either::Left(value) => write!(f, "Left({})", value),
-            Either::Right(value) => write!(f, "Right({})", value),
+            Either::Left(value) => write!(f, "Left({value})"),
+            Either::Right(value) => write!(f, "Right({value})"),
         }
     }
 }
@@ -1382,7 +1374,7 @@ mod tests {
 
     #[test]
     fn test_either_monad() {
-        let result = Either::right(21)
+        let result = Either::<&str, i32>::right(21)
             .bind(|x| Either::right(x * 2));
         
         assert_eq!(result, Either::right(42));
@@ -1403,8 +1395,8 @@ mod tests {
 
     #[test]
     fn test_state_monad() {
-        let computation = State::put(42)
-            .bind(|_| State::get());
+        let computation = State::<i32, i32>::put(42)
+            .bind(|_| State::<i32, i32>::get());
         
         let (result, final_state) = computation.run_state(0).unwrap();
         assert_eq!(result, 42);
@@ -1413,7 +1405,7 @@ mod tests {
 
     #[test]
     fn test_reader_monad() {
-        let computation = Reader::ask::<String>()
+        let computation = Reader::<String, String>::ask()
             .bind(|env| Reader::pure(format!("Hello, {}!", env)));
         
         let result = computation.run_reader("World".to_string()).unwrap();
@@ -1494,7 +1486,7 @@ mod tests {
         
         // Test right identity: m >>= return ≡ m
         let m = Writer::new(42, "output".to_string());
-        let left = m.clone()).bind(Writer::pure);
+        let left = m.clone().bind(Writer::pure);
         let right = m;
         
         assert_eq!(left.run_writer(), right.run_writer());
@@ -1504,7 +1496,7 @@ mod tests {
         let f = |x: i32| Writer::new(x + 5, "f ".to_string());
         let g = |x: i32| Writer::new(x * 2, "g".to_string());
         
-        let left = m.clone()).bind(f).bind(g);
+        let left = m.clone().bind(f).bind(g);
         let right = m.bind(|x| f(x).bind(g));
         
         assert_eq!(left.run_writer(), right.run_writer());
@@ -1591,10 +1583,10 @@ mod tests {
         
         // Identity laws
         assert_eq!(String::mempty().mappend(&a), a);
-        assert_eq!(a.clone()).mappend(&String::mempty()), a);
+        assert_eq!(a.clone().mappend(&String::mempty()), a);
         
         // Associativity
-        let left = a.clone()).mappend(&b).mappend(&c);
+        let left = a.clone().mappend(&b).mappend(&c);
         let right = a.mappend(&b.mappend(&c));
         assert_eq!(left, right);
         assert_eq!(left, "hello world");
@@ -1606,10 +1598,10 @@ mod tests {
         
         // Identity laws
         assert_eq!(Vec::<i32>::mempty().mappend(&vec_a), vec_a);
-        assert_eq!(vec_a.clone()).mappend(&Vec::mempty()), vec_a);
+        assert_eq!(vec_a.clone().mappend(&Vec::mempty()), vec_a);
         
         // Associativity
-        let left = vec_a.clone()).mappend(&vec_b).mappend(&vec_c);
+        let left = vec_a.clone().mappend(&vec_b).mappend(&vec_c);
         let right = vec_a.mappend(&vec_b.mappend(&vec_c));
         assert_eq!(left, right);
         assert_eq!(left, vec![1, 2, 3, 4, 5]);
@@ -1639,8 +1631,8 @@ mod tests {
         // Should be a pair of (value, output)
         match writer_value {
             Value::Pair(car, cdr) => {
-                assert!(matches!(**car, Value::Literal(Literal::String(_))));
-                assert!(matches!(**cdr, Value::Literal(Literal::String(_))));
+                assert!(matches!(*car, Value::Literal(Literal::String(_))));
+                assert!(matches!(*cdr, Value::Literal(Literal::String(_))));
             },
             _ => panic!("Expected pair")
         }

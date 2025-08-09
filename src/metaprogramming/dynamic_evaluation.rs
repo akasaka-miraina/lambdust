@@ -128,7 +128,7 @@ impl ResourceMonitor {
 
     /// Gets current resource usage.
     pub fn get_usage(&self) -> ResourceUsage {
-        self.usage.read().unwrap().clone())
+        self.usage.read().unwrap().clone()
     }
 }
 
@@ -306,7 +306,7 @@ impl DynamicEvaluator {
             return Err(Box::new(Error::runtime_error(
                 "Permission denied: eval not allowed".to_string(),
                 None,
-            ));
+            )));
         }
 
         // Parse the code
@@ -408,7 +408,7 @@ impl DynamicEvaluator {
         let sandbox = self.sandboxes.get(principal).unwrap();
         let context = ExecutionContext {
             principal: principal.to_string(),
-            environment: sandbox.environment().clone()),
+            environment: sandbox.environment().clone(),
             security_context,
             limits: ExecutionLimits {
                 time_limit: Some(Duration::from_secs(5)),
@@ -455,7 +455,7 @@ impl DynamicEvaluator {
                     return Err(Box::new(Error::runtime_error(
                         "Execution time limit exceeded".to_string(),
                         Some(expr.span),
-                    ));
+                    )));
                 }
             }
 
@@ -465,7 +465,7 @@ impl DynamicEvaluator {
                     return Err(Box::new(Error::runtime_error(
                         "Execution step limit exceeded".to_string(),
                         Some(expr.span),
-                    ));
+                    )));
                 }
             }
 

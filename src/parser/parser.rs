@@ -161,7 +161,7 @@ impl Parser {
     /// Parses a single expression from the token stream.
     pub fn parse_single_expression(&mut self) -> Result<Spanned<Expr>> {
         if self.is_at_end() {
-            return Err(Box::new(Error::unexpected_eof(self.current_span().boxed()).into()))
+            return Err(Error::unexpected_eof(self.current_span()).boxed())
         }
 
         let start_pos = self.position();
@@ -188,7 +188,7 @@ impl Parser {
             TokenKind::Quasiquote => self.parse_quasiquote_expression(),
             TokenKind::Unquote => self.parse_unquote_expression(),
             TokenKind::UnquoteSplicing => self.parse_unquote_splicing_expression(),
-            _ => Err(Box::new(Error::unexpected_token(&token, "expression").into())),
+            _ => Err(Box::new(Error::unexpected_token(token, "expression"))),
         }
     }
 
@@ -225,7 +225,7 @@ impl Parser {
         if self.check(kind) {
             Ok(self.advance())
         } else {
-            Err(Box::new(Error::expected_token(self.current_token(), kind, message).into()))
+            Err(Box::new(Error::expected_token(self.current_token(), kind, message)))
         }
     }
 
@@ -312,12 +312,12 @@ impl Parser {
     /// Validates that an identifier name is valid.
     pub fn validate_identifier(name: &str, span: Span) -> Result<()> {
         if name.is_empty() {
-            return Err(Box::new(Error::parse_error("Identifier cannot be empty", span).into()))
+            return Err(Box::new(Error::parse_error("Identifier cannot be empty", span)))
         }
         
         // Basic validation - could be expanded with more Scheme identifier rules
         if name.starts_with(|c: char| c.is_numeric()) {
-            return Err(Box::new(Error::parse_error("Identifier cannot start with a number", span).into()))
+            return Err(Box::new(Error::parse_error("Identifier cannot start with a number", span)))
         }
         
         Ok(())
@@ -352,9 +352,9 @@ impl Parser {
                 for param in params {
                     if !seen_names.insert(param) {
                         return Err(Box::new(Error::parse_error(
-                            format!("Duplicate parameter name: {}", param),
+                            format!("Duplicate parameter name: {param}"),
                             span,
-                        ).into()))
+                        )))
                     }
                 }
             }
@@ -364,7 +364,7 @@ impl Parser {
                     return Err(Box::new(Error::parse_error(
                         "Parameter name cannot be empty", 
                         span
-                    ).into()))
+                    )))
                 }
             }
             Formals::Mixed { fixed, rest } => {
@@ -372,18 +372,18 @@ impl Parser {
                 for param in fixed {
                     if !seen_names.insert(param) {
                         return Err(Box::new(Error::parse_error(
-                            format!("Duplicate parameter name: {}", param),
+                            format!("Duplicate parameter name: {param}"),
                             span,
-                        ).into()))
+                        )))
                     }
                 }
                 
                 // Check rest parameter
                 if !seen_names.insert(rest) {
                     return Err(Box::new(Error::parse_error(
-                        format!("Duplicate parameter name: {}", rest),
+                        format!("Duplicate parameter name: {rest}"),
                         span,
-                    ).into()))
+                    )))
                 }
             }
             Formals::Keyword { fixed, rest, keywords } => {
@@ -391,9 +391,9 @@ impl Parser {
                 for param in fixed {
                     if !seen_names.insert(param) {
                         return Err(Box::new(Error::parse_error(
-                            format!("Duplicate parameter name: {}", param),
+                            format!("Duplicate parameter name: {param}"),
                             span,
-                        ).into()))
+                        )))
                     }
                 }
                 
@@ -401,9 +401,9 @@ impl Parser {
                 if let Some(rest) = rest {
                     if !seen_names.insert(rest) {
                         return Err(Box::new(Error::parse_error(
-                            format!("Duplicate parameter name: {}", rest),
+                            format!("Duplicate parameter name: {rest}"),
                             span,
-                        ).into()))
+                        )))
                     }
                 }
                 
@@ -413,7 +413,7 @@ impl Parser {
                         return Err(Box::new(Error::parse_error(
                             format!("Duplicate parameter name: {}", keyword.name),
                             span,
-                        ).into()))
+                        )))
                     }
                 }
             }

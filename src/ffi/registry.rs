@@ -50,7 +50,7 @@ macro_rules! define_ffi_function {
                 
                 if args.len() != expected_count {
                     return Err($crate::ffi::FfiError::ArityMismatch {
-                        function: self.signature().name.clone()),
+                        function: self.signature().name.clone(),
                         expected: $crate::ffi::AritySpec::Exact(expected_count),
                         actual: args.len(),
                     });
@@ -61,7 +61,7 @@ macro_rules! define_ffi_function {
                     let $arg = <$arg_type as $crate::ffi::FromLambdust>::from_lambdust(
                         arg_iter.next().unwrap()
                     ).map_err(|_| $crate::ffi::FfiError::TypeMismatch {
-                        function: self.signature().name.clone()),
+                        function: self.signature().name.clone(),
                         parameter: 0, // Simplified for now
                         expected: <$arg_type as $crate::ffi::FromLambdust>::expected_type().to_string(),
                         actual: format!("{:?}", arg_iter.next().unwrap()),

@@ -145,7 +145,7 @@ mod tests {
         let scheme = TypeScheme::polymorphic(
             vec![var_a.clone())],
             vec![constraint],
-            Type::function(vec![Type::Variable(var_a.clone())], Type::Variable(var_a.clone()))
+            Type::function(vec![Type::Variable(var_a.clone())], Type::Variable(var_a.clone())
         );
         
         assert_eq!(scheme.vars.len(), 1);
@@ -159,7 +159,7 @@ mod tests {
         let scheme = TypeScheme::polymorphic(
             vec![var_a.clone())],
             vec![],
-            Type::function(vec![Type::Variable(var_a.clone())], Type::Variable(var_a.clone()))
+            Type::function(vec![Type::Variable(var_a.clone())], Type::Variable(var_a.clone())
         );
         
         let instance1 = scheme.instantiate();

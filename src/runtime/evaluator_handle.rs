@@ -7,6 +7,9 @@ use crossbeam::channel::{self, Sender};
 use std::collections::HashMap;
 use std::thread::ThreadId;
 
+/// Type alias for large error type
+type SendError = Box<crossbeam::channel::SendError<EvaluatorMessage>>;
+
 /// Handle to a spawned evaluator.
 ///
 /// This provides a communication channel to send evaluation requests
@@ -42,8 +45,8 @@ impl EvaluatorHandle {
     }
     
     /// Sends a message to the evaluator.
-    pub fn send(&self, message: EvaluatorMessage) -> std::result::Result<(), crossbeam::channel::SendError<EvaluatorMessage>> {
-        self.sender.send(message)
+    pub fn send(&self, message: EvaluatorMessage) -> std::result::Result<(), SendError> {
+        self.sender.send(message).map_err(Box::new)
     }
 
     /// Sends an evaluation request to this evaluator.
@@ -58,14 +61,14 @@ impl EvaluatorHandle {
         
         self.sender.send(message).map_err(|e| {
             crate::diagnostics::Error::runtime_error(
-                format!("Failed to send evaluation message: {}", e),
+                format!("Failed to send evaluation message: {e}"),
                 span,
             )
         })?;
         
         receiver.recv().map_err(|e| {
             crate::diagnostics::Error::runtime_error(
-                format!("Failed to receive evaluation result: {}", e),
+                format!("Failed to receive evaluation result: {e}"),
                 span,
             )
         })?
@@ -77,9 +80,9 @@ impl EvaluatorHandle {
         
         self.sender.send(message).map_err(|e| {
             crate::diagnostics::Error::runtime_error(
-                format!("Failed to send define message: {}", e),
+                format!("Failed to send define message: {e}"),
                 None,
-            )
+            ).boxed()
         })
     }
 
@@ -94,14 +97,14 @@ impl EvaluatorHandle {
         
         self.sender.send(message).map_err(|e| {
             crate::diagnostics::Error::runtime_error(
-                format!("Failed to send import message: {}", e),
+                format!("Failed to send import message: {e}"),
                 None,
             )
         })?;
         
         receiver.recv().map_err(|e| {
             crate::diagnostics::Error::runtime_error(
-                format!("Failed to receive import result: {}", e),
+                format!("Failed to receive import result: {e}"),
                 None,
             )
         })?
@@ -111,9 +114,9 @@ impl EvaluatorHandle {
     pub fn shutdown(&self) -> Result<()> {
         self.sender.send(EvaluatorMessage::Shutdown).map_err(|e| {
             crate::diagnostics::Error::runtime_error(
-                format!("Failed to send shutdown message: {}", e),
+                format!("Failed to send shutdown message: {e}"),
                 None,
-            )
+            ).boxed()
         })
     }
 }

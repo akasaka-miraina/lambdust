@@ -15,3 +15,10 @@ impl SymbolId {
         self.0
     }
 }
+
+impl std::fmt::Display for SymbolId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // This is a placeholder - in practice you'd look up the string
+        write!(f, "symbol-{}", self.0)
+    }
+}

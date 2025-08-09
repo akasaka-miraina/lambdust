@@ -58,7 +58,7 @@ impl IdentifierInfo {
     /// Creates identifier info for a macro-introduced identifier.
     pub fn macro_introduced(name: String, context: MacroContext, scope_id: u64) -> Self {
         Self {
-            original_name: name.clone()),
+            original_name: name.clone(),
             renamed_name: Some(format!("{name}#{}", context.id())),
             context: Some(context),
             scope_id: Some(scope_id),
@@ -449,7 +449,7 @@ impl HygieneContext {
                     .map(|expr| self.rename_expr(expr))
                     .collect::<Result<Vec<_>>>()?;
                 Expr::DefineLibrary { 
-                    name: name.clone()),
+                    name: name.clone(),
                     imports: renamed_imports, 
                     exports: renamed_exports, 
                     body: renamed_body 
@@ -463,12 +463,12 @@ impl HygieneContext {
                 let renamed_rules = rules.iter()
                     .map(|(pattern, template)| {
                         // For now, don't rename within patterns/templates as they have special semantics
-                        Ok((pattern.clone()), template.clone()))
+                        Ok((pattern.clone(), template.clone()))
                     })
                     .collect::<Result<Vec<_>>>()?;
                 
                 Expr::SyntaxRules {
-                    literals: literals.clone()), // Keep literals unchanged
+                    literals: literals.clone(), // Keep literals unchanged
                     rules: renamed_rules,
                 }
             }

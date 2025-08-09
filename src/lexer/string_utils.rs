@@ -37,13 +37,13 @@ pub fn validate_string_escapes(content: &str, span: Span) -> Result<()> {
                                         return Err(Box::new(Error::lex_error(
                                             "Unicode escape sequence too long (max 6 digits)",
                                             span,
-                                        ).into()))
+                                        )))
                                     }
                                 } else {
                                     return Err(Box::new(Error::lex_error(
                                         format!("Invalid character in Unicode escape: '{hex_ch}'"),
                                         span,
-                                    ).into()))
+                                    )))
                                 }
                             }
                             
@@ -51,14 +51,14 @@ pub fn validate_string_escapes(content: &str, span: Span) -> Result<()> {
                                 return Err(Box::new(Error::lex_error(
                                     "Unicode escape sequence must end with ';'",
                                     span,
-                                ).into()))
+                                )))
                             }
                             
                             if hex_digits.is_empty() {
                                 return Err(Box::new(Error::lex_error(
                                     "Unicode escape sequence must have at least one digit",
                                     span,
-                                ).into()))
+                                )))
                             }
                             
                             // Validate the Unicode code point
@@ -67,20 +67,20 @@ pub fn validate_string_escapes(content: &str, span: Span) -> Result<()> {
                                     return Err(Box::new(Error::lex_error(
                                         "Unicode code point out of range (max 0x10FFFF)",
                                         span,
-                                    ).into()))
+                                    )))
                                 }
                                 // Check for surrogate pairs (invalid in Unicode)
                                 if (0xD800..=0xDFFF).contains(&code_point) {
                                     return Err(Box::new(Error::lex_error(
                                         "Unicode surrogate code points are not allowed",
                                         span,
-                                    ).into()))
+                                    )))
                                 }
                             } else {
                                 return Err(Box::new(Error::lex_error(
                                     "Invalid Unicode escape sequence",
                                     span,
-                                ).into()))
+                                )))
                             }
                         }
                         // Octal escape: \NNN (1-3 octal digits)
@@ -110,14 +110,14 @@ pub fn validate_string_escapes(content: &str, span: Span) -> Result<()> {
                                 return Err(Box::new(Error::lex_error(
                                     "Invalid octal escape sequence",
                                     span,
-                                ).into()))
+                                )))
                             }
                         }
                         _ => {
                             return Err(Box::new(Error::lex_error(
                                 format!("Invalid escape sequence: '\\{escape_ch}'"),
                                 span,
-                            ).into()))
+                            )))
                         }
                     }
                 },
@@ -125,7 +125,7 @@ pub fn validate_string_escapes(content: &str, span: Span) -> Result<()> {
                     return Err(Box::new(Error::lex_error(
                         "String literal ends with incomplete escape sequence",
                         span,
-                    ).into()))
+                    )))
                 }
             }
         }
@@ -137,7 +137,7 @@ pub fn validate_string_escapes(content: &str, span: Span) -> Result<()> {
 /// Validates a character literal (without the #\\ prefix).
 pub fn validate_character_literal(content: &str, span: Span) -> Result<()> {
     if content.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty character literal", span).into()))
+        return Err(Box::new(Error::lex_error("Empty character literal", span)))
     }
     
     // Check for named characters
@@ -155,7 +155,7 @@ pub fn validate_character_literal(content: &str, span: Span) -> Result<()> {
             return Err(Box::new(Error::lex_error(
                 "Unicode character literal must have hex digits after 'x'",
                 span,
-            ).into()))
+            )))
         }
         
         for ch in hex_part.chars() {
@@ -163,7 +163,7 @@ pub fn validate_character_literal(content: &str, span: Span) -> Result<()> {
                 return Err(Box::new(Error::lex_error(
                     format!("Invalid hex digit in character literal: '{ch}'"),
                     span,
-                ).into()))
+                )))
             }
         }
         
@@ -173,20 +173,20 @@ pub fn validate_character_literal(content: &str, span: Span) -> Result<()> {
                 return Err(Box::new(Error::lex_error(
                     "Unicode code point out of range (max 0x10FFFF)",
                     span,
-                ).into()))
+                )))
             }
             // Check for surrogate pairs
             if (0xD800..=0xDFFF).contains(&code_point) {
                 return Err(Box::new(Error::lex_error(
                     "Unicode surrogate code points are not allowed",
                     span,
-                ).into()))
+                )))
             }
         } else {
             return Err(Box::new(Error::lex_error(
                 "Invalid Unicode character literal",
                 span,
-            ).into()))
+            )))
         }
         
         return Ok(());
@@ -200,7 +200,7 @@ pub fn validate_character_literal(content: &str, span: Span) -> Result<()> {
         return Err(Box::new(Error::lex_error(
             "Character literal can only contain one character or a named character",
             span,
-        ).into()))
+        )))
     }
     
     // Check for valid character
@@ -208,7 +208,7 @@ pub fn validate_character_literal(content: &str, span: Span) -> Result<()> {
         return Err(Box::new(Error::lex_error(
             "Control characters in character literals must use named forms",
             span,
-        ).into()))
+        )))
     }
     
     Ok(())
@@ -277,14 +277,14 @@ pub fn unescape_string(content: &str) -> Result<String> {
                         _ => {
                             return Err(Box::new(Error::internal_error(
                                 format!("Unknown escape sequence during unescaping: \\{escape_ch}")
-                            ).into()))
+                            )))
                         }
                     }
                 }
                 None => {
                     return Err(Box::new(Error::internal_error(
                         "Incomplete escape sequence during unescaping"
-                    ).into()))
+                    )))
                 }
             }
         } else {
@@ -317,7 +317,7 @@ pub fn parse_character_literal(content: &str) -> Result<char> {
         let code_point = u32::from_str_radix(hex_part, 16)
             .map_err(|_| Error::internal_error("Invalid Unicode character literal during parsing"))?;
         return char::from_u32(code_point)
-            .ok_or_else(|| Error::internal_error("Invalid Unicode code point during character parsing")).map_err(|e| Box::new(e.into()))
+            .ok_or_else(|| Error::internal_error("Invalid Unicode code point during character parsing")).map_err(Box::new)
     }
     
     // Single character
@@ -326,7 +326,7 @@ pub fn parse_character_literal(content: &str) -> Result<char> {
         .ok_or_else(|| Error::internal_error("Empty character literal during parsing"))?;
     
     if chars.next().is_some() {
-        return Err(Box::new(Error::internal_error("Multiple characters in character literal during parsing").into()));
+        return Err(Box::new(Error::internal_error("Multiple characters in character literal during parsing")));
     }
     
     Ok(ch)

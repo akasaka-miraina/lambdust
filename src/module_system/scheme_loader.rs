@@ -16,6 +16,9 @@ use std::fs;
 use std::time::{SystemTime, Duration};
 use std::sync::{Arc, RwLock, Mutex};
 
+/// Type alias for reload callback collections
+type ReloadCallbacks = Arc<Mutex<Vec<Box<dyn Fn(&ModuleId) + Send + Sync>>>>;
+
 /// A compiled Scheme library ready for loading.
 #[derive(Debug, Clone)]
 pub struct CompiledSchemeLibrary {
@@ -116,9 +119,15 @@ pub struct HotReloadManager {
     /// File watchers for automatic reloading
     watchers: Arc<Mutex<HashMap<PathBuf, SystemTime>>>,
     /// Reload callbacks
-    reload_callbacks: Arc<Mutex<Vec<Box<dyn Fn(&ModuleId) + Send + Sync>>>>,
+    reload_callbacks: ReloadCallbacks,
     /// Reload generation counter
     generation: Arc<std::sync::atomic::AtomicU64>,
+}
+
+impl Default for SchemeLibraryCache {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SchemeLibraryCache {
@@ -192,7 +201,7 @@ impl SchemeLibraryCache {
     /// Gets cache statistics.
     pub fn statistics(&self) -> CacheStatistics {
         let stats = self.cache_stats.lock().unwrap();
-        (*stats).clone())
+        (*stats).clone()
     }
 
     /// Records a cache hit.
@@ -227,7 +236,7 @@ impl SchemeLibraryCache {
 impl SchemeLibraryLoader {
     /// Creates a new Scheme library loader.
     pub fn new(global_env: Arc<GlobalEnvironmentManager>) -> Result<Self> {
-        let bootstrap_config = BootstrapConfig::default();
+        let bootstrap_config = BootstrapConfig::new_default();
         let library_resolver = LibraryPathResolver::new().ok();
         
         Ok(Self {
@@ -282,8 +291,8 @@ impl SchemeLibraryLoader {
     /// Compiles a Scheme library from source.
     pub fn compile_library(&self, id: &ModuleId, source_path: Option<&Path>) -> Result<CompiledSchemeLibrary> {
         let start = SystemTime::now();
-        println!("Debug: compile_library called for module ID: {:?}", id);
-        println!("Debug: source_path: {:?}", source_path);
+        println!("Debug: compile_library called for module ID: {id:?}");
+        println!("Debug: source_path: {source_path:?}");
         
         // Read source code
         let (source_code, source_mtime) = if let Some(path) = source_path {
@@ -292,21 +301,21 @@ impl SchemeLibraryLoader {
                 Error::io_error(format!("Failed to read library source {}: {}", path.display(), e))
             })?;
             println!("Debug: Source code read (length: {} chars):", code.len());
-            println!("Debug: Source code content: {:?}", code);
+            println!("Debug: Source code content: {code:?}");
             let mtime = fs::metadata(path)
                 .and_then(|m| m.modified())
                 .unwrap_or_else(|_| SystemTime::now());
             (code, mtime)
         } else {
-            println!("Debug: No source path provided for module: {:?}", id);
-            return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()).boxed())));
+            println!("Debug: No source path provided for module: {id:?}");
+            return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))));
         };
 
         // Create compilation context
         let context = self.create_compilation_context(id.clone())?;
         
         // Parse the source code
-        println!("Debug: Starting to parse source code for module: {:?}", id);
+        println!("Debug: Starting to parse source code for module: {id:?}");
         let mut lexer = Lexer::new(&source_code, Some("<library>"));
         let tokens = lexer.tokenize().map_err(|e| {
             println!("Debug: Lexing error in {}: {}", id.components.join("/"), e);
@@ -334,12 +343,12 @@ impl SchemeLibraryLoader {
             bytecode: None, // TODO: Implement bytecode compilation for performance  
             compiled_at: SystemTime::now(),
             source_mtime,
-            resolved_dependencies: context.dependency_chain.clone()),
+            resolved_dependencies: context.dependency_chain.clone(),
             reload_generation: self.cache.reload_generation.load(std::sync::atomic::Ordering::SeqCst),
         };
 
         // Cache the compiled library
-        self.cache.store(id.clone()), library.clone());
+        self.cache.store(id.clone(), library.clone());
         
         // Record compilation statistics
         if let Ok(duration) = start.elapsed() {
@@ -358,7 +367,7 @@ impl SchemeLibraryLoader {
         let mut available_primitives = HashMap::new();
         for primitive_name in &self.bootstrap_config.essential_primitives {
             if let Some(primitive_value) = environment.lookup(primitive_name) {
-                available_primitives.insert(primitive_name.clone()), primitive_value);
+                available_primitives.insert(primitive_name.clone(), primitive_value);
             }
         }
 
@@ -367,7 +376,7 @@ impl SchemeLibraryLoader {
             dependency_chain: Vec::new(),
             available_primitives,
             environment,
-            global_env: self.global_env.clone()),
+            global_env: self.global_env.clone(),
         })
     }
 
@@ -396,10 +405,10 @@ impl SchemeLibraryLoader {
                                 lib_name[1..].to_vec()
                             } else {
                                 // For other R7RS libraries, use full name
-                                lib_name.clone())
+                                lib_name.clone()
                             }
                         }
-                        _ => id.components.clone())
+                        _ => id.components.clone()
                     };
                     
                     let actual_name = match id.namespace {
@@ -407,17 +416,17 @@ impl SchemeLibraryLoader {
                             if lib_name.len() >= 2 && lib_name[0] == "scheme" {
                                 lib_name[1..].to_vec()
                             } else {
-                                lib_name.clone())
+                                lib_name.clone()
                             }
                         }
-                        _ => lib_name.clone())
+                        _ => lib_name.clone()
                     };
                     
                     if actual_name != id.components {
                         return Err(Box::new(Error::parse_error(
                             format!("Library name {:?} does not match expected {:?}", actual_name, id.components),
                             Span::new(0, 0),
-                        ));
+                        )));
                     }
                     
                     // Process imports
@@ -436,7 +445,7 @@ impl SchemeLibraryLoader {
                         match &body_expr.inner {
                             Expr::Define { name, value, metadata: def_meta } => {
                                 let compiled_value = self.compile_expression(value, context)?;
-                                exports.insert(name.clone()), compiled_value);
+                                exports.insert(name.clone(), compiled_value);
                                 
                                 // Extract metadata if present
                                 if !def_meta.is_empty() {
@@ -469,7 +478,7 @@ impl SchemeLibraryLoader {
                 // Handle define forms (create exportable bindings)
                 Expr::Define { name, value, metadata: def_meta } => {
                     let compiled_value = self.compile_expression(value, context)?;
-                    exports.insert(name.clone()), compiled_value);
+                    exports.insert(name.clone(), compiled_value);
                     
                     // Extract metadata if present
                     if !def_meta.is_empty() {
@@ -487,7 +496,7 @@ impl SchemeLibraryLoader {
         }
 
         Ok(Module {
-            id: id.clone()),
+            id: id.clone(),
             exports,
             dependencies,
             source: Some(ModuleSource::File(PathBuf::from(format!("{}.scm", id.components.join("-"))))),
@@ -512,9 +521,9 @@ impl SchemeLibraryLoader {
                     Ok(value)
                 } else {
                     Err(Box::new(Error::runtime_error(
-                        format!("Unbound variable in library compilation: {}", name),
+                        format!("Unbound variable in library compilation: {name}"),
                         None,
-                    ))
+                    )))
                 }
             }
             // For complex expressions, we'd need full evaluation or bytecode generation
@@ -524,7 +533,7 @@ impl SchemeLibraryLoader {
 
     /// Finds the source file for a library.
     fn find_library_source(&self, id: &ModuleId) -> Result<Option<PathBuf>> {
-        println!("Debug: find_library_source called for module ID: {:?}", id);
+        println!("Debug: find_library_source called for module ID: {id:?}");
         
         // For SRFI modules, use the numeric part as filename (e.g., "41.scm")
         let filename = match id.namespace {
@@ -533,7 +542,7 @@ impl SchemeLibraryLoader {
             }
             _ => format!("{}.scm", id.components.join("-"))
         };
-        println!("Debug: Constructed filename: {}", filename);
+        println!("Debug: Constructed filename: {filename}");
         
         // Handle file namespace specially
         if id.namespace == ModuleNamespace::File && !id.components.is_empty() {
@@ -549,7 +558,7 @@ impl SchemeLibraryLoader {
                 ModuleNamespace::User => "user",
                 ModuleNamespace::File => return Ok(Some(PathBuf::from(&id.components[0]))),
             };
-            println!("Debug: Using library resolver, subdir: {}, filename: {}", subdir, filename);
+            println!("Debug: Using library resolver, subdir: {subdir}, filename: {filename}");
             
             if let Ok(library_path) = resolver.resolve_library_file(subdir, &filename) {
                 println!("Debug: Library resolver found path: {}", library_path.display());
@@ -592,7 +601,7 @@ impl SchemeLibraryLoader {
             }
         }
 
-        println!("Debug: No library source found for module: {:?}", id);
+        println!("Debug: No library source found for module: {id:?}");
         Ok(None)
     }
 
@@ -622,7 +631,7 @@ impl SchemeLibraryLoader {
         if source_path.is_some() {
             Ok(())
         } else {
-            Err(Box::new(Error::from(ModuleError::NotFound(id.clone()).boxed())))
+            Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))))
         }
     }
 
@@ -682,7 +691,7 @@ impl SchemeLibraryLoader {
                         _ => return Err(Box::new(Error::parse_error(
                             "Import library name components must be identifiers or numbers",
                             component.span,
-                        )),
+                        ))),
                     }
                 }
                 
@@ -730,7 +739,7 @@ impl SchemeLibraryLoader {
             Expr::Identifier(name) => {
                 // Simple export - check if it's defined locally
                 // For now, create a placeholder value since we're processing exports before definitions
-                exports.insert(name.clone()), Value::Unspecified);
+                exports.insert(name.clone(), Value::Unspecified);
                 Ok(())
             }
             Expr::List(components) => {
@@ -743,7 +752,7 @@ impl SchemeLibraryLoader {
                                 if components.len() == 3 {
                                     if let (Expr::Identifier(local), Expr::Identifier(exported)) = 
                                         (&components[1].inner, &components[2].inner) {
-                                        exports.insert(exported.clone()), Value::Unspecified);
+                                        exports.insert(exported.clone(), Value::Unspecified);
                                         // TODO: Implement proper rename logic
                                     }
                                 }
@@ -800,7 +809,7 @@ impl SchemeLibraryLoader {
 
 impl BootstrapConfig {
     /// Creates default bootstrap configuration.
-    pub fn default() -> Self {
+    pub fn new_default() -> Self {
         Self {
             essential_primitives: vec![
                 // Core arithmetic
@@ -865,6 +874,12 @@ impl BootstrapConfig {
             lazy_loading: true,
             bootstrap_timeout: Duration::from_secs(10),
         }
+    }
+}
+
+impl Default for HotReloadManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -946,7 +961,7 @@ mod tests {
         // Store and retrieve
         let library = CompiledSchemeLibrary {
             module: Module {
-                id: module_id.clone()),
+                id: module_id.clone(),
                 exports: HashMap::new(),
                 dependencies: Vec::new(),
                 source: None,
@@ -959,7 +974,7 @@ mod tests {
             reload_generation: 0,
         };
 
-        cache.store(module_id.clone()), library.clone());
+        cache.store(module_id.clone(), library.clone());
         
         // Cache hit
         assert!(cache.get(&module_id, None).is_some());
@@ -972,7 +987,7 @@ mod tests {
 
     #[test]
     fn test_bootstrap_config() {
-        let config = BootstrapConfig::default();
+        let config = BootstrapConfig::new_default();
         assert!(!config.essential_primitives.is_empty());
         assert!(!config.core_libraries.is_empty());
         
@@ -995,7 +1010,7 @@ mod tests {
         
         // Register callback
         let callback_called = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let callback_called_clone = callback_called.clone());
+        let callback_called_clone = callback_called.clone();
         
         manager.register_reload_callback(move |_| {
             callback_called_clone.store(true, std::sync::atomic::Ordering::SeqCst);

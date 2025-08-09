@@ -34,13 +34,13 @@ impl TypeScheme {
     /// Instantiates this type scheme with fresh type variables.
     pub fn instantiate(&self) -> Type {
         if self.vars.is_empty() {
-            return self.type_.clone());
+            return self.type_.clone();
         }
         
         // Create fresh variables for each quantified variable
         let fresh_vars: HashMap<TypeVar, Type> = self.vars
             .iter()
-            .map(|var| (var.clone()), Type::fresh_var()))
+            .map(|var| (var.clone(), Type::fresh_var()))
             .collect();
         
         // Substitute in the type
@@ -51,7 +51,7 @@ impl TypeScheme {
     fn substitute_vars(&self, type_: &Type, subst: &HashMap<TypeVar, Type>) -> Type {
         match type_ {
             Type::Variable(var) => {
-                subst.get(var).clone())().unwrap_or_else(|| type_.clone())
+                subst.get(var).cloned().unwrap_or_else(|| type_.clone())
             }
             Type::Pair(a, b) => {
                 Type::pair(
@@ -68,7 +68,7 @@ impl TypeScheme {
                 )
             }
             // Handle other cases as needed
-            _ => type_.clone()), // For now, just clone for unhandled cases
+            _ => type_.clone(), // For now, just clone for unhandled cases
         }
     }
 }

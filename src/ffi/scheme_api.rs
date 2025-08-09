@@ -23,6 +23,12 @@ use crate::ffi::libffi_integration::{FfiInterface, LibffiError};
 pub struct FfiInterface;
 
 #[cfg(not(feature = "ffi"))]
+impl Default for FfiInterface {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl FfiInterface {
     pub fn new() -> Self { Self }
     
@@ -95,22 +101,22 @@ impl fmt::Display for SchemeApiError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SchemeApiError::InvalidOperation { operation, reason } => {
-                write!(f, "Invalid FFI operation '{}': {}", operation, reason)
+                write!(f, "Invalid FFI operation '{operation}': {reason}")
             }
             SchemeApiError::LibraryDefinitionError { library, error } => {
-                write!(f, "Library definition error for '{}': {}", library, error)
+                write!(f, "Library definition error for '{library}': {error}")
             }
             SchemeApiError::FunctionDefinitionError { function, error } => {
-                write!(f, "Function definition error for '{}': {}", function, error)
+                write!(f, "Function definition error for '{function}': {error}")
             }
             SchemeApiError::TypeDefinitionError { type_name, error } => {
-                write!(f, "Type definition error for '{}': {}", type_name, error)
+                write!(f, "Type definition error for '{type_name}': {error}")
             }
             SchemeApiError::WrapperGenerationError { target, error } => {
-                write!(f, "Wrapper generation error for '{}': {}", target, error)
+                write!(f, "Wrapper generation error for '{target}': {error}")
             }
             SchemeApiError::CallError(e) => {
-                write!(f, "FFI call error: {}", e)
+                write!(f, "FFI call error: {e}")
             }
         }
     }
@@ -177,6 +183,7 @@ pub struct TypeDefinition {
 
 /// Library metadata
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct LibraryMetadata {
     /// Library version
     pub version: Option<String>,
@@ -190,17 +197,6 @@ pub struct LibraryMetadata {
     pub dependencies: Vec<String>,
 }
 
-impl Default for LibraryMetadata {
-    fn default() -> Self {
-        Self {
-            version: None,
-            description: None,
-            author: None,
-            license: None,
-            dependencies: Vec::new(),
-        }
-    }
-}
 
 /// Scheme FFI API manager
 #[derive(Debug)]
@@ -278,7 +274,8 @@ impl SchemeFfiApi {
 
         // Register functions with the FFI interface
         for (func_name, func_def) in &definition.functions {
-            let full_name = format!("{}::{}", definition.name, func_name);
+            let lib_name = &definition.name;
+            let full_name = format!("{lib_name}::{func_name}");
             self.ffi_interface
                 .load_function(&definition.name, &full_name, func_def.signature.clone())
                 .map_err(SchemeApiError::from)?;
@@ -292,7 +289,7 @@ impl SchemeFfiApi {
         // Store the library definition
         {
             let mut libraries = self.libraries.write().unwrap();
-            libraries.insert(definition.name.clone()), definition);
+            libraries.insert(definition.name.clone(), definition);
         }
 
         Ok(())
@@ -313,14 +310,14 @@ impl SchemeFfiApi {
         if self.config.read().unwrap().auto_generate_wrappers {
             let wrapper = self.generate_function_wrapper(&function_def)?;
             let mut cache = self.wrapper_cache.write().unwrap();
-            cache.insert(function_def.name.clone()), wrapper);
+            cache.insert(function_def.name.clone(), wrapper);
         }
 
         // Add to library definition
         {
             let mut libraries = self.libraries.write().unwrap();
             if let Some(lib_def) = libraries.get_mut(library_name) {
-                lib_def.functions.insert(function_def.name.clone()), function_def);
+                lib_def.functions.insert(function_def.name.clone(), function_def);
             } else {
                 return Err(SchemeApiError::LibraryDefinitionError {
                     library: library_name.to_string(),
@@ -339,7 +336,7 @@ impl SchemeFfiApi {
         function_name: &str,
         args: &[Value],
     ) -> std::result::Result<Value, SchemeApiError> {
-        let full_name = format!("{}::{}", library_name, function_name);
+        let full_name = format!("{library_name}::{function_name}");
         self.ffi_interface
             .call(&full_name, args)
             .map_err(SchemeApiError::from)
@@ -354,7 +351,7 @@ impl SchemeFfiApi {
 
         for (func_name, func_def) in &library_def.functions {
             let wrapper = self.generate_function_wrapper(func_def)?;
-            cache.insert(func_name.clone()), wrapper);
+            cache.insert(func_name.clone(), wrapper);
         }
 
         Ok(())
@@ -366,25 +363,29 @@ impl SchemeFfiApi {
         func_def: &FunctionDefinition,
     ) -> std::result::Result<String, SchemeApiError> {
         let config = self.config.read().unwrap();
-        let wrapper_name = format!("{}{}", config.wrapper_prefix, func_def.name);
+        let prefix = &config.wrapper_prefix;
+        let func_name = &func_def.name;
+        let wrapper_name = format!("{prefix}{func_name}");
 
         let mut wrapper = String::new();
 
         // Add documentation if available
         if config.generate_documentation {
             if let Some(doc) = &func_def.documentation {
-                wrapper.push_str(&format!(";;; {}\n", doc));
+                wrapper.push_str(&format!(";;; {doc}\n"));
             }
-            wrapper.push_str(&format!(";;; Parameters: {:?}\n", func_def.signature.parameters));
-            wrapper.push_str(&format!(";;; Returns: {:?}\n", func_def.signature.return_type));
+            let params = &func_def.signature.parameters;
+            wrapper.push_str(&format!(";;; Parameters: {params:?}\n"));
+            let ret_type = &func_def.signature.return_type;
+            wrapper.push_str(&format!(";;; Returns: {ret_type:?}\n"));
         }
 
         // Generate function definition
-        wrapper.push_str(&format!("(define ({}", wrapper_name));
+        wrapper.push_str(&format!("(define ({wrapper_name}"));
 
         // Add parameters
         for (i, _param_type) in func_def.signature.parameters.iter().enumerate() {
-            wrapper.push_str(&format!(" param{}", i));
+            wrapper.push_str(&format!(" param{i}"));
         }
         wrapper.push_str(")\n");
 
@@ -398,12 +399,12 @@ impl SchemeFfiApi {
             {
                 match constraint {
                     TypeConstraint::NonNull(param_idx) if *param_idx == i => {
-                        wrapper.push_str(&format!("  (when (null? param{})\n", i));
-                        wrapper.push_str(&format!("    (error \"Parameter {} cannot be null\"))\n", i));
+                        wrapper.push_str(&format!("  (when (null? param{i})\n"));
+                        wrapper.push_str(&format!("    (error \"Parameter {i} cannot be null\"))\n"));
                     }
                     TypeConstraint::Bounds { parameter, min, max } if *parameter == i => {
-                        wrapper.push_str(&format!("  (when (or (< param{} {}) (> param{} {}))\n", i, min, i, max));
-                        wrapper.push_str(&format!("    (error \"Parameter {} out of bounds [{}, {}]\"))\n", i, min, max));
+                        wrapper.push_str(&format!("  (when (or (< param{i} {min}) (> param{i} {max}))\n"));
+                        wrapper.push_str(&format!("    (error \"Parameter {i} out of bounds [{min}, {max}]\"))\n"));
                     }
                     _ => {}
                 }
@@ -417,7 +418,7 @@ impl SchemeFfiApi {
         ));
 
         for i in 0..func_def.signature.parameters.len() {
-            wrapper.push_str(&format!(" param{}", i));
+            wrapper.push_str(&format!(" param{i}"));
         }
         wrapper.push_str("))\n");
 
@@ -432,7 +433,7 @@ impl SchemeFfiApi {
         // Check if library name is valid
         if library_def.name.is_empty() {
             return Err(SchemeApiError::LibraryDefinitionError {
-                library: library_def.name.clone()),
+                library: library_def.name.clone(),
                 error: "Library name cannot be empty".to_string(),
             });
         }
@@ -441,7 +442,7 @@ impl SchemeFfiApi {
         for (func_name, func_def) in &library_def.functions {
             if func_name != &func_def.name {
                 return Err(SchemeApiError::FunctionDefinitionError {
-                    function: func_name.clone()),
+                    function: func_name.clone(),
                     error: "Function name mismatch".to_string(),
                 });
             }
@@ -449,7 +450,7 @@ impl SchemeFfiApi {
             // Validate function signature
             if func_def.signature.parameters.len() > 32 {
                 return Err(SchemeApiError::FunctionDefinitionError {
-                    function: func_name.clone()),
+                    function: func_name.clone(),
                     error: "Too many parameters (max 32)".to_string(),
                 });
             }
@@ -461,19 +462,19 @@ impl SchemeFfiApi {
     /// Get library definition
     pub fn get_library(&self, name: &str) -> Option<LibraryDefinition> {
         let libraries = self.libraries.read().unwrap();
-        libraries.get(name).clone())()
+        libraries.get(name).cloned()
     }
 
     /// List all libraries
     pub fn list_libraries(&self) -> Vec<String> {
         let libraries = self.libraries.read().unwrap();
-        libraries.keys().clone())().collect()
+        libraries.keys().cloned().collect()
     }
 
     /// Get generated wrapper
     pub fn get_wrapper(&self, function_name: &str) -> Option<String> {
         let cache = self.wrapper_cache.read().unwrap();
-        cache.get(function_name).clone())()
+        cache.get(function_name).cloned()
     }
 
     /// Export library as Scheme module
@@ -490,21 +491,22 @@ impl SchemeFfiApi {
         let mut module = String::new();
 
         // Module header
-        module.push_str(&format!(";;; Generated FFI module for {}\n", library_name));
+        module.push_str(&format!(";;; Generated FFI module for {library_name}\n"));
         if let Some(description) = &library.metadata.description {
-            module.push_str(&format!(";;; {}\n", description));
+            module.push_str(&format!(";;; {description}\n"));
         }
         module.push('\n');
 
         // Module declaration
-        module.push_str(&format!("(define-library (ffi {})\n", library_name));
+        module.push_str(&format!("(define-library (ffi {library_name})\n"));
         
         // Exports
         module.push_str("  (export\n");
         for func_name in library.functions.keys() {
             let config = self.config.read().unwrap();
-            let wrapper_name = format!("{}{}", config.wrapper_prefix, func_name);
-            module.push_str(&format!("    {}\n", wrapper_name));
+            let prefix = &config.wrapper_prefix;
+            let wrapper_name = format!("{prefix}{func_name}");
+            module.push_str(&format!("    {wrapper_name}\n"));
         }
         module.push_str("  )\n");
 
@@ -521,7 +523,7 @@ impl SchemeFfiApi {
                 // Indent the wrapper code
                 let indented_wrapper = wrapper
                     .lines()
-                    .map(|line| format!("    {}", line))
+                    .map(|line| format!("    {line}"))
                     .collect::<Vec<_>>()
                     .join("\n");
                 module.push_str(&indented_wrapper);
@@ -548,9 +550,10 @@ impl SchemeFfiApi {
         let mut header = String::new();
 
         // Header guard
-        let guard = format!("{}_H", library_name.to_uppercase());
-        header.push_str(&format!("#ifndef {}\n", guard));
-        header.push_str(&format!("#define {}\n\n", guard));
+        let lib_upper = library_name.to_uppercase();
+        let guard = format!("{lib_upper}_H");
+        header.push_str(&format!("#ifndef {guard}\n"));
+        header.push_str(&format!("#define {guard}\n\n"));
 
         // Includes
         header.push_str("#include <stdint.h>\n");
@@ -560,21 +563,25 @@ impl SchemeFfiApi {
         for (type_name, type_def) in &library.types {
             match &type_def.c_type {
                 CType::Struct { name, fields, .. } => {
-                    header.push_str(&format!("typedef struct {} {{\n", name));
+                    header.push_str(&format!("typedef struct {name} {{\n"));
                     for field in fields {
-                        header.push_str(&format!("    {} {};\n", field.c_type, field.name));
+                        let field_type = &field.c_type;
+                        let field_name = &field.name;
+                        header.push_str(&format!("    {field_type} {field_name};\n"));
                     }
-                    header.push_str(&format!("}} {};\n\n", type_name));
+                    header.push_str(&format!("}} {type_name};\n\n"));
                 }
                 _ => {
-                    header.push_str(&format!("typedef {} {};\n\n", type_def.c_type, type_name));
+                    let c_type = &type_def.c_type;
+                    header.push_str(&format!("typedef {c_type} {type_name};\n\n"));
                 }
             }
         }
 
         // Function declarations
         for (func_name, func_def) in &library.functions {
-            header.push_str(&format!("{} {}(", func_def.signature.return_type, func_name));
+            let ret_type = &func_def.signature.return_type;
+            header.push_str(&format!("{ret_type} {func_name}("));
             
             if func_def.signature.parameters.is_empty() {
                 header.push_str("void");
@@ -583,7 +590,7 @@ impl SchemeFfiApi {
                     if i > 0 {
                         header.push_str(", ");
                     }
-                    header.push_str(&format!("{} param{}", param_type, i));
+                    header.push_str(&format!("{param_type} param{i}"));
                 }
             }
             
@@ -591,7 +598,7 @@ impl SchemeFfiApi {
         }
 
         // Header guard end
-        header.push_str(&format!("\n#endif /* {} */\n", guard));
+        header.push_str(&format!("\n#endif /* {guard} */\n"));
 
         Ok(header)
     }
@@ -676,12 +683,12 @@ impl FfiBuiltins {
 /// Implementation of (ffi-load-library name [path])
 fn ffi_load_library(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(Box::new(Error::runtime_error("ffi-load-library expects 1 or 2 arguments".to_string(), None));
+        return Err(Box::new(Error::runtime_error("ffi-load-library expects 1 or 2 arguments".to_string(), None)));
     }
 
     let _library_name = match &args[0] {
-        Value::Literal(Literal::String(s)) => s.clone()),
-        _ => return Err(Box::new(Error::runtime_error("Library name must be a string".to_string(), None)),
+        Value::Literal(Literal::String(s)) => s.clone(),
+        _ => return Err(Box::new(Error::runtime_error("Library name must be a string".to_string(), None))),
     };
 
     // Load the library (simplified implementation)
@@ -692,7 +699,7 @@ fn ffi_load_library(args: &[Value]) -> Result<Value> {
 /// Implementation of (ffi-define-function library-name func-name signature)
 fn ffi_define_function(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(Box::new(Error::runtime_error("ffi-define-function expects 3 arguments".to_string(), None));
+        return Err(Box::new(Error::runtime_error("ffi-define-function expects 3 arguments".to_string(), None)));
     }
 
     // Implementation would parse the signature and register the function
@@ -702,17 +709,17 @@ fn ffi_define_function(args: &[Value]) -> Result<Value> {
 /// Implementation of (ffi-call library-name func-name . args)
 fn ffi_call(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("ffi-call expects at least 2 arguments".to_string(), None));
+        return Err(Box::new(Error::runtime_error("ffi-call expects at least 2 arguments".to_string(), None)));
     }
 
     let _library_name = match &args[0] {
-        Value::Literal(Literal::String(s)) => s.clone()),
-        _ => return Err(Box::new(Error::runtime_error("Library name must be a string".to_string(), None)),
+        Value::Literal(Literal::String(s)) => s.clone(),
+        _ => return Err(Box::new(Error::runtime_error("Library name must be a string".to_string(), None))),
     };
 
     let _function_name = match &args[1] {
-        Value::Literal(Literal::String(s)) => s.clone()),
-        _ => return Err(Box::new(Error::runtime_error("Function name must be a string".to_string(), None)),
+        Value::Literal(Literal::String(s)) => s.clone(),
+        _ => return Err(Box::new(Error::runtime_error("Function name must be a string".to_string(), None))),
     };
 
     let _func_args = &args[2..];
@@ -725,7 +732,7 @@ fn ffi_call(args: &[Value]) -> Result<Value> {
 /// Implementation of (ffi-define-struct name . fields)
 fn ffi_define_struct(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::runtime_error("ffi-define-struct expects at least 1 argument".to_string(), None));
+        return Err(Box::new(Error::runtime_error("ffi-define-struct expects at least 1 argument".to_string(), None)));
     }
 
     // Implementation would define a struct type
@@ -735,7 +742,7 @@ fn ffi_define_struct(args: &[Value]) -> Result<Value> {
 /// Implementation of (ffi-sizeof type)
 fn ffi_sizeof(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("ffi-sizeof expects 1 argument".to_string(), None));
+        return Err(Box::new(Error::runtime_error("ffi-sizeof expects 1 argument".to_string(), None)));
     }
 
     // Implementation would return the size of the type
@@ -745,7 +752,7 @@ fn ffi_sizeof(args: &[Value]) -> Result<Value> {
 /// Implementation of (ffi-null? ptr)
 fn ffi_null_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("ffi-null? expects 1 argument".to_string(), None));
+        return Err(Box::new(Error::runtime_error("ffi-null? expects 1 argument".to_string(), None)));
     }
 
     // Check if the argument represents a null pointer

@@ -186,16 +186,16 @@ pub fn execute_fast_path_optimized(op: FastPathOp, args: &[OptimizedValue]) -> R
         // List operations  
         FastPathOp::Cons => {
             if args.len() == 2 {
-                Ok(OptimizedValue::pair(args[0].clone()), args[1].clone()))
+                Ok(OptimizedValue::pair(args[0].clone(), args[1].clone()))
             } else {
-                Err(Box::new(Error::arity_error("cons", 2, args.len().boxed()))
+                Err(Box::new(Error::arity_error("cons", 2, args.len())))
             }
         }
         
         // For other operations, fall back to regular Value operations
         _ => {
             // Convert OptimizedValue to Value for fallback
-            let value_args: Result<Vec<Value>> = args.iter().map(|v| convert_optimized_to_value(v)).collect();
+            let value_args: Result<Vec<Value>> = args.iter().map(convert_optimized_to_value).collect();
             let value_args = value_args?;
             let result = execute_fast_path(op, &value_args)?;
             convert_value_to_optimized(&result)
@@ -228,7 +228,7 @@ fn fast_add(args: &[Value]) -> Result<Value> {
                     }
                 }
             }
-            None => return Err(Box::new(Error::type_mismatch_error("number", arg.clone()).boxed())),
+            None => return Err(Box::new(Error::type_mismatch_error("number", arg.clone()))),
         }
     }
     
@@ -264,7 +264,7 @@ fn fast_add_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
                     }
                 }
             }
-            None => return Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(arg)?)),
+            None => return Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(arg)?))),
         }
     }
     
@@ -277,11 +277,11 @@ fn fast_add_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
 
 fn fast_subtract(args: &[Value]) -> Result<Value> {
     match args.len() {
-        0 => Err(Box::new(Error::arity_error("-", 1, 0.into().boxed())),
+        0 => Err(Box::new(Error::arity_error("-", 1, 0))),
         1 => {
             match args[0].as_number() {
                 Some(n) => Ok(Value::number(-n)),
-                None => Err(Box::new(Error::type_mismatch_error("number", args[0].clone()).boxed())),
+                None => Err(Box::new(Error::type_mismatch_error("number", args[0].clone()))),
             }
         }
         _ => {
@@ -291,7 +291,7 @@ fn fast_subtract(args: &[Value]) -> Result<Value> {
             for arg in &args[1..] {
                 match arg.as_number() {
                     Some(n) => result -= n,
-                    None => return Err(Box::new(Error::type_mismatch_error("number", arg.clone()).boxed())),
+                    None => return Err(Box::new(Error::type_mismatch_error("number", arg.clone()))),
                 }
             }
             
@@ -302,11 +302,11 @@ fn fast_subtract(args: &[Value]) -> Result<Value> {
 
 fn fast_subtract_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
     match args.len() {
-        0 => Err(Box::new(Error::arity_error("-", 1, 0.into().boxed())),
+        0 => Err(Box::new(Error::arity_error("-", 1, 0))),
         1 => {
             match args[0].as_number() {
                 Some(n) => Ok(OptimizedValue::number(-n)),
-                None => Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(&args[0].into().boxed())?)),
+                None => Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(&args[0])?))),
             }
         }
         _ => {
@@ -316,7 +316,7 @@ fn fast_subtract_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
             for arg in &args[1..] {
                 match arg.as_number() {
                     Some(n) => result -= n,
-                    None => return Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(arg)?)),
+                    None => return Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(arg)?))),
                 }
             }
             
@@ -339,7 +339,7 @@ fn fast_multiply(args: &[Value]) -> Result<Value> {
     for arg in args {
         match arg.as_number() {
             Some(n) => product *= n,
-            None => return Err(Box::new(Error::type_mismatch_error("number", arg.clone()).boxed())),
+            None => return Err(Box::new(Error::type_mismatch_error("number", arg.clone()))),
         }
     }
     
@@ -355,7 +355,7 @@ fn fast_multiply_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
     for arg in args {
         match arg.as_number() {
             Some(n) => product *= n,
-            None => return Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(arg)?)),
+            None => return Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(arg)?))),
         }
     }
     
@@ -369,17 +369,17 @@ fn fast_multiply_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
 
 fn fast_divide(args: &[Value]) -> Result<Value> {
     match args.len() {
-        0 => Err(Box::new(Error::arity_error("/", 1, 0.into().boxed())),
+        0 => Err(Box::new(Error::arity_error("/", 1, 0))),
         1 => {
             match args[0].as_number() {
                 Some(n) => {
                     if n == 0.0 {
-                        Err(Box::new(Error::runtime_error("Division by zero".to_string(), None))
+                        Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)))
                     } else {
                         Ok(Value::number(1.0 / n))
                     }
                 }
-                None => Err(Box::new(Error::type_mismatch_error("number", args[0].clone()).boxed())),
+                None => Err(Box::new(Error::type_mismatch_error("number", args[0].clone()))),
             }
         }
         _ => {
@@ -390,11 +390,11 @@ fn fast_divide(args: &[Value]) -> Result<Value> {
                 match arg.as_number() {
                     Some(n) => {
                         if n == 0.0 {
-                            return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None));
+                            return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
                         }
                         result /= n;
                     }
-                    None => return Err(Box::new(Error::type_mismatch_error("number", arg.clone()).boxed())),
+                    None => return Err(Box::new(Error::type_mismatch_error("number", arg.clone()))),
                 }
             }
             
@@ -405,17 +405,17 @@ fn fast_divide(args: &[Value]) -> Result<Value> {
 
 fn fast_divide_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
     match args.len() {
-        0 => Err(Box::new(Error::arity_error("/", 1, 0.into().boxed())),
+        0 => Err(Box::new(Error::arity_error("/", 1, 0))),
         1 => {
             match args[0].as_number() {
                 Some(n) => {
                     if n == 0.0 {
-                        Err(Box::new(Error::runtime_error("Division by zero".to_string(), None))
+                        Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)))
                     } else {
                         Ok(OptimizedValue::number(1.0 / n))
                     }
                 }
-                None => Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(&args[0].into().boxed())?)),
+                None => Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(&args[0])?))),
             }
         }
         _ => {
@@ -426,11 +426,11 @@ fn fast_divide_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
                 match arg.as_number() {
                     Some(n) => {
                         if n == 0.0 {
-                            return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None));
+                            return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
                         }
                         result /= n;
                     }
-                    None => return Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(arg)?)),
+                    None => return Err(Box::new(Error::type_mismatch_error("number", convert_optimized_to_value(arg)?))),
                 }
             }
             
@@ -441,14 +441,14 @@ fn fast_divide_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
 
 fn fast_modulo(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::arity_error("modulo", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("modulo", 2, args.len())));
     }
     
     let a = args[0].as_number().ok_or_else(|| Error::type_mismatch_error("number", args[0].clone()))?;
     let b = args[1].as_number().ok_or_else(|| Error::type_mismatch_error("number", args[1].clone()))?;
     
     if b == 0.0 {
-        return Err(Box::new(Error::runtime_error("Division by zero in modulo".to_string(), None));
+        return Err(Box::new(Error::runtime_error("Division by zero in modulo".to_string(), None)));
     }
     
     Ok(Value::number(a % b))
@@ -460,7 +460,7 @@ fn fast_modulo(args: &[Value]) -> Result<Value> {
 
 fn fast_num_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error("=", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("=", 2, args.len())));
     }
     
     let first = args[0].as_number().ok_or_else(|| Error::type_mismatch_error("number", args[0].clone()))?;
@@ -477,7 +477,7 @@ fn fast_num_equal(args: &[Value]) -> Result<Value> {
 
 fn fast_num_less(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error("<", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("<", 2, args.len())));
     }
     
     let mut prev = args[0].as_number().ok_or_else(|| Error::type_mismatch_error("number", args[0].clone()))?;
@@ -495,7 +495,7 @@ fn fast_num_less(args: &[Value]) -> Result<Value> {
 
 fn fast_num_greater(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error(">", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error(">", 2, args.len())));
     }
     
     let mut prev = args[0].as_number().ok_or_else(|| Error::type_mismatch_error("number", args[0].clone()))?;
@@ -513,7 +513,7 @@ fn fast_num_greater(args: &[Value]) -> Result<Value> {
 
 fn fast_num_less_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error("<=", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("<=", 2, args.len())));
     }
     
     let mut prev = args[0].as_number().ok_or_else(|| Error::type_mismatch_error("number", args[0].clone()))?;
@@ -531,7 +531,7 @@ fn fast_num_less_equal(args: &[Value]) -> Result<Value> {
 
 fn fast_num_greater_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error(">=", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error(">=", 2, args.len())));
     }
     
     let mut prev = args[0].as_number().ok_or_else(|| Error::type_mismatch_error("number", args[0].clone()))?;
@@ -553,37 +553,37 @@ fn fast_num_greater_equal(args: &[Value]) -> Result<Value> {
 
 fn fast_cons(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::arity_error("cons", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("cons", 2, args.len())));
     }
     
-    Ok(Value::pair(args[0].clone()), args[1].clone()))
+    Ok(Value::pair(args[0].clone(), args[1].clone()))
 }
 
 fn fast_car(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("car", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("car", 1, args.len())));
     }
     
     match &args[0] {
         Value::Pair(car, _) => Ok((**car).clone()),
-        _ => Err(Box::new(Error::type_mismatch_error("pair", args[0].clone()).boxed())),
+        _ => Err(Box::new(Error::type_mismatch_error("pair", args[0].clone()))),
     }
 }
 
 fn fast_cdr(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("cdr", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("cdr", 1, args.len())));
     }
     
     match &args[0] {
         Value::Pair(_, cdr) => Ok((**cdr).clone()),
-        _ => Err(Box::new(Error::type_mismatch_error("pair", args[0].clone()).boxed())),
+        _ => Err(Box::new(Error::type_mismatch_error("pair", args[0].clone()))),
     }
 }
 
 fn fast_list_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("length", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("length", 1, args.len())));
     }
     
     let mut current = &args[0];
@@ -596,20 +596,20 @@ fn fast_list_length(args: &[Value]) -> Result<Value> {
                 length += 1;
                 current = cdr;
             }
-            _ => return Err(Box::new(Error::type_mismatch_error("proper list", args[0].clone()).boxed())),
+            _ => return Err(Box::new(Error::type_mismatch_error("proper list", args[0].clone()))),
         }
     }
 }
 
 fn fast_list_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::arity_error("list-ref", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("list-ref", 2, args.len())));
     }
     
     let index = args[1].as_integer().ok_or_else(|| Error::type_mismatch_error("integer", args[1].clone()))?;
     
     if index < 0 {
-        return Err(Box::new(Error::runtime_error("Index out of bounds".to_string(), None));
+        return Err(Box::new(Error::runtime_error("Index out of bounds".to_string(), None)));
     }
     
     let mut current = &args[0];
@@ -617,7 +617,7 @@ fn fast_list_ref(args: &[Value]) -> Result<Value> {
     
     loop {
         match current {
-            Value::Nil => return Err(Box::new(Error::runtime_error("Index out of bounds".to_string(), None)),
+            Value::Nil => return Err(Box::new(Error::runtime_error("Index out of bounds".to_string(), None))),
             Value::Pair(car, cdr) => {
                 if i == index {
                     return Ok((**car).clone());
@@ -625,7 +625,7 @@ fn fast_list_ref(args: &[Value]) -> Result<Value> {
                 i += 1;
                 current = cdr;
             }
-            _ => return Err(Box::new(Error::type_mismatch_error("proper list", args[0].clone()).boxed())),
+            _ => return Err(Box::new(Error::type_mismatch_error("proper list", args[0].clone()))),
         }
     }
 }
@@ -636,7 +636,7 @@ fn fast_list_ref(args: &[Value]) -> Result<Value> {
 
 fn fast_is_null(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("null?", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("null?", 1, args.len())));
     }
     
     Ok(Value::boolean(args[0].is_nil()))
@@ -644,7 +644,7 @@ fn fast_is_null(args: &[Value]) -> Result<Value> {
 
 fn fast_is_pair(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("pair?", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("pair?", 1, args.len())));
     }
     
     Ok(Value::boolean(args[0].is_pair()))
@@ -652,7 +652,7 @@ fn fast_is_pair(args: &[Value]) -> Result<Value> {
 
 fn fast_is_number(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("number?", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("number?", 1, args.len())));
     }
     
     Ok(Value::boolean(args[0].is_number()))
@@ -660,7 +660,7 @@ fn fast_is_number(args: &[Value]) -> Result<Value> {
 
 fn fast_is_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("string?", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("string?", 1, args.len())));
     }
     
     Ok(Value::boolean(args[0].is_string()))
@@ -668,7 +668,7 @@ fn fast_is_string(args: &[Value]) -> Result<Value> {
 
 fn fast_is_symbol(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("symbol?", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("symbol?", 1, args.len())));
     }
     
     Ok(Value::boolean(args[0].is_symbol()))
@@ -676,7 +676,7 @@ fn fast_is_symbol(args: &[Value]) -> Result<Value> {
 
 fn fast_is_boolean(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("boolean?", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("boolean?", 1, args.len())));
     }
     
     Ok(Value::boolean(matches!(args[0], Value::Literal(Literal::Boolean(_)))))
@@ -684,7 +684,7 @@ fn fast_is_boolean(args: &[Value]) -> Result<Value> {
 
 fn fast_is_procedure(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("procedure?", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("procedure?", 1, args.len())));
     }
     
     Ok(Value::boolean(args[0].is_procedure()))
@@ -696,7 +696,7 @@ fn fast_is_procedure(args: &[Value]) -> Result<Value> {
 
 fn fast_not(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("not", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("not", 1, args.len())));
     }
     
     Ok(Value::boolean(args[0].is_falsy()))
@@ -708,33 +708,34 @@ fn fast_not(args: &[Value]) -> Result<Value> {
 
 fn fast_string_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("string-length", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("string-length", 1, args.len())));
     }
     
     match args[0].as_string() {
         Some(s) => Ok(Value::integer(s.chars().count() as i64)),
-        None => Err(Box::new(Error::type_mismatch_error("string", args[0].clone()).boxed())),
+        None => Err(Box::new(Error::type_mismatch_error("string", args[0].clone()))),
     }
 }
 
 fn fast_string_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::arity_error("string-ref", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("string-ref", 2, args.len())));
     }
     
     let s = args[0].as_string().ok_or_else(|| Error::type_mismatch_error("string", args[0].clone()))?;
     let index = args[1].as_integer().ok_or_else(|| Error::type_mismatch_error("integer", args[1].clone()))?;
     
     if index < 0 {
-        return Err(Box::new(Error::runtime_error("String index out of bounds".to_string(), None));
+        return Err(Box::new(Error::runtime_error("String index out of bounds".to_string(), None)));
     }
     
     let chars: Vec<char> = s.chars().collect();
-    if index as usize >= chars.len() {
-        return Err(Box::new(Error::runtime_error("String index out of bounds".to_string(), None));
+    let index_usize = index as usize;
+    if index_usize >= chars.len() {
+        return Err(Box::new(Error::runtime_error("String index out of bounds".to_string(), None)));
     }
     
-    Ok(Value::Literal(Literal::Character(chars[index as usize])))
+    Ok(Value::Literal(Literal::Character(chars[index_usize])))
 }
 
 fn fast_string_append(args: &[Value]) -> Result<Value> {
@@ -743,7 +744,7 @@ fn fast_string_append(args: &[Value]) -> Result<Value> {
     for arg in args {
         match arg.as_string() {
             Some(s) => result.push_str(s),
-            None => return Err(Box::new(Error::type_mismatch_error("string", arg.clone()).boxed())),
+            None => return Err(Box::new(Error::type_mismatch_error("string", arg.clone()))),
         }
     }
     
@@ -756,7 +757,7 @@ fn fast_string_append(args: &[Value]) -> Result<Value> {
 
 fn fast_vector_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("vector-length", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("vector-length", 1, args.len())));
     }
     
     match &args[0] {
@@ -764,63 +765,65 @@ fn fast_vector_length(args: &[Value]) -> Result<Value> {
             if let Ok(vec_ref) = vec.read() {
                 Ok(Value::integer(vec_ref.len() as i64))
             } else {
-                Err(Box::new(Error::runtime_error("Vector access error".to_string(), None))
+                Err(Box::new(Error::runtime_error("Vector access error".to_string(), None)))
             }
         }
-        _ => Err(Box::new(Error::type_mismatch_error("vector", args[0].clone()).boxed())),
+        _ => Err(Box::new(Error::type_mismatch_error("vector", args[0].clone()))),
     }
 }
 
 fn fast_vector_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::arity_error("vector-ref", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("vector-ref", 2, args.len())));
     }
     
     let index = args[1].as_integer().ok_or_else(|| Error::type_mismatch_error("integer", args[1].clone()))?;
     
     if index < 0 {
-        return Err(Box::new(Error::runtime_error("Vector index out of bounds".to_string(), None));
+        return Err(Box::new(Error::runtime_error("Vector index out of bounds".to_string(), None)));
     }
     
     match &args[0] {
         Value::Vector(vec) => {
             if let Ok(vec_ref) = vec.read() {
-                if index as usize >= vec_ref.len() {
-                    return Err(Box::new(Error::runtime_error("Vector index out of bounds".to_string(), None));
+                let index_usize = index as usize;
+                if index_usize >= vec_ref.len() {
+                    return Err(Box::new(Error::runtime_error("Vector index out of bounds".to_string(), None)));
                 }
-                Ok(vec_ref[index as usize].clone())
+                Ok(vec_ref[index_usize].clone())
             } else {
-                Err(Box::new(Error::runtime_error("Vector access error".to_string(), None))
+                Err(Box::new(Error::runtime_error("Vector access error".to_string(), None)))
             }
         }
-        _ => Err(Box::new(Error::type_mismatch_error("vector", args[0].clone()).boxed())),
+        _ => Err(Box::new(Error::type_mismatch_error("vector", args[0].clone()))),
     }
 }
 
 fn fast_vector_set(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(Box::new(Error::arity_error("vector-set!", 3, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("vector-set!", 3, args.len())));
     }
     
     let index = args[1].as_integer().ok_or_else(|| Error::type_mismatch_error("integer", args[1].clone()))?;
     
     if index < 0 {
-        return Err(Box::new(Error::runtime_error("Vector index out of bounds".to_string(), None));
+        return Err(Box::new(Error::runtime_error("Vector index out of bounds".to_string(), None)));
     }
     
     match &args[0] {
         Value::Vector(vec) => {
             if let Ok(mut vec_ref) = vec.write() {
-                if index as usize >= vec_ref.len() {
-                    return Err(Box::new(Error::runtime_error("Vector index out of bounds".to_string(), None));
+                let index_usize = index as usize;
+                if index_usize >= vec_ref.len() {
+                    return Err(Box::new(Error::runtime_error("Vector index out of bounds".to_string(), None)));
                 }
-                vec_ref[index as usize] = args[2].clone());
+                vec_ref[index_usize] = args[2].clone();
                 Ok(Value::Unspecified)
             } else {
-                Err(Box::new(Error::runtime_error("Vector access error".to_string(), None))
+                Err(Box::new(Error::runtime_error("Vector access error".to_string(), None)))
             }
         }
-        _ => Err(Box::new(Error::type_mismatch_error("vector", args[0].clone()).boxed())),
+        _ => Err(Box::new(Error::type_mismatch_error("vector", args[0].clone()))),
     }
 }
 
@@ -849,7 +852,7 @@ fn convert_optimized_to_value(optimized: &OptimizedValue) -> Result<Value> {
         crate::eval::optimized_value::ValueTag::Unspecified => Ok(Value::Unspecified),
         _ => {
             // For complex types, this would need more sophisticated conversion
-            Err(Box::new(Error::runtime_error("Cannot convert optimized value to regular value".to_string(), None))
+            Err(Box::new(Error::runtime_error("Cannot convert optimized value to regular value".to_string(), None)))
         }
     }
 }
@@ -865,7 +868,7 @@ fn convert_value_to_optimized(value: &Value) -> Result<OptimizedValue> {
         Value::Unspecified => Ok(OptimizedValue::unspecified()),
         _ => {
             // For complex types, this would need more sophisticated conversion
-            Err(Box::new(Error::runtime_error("Cannot convert value to optimized value".to_string(), None))
+            Err(Box::new(Error::runtime_error("Cannot convert value to optimized value".to_string(), None)))
         }
     }
 }
@@ -919,7 +922,7 @@ pub fn record_regular_evaluation() {
 /// Gets current fast path statistics.
 pub fn get_fast_path_stats() -> FastPathStats {
     if let Ok(stats) = FAST_PATH_STATS.lock() {
-        stats.clone())
+        stats.clone()
     } else {
         FastPathStats {
             total_fast_path_calls: 0,
@@ -965,15 +968,15 @@ mod tests {
     fn test_fast_list_operations() {
         let list = Value::pair(Value::integer(1), Value::pair(Value::integer(2), Value::Nil));
         
-        let args = vec![list.clone())];
+        let args = vec![list.clone()];
         let result = fast_list_length(&args).unwrap();
         assert_eq!(result.as_integer(), Some(2));
         
-        let args = vec![list.clone())];
+        let args = vec![list.clone()];
         let result = fast_car(&args).unwrap();
         assert_eq!(result.as_integer(), Some(1));
         
-        let args = vec![list.clone()), Value::integer(1)];
+        let args = vec![list.clone(), Value::integer(1)];
         let result = fast_list_ref(&args).unwrap();
         assert_eq!(result.as_integer(), Some(2));
     }

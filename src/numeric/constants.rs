@@ -22,7 +22,7 @@ impl MathConstants {
     pub const E: f64 = E;
     
     /// φ (phi) - Golden ratio: (1 + √5)/2
-    pub const GOLDEN_RATIO: f64 = 1.6180339887498949;
+    pub const GOLDEN_RATIO: f64 = 1.618033988749895;
     
     /// γ (gamma) - Euler-Mascheroni constant
     pub const EULER_GAMMA: f64 = 0.5772156649015329;
@@ -45,11 +45,10 @@ impl MathConstants {
     pub const SQRT_2PI: f64 = 2.5066282746310005;
     
     /// 1/√2 - reciprocal of square root of 2
-    pub const FRAC_1_SQRT_2: f64 = 0.7071067811865476;
+    pub const FRAC_1_SQRT_2: f64 = std::f64::consts::FRAC_1_SQRT_2;
     
     /// 1/√(2π) - reciprocal of square root of 2π
     pub const FRAC_1_SQRT_2PI: f64 = 0.3989422804014327;
-    
     // ============= LOGARITHMS =============
     
     /// ln(2) - natural logarithm of 2
@@ -65,16 +64,16 @@ impl MathConstants {
     pub const LN_PI: f64 = 1.1447298858494002;
     
     /// log₂(e) - logarithm base 2 of e
-    pub const LOG2_E: f64 = 1.4426950408889634;
+    pub const LOG2_E: f64 = std::f64::consts::LOG2_E;
     
     /// log₁₀(e) - logarithm base 10 of e  
-    pub const LOG10_E: f64 = 0.4342944819032518;
+    pub const LOG10_E: f64 = std::f64::consts::LOG10_E;
     
     /// log₂(10) - logarithm base 2 of 10
     pub const LOG2_10: f64 = 3.3219280948873626;
     
     /// log₁₀(2) - logarithm base 10 of 2
-    pub const LOG10_2: f64 = 0.3010299956639812;
+    pub const LOG10_2: f64 = std::f64::consts::LOG10_2;
     
     // ============= PI FRACTIONS =============
     
@@ -331,10 +330,10 @@ mod tests {
 
     #[test]
     fn test_mathematical_constants() {
-        // Test that constants are within expected ranges
-        assert!(MathConstants::PI > 3.14 && MathConstants::PI < 3.15);
-        assert!(MathConstants::E > 2.71 && MathConstants::E < 2.72);
-        assert!(MathConstants::GOLDEN_RATIO > 1.61 && MathConstants::GOLDEN_RATIO < 1.62);
+        // Test that constants have expected values
+        assert!((MathConstants::PI - std::f64::consts::PI).abs() < EPSILON);
+        assert!((MathConstants::E - std::f64::consts::E).abs() < EPSILON);
+        assert!((MathConstants::GOLDEN_RATIO - 1.618033988749895).abs() < EPSILON);
         
         // Test relationships
         assert!((MathConstants::TAU - 2.0 * MathConstants::PI).abs() < EPSILON);

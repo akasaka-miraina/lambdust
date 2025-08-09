@@ -106,12 +106,12 @@ impl LibraryPathResolver {
              Primary lib dir: {:?}, Search paths: {:?}. \
              Consider setting LAMBDUST_LIB_DIR environment variable.",
             subdir, self.primary_lib_dir, self.search_paths
-        )))
+        ))))
     }
 
     /// Resolves the full path to a specific library file.
     pub fn resolve_library_file(&self, subdir: &str, filename: &str) -> Result<PathBuf> {
-        println!("Debug: LibraryPathResolver::resolve_library_file called: subdir={}, filename={}", subdir, filename);
+        println!("Debug: LibraryPathResolver::resolve_library_file called: subdir={subdir}, filename={filename}");
         println!("Debug: Primary lib dir: {:?}", self.primary_lib_dir);
         println!("Debug: Search paths count: {}", self.search_paths.len());
         
@@ -141,7 +141,7 @@ impl LibraryPathResolver {
              Primary lib dir: {:?}, Search paths: {:?}. \
              Consider setting LAMBDUST_LIB_DIR environment variable.",
             subdir, filename, self.primary_lib_dir, self.search_paths
-        )))
+        ))))
     }
 
     /// Finds all available library files in a subdirectory.
@@ -262,7 +262,7 @@ impl LibraryPathResolver {
                     "LAMBDUST_LIB_DIR points to invalid directory: {}. \
                      Directory does not exist or is not accessible.",
                     lib_dir.display()
-                )));
+                ))));
             }
         }
 
@@ -394,7 +394,7 @@ impl LibraryValidationReport {
     pub fn summary(&self) -> String {
         let mut summary = String::new();
         
-        summary.push_str(&format!("Library validation summary:\n"));
+        summary.push_str("Library validation summary:\n");
         summary.push_str(&format!("• Primary lib dir valid: {}\n", self.primary_lib_dir_valid));
         summary.push_str(&format!("• Valid search paths found: {}\n", self.found_search_paths.len()));
         summary.push_str(&format!("• Missing critical subdirs: {}\n", self.missing_critical_subdirs.len()));
@@ -404,13 +404,13 @@ impl LibraryValidationReport {
         }
         
         for (subdir, count) in &self.found_library_files {
-            summary.push_str(&format!("• {} library files in {}\n", count, subdir));
+            summary.push_str(&format!("• {count} library files in {subdir}\n"));
         }
         
         if !self.recommendations.is_empty() {
             summary.push_str("\nRecommendations:\n");
             for rec in &self.recommendations {
-                summary.push_str(&format!("• {}\n", rec));
+                summary.push_str(&format!("• {rec}\n"));
             }
         }
         

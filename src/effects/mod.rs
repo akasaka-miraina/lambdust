@@ -28,9 +28,13 @@ pub mod list_monad;
 pub mod parser_monad;
 
 // Individual structure modules
+/// Effect context for tracking computational contexts and effects
 pub mod effect_context;
+/// Reference-counted effect handlers for shared effect management
 pub mod effect_handler_ref;
+/// Core effect system managing effect handlers and transformations
 pub mod effect_system;
+/// Configuration for automatic effect lifting and transformation
 pub mod lifting_config;
 
 pub use monad::*;
@@ -157,8 +161,8 @@ impl Effect {
     /// Combines two effects, returning the more "impure" one.
     pub fn combine(&self, other: &Effect) -> Effect {
         match (self, other) {
-            (Effect::Pure, other) => other.clone()),
-            (this, Effect::Pure) => this.clone()),
+            (Effect::Pure, other) => other.clone(),
+            (this, Effect::Pure) => this.clone(),
             (Effect::Error, _) | (_, Effect::Error) => Effect::Error,
             (Effect::IO, _) | (_, Effect::IO) => Effect::IO,
             (Effect::State, _) | (_, Effect::State) => Effect::State,

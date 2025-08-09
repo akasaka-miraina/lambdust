@@ -31,7 +31,7 @@ impl Parser {
                             break;
                         }
                     } else {
-                        return Err(Box::new(self.errors.last().unwrap().clone().into()))
+                        return Err(Box::new(self.errors.last().unwrap().clone()))
                     }
                 }
             }
@@ -120,7 +120,7 @@ impl Parser {
                     return Err(Box::new(Error::parse_error(
                         "Expected expression after comma",
                         self.current_span(),
-                    ).into()))
+                    )))
                 }
                 
                 expressions.push(self.parse_expression()?);
@@ -140,7 +140,7 @@ impl Parser {
             _ => Err(Box::new(Error::parse_error(
                 "Expected identifier",
                 expr.span,
-            ).into()))
+            )))
         }
     }
     
@@ -151,7 +151,7 @@ impl Parser {
             _ => Err(Box::new(Error::parse_error(
                 "Expected literal value",
                 expr.span,
-            ).into()))
+            )))
         }
     }
     
@@ -235,7 +235,7 @@ impl Parser {
             return Err(Box::new(Error::parse_error(
                 "Expected identifier in binding pattern",
                 self.current_span(),
-            ).into()))
+            )))
         }
         
         let name = self.current_token().text.clone();
@@ -278,7 +278,7 @@ impl Parser {
                     self.current_token_text()
                 ),
                 self.current_span(),
-            ).into()))
+            )))
         }
     }
     
@@ -307,7 +307,7 @@ mod tests {
     use crate::lexer::{Lexer, TokenKind};
 
     fn create_test_parser(source: &str) -> Parser {
-        let mut lexer = Lexer::new(source, Some("test").into());
+        let mut lexer = Lexer::new(source, Some("test"));
         let tokens = lexer.tokenize().unwrap();
         Parser::new(tokens)
     }

@@ -121,7 +121,7 @@ impl<'a> OptimizedLexer<'a> {
                     return Err(Box::new(Error::lex_error(
                         format!("Unexpected character: '{text}'"),
                         span,
-                    ).into()))
+                    )))
                 }
             }
         }

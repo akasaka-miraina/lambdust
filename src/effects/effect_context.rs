@@ -62,7 +62,7 @@ impl EffectContext {
     
     /// Creates a new context with additional effects.
     pub fn with_effects(&self, effects: Vec<Effect>) -> Self {
-        let mut new_context = self.clone());
+        let mut new_context = self.clone();
         for effect in effects {
             new_context.add_effect(effect);
         }
@@ -71,19 +71,19 @@ impl EffectContext {
     
     /// Creates a new context without the specified effects.
     pub fn without_effects(&self, effects: Vec<Effect>) -> Self {
-        let mut new_effects = self.effects.clone());
+        let mut new_effects = self.effects.clone();
         for effect in effects {
             new_effects.retain(|e| e != &effect);
         }
         Self {
             effects: new_effects,
-            handlers: self.handlers.clone()),
+            handlers: self.handlers.clone(),
         }
     }
     
     /// Combines this context with another.
     pub fn combine(&self, other: &EffectContext) -> EffectContext {
-        let mut combined = self.clone());
+        let mut combined = self.clone();
         for effect in &other.effects {
             combined.add_effect(effect.clone());
         }

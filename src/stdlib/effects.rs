@@ -270,10 +270,10 @@ fn bind_utility_functions(env: &Arc<ThreadSafeEnvironment>) {
 /// return operation - lifts a value into a monad.
 fn primitive_return(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("return expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Create a pure monadic value
@@ -287,10 +287,10 @@ fn primitive_return(args: &[Value]) -> Result<Value> {
 /// >>= operation - monadic bind.
 fn primitive_bind(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!(">>= expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // In a full implementation, this would:
@@ -305,10 +305,10 @@ fn primitive_bind(args: &[Value]) -> Result<Value> {
 /// >> operation - monadic sequence.
 fn primitive_sequence(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!(">> expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return a placeholder
@@ -318,10 +318,10 @@ fn primitive_sequence(args: &[Value]) -> Result<Value> {
 /// fmap operation - functorial map.
 fn primitive_fmap(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("fmap expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return a placeholder
@@ -331,10 +331,10 @@ fn primitive_fmap(args: &[Value]) -> Result<Value> {
 /// join operation - monadic join.
 fn primitive_join(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("join expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return a placeholder
@@ -344,10 +344,10 @@ fn primitive_join(args: &[Value]) -> Result<Value> {
 /// lift2 operation - lift binary function.
 fn primitive_lift2(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("lift2 expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return a placeholder
@@ -357,10 +357,10 @@ fn primitive_lift2(args: &[Value]) -> Result<Value> {
 /// with-handler operation.
 fn primitive_with_handler(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("with-handler expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return a placeholder
@@ -370,10 +370,10 @@ fn primitive_with_handler(args: &[Value]) -> Result<Value> {
 /// define-effect-handler operation.
 fn primitive_define_effect_handler(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("define-effect-handler expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return unspecified
@@ -383,10 +383,10 @@ fn primitive_define_effect_handler(args: &[Value]) -> Result<Value> {
 /// handle operation.
 fn primitive_handle(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("handle expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return a placeholder
@@ -397,10 +397,10 @@ fn primitive_handle(args: &[Value]) -> Result<Value> {
 
 fn primitive_io_return(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("io-return expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string(format!("IO({})", args[0])))
@@ -408,10 +408,10 @@ fn primitive_io_return(args: &[Value]) -> Result<Value> {
 
 fn primitive_io_bind(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("io-bind expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string(format!("IOBind({}, {})", args[0], args[1])))
@@ -419,10 +419,10 @@ fn primitive_io_bind(args: &[Value]) -> Result<Value> {
 
 fn primitive_run_io(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("run-io expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, just return the argument (simulating execution)
@@ -433,10 +433,10 @@ fn primitive_run_io(args: &[Value]) -> Result<Value> {
 
 fn primitive_state_return(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("state-return expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string(format!("State({})", args[0])))
@@ -444,10 +444,10 @@ fn primitive_state_return(args: &[Value]) -> Result<Value> {
 
 fn primitive_get_state(args: &[Value]) -> Result<Value> {
     if !args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("get-state expects 0 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string("GetState".to_string()))
@@ -455,10 +455,10 @@ fn primitive_get_state(args: &[Value]) -> Result<Value> {
 
 fn primitive_put_state(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("put-state expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string(format!("PutState({})", args[0])))
@@ -466,10 +466,10 @@ fn primitive_put_state(args: &[Value]) -> Result<Value> {
 
 fn primitive_modify_state(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("modify-state expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string(format!("ModifyState({})", args[0])))
@@ -477,10 +477,10 @@ fn primitive_modify_state(args: &[Value]) -> Result<Value> {
 
 fn primitive_run_state(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("run-state expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string(format!("RunState({}, {})", args[0], args[1])))
@@ -490,10 +490,10 @@ fn primitive_run_state(args: &[Value]) -> Result<Value> {
 
 fn primitive_error_return(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("error-return expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string(format!("ErrorReturn({})", args[0])))
@@ -501,25 +501,25 @@ fn primitive_error_return(args: &[Value]) -> Result<Value> {
 
 fn primitive_throw_error(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("throw-error expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Actually throw an error
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         format!("Thrown error: {}", args[0]),
         None,
-    ))
+    )))
 }
 
 fn primitive_catch_error(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("catch-error expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::string(format!("CatchError({}, {})", args[0], args[1])))
@@ -527,10 +527,10 @@ fn primitive_catch_error(args: &[Value]) -> Result<Value> {
 
 fn primitive_run_error(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("run-error expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, just return the argument
@@ -541,10 +541,10 @@ fn primitive_run_error(args: &[Value]) -> Result<Value> {
 
 fn primitive_effect_pure_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("effect-pure? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, assume everything is pure unless it's a special monadic value
@@ -556,10 +556,10 @@ fn primitive_effect_pure_p(args: &[Value]) -> Result<Value> {
 
 fn primitive_get_effects(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("get-effects expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return a list of effects as strings
@@ -582,10 +582,10 @@ fn primitive_get_effects(args: &[Value]) -> Result<Value> {
 
 fn primitive_lift_effect(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("lift-effect expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let effect_name = args[0].as_string().unwrap_or("Unknown");

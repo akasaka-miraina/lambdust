@@ -62,7 +62,7 @@ impl EffectSystem {
     
     /// Enters a new effect context.
     pub fn enter_context(&mut self, effects: Vec<Effect>) -> EffectContext {
-        let old_context = self.context.clone());
+        let old_context = self.context.clone();
         for effect in effects {
             self.context.add_effect(effect);
         }

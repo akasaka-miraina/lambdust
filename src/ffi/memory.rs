@@ -55,25 +55,25 @@ impl fmt::Display for MemoryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MemoryError::AllocationFailed { size, alignment } => {
-                write!(f, "Memory allocation failed: {} bytes with {} alignment", size, alignment)
+                write!(f, "Memory allocation failed: {size} bytes with {alignment} alignment")
             }
             MemoryError::InvalidPointer(ptr) => {
-                write!(f, "Invalid pointer: {:p}", ptr)
+                write!(f, "Invalid pointer: {ptr:p}")
             }
             MemoryError::DoubleFree(ptr) => {
-                write!(f, "Double free detected for pointer: {:p}", ptr)
+                write!(f, "Double free detected for pointer: {ptr:p}")
             }
             MemoryError::LeakDetected { ptr, size, allocated_at } => {
-                write!(f, "Memory leak detected: {:p} ({} bytes, allocated at {:?})", ptr, size, allocated_at)
+                write!(f, "Memory leak detected: {ptr:p} ({size} bytes, allocated at {allocated_at:?})")
             }
             MemoryError::BufferOverflow { ptr, size, accessed_size } => {
-                write!(f, "Buffer overflow: pointer {:p}, buffer size {}, accessed size {}", ptr, size, accessed_size)
+                write!(f, "Buffer overflow: pointer {ptr:p}, buffer size {size}, accessed size {accessed_size}")
             }
             MemoryError::AlignmentError { ptr, required_alignment, actual_alignment } => {
-                write!(f, "Memory alignment error: pointer {:p}, required {}, actual {}", ptr, required_alignment, actual_alignment)
+                write!(f, "Memory alignment error: pointer {ptr:p}, required {required_alignment}, actual {actual_alignment}")
             }
             MemoryError::PoolExhausted { pool_name, requested_size } => {
-                write!(f, "Memory pool '{}' exhausted, requested {} bytes", pool_name, requested_size)
+                write!(f, "Memory pool '{pool_name}' exhausted, requested {requested_size} bytes")
             }
         }
     }
@@ -233,14 +233,14 @@ impl FfiMemoryManager {
     /// Configure the memory manager
     pub fn configure(&self, config: MemoryConfig) {
         let mut current_config = self.config.write().unwrap();
-        *current_config = config.clone());
+        *current_config = config.clone();
         
         // Initialize memory pools if enabled
         if config.use_memory_pools {
             let mut pools = self.pools.write().unwrap();
             for &size in &config.pool_sizes {
-                let pool_name = format!("pool_{}", size);
-                pools.insert(pool_name.clone()), MemoryPool::new(pool_name, size, 16)); // 16 blocks per pool
+                let pool_name = format!("pool_{size}");
+                pools.insert(pool_name.clone(), MemoryPool::new(pool_name, size, 16)); // 16 blocks per pool
             }
         }
     }
@@ -311,12 +311,11 @@ impl FfiMemoryManager {
 
         if let Some(info) = allocation_info {
             // Check if this should go back to a pool
-            if config.use_memory_pools {
-                if self.try_return_to_pool(ptr, info.size) {
+            if config.use_memory_pools
+                && self.try_return_to_pool(ptr, info.size) {
                     self.update_deallocation_stats(info.size);
                     return Ok(());
                 }
-            }
 
             // System deallocation
             unsafe {
@@ -386,7 +385,7 @@ impl FfiMemoryManager {
         // Find the smallest pool that can accommodate the request
         for &pool_size in [32, 64, 128, 256, 512, 1024, 2048, 4096].iter() {
             if size <= pool_size {
-                let pool_name = format!("pool_{}", pool_size);
+                let pool_name = format!("pool_{pool_size}");
                 if let Some(pool) = pools.get(&pool_name) {
                     if let Some(ptr) = pool.allocate() {
                         return Some(ptr);
@@ -405,7 +404,7 @@ impl FfiMemoryManager {
         // Find the appropriate pool
         for &pool_size in [32, 64, 128, 256, 512, 1024, 2048, 4096].iter() {
             if size <= pool_size {
-                let pool_name = format!("pool_{}", pool_size);
+                let pool_name = format!("pool_{pool_size}");
                 if let Some(pool) = pools.get(&pool_name) {
                     return pool.deallocate(ptr);
                 }
@@ -453,13 +452,13 @@ impl FfiMemoryManager {
 
     /// Get memory statistics
     pub fn stats(&self) -> MemoryStats {
-        self.stats.read().unwrap().clone())
+        self.stats.read().unwrap().clone()
     }
 
     /// Get allocation info for a pointer
     pub fn get_allocation_info(&self, ptr: *const u8) -> Option<AllocationInfo> {
         let allocations = self.allocations.read().unwrap();
-        allocations.get(&ptr).clone())()
+        allocations.get(&ptr).cloned()
     }
 
     /// List all active allocations
@@ -472,7 +471,7 @@ impl FfiMemoryManager {
     pub fn cleanup_all(&self) -> std::result::Result<(), Vec<MemoryError>> {
         let allocation_ptrs: Vec<*const u8> = {
             let allocations = self.allocations.read().unwrap();
-            allocations.keys().clone())().collect()
+            allocations.keys().cloned().collect()
         };
 
         let mut errors = Vec::new();
@@ -571,7 +570,7 @@ impl MemoryPool {
     pub fn stats(&self) -> PoolStats {
         let free_blocks = self.free_blocks.lock().unwrap();
         PoolStats {
-            name: self.name.clone()),
+            name: self.name.clone(),
             block_size: self.block_size,
             total_blocks: self.total_blocks,
             free_blocks: free_blocks.len(),

@@ -34,7 +34,7 @@ impl Parser {
             return Err(Box::new(Error::parse_error(
                 "Lambda body cannot be empty",
                 self.current_span(),
-            ).into()))
+            )))
         }
         
         let end_span = self.current_span();
@@ -122,14 +122,14 @@ impl Parser {
                         Err(Box::new(Error::parse_error(
                             "Expected identifier as function name in define",
                             operator.span,
-                        ).into()))
+                        )))
                     }
                 }
                 _ => {
                     Err(Box::new(Error::parse_error(
                         "Expected identifier or function signature in define",
                         first.span,
-                    ).into()))
+                    )))
                 }
             }
         })
@@ -144,7 +144,7 @@ impl Parser {
                 _ => return Err(Box::new(Error::parse_error(
                     "Expected identifier in set!",
                     name_expr.span,
-                ).into())),
+                ))),
             };
             
             let value = Box::new(parser.parse_expression()?);
@@ -166,7 +166,7 @@ impl Parser {
                 _ => return Err(Box::new(Error::parse_error(
                     "Expected identifier in define-syntax",
                     name_expr.span,
-                ).into())),
+                ))),
             };
             
             let transformer = Box::new(parser.parse_expression()?);
@@ -195,7 +195,7 @@ impl Parser {
                     return Err(Box::new(Error::parse_error(
                         "Expected identifier in literals list",
                         parser.current_span(),
-                    ).into()))
+                    )))
                 }
                 
                 literals.push(parser.current_token().text.clone());
@@ -231,7 +231,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "syntax-rules must have at least one rule",
                     parser.current_span(),
-                ).into()))
+                )))
             }
             
             let end_span = parser.current_span();
@@ -266,7 +266,7 @@ impl Parser {
             _ => return Err(crate::diagnostics::Error::parse_error(
                 "Expected symbol or string in primitive",
                 name_expr.span,
-            )),
+            ).boxed()),
         };
         
         let mut args = Vec::new();
@@ -380,7 +380,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "Cond clause must have at least one body expression",
                     self.current_span(),
-                ).into()))
+                )))
             }
             
             self.consume(&TokenKind::RightParen, "Expected closing parenthesis for cond clause")?;
@@ -393,7 +393,7 @@ impl Parser {
             return Err(Box::new(Error::parse_error(
                 "Cond form must have at least one clause",
                 self.current_span(),
-            ).into()))
+            )))
         }
         
         let end_span = self.current_span();
@@ -449,7 +449,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "Case clause must have at least one body expression",
                     self.current_span(),
-                ).into()))
+                )))
             }
             
             self.consume(&TokenKind::RightParen, "Expected closing parenthesis for case clause")?;
@@ -462,7 +462,7 @@ impl Parser {
             return Err(Box::new(Error::parse_error(
                 "Case form must have at least one clause",
                 self.current_span(),
-            ).into()))
+            )))
         }
         
         let end_span = self.current_span();
@@ -552,7 +552,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "Expected identifier for guard variable",
                     parser.current_span(),
-                ).into()))
+                )))
             }
             
             let variable = parser.current_token().text.clone();
@@ -590,7 +590,7 @@ impl Parser {
                         return Err(Box::new(Error::parse_error(
                             "Guard clause must have at least one body expression or => clause",
                             parser.current_span(),
-                        ).into()))
+                        )))
                     }
                 }
                 
@@ -604,7 +604,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "Guard form must have at least one clause",
                     parser.current_span(),
-                ).into()))
+                )))
             }
             
             parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for guard clauses")?;
@@ -648,7 +648,7 @@ impl Parser {
                     return Err(Box::new(Error::parse_error(
                         "Case-lambda clause must have at least one body expression",
                         parser.current_span(),
-                    ).into()))
+                    )))
                 }
                 
                 parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for case-lambda clause")?;
@@ -661,7 +661,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "Case-lambda form must have at least one clause",
                     parser.current_span(),
-                ).into()))
+                )))
             }
             
             let end_span = parser.current_span();
@@ -703,7 +703,7 @@ impl Parser {
                         return Err(Box::new(Error::parse_error(
                             "Expected identifier after dot in formals",
                             self.current_span(),
-                        ).into()))
+                        )))
                     }
                     
                     let rest_name = self.current_token().text.clone();
@@ -738,7 +738,7 @@ impl Parser {
                         return Err(Box::new(Error::parse_error(
                             "Cannot mix positional and keyword parameters",
                             self.current_span(),
-                        ).into()))
+                        )))
                     }
                     
                     let param_name = self.current_token().text.clone();
@@ -748,7 +748,7 @@ impl Parser {
                     return Err(Box::new(Error::parse_error(
                         "Expected identifier or keyword in formals",
                         self.current_span(),
-                    ).into()))
+                    )))
                 }
                 
                 self.skip_whitespace();
@@ -758,7 +758,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "Expected closing parenthesis in formals",
                     self.current_span(),
-                ).into()))
+                )))
             }
             self.advance(); // consume ')'
             
@@ -794,7 +794,7 @@ impl Parser {
                 format!("Expected formals list or identifier, found {}", 
                        self.current_token_text()),
                 self.current_span(),
-            ).into()))
+            )))
         }
     }
 
@@ -845,7 +845,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "Expected identifier in binding",
                     self.current_span(),
-                ).into()))
+                )))
             }
             
             let name = self.current_token().text.clone();
@@ -878,7 +878,7 @@ impl Parser {
             return Err(Box::new(Error::parse_error(
                 "Body cannot be empty",
                 self.current_span(),
-            ).into()))
+            )))
         }
         
         Ok(body)
@@ -899,13 +899,13 @@ impl Parser {
                             return Err(Box::new(Error::parse_error(
                                 "Multiple dots in formal parameter list",
                                 operand.span,
-                            ).into()))
+                            )))
                         }
                         if i == operands.len() - 1 {
                             return Err(Box::new(Error::parse_error(
                                 "Expected rest parameter after dot",
                                 operand.span,
-                            ).into()))
+                            )))
                         }
                         if i == operands.len() - 2 {
                             // Next parameter should be the rest parameter
@@ -917,13 +917,13 @@ impl Parser {
                                 return Err(Box::new(Error::parse_error(
                                     "Expected identifier as rest parameter",
                                     operands[i + 1].span,
-                                ).into()))
+                                )))
                             }
                         } else {
                             return Err(Box::new(Error::parse_error(
                                 "Dot must be followed by exactly one rest parameter",
                                 operand.span,
-                            ).into()))
+                            )))
                         }
                     } else if !_found_dot {
                         fixed_params.push(name.clone());
@@ -933,7 +933,7 @@ impl Parser {
                     return Err(Box::new(Error::parse_error(
                         "Expected identifier in formal parameter list",
                         operand.span,
-                    ).into()))
+                    )))
                 }
             }
         }
@@ -964,7 +964,7 @@ impl Parser {
             return Err(Box::new(Error::parse_error(
                 "Import form requires at least one import specification",
                 self.current_span(),
-            ).into()))
+            )))
         }
         
         let end_span = self.current_span();
@@ -987,19 +987,19 @@ impl Parser {
             while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
                 if parser.check(&TokenKind::Identifier) {
                     let name = parser.current_token().text.clone();
-                    println!("Debug: Found library name part: {}", name);
+                    println!("Debug: Found library name part: {name}");
                     name_parts.push(name);
                     parser.advance();
                 } else if parser.check(&TokenKind::IntegerNumber) {
                     let name = parser.current_token().text.clone();
-                    println!("Debug: Found library name part (number): {}", name);
+                    println!("Debug: Found library name part (number): {name}");
                     name_parts.push(name);
                     parser.advance();
                 } else {
                     return Err(Box::new(Error::parse_error(
                         "Library name parts must be identifiers or numbers",
                         parser.current_span(),
-                    ).into()))
+                    )))
                 }
                 parser.skip_whitespace();
             }
@@ -1008,7 +1008,7 @@ impl Parser {
                 return Err(Box::new(Error::parse_error(
                     "Library name cannot be empty",
                     parser.current_span(),
-                ).into()))
+                )))
             }
             
             parser.consume(&TokenKind::RightParen, "Expected closing parenthesis for library name")?;
@@ -1021,7 +1021,7 @@ impl Parser {
             
             println!("Debug: About to parse library declarations");
             while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
-                println!("Debug: Parsing library declaration, current token: {:?}", parser.current_token);
+                println!("Debug: Parsing library declaration, current token: {:?}", parser.current_token());
                 // Parse each library declaration
                 if parser.check(&TokenKind::LeftParen) {
                     let declaration_start_span = parser.current_span();
@@ -1030,7 +1030,7 @@ impl Parser {
                     
                     if parser.check(&TokenKind::Identifier) {
                         let keyword = parser.current_token().text.clone();
-                        println!("Debug: Found library declaration keyword: {}", keyword);
+                        println!("Debug: Found library declaration keyword: {keyword}");
                         parser.advance();
                         parser.skip_whitespace();
                         
@@ -1074,14 +1074,14 @@ impl Parser {
                         return Err(Box::new(Error::parse_error(
                             "Expected identifier in library declaration",
                             parser.current_span(),
-                        ).into()))
+                        )))
                     }
                 } else {
-                    println!("Debug: Expected library declaration but found: {:?}", parser.current_token);
+                    println!("Debug: Expected library declaration but found: {:?}", parser.current_token());
                     return Err(Box::new(Error::parse_error(
                         "Expected library declaration (list starting with identifier)",
                         parser.current_span(),
-                    ).into()))
+                    )))
                 }
                 parser.skip_whitespace();
             }

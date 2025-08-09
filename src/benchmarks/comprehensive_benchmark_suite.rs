@@ -490,12 +490,19 @@ pub struct BenchmarkMetadata {
 /// performance results and comparing across different systems.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemInfo {
+    /// Operating system name and version.
     pub os: String,
+    /// System architecture (e.g., x86_64, aarch64).
     pub architecture: String,
+    /// CPU model name and details.
     pub cpu_model: String,
+    /// Number of CPU cores.
     pub cpu_cores: u32,
+    /// Total system memory in megabytes.
     pub total_memory_mb: u64,
+    /// Available system memory in megabytes.
     pub available_memory_mb: u64,
+    /// System hostname.
     pub hostname: String,
 }
 
@@ -514,7 +521,7 @@ pub struct ImplementationResult {
     /// Performance ranking among all implementations
     pub ranking: u32,
     /// Failures and errors
-    pub failures: Vec<TestFailure>,
+    pub failures: Vec<Box<TestFailure>>,
     /// Resource usage statistics
     pub resource_stats: ResourceStats,
 }
@@ -665,6 +672,9 @@ pub struct TestFailure {
     /// Stack trace (if available)
     pub stack_trace: Option<String>,
 }
+
+/// Type alias to reduce large error size
+pub type BenchmarkResult<T> = Result<T, Box<TestFailure>>;
 
 /// Reason for test failure
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1521,24 +1531,24 @@ impl ComprehensiveBenchmarkSuite {
             
             match self.benchmark_implementation(impl_config) {
                 Ok(result) => {
-                    implementation_results.insert(impl_config.id.clone()), result);
+                    implementation_results.insert(impl_config.id.clone(), result);
                 }
                 Err(e) => {
                     eprintln!("Failed to benchmark {}: {}", impl_config.name, e);
                     // Create a failure result
                     let failure_result = ImplementationResult {
-                        config: impl_config.clone()),
+                        config: impl_config.clone(),
                         category_results: HashMap::new(),
                         overall_score: 0.0,
                         ranking: 0,
-                        failures: vec![TestFailure {
+                        failures: vec![Box::new(TestFailure {
                             test_name: "suite_execution".to_string(),
                             category: "infrastructure".to_string(),
                             parameters: HashMap::new(),
                             reason: FailureReason::InfrastructureError,
                             error_message: e.to_string(),
                             stack_trace: None,
-                        }],
+                        })],
                         resource_stats: ResourceStats {
                             cpu: CPUStats {
                                 avg_usage_percent: 0.0,
@@ -1563,7 +1573,7 @@ impl ComprehensiveBenchmarkSuite {
                             network_io: None,
                         },
                     };
-                    implementation_results.insert(impl_config.id.clone()), failure_result);
+                    implementation_results.insert(impl_config.id.clone(), failure_result);
                 }
             }
         }
@@ -1583,7 +1593,7 @@ impl ComprehensiveBenchmarkSuite {
         let metadata = BenchmarkMetadata {
             timestamp: start_time,
             total_duration,
-            config: self.config.clone()),
+            config: self.config.clone(),
             system_info,
             git_commit: self.get_git_commit(),
             environment: std::env::vars().collect(),
@@ -1637,8 +1647,8 @@ impl ComprehensiveBenchmarkSuite {
             let statistics = self.calculate_category_statistics(&test_results);
             let score = self.calculate_category_score(&test_results, category);
             
-            category_results.insert(category.name.clone()), CategoryResult {
-                category: category.name.clone()),
+            category_results.insert(category.name.clone(), CategoryResult {
+                category: category.name.clone(),
                 test_results,
                 score,
                 statistics,
@@ -1654,7 +1664,7 @@ impl ComprehensiveBenchmarkSuite {
         let resource_stats = self.calculate_resource_stats(impl_config);
         
         Ok(ImplementationResult {
-            config: impl_config.clone()),
+            config: impl_config.clone(),
             category_results,
             overall_score,
             ranking: 0, // Will be set during comparison phase
@@ -1669,7 +1679,7 @@ impl ComprehensiveBenchmarkSuite {
         impl_config: &ImplementationConfig,
         test_case: &TestCase,
         params: &HashMap<String, ParameterValue>,
-    ) -> Result<TestResult, TestFailure> {
+    ) -> BenchmarkResult<TestResult> {
         // Generate the test code with parameter substitution
         let test_code = self.substitute_parameters(&test_case.code_template, params)?;
         
@@ -1684,19 +1694,19 @@ impl ComprehensiveBenchmarkSuite {
         let _ = fs::remove_file(&temp_file);
         
         if !success {
-            return Err(TestFailure {
-                test_name: test_case.name.clone()),
+            return Err(Box::new(TestFailure {
+                test_name: test_case.name.clone(),
                 category: "unknown".to_string(), // Would be passed from caller
-                parameters: params.clone()),
+                parameters: params.clone(),
                 reason: FailureReason::RuntimeError,
                 error_message: error.unwrap_or_else(|| "Unknown error".to_string()),
                 stack_trace: None,
-            });
+            }));
         }
         
         Ok(TestResult {
-            test_case: test_case.clone()),
-            parameters: params.clone()),
+            test_case: test_case.clone(),
+            parameters: params.clone(),
             timing,
             memory,
             validation,
@@ -1718,8 +1728,8 @@ impl ComprehensiveBenchmarkSuite {
             
             for value in &param.values {
                 for existing_combo in &combinations {
-                    let mut new_combo = existing_combo.clone());
-                    new_combo.insert(param.name.clone()), value.clone());
+                    let mut new_combo = existing_combo.clone();
+                    new_combo.insert(param.name.clone(), value.clone());
                     new_combinations.push(new_combo);
                 }
             }
@@ -1735,25 +1745,25 @@ impl ComprehensiveBenchmarkSuite {
         &self,
         template: &str,
         params: &HashMap<String, ParameterValue>,
-    ) -> Result<String, TestFailure> {
+    ) -> BenchmarkResult<String> {
         let mut result = template.to_string();
         
         for (name, value) in params {
-            let placeholder = format!("{{{}}}", name);
+            let placeholder = format!("{{{name}}}");
             let value_str = match value {
                 ParameterValue::Integer { value } => value.to_string(),
                 ParameterValue::Float { value } => value.to_string(),
-                ParameterValue::String { value } => format!("\"{}\"", value),
+                ParameterValue::String { value } => format!("\"{value}\""),
                 ParameterValue::Boolean { value } => if *value { "#t" } else { "#f" }.to_string(),
                 ParameterValue::Range { .. } => {
-                    return Err(TestFailure {
+                    return Err(Box::new(TestFailure {
                         test_name: "parameter_substitution".to_string(),
                         category: "infrastructure".to_string(),
-                        parameters: params.clone()),
+                        parameters: params.clone(),
                         reason: FailureReason::InfrastructureError,
                         error_message: "Range parameters should be expanded before substitution".to_string(),
                         stack_trace: None,
-                    });
+                    }));
                 }
             };
             result = result.replace(&placeholder, &value_str);
@@ -1767,7 +1777,7 @@ impl ComprehensiveBenchmarkSuite {
         &self,
         impl_config: &ImplementationConfig,
         test_code: &str,
-    ) -> Result<String, TestFailure> {
+    ) -> BenchmarkResult<String> {
         let file_extension = match &impl_config.runtime {
             RuntimeConfig::Lambdust { .. } => ".ldust",
             _ => ".scm",
@@ -1783,7 +1793,7 @@ impl ComprehensiveBenchmarkSuite {
             category: "infrastructure".to_string(),
             parameters: HashMap::new(),
             reason: FailureReason::InfrastructureError,
-            error_message: format!("Failed to create temp file: {}", e),
+            error_message: format!("Failed to create temp file: {e}"),
             stack_trace: None,
         })?;
         
@@ -1796,7 +1806,7 @@ impl ComprehensiveBenchmarkSuite {
         impl_config: &ImplementationConfig,
         test_file: &str,
         test_case: &TestCase,
-    ) -> Result<(TimingMeasurements, MemoryMeasurements, ValidationResult, bool, Option<String>), TestFailure> {
+    ) -> BenchmarkResult<(TimingMeasurements, MemoryMeasurements, ValidationResult, bool, Option<String>)> {
         let mut iteration_times = Vec::new();
         let mut memory_measurements = Vec::new();
         
@@ -1842,7 +1852,7 @@ impl ComprehensiveBenchmarkSuite {
         impl_config: &ImplementationConfig,
         test_file: &str,
         _test_case: &TestCase,
-    ) -> Result<(bool, Option<String>, u64), TestFailure> {
+    ) -> BenchmarkResult<(bool, Option<String>, u64)> {
         let mut cmd = match &impl_config.runtime {
             RuntimeConfig::Native { binary_path, args, env_vars } => {
                 let mut command = Command::new(binary_path);
@@ -1854,7 +1864,7 @@ impl ComprehensiveBenchmarkSuite {
                 command
             }
             RuntimeConfig::Lambdust { target_dir, profile, .. } => {
-                let binary_path = format!("{}/{}/lambdust", target_dir, profile);
+                let binary_path = format!("{target_dir}/{profile}/lambdust");
                 let mut command = Command::new(binary_path);
                 command.arg("--batch");
                 command.arg(test_file);
@@ -1862,14 +1872,14 @@ impl ComprehensiveBenchmarkSuite {
             }
             RuntimeConfig::Docker { .. } => {
                 // Docker execution would be implemented here
-                return Err(TestFailure {
+                return Err(Box::new(TestFailure {
                     test_name: "docker_execution".to_string(),
                     category: "infrastructure".to_string(),
                     parameters: HashMap::new(),
                     reason: FailureReason::InfrastructureError,
                     error_message: "Docker execution not yet implemented".to_string(),
                     stack_trace: None,
-                });
+                }));
             }
         };
         
@@ -1887,14 +1897,14 @@ impl ComprehensiveBenchmarkSuite {
                 
                 Ok((success, error, memory_usage))
             }
-            Err(e) => Err(TestFailure {
+            Err(e) => Err(Box::new(TestFailure {
                 test_name: "command_execution".to_string(),
                 category: "infrastructure".to_string(),
                 parameters: HashMap::new(),
                 reason: FailureReason::InfrastructureError,
-                error_message: format!("Failed to execute command: {}", e),
+                error_message: format!("Failed to execute command: {e}"),
                 stack_trace: None,
-            }),
+            })),
         }
     }
     
@@ -1907,7 +1917,7 @@ impl ComprehensiveBenchmarkSuite {
         let sum: Duration = times.iter().sum();
         let mean = sum / times.len() as u32;
         
-        let mut sorted_times = times.clone());
+        let mut sorted_times = times.clone();
         sorted_times.sort();
         
         let median = sorted_times[sorted_times.len() / 2];

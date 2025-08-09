@@ -145,12 +145,12 @@ impl MonadicEvaluator {
         if let Expr::Identifier(op_name) = &op.inner {
             match op_name.as_str() {
                 "display" | "write" => {
-                    if let Some(arg) = args.get(0) {
+                    if let Some(arg) = args.first() {
                         let value = self.eval_pure(arg, env)?;
                         let io_comp: IO<Value> = IO::<()>::write(value.clone()).map(move |_| value.clone());
                         Ok(EvalResult::IO(io_comp))
                     } else {
-                        Err(Box::new(Error::runtime_error("write requires an argument".to_string(), Some(op.span)))
+                        Err(Box::new(Error::runtime_error("write requires an argument".to_string(), Some(op.span))))
                     }
                 }
                 
@@ -161,7 +161,7 @@ impl MonadicEvaluator {
                 }
                 
                 "read-line" => {
-                    let io_comp: IO<Value> = IO::<String>::read_line().map(|s| Value::string(s));
+                    let io_comp: IO<Value> = IO::<String>::read_line().map(Value::string);
                     Ok(EvalResult::IO(io_comp))
                 }
                 
@@ -208,14 +208,14 @@ impl MonadicEvaluator {
                 }
                 
                 "set-state!" => {
-                    if let Some(arg) = args.get(0) {
+                    if let Some(arg) = args.first() {
                         let new_env = self.eval_pure(arg, env.clone())?;
                         // Convert value to environment (simplified)
                         let thread_safe_env = super::value::ThreadSafeEnvironment::from_legacy(&env);
                         let state_comp: State<Arc<super::value::ThreadSafeEnvironment>, Value> = State::<Arc<super::value::ThreadSafeEnvironment>, ()>::put(thread_safe_env).map(|_| Value::Unspecified);
                         Ok(EvalResult::State(state_comp))
                     } else {
-                        Err(Box::new(Error::runtime_error("set-state! requires an argument".to_string(), Some(op.span)))
+                        Err(Box::new(Error::runtime_error("set-state! requires an argument".to_string(), Some(op.span))))
                     }
                 }
                 
@@ -253,11 +253,11 @@ impl MonadicEvaluator {
         if let Expr::Identifier(op_name) = &op.inner {
             match op_name.as_str() {
                 "just" => {
-                    if let Some(arg) = args.get(0) {
+                    if let Some(arg) = args.first() {
                         let value = self.eval_pure(arg, env)?;
                         Ok(EvalResult::Maybe(Maybe::just(value)))
                     } else {
-                        Err(Box::new(Error::runtime_error("just requires an argument".to_string(), Some(op.span)))
+                        Err(Box::new(Error::runtime_error("just requires an argument".to_string(), Some(op.span))))
                     }
                 }
                 
@@ -278,7 +278,7 @@ impl MonadicEvaluator {
                         // Apply function (simplified - would need proper function application)
                         Ok(EvalResult::Maybe(maybe))
                     } else {
-                        Err(Box::new(Error::runtime_error("maybe-bind requires two arguments".to_string(), Some(op.span)))
+                        Err(Box::new(Error::runtime_error("maybe-bind requires two arguments".to_string(), Some(op.span))))
                     }
                 }
                 
@@ -316,9 +316,9 @@ impl MonadicEvaluator {
         if let Expr::Identifier(op_name) = &op.inner {
             match op_name.as_str() {
                 "error" | "raise" => {
-                    if let Some(arg) = args.get(0) {
+                    if let Some(arg) = args.first() {
                         let error_msg = self.eval_pure(arg, env)?;
-                        let error_str = format!("{}", error_msg);
+                        let error_str = format!("{error_msg}");
                         let error = Error::runtime_error(error_str, Some(op.span));
                         Ok(EvalResult::Either(Either::left(error)))
                     } else {
@@ -328,7 +328,7 @@ impl MonadicEvaluator {
                 }
                 
                 "try" => {
-                    if let Some(arg) = args.get(0) {
+                    if let Some(arg) = args.first() {
                         match self.eval(arg, env)? {
                             EvalResult::Value(v) => Ok(EvalResult::Either(Either::right(v))),
                             EvalResult::Either(either) => Ok(EvalResult::Either(either)),
@@ -373,7 +373,7 @@ impl MonadicEvaluator {
             
             Expr::Identifier(name) => {
                 env.lookup(name).ok_or_else(|| {
-                    Error::runtime_error(format!("Unbound variable: {}", name), Some(expr.span))
+                    Box::new(Error::runtime_error(format!("Unbound variable: {name}"), Some(expr.span)))
                 })
             }
             
@@ -392,8 +392,8 @@ impl MonadicEvaluator {
             
             Expr::Lambda { formals, body, .. } => {
                 Ok(Value::procedure(Procedure {
-                    formals: formals.clone()),
-                    body: body.clone()),
+                    formals: formals.clone(),
+                    body: body.clone(),
                     environment: super::value::ThreadSafeEnvironment::from_legacy(&env),
                     name: None,
                     metadata: HashMap::new(),
@@ -419,7 +419,7 @@ impl MonadicEvaluator {
         match proc {
             Value::Continuation(cont) => {
                 // Apply a continuation - this is a non-local jump
-                if let Some(arg) = args.get(0) {
+                if let Some(arg) = args.first() {
                     // Convert to proper continuation application
                     // This should restore the evaluation context and jump
                     Ok(arg.clone()) // Simplified
@@ -463,11 +463,12 @@ impl MonadicEvaluator {
             _ => Err(Box::new(Error::runtime_error(
                 "Cannot apply non-procedure".to_string(),
                 Some(span)
-            ))
+            )))
         }
     }
     
     /// Quote an expression (convert AST to Value)
+    #[allow(clippy::only_used_in_recursion)]
     fn quote_expression(&self, expr: &Spanned<Expr>) -> Result<Value> {
         match &expr.inner {
             Expr::Literal(lit) => Ok(Value::from_literal(lit.clone())),
@@ -527,7 +528,7 @@ impl MonadicEvaluator {
             EvalResult::Continuation(cont) => {
                 // Run the continuation monad computation
                 crate::effects::continuation_monad::run_continuation(cont)
-                    .map_err(|e| Error::runtime_error(e.to_string(), None))
+                    .map_err(|e| Error::runtime_error(e.to_string(), None).boxed())
             }
             
             EvalResult::IO(io) => {
@@ -537,12 +538,15 @@ impl MonadicEvaluator {
             
             EvalResult::Maybe(maybe) => {
                 // Convert Maybe to Value
-                Ok(maybe)
+                Ok(match maybe {
+                    crate::effects::builtin_monads::Maybe::Just(value) => value,
+                    crate::effects::builtin_monads::Maybe::Nothing => Value::Nil,
+                })
             }
             
             EvalResult::Either(either) => {
                 // Convert Either to Result<Value>
-                either.into())
+                either.into()
             }
             
             EvalResult::State(state) => {
@@ -564,8 +568,8 @@ impl MonadicEvaluator {
     fn capture_evaluation_context(&self, env: Rc<Environment>) -> ContinuationFunction {
         let thread_safe_env = env.to_thread_safe();
         let continuation_comp = ContinuationComputation::EvaluationContext {
-            stack: self.eval_stack.clone()),
-            captured_env: thread_safe_env.clone()),
+            stack: self.eval_stack.clone(),
+            captured_env: thread_safe_env.clone(),
         };
         
         ContinuationFunction::new(
@@ -588,7 +592,7 @@ impl Continuation {
     pub fn from_function(func: ContinuationFunction) -> Self {
         Continuation::new(
             Vec::new(), // Stack (simplified)
-            func.environment.clone()),
+            func.environment.clone(),
             func.id,
             None, // Current expression (simplified)
         )
@@ -615,12 +619,18 @@ mod tests {
         
         let expr = Spanned {
             inner: Expr::Literal(Literal::Number(42.0)),
-            span: Span { start: 0, end: 2, source_id: 0 },
+            span: Span { 
+                start: 0, 
+                len: 2,
+                file_id: Some(0),
+                line: 1,
+                column: 1
+            },
         };
         
         let result = evaluator.eval(&expr, env).unwrap();
         match result {
-            EvalResult::Value(Value::Number(n)) => assert_eq!(n, 42.0),
+            EvalResult::Value(Value::Literal(Literal::Number(n))) => assert_eq!(n, 42.0),
             _ => panic!("Expected number value"),
         }
     }
@@ -635,19 +645,37 @@ mod tests {
             inner: Expr::Application {
                 operator: Box::new(Spanned {
                     inner: Expr::Identifier("just".to_string()),
-                    span: Span { start: 1, end: 5, source_id: 0 },
+                    span: Span { 
+                        start: 1, 
+                        len: 4,
+                        file_id: Some(0),
+                        line: 1,
+                        column: 1
+                    },
                 }),
                 operands: vec![Spanned {
                     inner: Expr::Literal(Literal::Number(42.0)),
-                    span: Span { start: 6, end: 8, source_id: 0 },
+                    span: Span { 
+                        start: 6, 
+                        len: 2,
+                        file_id: Some(0),
+                        line: 1,
+                        column: 7
+                    },
                 }],
             },
-            span: Span { start: 0, end: 9, source_id: 0 },
+            span: Span { 
+                start: 0, 
+                len: 9,
+                file_id: Some(0),
+                line: 1,
+                column: 1
+            },
         };
         
         let result = evaluator.eval(&expr, env).unwrap();
         match result {
-            EvalResult::Maybe(Maybe::Just(Value::Number(n))) => assert_eq!(n, 42.0),
+            EvalResult::Maybe(Maybe::Just(Value::Literal(Literal::Number(n)))) => assert_eq!(n, 42.0),
             _ => panic!("Expected Maybe::Just with number"),
         }
     }
@@ -662,14 +690,32 @@ mod tests {
             inner: Expr::Application {
                 operator: Box::new(Spanned {
                     inner: Expr::Identifier("write".to_string()),
-                    span: Span { start: 1, end: 6, source_id: 0 },
+                    span: Span { 
+                        start: 1, 
+                        len: 6,
+                        file_id: Some(0),
+                        line: 1,
+                        column: 1
+                    },
                 }),
                 operands: vec![Spanned {
                     inner: Expr::Literal(Literal::String("hello".to_string())),
-                    span: Span { start: 7, end: 14, source_id: 0 },
+                    span: Span { 
+                        start: 7, 
+                        len: 7,
+                        file_id: Some(0),
+                        line: 1,
+                        column: 8
+                    },
                 }],
             },
-            span: Span { start: 0, end: 15, source_id: 0 },
+            span: Span { 
+                start: 0, 
+                len: 15,
+                file_id: Some(0),
+                line: 1,
+                column: 1
+            },
         };
         
         let result = evaluator.eval(&expr, env).unwrap();
@@ -689,14 +735,32 @@ mod tests {
             inner: Expr::Application {
                 operator: Box::new(Spanned {
                     inner: Expr::Identifier("error".to_string()),
-                    span: Span { start: 1, end: 6, source_id: 0 },
+                    span: Span { 
+                        start: 1, 
+                        len: 6,
+                        file_id: Some(0),
+                        line: 1,
+                        column: 1
+                    },
                 }),
                 operands: vec![Spanned {
                     inner: Expr::Literal(Literal::String("test error".to_string())),
-                    span: Span { start: 7, end: 19, source_id: 0 },
+                    span: Span { 
+                        start: 7, 
+                        len: 12,
+                        file_id: Some(0),
+                        line: 1,
+                        column: 8
+                    },
                 }],
             },
-            span: Span { start: 0, end: 20, source_id: 0 },
+            span: Span { 
+                start: 0, 
+                len: 20,
+                file_id: Some(0),
+                line: 1,
+                column: 1
+            },
         };
         
         let result = evaluator.eval(&expr, env).unwrap();

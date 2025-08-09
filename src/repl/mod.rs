@@ -18,6 +18,7 @@ pub mod session;
 
 // Individual structure modules
 pub mod repl_config;
+/// Enhanced REPL implementation with advanced features.
 pub mod enhanced_repl;
 
 use crate::{Lambdust, Result};

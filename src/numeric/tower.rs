@@ -15,7 +15,7 @@ pub fn promote_types(left: &NumericValue, right: &NumericValue) -> (NumericValue
     let right_type = right.numeric_type();
     
     match left_type.max(right_type) {
-        Integer => (left.clone()), right.clone()),
+        Integer => (left.clone(), right.clone()),
         BigInteger => (promote_to_bigint(left), promote_to_bigint(right)),
         Rational => (promote_to_rational(left), promote_to_rational(right)),
         Real => (promote_to_real(left), promote_to_real(right)),
@@ -27,7 +27,7 @@ pub fn promote_types(left: &NumericValue, right: &NumericValue) -> (NumericValue
 pub fn promote_to_bigint(value: &NumericValue) -> NumericValue {
     match value {
         NumericValue::Integer(n) => NumericValue::BigInteger(BigInt::from_i64(*n)),
-        NumericValue::BigInteger(_) => value.clone()),
+        NumericValue::BigInteger(_) => value.clone(),
         NumericValue::Rational(r) if r.denominator == 1 => {
             NumericValue::BigInteger(BigInt::from_i64(r.numerator))
         }
@@ -37,7 +37,7 @@ pub fn promote_to_bigint(value: &NumericValue) -> NumericValue {
         NumericValue::Complex(c) if c.imaginary == 0.0 && c.real.fract() == 0.0 && c.real.is_finite() => {
             NumericValue::BigInteger(BigInt::from_i64(c.real as i64))
         }
-        _ => value.clone()), // Cannot promote non-integer values
+        _ => value.clone(), // Cannot promote non-integer values
     }
 }
 
@@ -54,19 +54,19 @@ pub fn promote_to_rational(value: &NumericValue) -> NumericValue {
                 NumericValue::Real(n.to_f64().unwrap_or(f64::INFINITY))
             }
         }
-        NumericValue::Rational(_) => value.clone()),
+        NumericValue::Rational(_) => value.clone(),
         NumericValue::Real(r) => {
             // Try to convert to exact rational if it's a simple fraction
             if let Some(rational) = float_to_rational(*r) {
                 NumericValue::Rational(rational)
             } else {
-                value.clone())
+                value.clone()
             }
         }
         NumericValue::Complex(c) if c.imaginary == 0.0 => {
             promote_to_rational(&NumericValue::Real(c.real))
         }
-        _ => value.clone()),
+        _ => value.clone(),
     }
 }
 
@@ -76,9 +76,9 @@ pub fn promote_to_real(value: &NumericValue) -> NumericValue {
         NumericValue::Integer(n) => NumericValue::Real(*n as f64),
         NumericValue::BigInteger(n) => NumericValue::Real(n.to_f64().unwrap_or(f64::INFINITY)),
         NumericValue::Rational(r) => NumericValue::Real(r.to_f64()),
-        NumericValue::Real(_) => value.clone()),
+        NumericValue::Real(_) => value.clone(),
         NumericValue::Complex(c) if c.imaginary == 0.0 => NumericValue::Real(c.real),
-        _ => value.clone()),
+        _ => value.clone(),
     }
 }
 
@@ -91,10 +91,14 @@ pub fn promote_to_complex(value: &NumericValue) -> NumericValue {
         }
         NumericValue::Rational(r) => NumericValue::Complex(Complex::from_real(r.to_f64())),
         NumericValue::Real(r) => NumericValue::Complex(Complex::from_real(*r)),
-        NumericValue::Complex(_) => value.clone()),
+        NumericValue::Complex(_) => value.clone(),
     }
 }
 
+/// Adds two numeric values using type promotion and overflow handling.
+/// 
+/// Automatically promotes types to ensure compatibility and prevents overflow
+/// by upgrading to BigInteger when needed.
 pub fn add(left: &NumericValue, right: &NumericValue) -> NumericValue {
     let (left_promoted, right_promoted) = promote_types(left, right);
     
@@ -126,6 +130,9 @@ pub fn add(left: &NumericValue, right: &NumericValue) -> NumericValue {
     }
 }
 
+/// Subtracts the right numeric value from the left using type promotion.
+/// 
+/// Handles overflow by automatically promoting to BigInteger when necessary.
 pub fn subtract(left: &NumericValue, right: &NumericValue) -> NumericValue {
     let (left_promoted, right_promoted) = promote_types(left, right);
     
@@ -155,6 +162,9 @@ pub fn subtract(left: &NumericValue, right: &NumericValue) -> NumericValue {
     }
 }
 
+/// Multiplies two numeric values with type promotion and overflow handling.
+/// 
+/// Promotes types as needed and upgrades to BigInteger on overflow.
 pub fn multiply(left: &NumericValue, right: &NumericValue) -> NumericValue {
     let (left_promoted, right_promoted) = promote_types(left, right);
     
@@ -184,6 +194,9 @@ pub fn multiply(left: &NumericValue, right: &NumericValue) -> NumericValue {
     }
 }
 
+/// Divides the left numeric value by the right with type promotion.
+/// 
+/// Returns an error if division by zero is attempted.
 pub fn divide(left: &NumericValue, right: &NumericValue) -> Result<NumericValue, String> {
     if right.is_zero() {
         return Err("Division by zero".to_string());
@@ -217,6 +230,9 @@ pub fn divide(left: &NumericValue, right: &NumericValue) -> Result<NumericValue,
     }
 }
 
+/// Negates a numeric value with overflow handling.
+/// 
+/// Promotes to BigInteger if negation would cause overflow.
 pub fn negate(value: &NumericValue) -> NumericValue {
     match value {
         NumericValue::Integer(n) => {
@@ -233,6 +249,9 @@ pub fn negate(value: &NumericValue) -> NumericValue {
     }
 }
 
+/// Compares two numeric values for ordering.
+/// 
+/// Returns None if either value is complex (non-real), as complex numbers cannot be ordered.
 pub fn compare(left: &NumericValue, right: &NumericValue) -> Option<Ordering> {
     // Complex numbers cannot be ordered
     if !left.is_real() || !right.is_real() {
@@ -258,6 +277,9 @@ pub fn compare(left: &NumericValue, right: &NumericValue) -> Option<Ordering> {
     }
 }
 
+/// Raises a numeric value to the power of another numeric value.
+/// 
+/// Handles integer powers efficiently and promotes to complex for general cases.
 pub fn power(base: &NumericValue, exponent: &NumericValue) -> NumericValue {
     match (base, exponent) {
         // Integer^Integer with small exponents
@@ -289,6 +311,9 @@ pub fn power(base: &NumericValue, exponent: &NumericValue) -> NumericValue {
     }
 }
 
+/// Computes the square root of a numeric value.
+/// 
+/// Returns integer result when possible, otherwise promotes to real or complex.
 pub fn sqrt(value: &NumericValue) -> NumericValue {
     match value {
         NumericValue::Integer(n) if *n >= 0 => {
@@ -333,29 +358,35 @@ fn float_to_rational(f: f64) -> Option<Rational> {
     None
 }
 
+/// Converts a numeric value to its exact representation.
+/// 
+/// Attempts to convert real numbers to rational representation when possible.
 pub fn make_exact(value: &NumericValue) -> NumericValue {
     match value {
         NumericValue::Integer(_) | NumericValue::BigInteger(_) | NumericValue::Rational(_) => {
-            value.clone()) // Already exact
+            value.clone() // Already exact
         }
         NumericValue::Real(r) => {
             if let Some(rational) = float_to_rational(*r) {
                 NumericValue::Rational(rational)
             } else {
-                value.clone()) // Cannot make exact
+                value.clone() // Cannot make exact
             }
         }
         NumericValue::Complex(c) if c.is_real() => {
             make_exact(&NumericValue::Real(c.real))
         }
-        NumericValue::Complex(_) => value.clone()), // Cannot make complex exact in general
+        NumericValue::Complex(_) => value.clone(), // Cannot make complex exact in general
     }
 }
 
+/// Converts a numeric value to its inexact (floating-point) representation.
+/// 
+/// Promotes exact values to their real number equivalents.
 pub fn make_inexact(value: &NumericValue) -> NumericValue {
     match value {
         NumericValue::Real(_) | NumericValue::Complex(_) => {
-            value.clone()) // Already inexact
+            value.clone() // Already inexact
         }
         _ => promote_to_real(value), // Convert to real (inexact)
     }

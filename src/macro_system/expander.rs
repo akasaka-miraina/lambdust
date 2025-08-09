@@ -109,7 +109,7 @@ impl ConfigurableExpander {
                     use crate::eval::Environment;
                     let env = Environment::new(None, 0);
                     let renamed_expr = self.hygiene_context.rename_identifiers(
-                        expanded.clone()),
+                        expanded.clone(),
                         &env
                     )?;
                     if self.config.collect_stats {
@@ -125,7 +125,7 @@ impl ConfigurableExpander {
         Err(Box::new(Error::macro_error(
             "No matching pattern for macro".to_string(),
             span,
-        ))
+        )))
     }
 
     /// Resets the expander state for a new expansion session.

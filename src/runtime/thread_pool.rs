@@ -131,7 +131,7 @@ impl ThreadPool {
             return Err(crate::diagnostics::Error::runtime_error(
                 "Thread pool size must be greater than 0".to_string(),
                 None,
-            ));
+            ).boxed());
         }
 
         let work_queue = Arc::new(crossbeam::queue::SegQueue::new());
@@ -147,11 +147,11 @@ impl ThreadPool {
         for worker_id in 0..size {
             let worker = Self::create_worker(
                 worker_id as u64,
-                global_env.clone()),
-                effect_coordinator.clone()),
-                work_queue.clone()),
-                shutdown_signal.clone()),
-                stats.clone()),
+                global_env.clone(),
+                effect_coordinator.clone(),
+                work_queue.clone(),
+                shutdown_signal.clone(),
+                stats.clone(),
             )?;
             workers.push(worker);
         }
@@ -185,12 +185,12 @@ impl ThreadPool {
         let (worker_sender, worker_receiver) = channel::unbounded();
         
         // Clone what we need for the thread
-        let worker_global_env = global_env.clone());
-        let worker_effect_coordinator = effect_coordinator.clone());
-        let worker_work_queue = work_queue.clone());
-        let worker_shutdown_signal = shutdown_signal.clone());
-        let worker_pool_stats = pool_stats.clone());
-        let _worker_sender_clone = worker_sender.clone());
+        let worker_global_env = global_env.clone();
+        let worker_effect_coordinator = effect_coordinator.clone();
+        let worker_work_queue = work_queue.clone();
+        let worker_shutdown_signal = shutdown_signal.clone();
+        let worker_pool_stats = pool_stats.clone();
+        let _worker_sender_clone = worker_sender.clone();
 
         let handle = thread::spawn(move || {
             Self::worker_thread_main(
@@ -236,8 +236,8 @@ impl ThreadPool {
         // Create local evaluator
         let (evaluator_worker, _) = EvaluatorWorker::new(
             worker_id,
-            global_env.clone()),
-            effect_coordinator.clone()),
+            global_env.clone(),
+            effect_coordinator.clone(),
         );
 
         // Main worker loop
@@ -336,7 +336,7 @@ impl ThreadPool {
             return Err(crate::diagnostics::Error::runtime_error(
                 "Cannot submit work to shutdown thread pool".to_string(),
                 None,
-            ));
+            ).boxed());
         }
 
         // Add to global work queue for work stealing
@@ -357,7 +357,7 @@ impl ThreadPool {
             return Err(crate::diagnostics::Error::runtime_error(
                 "No workers available in thread pool".to_string(),
                 None,
-            ));
+            ).boxed());
         }
 
         // For now, just use the first worker
@@ -366,7 +366,7 @@ impl ThreadPool {
         
         Ok(EvaluatorHandle {
             thread_id: worker.thread_id.unwrap_or_else(|| thread::current().id()),
-            sender: worker.sender.clone()),
+            sender: worker.sender.clone(),
             id: handle_id,
         })
     }
@@ -379,7 +379,7 @@ impl ThreadPool {
     /// Gets current thread pool statistics.
     pub fn statistics(&self) -> ThreadPoolStats {
         let stats = self.stats.read().unwrap();
-        stats.clone())
+        stats.clone()
     }
 
     /// Shuts down the thread pool gracefully.

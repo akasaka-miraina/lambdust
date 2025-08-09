@@ -158,9 +158,9 @@ impl SerializableValue {
                 Ok(SerializableValue::Vector(serializable_vec))
             }
             _ => Err(Box::new(Error::runtime_error(
-                format!("Cannot serialize value type: {:?}", value),
+                format!("Cannot serialize value type: {value:?}"),
                 None,
-            )),
+            ))),
         }
     }
 
@@ -174,7 +174,7 @@ impl SerializableValue {
             SerializableValue::String(s) => Ok(Value::Literal(crate::ast::Literal::String(s.clone()))),
             SerializableValue::Symbol(s) => {
                 // Extract symbol ID from the string (simplified)
-                Ok(Value::Symbol(crate::utils::SymbolId(s.len() as usize)))
+                Ok(Value::Symbol(crate::utils::SymbolId(s.len())))
             }
             SerializableValue::List(list) => {
                 let mut result = Value::Nil;
@@ -259,7 +259,7 @@ impl RpcClient {
             let connections = self.connections.lock().unwrap();
             connections.get(&target_node)
                 .ok_or_else(|| ConcurrencyError::Network("Node not connected".to_string()).boxed())?
-                .clone())
+                .clone()
         };
 
         let request_id = Uuid::new_v4().to_string();
@@ -268,7 +268,7 @@ impl RpcClient {
             .collect();
 
         let request = RpcRequest {
-            id: request_id.clone()),
+            id: request_id.clone(),
             service,
             method,
             args: serializable_args?,
@@ -284,7 +284,7 @@ impl RpcClient {
         
         match response.result {
             Ok(value) => value.to_value(),
-            Err(error) => Err(Box::new(Error::runtime_error(error, None).boxed()),
+            Err(error) => Err(Error::runtime_error(error, None).boxed()),
         }
     }
 }
@@ -334,11 +334,11 @@ impl RpcServer {
                 .map_err(|e| ConcurrencyError::Network(e.to_string()).boxed())?;
 
             let connection = Arc::new(Connection::new(stream));
-            let services = self.services.clone());
+            let services = self.services.clone();
             
             tokio::spawn(async move {
                 if let Err(e) = Self::handle_connection(connection, services).await {
-                    eprintln!("Connection error: {}", e);
+                    eprintln!("Connection error: {e}");
                 }
             });
         }
@@ -352,18 +352,18 @@ impl RpcServer {
         loop {
             match connection.receive_request().await {
                 Ok(request) => {
-                    let services = services.clone());
-                    let connection = connection.clone());
+                    let services = services.clone();
+                    let connection = connection.clone();
                     
                     tokio::spawn(async move {
                         let response = Self::process_request(request, services).await;
                         if let Err(e) = connection.send_response(response).await {
-                            eprintln!("Failed to send response: {}", e);
+                            eprintln!("Failed to send response: {e}");
                         }
                     });
                 }
                 Err(e) => {
-                    eprintln!("Failed to receive request: {}", e);
+                    eprintln!("Failed to receive request: {e}");
                     break;
                 }
             }
@@ -381,24 +381,22 @@ impl RpcServer {
         
         let service = {
             let services = services.lock().unwrap();
-            services.get(&request.service).clone())()
+            services.get(&request.service).cloned()
         };
 
-        let result = if let Some(service) = service {
+        if let Some(service) = service {
             service.handle_request(request.clone()).await
         } else {
             RpcResponse {
                 request_id: request.id,
-                result: Err(format!("Service '{}' not found", request.service)),
+                result: Err(format!("Service '{service}' not found", service = request.service)),
                 timestamp: std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_millis() as u64,
                 processing_time: Some(start_time.elapsed().as_micros() as u64),
             }
-        };
-
-        result
+        }
     }
 }
 
@@ -432,7 +430,7 @@ impl Connection {
         
         {
             let mut pending = self.pending_requests.lock().await;
-            pending.insert(request.id.clone()), tx);
+            pending.insert(request.id.clone(), tx);
         }
 
         // Serialize and send request
@@ -581,7 +579,7 @@ impl DistributedNode {
         
         // Note: Server would be started in background in a real implementation
         // For now, we just bind and return
-        println!("RPC server bound to {}", addr);
+        println!("RPC server bound to {addr}");
         
         Ok(())
     }
@@ -608,10 +606,10 @@ impl DistributedOps {
         F: Fn(&Value) -> Result<Value> + Send + Sync + 'static,
     {
         if nodes.is_empty() {
-            return Err(Box::new(Error::runtime_error("No nodes available".to_string(), None).into())
+            return Err(Box::new(Error::runtime_error("No nodes available".to_string(), None)))
         }
 
-        let chunk_size = (data.len() + nodes.len() - 1) / nodes.len();
+        let chunk_size = data.len().div_ceil(nodes.len());
         let mut futures = Vec::new();
 
         for (i, chunk) in data.chunks(chunk_size).enumerate() {
@@ -666,7 +664,7 @@ impl DistributedOps {
     ) -> Result<Value> {
         // First, perform local reductions on each node
         let partial_results = Self::distributed_map(
-            nodes.clone()),
+            nodes.clone(),
             client,
             data,
             |_| Ok(Value::Nil), // Placeholder

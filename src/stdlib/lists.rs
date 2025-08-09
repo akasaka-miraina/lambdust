@@ -389,48 +389,48 @@ fn bind_list_utilities(env: &Arc<ThreadSafeEnvironment>) {
 /// cons procedure
 fn primitive_cons(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("cons expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
-    Ok(Value::pair(args[0].clone()), args[1].clone()))
+    Ok(Value::pair(args[0].clone(), args[1].clone()))
 }
 
 /// car procedure
 fn primitive_car(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("car expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::Pair(car, _) => Ok((**car).clone()),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "car requires a pair".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// cdr procedure
 fn primitive_cdr(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("cdr expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::Pair(_, cdr) => Ok((**cdr).clone()),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "cdr requires a pair".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -442,20 +442,20 @@ fn primitive_list(args: &[Value]) -> Result<Value> {
 /// list* procedure (improper list constructor)
 fn primitive_list_star(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "list* requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     if args.len() == 1 {
         return Ok(args[0].clone());
     }
     
-    let mut result = args[args.len() - 1].clone());
+    let mut result = args[args.len() - 1].clone();
     
     for arg in args[..args.len() - 1].iter().rev() {
-        result = Value::pair(arg.clone()), result);
+        result = Value::pair(arg.clone(), result);
     }
     
     Ok(result)
@@ -464,10 +464,10 @@ fn primitive_list_star(args: &[Value]) -> Result<Value> {
 /// make-list procedure
 fn primitive_make_list(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("make-list expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let length = args[0].as_integer().ok_or_else(|| {
@@ -478,14 +478,14 @@ fn primitive_make_list(args: &[Value]) -> Result<Value> {
     })?;
     
     if length < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "make-list length must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let fill = if args.len() == 2 {
-        args[1].clone())
+        args[1].clone()
     } else {
         Value::Unspecified
     };
@@ -499,10 +499,10 @@ fn primitive_make_list(args: &[Value]) -> Result<Value> {
 /// pair? predicate
 fn primitive_pair_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("pair? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_pair()))
@@ -511,10 +511,10 @@ fn primitive_pair_p(args: &[Value]) -> Result<Value> {
 /// null? predicate
 fn primitive_null_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("null? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_nil()))
@@ -523,10 +523,10 @@ fn primitive_null_p(args: &[Value]) -> Result<Value> {
 /// list? predicate
 fn primitive_list_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(is_proper_list(&args[0])))
@@ -558,10 +558,10 @@ fn make_car_cdr_combination(name: &str) -> fn(&[Value]) -> Result<Value> {
         // Add more combinations as needed
         _ => {
             fn unknown_combination(_args: &[Value]) -> Result<Value> {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "Unknown car/cdr combination".to_string(),
                     None,
-                ))
+                )))
             }
             unknown_combination
         },
@@ -571,10 +571,10 @@ fn make_car_cdr_combination(name: &str) -> fn(&[Value]) -> Result<Value> {
 /// list-ref procedure
 fn primitive_list_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list-ref expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let index = args[1].as_integer().ok_or_else(|| {
@@ -585,10 +585,10 @@ fn primitive_list_ref(args: &[Value]) -> Result<Value> {
     })?;
     
     if index < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "list-ref index must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let mut current = &args[0];
@@ -601,30 +601,30 @@ fn primitive_list_ref(args: &[Value]) -> Result<Value> {
                 i += 1;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "list-ref index out of bounds".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
     
     match current {
         Value::Pair(car, _) => Ok((**car).clone()),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "list-ref index out of bounds".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// list-tail procedure
 fn primitive_list_tail(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list-tail expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let k = args[1].as_integer().ok_or_else(|| {
@@ -635,26 +635,26 @@ fn primitive_list_tail(args: &[Value]) -> Result<Value> {
     })?;
     
     if k < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "list-tail k must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
-    let mut current = args[0].clone());
+    let mut current = args[0].clone();
     let mut i = 0;
     
     while i < k {
         match current {
             Value::Pair(_, cdr) => {
-                current = cdr.as_ref().clone());
+                current = cdr.as_ref().clone();
                 i += 1;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "list-tail k out of bounds".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -667,10 +667,10 @@ fn primitive_list_tail(args: &[Value]) -> Result<Value> {
 /// length procedure
 fn primitive_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("length expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let mut current = &args[0];
@@ -684,10 +684,10 @@ fn primitive_length(args: &[Value]) -> Result<Value> {
                 length += 1;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "length requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -708,14 +708,14 @@ fn primitive_append(args: &[Value]) -> Result<Value> {
     // All but the last argument must be proper lists
     for arg in &args[..args.len() - 1] {
         if !is_proper_list(arg) {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "append arguments (except the last) must be proper lists".to_string(),
                 None,
-            ));
+            )));
         }
     }
     
-    let mut result = args[args.len() - 1].clone());
+    let mut result = args[args.len() - 1].clone();
     
     for arg in args[..args.len() - 1].iter().rev() {
         if let Some(list) = arg.as_list() {
@@ -731,10 +731,10 @@ fn primitive_append(args: &[Value]) -> Result<Value> {
 /// reverse procedure
 fn primitive_reverse(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("reverse expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(list) = args[0].as_list() {
@@ -742,68 +742,68 @@ fn primitive_reverse(args: &[Value]) -> Result<Value> {
         reversed.reverse();
         Ok(Value::list(reversed))
     } else {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "reverse requires a proper list".to_string(),
             None,
-        ))
+        )))
     }
 }
 
 /// set-car! procedure (mutation)
 fn primitive_set_car(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("set-car! expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Note: This would require mutable pair support in a full implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "set-car! requires mutable pair support (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// set-cdr! procedure (mutation)
 fn primitive_set_cdr(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("set-cdr! expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Note: This would require mutable pair support in a full implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "set-cdr! requires mutable pair support (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// list-set! procedure (mutation)
 fn primitive_list_set(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list-set! expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Note: This would require mutable pair support in a full implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "list-set! requires mutable pair support (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// list-copy procedure
 fn primitive_list_copy(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list-copy expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, we'll do a shallow copy by reconstructing the list
@@ -815,10 +815,10 @@ fn primitive_list_copy(args: &[Value]) -> Result<Value> {
 /// map procedure - Enhanced R7RS implementation supporting multiple lists
 fn primitive_map(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "map requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
@@ -826,10 +826,10 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
     
     // Verify procedure is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "map first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert all arguments to proper lists and find minimum length
@@ -841,10 +841,10 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
             min_length = min_length.min(list_values.len());
             list_vectors.push(list_values);
         } else {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 format!("map argument {} must be a list", i + 2),
                 None,
-            ));
+            )));
         }
     }
     
@@ -869,19 +869,19 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "map with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
                 results.push(result);
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "map with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -892,10 +892,10 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
 /// for-each procedure - Enhanced R7RS implementation supporting multiple lists
 fn primitive_for_each(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "for-each requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
@@ -903,10 +903,10 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
     
     // Verify procedure is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "for-each first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert all arguments to proper lists and find minimum length
@@ -918,10 +918,10 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
             min_length = min_length.min(list_values.len());
             list_vectors.push(list_values);
         } else {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 format!("for-each argument {} must be a list", i + 2),
                 None,
-            ));
+            )));
         }
     }
     
@@ -950,18 +950,18 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
                         func(&proc_args)?;
                     },
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "for-each with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "for-each with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -973,10 +973,10 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
 /// filter procedure
 fn primitive_filter(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("filter expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let predicate = &args[0];
@@ -984,10 +984,10 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
     
     // Verify predicate is callable
     if !predicate.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "filter first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert to proper list
@@ -1002,7 +1002,7 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
     
     // Apply predicate to each element
     for element in list {
-        let proc_args = vec![element.clone())];
+        let proc_args = vec![element.clone()];
         
         // Apply the predicate - for now we can only handle primitive procedures
         let keep = match predicate {
@@ -1011,10 +1011,10 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "filter with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
                 
@@ -1022,10 +1022,10 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
                 result.is_truthy()
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "filter with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         };
         
@@ -1040,22 +1040,22 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
 /// fold-left procedure
 fn primitive_fold_left(args: &[Value]) -> Result<Value> {
     if args.len() < 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "fold-left requires at least 3 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
-    let mut accumulator = args[1].clone());
+    let mut accumulator = args[1].clone();
     let lists = &args[2..];
     
     // Verify procedure is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "fold-left first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert all list arguments to proper lists and find minimum length
@@ -1092,18 +1092,18 @@ fn primitive_fold_left(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "fold-left with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "fold-left with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1114,22 +1114,22 @@ fn primitive_fold_left(args: &[Value]) -> Result<Value> {
 /// fold-right procedure
 fn primitive_fold_right(args: &[Value]) -> Result<Value> {
     if args.len() < 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "fold-right requires at least 3 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
-    let mut accumulator = args[1].clone());
+    let mut accumulator = args[1].clone();
     let lists = &args[2..];
     
     // Verify procedure is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "fold-right first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert all list arguments to proper lists and find minimum length
@@ -1167,18 +1167,18 @@ fn primitive_fold_right(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "fold-right with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "fold-right with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1189,35 +1189,35 @@ fn primitive_fold_right(args: &[Value]) -> Result<Value> {
 /// any procedure
 fn primitive_any(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "any requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     // Note: This is a simplified implementation
     // A full implementation would need to handle procedure calls with the evaluator
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "any requires evaluator integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// every procedure
 fn primitive_every(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "every requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     // Note: This is a simplified implementation
     // A full implementation would need to handle procedure calls with the evaluator
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "every requires evaluator integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= LIST UTILITY IMPLEMENTATIONS =============
@@ -1225,10 +1225,10 @@ fn primitive_every(args: &[Value]) -> Result<Value> {
 /// member procedure
 fn primitive_member(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("member expects 2 or 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -1247,10 +1247,10 @@ fn primitive_member(args: &[Value]) -> Result<Value> {
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "member requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1259,10 +1259,10 @@ fn primitive_member(args: &[Value]) -> Result<Value> {
 /// memq procedure (eq? comparison)
 fn primitive_memq(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("memq expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -1278,10 +1278,10 @@ fn primitive_memq(args: &[Value]) -> Result<Value> {
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "memq requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1290,10 +1290,10 @@ fn primitive_memq(args: &[Value]) -> Result<Value> {
 /// memv procedure (eqv? comparison)
 fn primitive_memv(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("memv expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -1309,10 +1309,10 @@ fn primitive_memv(args: &[Value]) -> Result<Value> {
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "memv requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1321,10 +1321,10 @@ fn primitive_memv(args: &[Value]) -> Result<Value> {
 /// assoc procedure
 fn primitive_assoc(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("assoc expects 2 or 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -1341,19 +1341,19 @@ fn primitive_assoc(args: &[Value]) -> Result<Value> {
                         }
                     }
                     _ => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "assoc requires a list of pairs".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "assoc requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1362,10 +1362,10 @@ fn primitive_assoc(args: &[Value]) -> Result<Value> {
 /// assq procedure (eq? comparison)
 fn primitive_assq(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("assq expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -1382,19 +1382,19 @@ fn primitive_assq(args: &[Value]) -> Result<Value> {
                         }
                     }
                     _ => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "assq requires a list of pairs".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "assq requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1403,10 +1403,10 @@ fn primitive_assq(args: &[Value]) -> Result<Value> {
 /// assv procedure (eqv? comparison)
 fn primitive_assv(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("assv expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -1423,19 +1423,19 @@ fn primitive_assv(args: &[Value]) -> Result<Value> {
                         }
                     }
                     _ => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "assv requires a list of pairs".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "assv requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1444,18 +1444,18 @@ fn primitive_assv(args: &[Value]) -> Result<Value> {
 /// sort procedure
 fn primitive_sort(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("sort expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Note: This is a simplified implementation
     // A full implementation would need to handle procedure calls with the evaluator
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "sort requires evaluator integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= HELPER FUNCTIONS =============
@@ -1481,12 +1481,12 @@ fn copy_list(value: &Value) -> Result<Value> {
         Value::Nil => Ok(Value::Nil),
         Value::Pair(car, cdr) => {
             let copied_cdr = copy_list(cdr)?;
-            Ok(Value::pair((**car).clone()), copied_cdr))
+            Ok(Value::pair((**car).clone(), copied_cdr))
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "copy-list requires a list".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1510,10 +1510,10 @@ fn values_eqv(a: &Value, b: &Value) -> bool {
 /// take - Take the first n elements of a list
 fn srfi1_take(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("take expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list_arg = &args[0];
@@ -1525,10 +1525,10 @@ fn srfi1_take(args: &[Value]) -> Result<Value> {
     })?;
     
     if n < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "take n must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let mut current = list_arg;
@@ -1544,19 +1544,19 @@ fn srfi1_take(args: &[Value]) -> Result<Value> {
                 count += 1;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "take requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
     
     if count < n {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "take: list too short".to_string(),
             None,
-        ));
+        )));
     }
     
     Ok(Value::list(result))
@@ -1565,13 +1565,13 @@ fn srfi1_take(args: &[Value]) -> Result<Value> {
 /// drop - Drop the first n elements of a list
 fn srfi1_drop(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("drop expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
-    let mut list_arg = args[0].clone());
+    let mut list_arg = args[0].clone();
     let n = args[1].as_integer().ok_or_else(|| {
         DiagnosticError::runtime_error(
             "drop n must be a non-negative integer".to_string(),
@@ -1580,30 +1580,30 @@ fn srfi1_drop(args: &[Value]) -> Result<Value> {
     })?;
     
     if n < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "drop n must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let mut count = 0;
     while count < n {
         match list_arg {
             Value::Nil => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "drop: list too short".to_string(),
                     None,
-                ));
+                )));
             }
             Value::Pair(_, cdr) => {
-                list_arg = cdr.as_ref().clone());
+                list_arg = cdr.as_ref().clone();
                 count += 1;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "drop requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1614,10 +1614,10 @@ fn srfi1_drop(args: &[Value]) -> Result<Value> {
 /// take-right - Take the last n elements of a list
 fn srfi1_take_right(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("take-right expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list_arg = &args[0];
@@ -1629,10 +1629,10 @@ fn srfi1_take_right(args: &[Value]) -> Result<Value> {
     })?;
     
     if n < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "take-right n must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let list = list_arg.as_list().ok_or_else(|| {
@@ -1644,10 +1644,10 @@ fn srfi1_take_right(args: &[Value]) -> Result<Value> {
     
     let list_len = list.len();
     if (n as usize) > list_len {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "take-right: n larger than list length".to_string(),
             None,
-        ));
+        )));
     }
     
     let start_idx = list_len - (n as usize);
@@ -1658,10 +1658,10 @@ fn srfi1_take_right(args: &[Value]) -> Result<Value> {
 /// drop-right - Drop the last n elements of a list
 fn srfi1_drop_right(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("drop-right expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list_arg = &args[0];
@@ -1673,10 +1673,10 @@ fn srfi1_drop_right(args: &[Value]) -> Result<Value> {
     })?;
     
     if n < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "drop-right n must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let list = list_arg.as_list().ok_or_else(|| {
@@ -1699,20 +1699,20 @@ fn srfi1_drop_right(args: &[Value]) -> Result<Value> {
 /// take-while - Take elements while predicate is true
 fn srfi1_take_while(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("take-while expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let predicate = &args[0];
     let list_arg = &args[1];
     
     if !predicate.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "take-while first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     let list = list_arg.as_list().ok_or_else(|| {
@@ -1725,7 +1725,7 @@ fn srfi1_take_while(args: &[Value]) -> Result<Value> {
     let mut result = Vec::new();
     
     for element in list {
-        let proc_args = vec![element.clone())];
+        let proc_args = vec![element.clone()];
         
         let should_take = match predicate {
             Value::Primitive(prim) => {
@@ -1733,19 +1733,19 @@ fn srfi1_take_while(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "take-while with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
                 pred_result.is_truthy()
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "take-while with user-defined procedures requires evaluator integration".to_string(),
                     None,
-                ));
+                )));
             }
         };
         
@@ -1762,27 +1762,27 @@ fn srfi1_take_while(args: &[Value]) -> Result<Value> {
 /// drop-while - Drop elements while predicate is true
 fn srfi1_drop_while(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("drop-while expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let predicate = &args[0];
     let mut current = &args[1];
     
     if !predicate.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "drop-while first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     loop {
         match current {
             Value::Nil => return Ok(Value::Nil),
             Value::Pair(car, cdr) => {
-                let proc_args = vec![(**car).clone())];
+                let proc_args = vec![(**car).clone()];
                 
                 let should_drop = match predicate {
                     Value::Primitive(prim) => {
@@ -1790,19 +1790,19 @@ fn srfi1_drop_while(args: &[Value]) -> Result<Value> {
                             PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                         PrimitiveImpl::Native(func) => func(&proc_args)?,
                             PrimitiveImpl::ForeignFn { .. } => {
-                                return Err(DiagnosticError::runtime_error(
+                                return Err(Box::new(DiagnosticError::runtime_error(
                                     "drop-while with foreign functions not yet implemented".to_string(),
                                     None,
-                                ));
+                                )));
                             }
                         };
                         pred_result.is_truthy()
                     },
                     _ => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "drop-while with user-defined procedures requires evaluator integration".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
                 
@@ -1813,10 +1813,10 @@ fn srfi1_drop_while(args: &[Value]) -> Result<Value> {
                 }
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "drop-while requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1825,10 +1825,10 @@ fn srfi1_drop_while(args: &[Value]) -> Result<Value> {
 /// split-at - Split a list at position n
 fn srfi1_split_at(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("split-at expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list_arg = &args[0];
@@ -1840,10 +1840,10 @@ fn srfi1_split_at(args: &[Value]) -> Result<Value> {
     })?;
     
     if n < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "split-at n must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let list = list_arg.as_list().ok_or_else(|| {
@@ -1855,10 +1855,10 @@ fn srfi1_split_at(args: &[Value]) -> Result<Value> {
     
     let n_usize = n as usize;
     if n_usize > list.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "split-at: index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let (prefix, suffix) = list.split_at(n_usize);
@@ -1871,10 +1871,10 @@ fn srfi1_split_at(args: &[Value]) -> Result<Value> {
 /// last - Get the last element of a list
 fn srfi1_last(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("last expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list = args[0].as_list().ok_or_else(|| {
@@ -1885,10 +1885,10 @@ fn srfi1_last(args: &[Value]) -> Result<Value> {
     })?;
     
     if list.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "last: empty list".to_string(),
             None,
-        ));
+        )));
     }
     
     Ok(list[list.len() - 1].clone())
@@ -1897,10 +1897,10 @@ fn srfi1_last(args: &[Value]) -> Result<Value> {
 /// last-pair - Get the last pair of a list
 fn srfi1_last_pair(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("last-pair expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let mut current = &args[0];
@@ -1908,23 +1908,23 @@ fn srfi1_last_pair(args: &[Value]) -> Result<Value> {
     loop {
         match current {
             Value::Nil => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "last-pair: empty list".to_string(),
                     None,
-                ));
+                )));
             }
             Value::Pair(_, cdr) => {
-                let last_pair = current.clone());
+                let last_pair = current.clone();
                 if cdr.is_nil() {
                     return Ok(last_pair);
                 }
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "last-pair requires a list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1936,21 +1936,21 @@ fn srfi1_last_pair(args: &[Value]) -> Result<Value> {
 /// (fold kons knil clist1 clist2 ...)
 fn srfi1_fold(args: &[Value]) -> Result<Value> {
     if args.len() < 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "fold requires at least 3 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
-    let mut accumulator = args[1].clone());
+    let mut accumulator = args[1].clone();
     let lists = &args[2..];
     
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "fold first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert all list arguments to proper lists and find minimum length
@@ -1985,18 +1985,18 @@ fn srfi1_fold(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "fold with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "fold with user-defined procedures requires evaluator integration".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -2007,21 +2007,21 @@ fn srfi1_fold(args: &[Value]) -> Result<Value> {
 /// fold-right - SRFI-1 version of fold-right
 fn srfi1_fold_right(args: &[Value]) -> Result<Value> {
     if args.len() < 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "fold-right requires at least 3 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
-    let mut accumulator = args[1].clone());
+    let mut accumulator = args[1].clone();
     let lists = &args[2..];
     
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "fold-right first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert all list arguments to proper lists and find minimum length
@@ -2057,18 +2057,18 @@ fn srfi1_fold_right(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "fold-right with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "fold-right with user-defined procedures requires evaluator integration".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -2079,10 +2079,10 @@ fn srfi1_fold_right(args: &[Value]) -> Result<Value> {
 /// reduce - Reduce a list using a binary operation
 fn srfi1_reduce(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("reduce expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
@@ -2090,10 +2090,10 @@ fn srfi1_reduce(args: &[Value]) -> Result<Value> {
     let list_arg = &args[2];
     
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "reduce first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     let list = list_arg.as_list().ok_or_else(|| {
@@ -2111,10 +2111,10 @@ fn srfi1_reduce(args: &[Value]) -> Result<Value> {
         return Ok(list[0].clone());
     }
     
-    let mut accumulator = list[0].clone());
+    let mut accumulator = list[0].clone();
     
     for element in &list[1..] {
-        let proc_args = vec![accumulator, element.clone())];
+        let proc_args = vec![accumulator, element.clone()];
         
         match procedure {
             Value::Primitive(prim) => {
@@ -2122,18 +2122,18 @@ fn srfi1_reduce(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "reduce with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "reduce with user-defined procedures requires evaluator integration".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -2144,10 +2144,10 @@ fn srfi1_reduce(args: &[Value]) -> Result<Value> {
 /// reduce-right - Reduce a list from right to left
 fn srfi1_reduce_right(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("reduce-right expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
@@ -2155,10 +2155,10 @@ fn srfi1_reduce_right(args: &[Value]) -> Result<Value> {
     let list_arg = &args[2];
     
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "reduce-right first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     let list = list_arg.as_list().ok_or_else(|| {
@@ -2176,10 +2176,10 @@ fn srfi1_reduce_right(args: &[Value]) -> Result<Value> {
         return Ok(list[0].clone());
     }
     
-    let mut accumulator = list[list.len() - 1].clone());
+    let mut accumulator = list[list.len() - 1].clone();
     
     for element in list[..list.len() - 1].iter().rev() {
-        let proc_args = vec![element.clone()), accumulator];
+        let proc_args = vec![element.clone(), accumulator];
         
         match procedure {
             Value::Primitive(prim) => {
@@ -2187,18 +2187,18 @@ fn srfi1_reduce_right(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "reduce-right with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "reduce-right with user-defined procedures requires evaluator integration".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -2209,33 +2209,33 @@ fn srfi1_reduce_right(args: &[Value]) -> Result<Value> {
 /// unfold - Generate a list by repeatedly applying functions
 fn srfi1_unfold(args: &[Value]) -> Result<Value> {
     if args.len() < 4 || args.len() > 5 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("unfold expects 4 or 5 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return not implemented
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "unfold requires evaluator integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// unfold-right - Generate a list in reverse by repeatedly applying functions
 fn srfi1_unfold_right(args: &[Value]) -> Result<Value> {
     if args.len() < 4 || args.len() > 5 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("unfold-right expects 4 or 5 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, return not implemented
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "unfold-right requires evaluator integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= SRFI-1 ASSOCIATION IMPLEMENTATION =============
@@ -2243,27 +2243,27 @@ fn srfi1_unfold_right(args: &[Value]) -> Result<Value> {
 /// alist-cons - Add a key-value pair to an association list
 fn srfi1_alist_cons(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("alist-cons expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let key = &args[0];
     let datum = &args[1];
     let alist = &args[2];
     
-    let pair = Value::pair(key.clone()), datum.clone());
+    let pair = Value::pair(key.clone(), datum.clone());
     Ok(Value::pair(pair, alist.clone()))
 }
 
 /// alist-copy - Copy an association list
 fn srfi1_alist_copy(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("alist-copy expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     copy_alist(&args[0])
@@ -2272,10 +2272,10 @@ fn srfi1_alist_copy(args: &[Value]) -> Result<Value> {
 /// alist-delete - Delete entries with a given key from an association list
 fn srfi1_alist_delete(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("alist-delete expects 2 or 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let key = &args[0];
@@ -2292,24 +2292,24 @@ fn srfi1_alist_delete(args: &[Value]) -> Result<Value> {
                 match car.as_ref() {
                     Value::Pair(entry_key, entry_value) => {
                         if !values_equal(key, entry_key) {
-                            let entry = Value::pair((**entry_key).clone()), (**entry_value).clone());
+                            let entry = Value::pair((**entry_key).clone(), (**entry_value).clone());
                             result.push(entry);
                         }
                     }
                     _ => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "alist-delete requires a list of pairs".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "alist-delete requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -2322,10 +2322,10 @@ fn srfi1_alist_delete(args: &[Value]) -> Result<Value> {
 /// list= - Test if lists are equal element-wise
 fn srfi1_list_equal(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "list= requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     if args.len() == 1 {
@@ -2368,7 +2368,7 @@ fn srfi1_list_equal(args: &[Value]) -> Result<Value> {
     // Compare elements pairwise using the equality predicate
     for i in 0..first_len {
         for j in 1..list_data.len() {
-            let proc_args = vec![list_data[0][i].clone()), list_data[j][i].clone())];
+            let proc_args = vec![list_data[0][i].clone(), list_data[j][i].clone()];
             
             let are_equal = match eq_pred {
                 Value::Primitive(prim) => {
@@ -2376,19 +2376,19 @@ fn srfi1_list_equal(args: &[Value]) -> Result<Value> {
                         PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                         PrimitiveImpl::Native(func) => func(&proc_args)?,
                         PrimitiveImpl::ForeignFn { .. } => {
-                            return Err(DiagnosticError::runtime_error(
+                            return Err(Box::new(DiagnosticError::runtime_error(
                                 "list= with foreign functions not yet implemented".to_string(),
                                 None,
-                            ));
+                            )));
                         }
                     };
                     result.is_truthy()
                 },
                 _ => {
-                    return Err(DiagnosticError::runtime_error(
+                    return Err(Box::new(DiagnosticError::runtime_error(
                         "list= with user-defined procedures requires evaluator integration".to_string(),
                         None,
-                    ));
+                    )));
                 }
             };
             
@@ -2466,23 +2466,23 @@ fn copy_alist(alist: &Value) -> Result<Value> {
             Value::Pair(car, cdr) => {
                 match car.as_ref() {
                     Value::Pair(key, value) => {
-                        let copied_pair = Value::pair((**key).clone()), (**value).clone());
+                        let copied_pair = Value::pair((**key).clone(), (**value).clone());
                         result.push(copied_pair);
                     }
                     _ => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "alist-copy requires a list of pairs".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
                 current = cdr;
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "alist-copy requires a proper list".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -2528,7 +2528,7 @@ mod tests {
         let args = vec![Value::integer(1), Value::integer(2)];
         let pair = primitive_cons(&args).unwrap();
         
-        let car_result = primitive_car(&[pair.clone())]).unwrap();
+        let car_result = primitive_car(&[pair.clone()]).unwrap();
         assert_eq!(car_result, Value::integer(1));
         
         let cdr_result = primitive_cdr(&[pair]).unwrap();
@@ -2851,7 +2851,7 @@ mod tests {
         });
         
         let list = Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]);
-        let args = vec![Value::Primitive(true_pred), list.clone())];
+        let args = vec![Value::Primitive(true_pred), list.clone()];
         let result = primitive_filter(&args).unwrap();
         
         assert_eq!(result, list);
@@ -2957,11 +2957,11 @@ mod tests {
         let empty_list = Value::Nil;
         let initial = Value::number(42.0);
         
-        let args = vec![Value::Primitive(add_proc.clone()), initial.clone()), empty_list.clone())];
+        let args = vec![Value::Primitive(add_proc.clone()), initial.clone(), empty_list.clone()];
         let result_left = primitive_fold_left(&args).unwrap();
         assert_eq!(result_left, initial);
         
-        let args = vec![Value::Primitive(add_proc), initial.clone()), empty_list];
+        let args = vec![Value::Primitive(add_proc), initial.clone(), empty_list];
         let result_right = primitive_fold_right(&args).unwrap();
         assert_eq!(result_right, initial);
     }
@@ -3014,19 +3014,19 @@ mod tests {
         let list = Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3), Value::integer(4), Value::integer(5)]);
         
         // Test take
-        let args = vec![list.clone()), Value::integer(3)];
+        let args = vec![list.clone(), Value::integer(3)];
         let result = srfi1_take(&args).unwrap();
         let expected = Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]);
         assert_eq!(result, expected);
         
         // Test drop
-        let args = vec![list.clone()), Value::integer(2)];
+        let args = vec![list.clone(), Value::integer(2)];
         let result = srfi1_drop(&args).unwrap();
         let expected = Value::list(vec![Value::integer(3), Value::integer(4), Value::integer(5)]);
         assert_eq!(result, expected);
         
         // Test take-right
-        let args = vec![list.clone()), Value::integer(2)];
+        let args = vec![list.clone(), Value::integer(2)];
         let result = srfi1_take_right(&args).unwrap();
         let expected = Value::list(vec![Value::integer(4), Value::integer(5)]);
         assert_eq!(result, expected);
@@ -3048,8 +3048,8 @@ mod tests {
             Value::Pair(prefix, suffix) => {
                 let expected_prefix = Value::list(vec![Value::integer(1), Value::integer(2)]);
                 let expected_suffix = Value::list(vec![Value::integer(3), Value::integer(4)]);
-                assert_eq!(prefix.as_ref().clone()), expected_prefix);
-                assert_eq!(suffix.as_ref().clone()), expected_suffix);
+                assert_eq!(prefix.as_ref().clone(), expected_prefix);
+                assert_eq!(suffix.as_ref().clone(), expected_suffix);
             },
             _ => panic!("split-at should return a pair"),
         }
@@ -3060,7 +3060,7 @@ mod tests {
         let list = Value::list(vec![Value::integer(1), Value::integer(2), Value::integer(3)]);
         
         // Test last
-        let result = srfi1_last(&[list.clone())]).unwrap();
+        let result = srfi1_last(&[list.clone()]).unwrap();
         assert_eq!(result, Value::integer(3));
         
         // Test last-pair
@@ -3068,8 +3068,8 @@ mod tests {
         // Should return the pair (3 . ())
         match result {
             Value::Pair(car, cdr) => {
-                assert_eq!(car.as_ref().clone()), Value::integer(3));
-                assert_eq!(cdr.as_ref().clone()), Value::Nil);
+                assert_eq!(car.as_ref().clone(), Value::integer(3));
+                assert_eq!(cdr.as_ref().clone(), Value::Nil);
             },
             _ => panic!("last-pair should return a pair"),
         }
@@ -3093,7 +3093,7 @@ mod tests {
         let list = Value::list(vec![Value::number(1.0), Value::number(2.0), Value::number(3.0)]);
         
         // Test fold (SRFI-1 version: kons knil clist)
-        let args = vec![Value::Primitive(add_proc.clone()), Value::number(0.0), list.clone())];
+        let args = vec![Value::Primitive(add_proc.clone()), Value::number(0.0), list.clone()];
         let result = srfi1_fold(&args).unwrap();
         assert_eq!(result, Value::number(6.0));
         
@@ -3113,7 +3113,7 @@ mod tests {
         ]);
         
         // Test alist-cons
-        let args = vec![Value::string("d"), Value::integer(4), alist.clone())];
+        let args = vec![Value::string("d"), Value::integer(4), alist.clone()];
         let result = srfi1_alist_cons(&args).unwrap();
         
         // Should add (d . 4) to the front
@@ -3121,18 +3121,18 @@ mod tests {
             Value::Pair(car, cdr) => {
                 match car.as_ref() {
                     Value::Pair(key, value) => {
-                        assert_eq!(key.as_ref().clone()), Value::string("d"));
-                        assert_eq!(value.as_ref().clone()), Value::integer(4));
+                        assert_eq!(key.as_ref().clone(), Value::string("d"));
+                        assert_eq!(value.as_ref().clone(), Value::integer(4));
                     },
                     _ => panic!("Expected pair in alist-cons result"),
                 }
-                assert_eq!(cdr.as_ref().clone()), alist);
+                assert_eq!(cdr.as_ref().clone(), alist);
             },
             _ => panic!("alist-cons should return a pair"),
         }
         
         // Test alist-copy
-        let result = srfi1_alist_copy(&[alist.clone())]).unwrap();
+        let result = srfi1_alist_copy(&[alist.clone()]).unwrap();
         // Should be structurally equal but not the same object
         if let (Some(orig_list), Some(copied_list)) = (alist.as_list(), result.as_list()) {
             assert_eq!(orig_list.len(), copied_list.len());

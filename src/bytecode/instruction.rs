@@ -395,7 +395,7 @@ impl fmt::Display for OpCode {
             OpCode::Profile => "PROFILE",
             OpCode::Halt => "HALT",
         };
-        write!(f, "{}", name)
+        write!(f, "{name}")
     }
 }
 
@@ -467,7 +467,7 @@ impl Bytecode {
         if !self.constants.is_empty() {
             output.push_str("=== Constants ===\n");
             for (index, constant) in self.constants.iter() {
-                output.push_str(&format!("{:4}: {:?}\n", index, constant));
+                output.push_str(&format!("{index:4}: {constant:?}\n"));
             }
             output.push('\n');
         }
@@ -476,7 +476,7 @@ impl Bytecode {
         output.push_str("=== Instructions ===\n");
         for (index, instruction) in self.instructions.iter().enumerate() {
             let marker = if index == self.entry_point { ">" } else { " " };
-            output.push_str(&format!("{}{:4}: {}\n", marker, index, instruction));
+            output.push_str(&format!("{marker}{index:4}: {instruction}\n"));
         }
         
         output
@@ -493,7 +493,7 @@ impl Bytecode {
         for (index, instruction) in self.instructions.iter().enumerate() {
             if let Operand::ConstIndex(const_index) = &instruction.operand {
                 if *const_index >= self.constants.len() as u32 {
-                    return Err(format!("Instruction {} references invalid constant {}", index, const_index));
+                    return Err(format!("Instruction {index} references invalid constant {const_index}"));
                 }
             }
         }
@@ -505,7 +505,7 @@ impl Bytecode {
                     if let Operand::JumpOffset(offset) = &instruction.operand {
                         let target = (index as i32) + offset;
                         if target < 0 || target >= self.instructions.len() as i32 {
-                            return Err(format!("Instruction {} has invalid jump target {}", index, target));
+                            return Err(format!("Instruction {index} has invalid jump target {target}"));
                         }
                     }
                 }

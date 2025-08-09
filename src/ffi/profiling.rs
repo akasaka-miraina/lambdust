@@ -41,13 +41,13 @@ impl fmt::Display for ProfilingError {
                 write!(f, "FFI profiler not initialized")
             }
             ProfilingError::InvalidConfig { parameter, reason } => {
-                write!(f, "Invalid profiling configuration for '{}': {}", parameter, reason)
+                write!(f, "Invalid profiling configuration for '{parameter}': {reason}")
             }
             ProfilingError::CollectionFailed { operation, error } => {
-                write!(f, "Profiling data collection failed for '{}': {}", operation, error)
+                write!(f, "Profiling data collection failed for '{operation}': {error}")
             }
             ProfilingError::ReportGenerationFailed { format, error } => {
-                write!(f, "Report generation failed for format '{}': {}", format, error)
+                write!(f, "Report generation failed for format '{format}': {error}")
             }
         }
     }
@@ -360,7 +360,7 @@ impl FfiProfiler {
         };
 
         let arguments = if config.log_arguments {
-            args.iter().map(|arg| format!("{:?}", arg)).collect()
+            args.iter().map(|arg| format!("{arg:?}")).collect()
         } else {
             vec!["<hidden>".to_string(); args.len()]
         };
@@ -423,7 +423,7 @@ impl FfiProfiler {
                     Ok(value) => {
                         event.success = true;
                         if config.log_return_values {
-                            event.return_value = Some(format!("{:?}", value));
+                            event.return_value = Some(format!("{value:?}"));
                         }
                     }
                     Err(error) => {
@@ -467,7 +467,7 @@ impl FfiProfiler {
             id: event_id,
             pointer,
             size,
-            allocation_type: allocation_type.clone()),
+            allocation_type: allocation_type.clone(),
             timestamp: Instant::now(),
             thread_id: thread::current().id(),
             stack_trace: if config.enable_stack_traces {
@@ -498,8 +498,8 @@ impl FfiProfiler {
             let key = format!("{}::{}", event.library_name, event.function_name);
             
             let func_perf = metrics.entry(key).or_insert_with(|| FunctionPerformance {
-                name: event.function_name.clone()),
-                library: event.library_name.clone()),
+                name: event.function_name.clone(),
+                library: event.library_name.clone(),
                 call_count: 0,
                 total_time: Duration::new(0, 0),
                 average_time: Duration::new(0, 0),
@@ -576,18 +576,18 @@ impl FfiProfiler {
 
     /// Get current performance metrics
     pub fn get_metrics(&self) -> PerformanceMetrics {
-        let mut metrics = self.global_metrics.read().unwrap().clone());
+        let mut metrics = self.global_metrics.read().unwrap().clone();
         
         // Update top functions lists
         let function_metrics = self.function_metrics.read().unwrap();
         
         // Sort by call count for most called
-        let mut most_called: Vec<_> = function_metrics.values().clone())().collect();
+        let mut most_called: Vec<_> = function_metrics.values().cloned().collect();
         most_called.sort_by(|a, b| b.call_count.cmp(&a.call_count));
         metrics.most_called_functions = most_called.into_iter().take(10).collect();
         
         // Sort by average time for slowest
-        let mut slowest: Vec<_> = function_metrics.values().clone())().collect();
+        let mut slowest: Vec<_> = function_metrics.values().cloned().collect();
         slowest.sort_by(|a, b| b.average_time.cmp(&a.average_time));
         metrics.slowest_functions = slowest.into_iter().take(10).collect();
         
@@ -597,13 +597,13 @@ impl FfiProfiler {
     /// Get call events
     pub fn get_call_events(&self) -> Vec<FfiCallEvent> {
         let events = self.events.read().unwrap();
-        events.iter().clone())().collect()
+        events.iter().cloned().collect()
     }
 
     /// Get memory events
     pub fn get_memory_events(&self) -> Vec<MemoryAllocationEvent> {
         let events = self.memory_events.read().unwrap();
-        events.iter().clone())().collect()
+        events.iter().cloned().collect()
     }
 
     /// Generate a profiling report

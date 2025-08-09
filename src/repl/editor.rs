@@ -54,7 +54,7 @@ impl EnhancedEditor {
         #[cfg(not(feature = "enhanced-repl"))]
         {
             let editor = DefaultEditor::new()
-                .map_err(|e| Error::io_error(format!("Failed to create editor: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to create editor: {e}")))?;
             
             Ok(Self {
                 editor,
@@ -113,7 +113,7 @@ impl EnhancedEditor {
                         continue;
                     } else if self.in_multiline {
                         self.multiline_buffer.push_str(line);
-                        let complete_input = self.multiline_buffer.clone());
+                        let complete_input = self.multiline_buffer.clone();
                         self.multiline_buffer.clear();
                         self.in_multiline = false;
                         self.paren_depth = 0;
@@ -155,7 +155,7 @@ impl EnhancedEditor {
     fn read_line_basic(&mut self, prompt: &str) -> Result<Option<String>> {
         loop {
             let effective_prompt = if self.in_multiline {
-                format!("{}...", prompt)
+                format!("{prompt}...")
             } else {
                 prompt.to_string()
             };
@@ -179,7 +179,7 @@ impl EnhancedEditor {
                         continue;
                     } else if self.in_multiline {
                         self.multiline_buffer.push_str(line);
-                        let complete_input = self.multiline_buffer.clone());
+                        let complete_input = self.multiline_buffer.clone();
                         self.multiline_buffer.clear();
                         self.in_multiline = false;
                         self.paren_depth = 0;
@@ -214,7 +214,7 @@ impl EnhancedEditor {
                     }
                 }
                 Err(err) => {
-                    return Err(Box::new(Error::io_error(format!("Readline error: {}", err).boxed()));
+                    return Err(Box::new(Error::io_error(format!("Readline error: {err}"))));
                 }
             }
         }
@@ -274,7 +274,7 @@ impl EnhancedEditor {
         #[cfg(not(feature = "enhanced-repl"))]
         {
             self.editor.save_history(path.as_ref())
-                .map_err(|e| Error::io_error(format!("Failed to save history: {}", e)))
+                .map_err(|e| Box::new(Error::io_error(format!("Failed to save history: {e}"))))
         }
     }
 
@@ -323,26 +323,26 @@ impl LambdustPrompt {
 #[cfg(feature = "enhanced-repl")]
 impl Prompt for LambdustPrompt {
     fn render_prompt_left(&self) -> std::borrow::Cow<str> {
-        self.prompt_text.as_str().into())
+        self.prompt_text.as_str().into()
     }
 
     fn render_prompt_right(&self) -> std::borrow::Cow<str> {
-        "".into())
+        "".into()
     }
 
     fn render_prompt_indicator(&self, _edit_mode: PromptEditMode) -> std::borrow::Cow<str> {
-        " ".into())
+        " ".into()
     }
 
     fn render_prompt_multiline_indicator(&self) -> std::borrow::Cow<str> {
-        "... ".into())
+        "... ".into()
     }
 
     fn render_prompt_history_search_indicator(
         &self,
         _history_search: PromptHistorySearch,
     ) -> std::borrow::Cow<str> {
-        "(search) ".into())
+        "(search) ".into()
     }
 }
 

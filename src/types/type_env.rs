@@ -35,7 +35,7 @@ impl TypeEnv {
     
     /// Extends the environment with new bindings.
     pub fn extend(&self, bindings: HashMap<String, TypeScheme>) -> Self {
-        let mut new_env = self.clone());
+        let mut new_env = self.clone();
         new_env.bindings.extend(bindings);
         new_env
     }

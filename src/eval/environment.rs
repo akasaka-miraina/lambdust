@@ -67,11 +67,11 @@ impl EnvironmentBuilder {
 /// Each thread gets its own copy since Rc<Environment> is not thread-safe.
 pub fn global_environment() -> Rc<Environment> {
     thread_local! {
-        static GLOBAL_ENV: std::cell::OnceCell<Rc<Environment>> = std::cell::OnceCell::new();
+        static GLOBAL_ENV: std::cell::OnceCell<Rc<Environment>> = const { std::cell::OnceCell::new() };
     }
     
     GLOBAL_ENV.with(|cell| {
-        cell.get_or_init(|| create_global_environment()).clone())
+        cell.get_or_init(create_global_environment).clone()
     })
 }
 
@@ -98,9 +98,7 @@ fn create_global_environment() -> Rc<Environment> {
     stdlib.populate_environment(&thread_safe_env);
     
     // Convert back to legacy Environment for single-threaded use
-    let legacy_env = thread_safe_env.to_legacy();
-    
-    legacy_env
+    thread_safe_env.to_legacy()
 }
 
 /// Binds R7RS-small special forms as identifiers in the environment.
@@ -154,7 +152,7 @@ pub fn primitive_add(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {arg}"),
                 None,
-            )),
+            ))),
         }
     }
 
@@ -168,7 +166,7 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "- requires at least one argument".to_string(),
             None,
-        ));
+        )));
     }
 
     if args.len() == 1 {
@@ -178,7 +176,7 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
             None => Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", args[0]),
                 None,
-            )),
+            ))),
         }
     } else {
         // Binary and n-ary minus
@@ -187,7 +185,7 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", args[0]),
                 None,
-            )),
+            ))),
         };
 
         for arg in &args[1..] {
@@ -196,7 +194,7 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
                 None => return Err(Box::new(Error::runtime_error(
                     format!("Expected number, got {arg}"),
                     None,
-                )),
+                ))),
             }
         }
 
@@ -218,7 +216,7 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {arg}"),
                 None,
-            )),
+            ))),
         }
     }
 
@@ -232,7 +230,7 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "/ requires at least one argument".to_string(),
             None,
-        ));
+        )));
     }
 
     if args.len() == 1 {
@@ -240,7 +238,7 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
         match args[0].as_number() {
             Some(n) => {
                 if n == 0.0 {
-                    Err(Box::new(Error::runtime_error("Division by zero".to_string(), None))
+                    Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)))
                 } else {
                     Ok(Value::number(1.0 / n))
                 }
@@ -248,7 +246,7 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
             None => Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", args[0]),
                 None,
-            )),
+            ))),
         }
     } else {
         // Binary and n-ary division
@@ -257,21 +255,21 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", args[0]),
                 None,
-            )),
+            ))),
         };
 
         for arg in &args[1..] {
             match arg.as_number() {
                 Some(n) => {
                     if n == 0.0 {
-                        return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None));
+                        return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
                     }
                     result /= n;
                 }
                 None => return Err(Box::new(Error::runtime_error(
                     format!("Expected number, got {arg}"),
                     None,
-                )),
+                ))),
             }
         }
 
@@ -286,7 +284,7 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "= requires at least two arguments".to_string(),
             None,
-        ));
+        )));
     }
 
     let first = match args[0].as_number() {
@@ -294,7 +292,7 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
         None => return Err(Box::new(Error::runtime_error(
             format!("Expected number, got {}", args[0]),
             None,
-        )),
+        ))),
     };
 
     for arg in &args[1..] {
@@ -307,7 +305,7 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {arg}"),
                 None,
-            )),
+            ))),
         }
     }
 
@@ -321,7 +319,7 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "< requires at least two arguments".to_string(),
             None,
-        ));
+        )));
     }
 
     for window in args.windows(2) {
@@ -330,7 +328,7 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", window[0]),
                 None,
-            )),
+            ))),
         };
 
         let b = match window[1].as_number() {
@@ -338,7 +336,7 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", window[1]),
                 None,
-            )),
+            ))),
         };
 
         if a >= b {
@@ -356,7 +354,7 @@ fn primitive_greater_than(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "> requires at least two arguments".to_string(),
             None,
-        ));
+        )));
     }
 
     for window in args.windows(2) {
@@ -365,7 +363,7 @@ fn primitive_greater_than(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", window[0]),
                 None,
-            )),
+            ))),
         };
 
         let b = match window[1].as_number() {
@@ -373,7 +371,7 @@ fn primitive_greater_than(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", window[1]),
                 None,
-            )),
+            ))),
         };
 
         if a <= b {
@@ -391,10 +389,10 @@ fn primitive_cons(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("cons expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
-    Ok(Value::pair(args[0].clone()), args[1].clone()))
+    Ok(Value::pair(args[0].clone(), args[1].clone()))
 }
 
 /// Car primitive (car).
@@ -404,7 +402,7 @@ fn primitive_car(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("car expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     match &args[0] {
@@ -412,7 +410,7 @@ fn primitive_car(args: &[Value]) -> Result<Value> {
         _ => Err(Box::new(Error::runtime_error(
             format!("car expects a pair, got {}", args[0]),
             None,
-        )),
+        ))),
     }
 }
 
@@ -423,7 +421,7 @@ fn primitive_cdr(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("cdr expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     match &args[0] {
@@ -431,7 +429,7 @@ fn primitive_cdr(args: &[Value]) -> Result<Value> {
         _ => Err(Box::new(Error::runtime_error(
             format!("cdr expects a pair, got {}", args[0]),
             None,
-        )),
+        ))),
     }
 }
 
@@ -443,7 +441,7 @@ fn primitive_number_p(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("number? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     Ok(Value::boolean(args[0].is_number()))
@@ -455,7 +453,7 @@ fn primitive_string_p(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("string? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     Ok(Value::boolean(args[0].is_string()))
@@ -467,7 +465,7 @@ fn primitive_symbol_p(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("symbol? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     Ok(Value::boolean(args[0].is_symbol()))
@@ -479,7 +477,7 @@ fn primitive_pair_p(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("pair? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     Ok(Value::boolean(args[0].is_pair()))
@@ -491,7 +489,7 @@ fn primitive_null_p(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("null? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     Ok(Value::boolean(args[0].is_nil()))
@@ -503,7 +501,7 @@ fn primitive_procedure_p(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("procedure? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     Ok(Value::boolean(args[0].is_procedure()))
@@ -517,7 +515,7 @@ fn primitive_display(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("display expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let value = &args[0];
@@ -535,7 +533,7 @@ fn primitive_newline(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("newline expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     // For now, just print to stdout
@@ -553,7 +551,7 @@ fn primitive_less_equal(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "<= requires at least two arguments".to_string(),
             None,
-        ));
+        )));
     }
     for window in args.windows(2) {
         let a = match window[0].as_number() {
@@ -561,14 +559,14 @@ fn primitive_less_equal(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", window[0]),
                 None,
-            )),
+            ))),
         };
         let b = match window[1].as_number() {
             Some(n) => n,
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", window[1]),
                 None,
-            )),
+            ))),
         };
         if a > b {
             return Ok(Value::boolean(false));
@@ -583,7 +581,7 @@ fn primitive_greater_equal(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             ">= requires at least two arguments".to_string(),
             None,
-        ));
+        )));
     }
     for window in args.windows(2) {
         let a = match window[0].as_number() {
@@ -591,14 +589,14 @@ fn primitive_greater_equal(args: &[Value]) -> Result<Value> {
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", window[0]),
                 None,
-            )),
+            ))),
         };
         let b = match window[1].as_number() {
             Some(n) => n,
             None => return Err(Box::new(Error::runtime_error(
                 format!("Expected number, got {}", window[1]),
                 None,
-            )),
+            ))),
         };
         if a < b {
             return Ok(Value::boolean(false));

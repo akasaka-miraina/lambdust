@@ -67,7 +67,7 @@ impl From<ConcurrencyError> for Error {
 
 impl From<ConcurrencyError> for Box<Error> {
     fn from(err: ConcurrencyError) -> Self {
-        Error::from(err).into())
+        Error::from(err).into()
     }
 }
 

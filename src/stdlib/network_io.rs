@@ -323,10 +323,10 @@ fn bind_network_utilities(env: &Arc<ThreadSafeEnvironment>) {
 #[cfg(feature = "async")]
 pub fn primitive_tcp_connect(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
-            format!("tcp-connect expects 2 to 4 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("tcp-connect expects 2 to 4 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let host = extract_string(&args[0], "tcp-connect")?;
@@ -344,8 +344,10 @@ pub fn primitive_tcp_connect(args: &[Value]) -> Result<Value> {
     
     let runtime = crate::stdlib::async_io::get_async_runtime();
     
-    let result = runtime.block_on(async move {
-        let addr = format!("{}:{}", host, port);
+    
+    
+    runtime.block_on(async move {
+        let addr = format!("{host}:{port}");
         
         let connect_future = TcpStream::connect(&addr);
         
@@ -353,61 +355,59 @@ pub fn primitive_tcp_connect(args: &[Value]) -> Result<Value> {
             match timeout(Duration::from_millis(timeout_val), connect_future).await {
                 Ok(Ok(stream)) => stream,
                 Ok(Err(e)) => {
-                    return Err(DiagnosticError::runtime_error(
-                        format!("Cannot connect to {}:{}: {}", host, port, e),
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Cannot connect to {host}:{port}: {e}"),
                         None,
-                    ));
+                    )));
                 }
                 Err(_) => {
-                    return Err(DiagnosticError::runtime_error(
-                        format!("Connection timeout to {}:{}", host, port),
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Connection timeout to {host}:{port}"),
                         None,
-                    ));
+                    )));
                 }
             }
         } else {
             match connect_future.await {
                 Ok(stream) => stream,
                 Err(e) => {
-                    return Err(DiagnosticError::runtime_error(
-                        format!("Cannot connect to {}:{}: {}", host, port, e),
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Cannot connect to {host}:{port}: {e}"),
                         None,
-                    ));
+                    )));
                 }
             }
         };
         
         if nodelay {
             if let Err(e) = stream.set_nodelay(true) {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot set TCP_NODELAY: {}", e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot set TCP_NODELAY: {e}"),
                     None,
-                ));
+                )));
             }
         }
         
         let socket = NetworkSocket::Tcp(Arc::new(std::sync::Mutex::new(Some(stream))));
         Ok(Value::opaque(Box::new(socket)))
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_tcp_connect(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "tcp-connect requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_tcp_listen(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
-            format!("tcp-listen expects 1 to 3 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("tcp-listen expects 1 to 3 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let port = extract_integer(&args[0], "tcp-listen")? as u16;
@@ -424,39 +424,39 @@ pub fn primitive_tcp_listen(args: &[Value]) -> Result<Value> {
     
     let runtime = crate::stdlib::async_io::get_async_runtime();
     
-    let result = runtime.block_on(async move {
-        let addr = format!("{}:{}", host, port);
+    
+    
+    runtime.block_on(async move {
+        let addr = format!("{host}:{port}");
         
         match TcpListener::bind(&addr).await {
             Ok(listener) => {
                 let network_listener = NetworkListener::Tcp(Arc::new(std::sync::Mutex::new(Some(listener))));
                 Ok(Value::opaque(Box::new(network_listener)))
             }
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Cannot bind to {}:{}: {}", host, port, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot bind to {host}:{port}: {e}"),
                 None,
-            )),
+            ))),
         }
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_tcp_listen(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "tcp-listen requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_tcp_accept(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("tcp-accept expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("tcp-accept expects 1 or 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let timeout_ms = if args.len() > 1 {
@@ -473,7 +473,10 @@ pub fn primitive_tcp_accept(args: &[Value]) -> Result<Value> {
                     NetworkListener::Tcp(listener_mutex) => {
                         let runtime = crate::stdlib::async_io::get_async_runtime();
                         
-                        let result = runtime.block_on(async move {
+                        
+                        
+                        #[allow(clippy::await_holding_lock)]
+                        runtime.block_on(async move {
                             let listener_guard = listener_mutex.lock().unwrap();
                             if let Some(listener) = listener_guard.as_ref() {
                                 let accept_future = listener.accept();
@@ -482,26 +485,26 @@ pub fn primitive_tcp_accept(args: &[Value]) -> Result<Value> {
                                     match timeout(Duration::from_millis(timeout_val), accept_future).await {
                                         Ok(Ok((stream, addr))) => (stream, addr),
                                         Ok(Err(e)) => {
-                                            return Err(DiagnosticError::runtime_error(
-                                                format!("Accept error: {}", e),
+                                            return Err(Box::new(DiagnosticError::runtime_error(
+                                                format!("Accept error: {e}"),
                                                 None,
-                                            ));
+                                            )));
                                         }
                                         Err(_) => {
-                                            return Err(DiagnosticError::runtime_error(
+                                            return Err(Box::new(DiagnosticError::runtime_error(
                                                 "Accept timeout".to_string(),
                                                 None,
-                                            ));
+                                            )));
                                         }
                                     }
                                 } else {
                                     match accept_future.await {
                                         Ok((stream, addr)) => (stream, addr),
                                         Err(e) => {
-                                            return Err(DiagnosticError::runtime_error(
-                                                format!("Accept error: {}", e),
+                                            return Err(Box::new(DiagnosticError::runtime_error(
+                                                format!("Accept error: {e}"),
                                                 None,
-                                            ));
+                                            )));
                                         }
                                     }
                                 };
@@ -514,49 +517,47 @@ pub fn primitive_tcp_accept(args: &[Value]) -> Result<Value> {
                                     Arc::new(Value::string(addr_str))
                                 ))
                             } else {
-                                Err(DiagnosticError::runtime_error(
+                                Err(Box::new(DiagnosticError::runtime_error(
                                     "TCP listener is closed".to_string(),
                                     None,
-                                ))
+                                )))
                             }
-                        });
-                        
-                        result
+                        })
                     }
-                    _ => Err(DiagnosticError::runtime_error(
+                    _ => Err(Box::new(DiagnosticError::runtime_error(
                         "tcp-accept requires TCP listener".to_string(),
                         None,
-                    )),
+                    ))),
                 }
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "tcp-accept requires network listener".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "tcp-accept requires network listener".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_tcp_accept(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "tcp-accept requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_tcp_read(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
-            format!("tcp-read expects 1 to 3 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("tcp-read expects 1 to 3 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let buffer_size = if args.len() > 1 {
@@ -579,7 +580,10 @@ pub fn primitive_tcp_read(args: &[Value]) -> Result<Value> {
                     NetworkSocket::Tcp(stream_mutex) => {
                         let runtime = crate::stdlib::async_io::get_async_runtime();
                         
-                        let result = runtime.block_on(async move {
+                        
+                        
+                        #[allow(clippy::await_holding_lock)]
+                        runtime.block_on(async move {
                             let mut stream_guard = stream_mutex.lock().unwrap();
                             if let Some(stream) = stream_guard.as_mut() {
                                 let mut buffer = vec![0u8; buffer_size];
@@ -590,26 +594,26 @@ pub fn primitive_tcp_read(args: &[Value]) -> Result<Value> {
                                     match timeout(Duration::from_millis(timeout_val), read_future).await {
                                         Ok(Ok(n)) => n,
                                         Ok(Err(e)) => {
-                                            return Err(DiagnosticError::runtime_error(
-                                                format!("TCP read error: {}", e),
+                                            return Err(Box::new(DiagnosticError::runtime_error(
+                                                format!("TCP read error: {e}"),
                                                 None,
-                                            ));
+                                            )));
                                         }
                                         Err(_) => {
-                                            return Err(DiagnosticError::runtime_error(
+                                            return Err(Box::new(DiagnosticError::runtime_error(
                                                 "TCP read timeout".to_string(),
                                                 None,
-                                            ));
+                                            )));
                                         }
                                     }
                                 } else {
                                     match read_future.await {
                                         Ok(n) => n,
                                         Err(e) => {
-                                            return Err(DiagnosticError::runtime_error(
-                                                format!("TCP read error: {}", e),
+                                            return Err(Box::new(DiagnosticError::runtime_error(
+                                                format!("TCP read error: {e}"),
                                                 None,
-                                            ));
+                                            )));
                                         }
                                     }
                                 };
@@ -621,59 +625,57 @@ pub fn primitive_tcp_read(args: &[Value]) -> Result<Value> {
                                     Ok(Value::bytevector(buffer))
                                 }
                             } else {
-                                Err(DiagnosticError::runtime_error(
+                                Err(Box::new(DiagnosticError::runtime_error(
                                     "TCP socket is closed".to_string(),
                                     None,
-                                ))
+                                )))
                             }
-                        });
-                        
-                        result
+                        })
                     }
-                    _ => Err(DiagnosticError::runtime_error(
+                    _ => Err(Box::new(DiagnosticError::runtime_error(
                         "tcp-read requires TCP socket".to_string(),
                         None,
-                    )),
+                    ))),
                 }
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "tcp-read requires network socket".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "tcp-read requires network socket".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_tcp_read(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "tcp-read requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_tcp_write(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("tcp-write expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("tcp-write expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let data = match &args[1] {
         Value::Literal(crate::ast::Literal::String(s)) => s.as_bytes().to_vec(),
-        Value::Literal(crate::ast::Literal::Bytevector(bv)) => bv.clone()),
+        Value::Literal(crate::ast::Literal::Bytevector(bv)) => bv.clone(),
         _ => {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "tcp-write requires string or bytevector data".to_string(),
                 None,
-            ));
+            )));
         }
     };
     
@@ -685,67 +687,66 @@ pub fn primitive_tcp_write(args: &[Value]) -> Result<Value> {
                     NetworkSocket::Tcp(stream_mutex) => {
                         let runtime = crate::stdlib::async_io::get_async_runtime();
                         
-                        let result = runtime.block_on(async move {
+                        #[allow(clippy::await_holding_lock)]
+                        runtime.block_on(async move {
                             let mut stream_guard = stream_mutex.lock().unwrap();
                             if let Some(stream) = stream_guard.as_mut() {
                                 match stream.write_all(&data).await {
                                     Ok(()) => {
                                         match stream.flush().await {
                                             Ok(()) => Ok(Value::integer(data.len() as i64)),
-                                            Err(e) => Err(DiagnosticError::runtime_error(
-                                                format!("TCP flush error: {}", e),
+                                            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                                                format!("TCP flush error: {e}"),
                                                 None,
-                                            )),
+                                            ))),
                                         }
                                     }
-                                    Err(e) => Err(DiagnosticError::runtime_error(
-                                        format!("TCP write error: {}", e),
+                                    Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                                        format!("TCP write error: {e}"),
                                         None,
-                                    )),
+                                    ))),
                                 }
                             } else {
-                                Err(DiagnosticError::runtime_error(
+                                Err(Box::new(DiagnosticError::runtime_error(
                                     "TCP socket is closed".to_string(),
                                     None,
-                                ))
+                                )))
                             }
-                        });
-                        
-                        result
+                        })
                     }
-                    _ => Err(DiagnosticError::runtime_error(
+                    _ => Err(Box::new(DiagnosticError::runtime_error(
                         "tcp-write requires TCP socket".to_string(),
                         None,
-                    )),
+                    ))),
                 }
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "tcp-write requires network socket".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "tcp-write requires network socket".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_tcp_write(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "tcp-write requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_tcp_close(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("tcp-close expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Extract socket from opaque value
@@ -758,98 +759,98 @@ pub fn primitive_tcp_close(args: &[Value]) -> Result<Value> {
                         *stream_guard = None; // Drop the stream to close it
                         Ok(Value::Unspecified)
                     }
-                    _ => Err(DiagnosticError::runtime_error(
+                    _ => Err(Box::new(DiagnosticError::runtime_error(
                         "tcp-close requires TCP socket".to_string(),
                         None,
-                    )),
+                    ))),
                 }
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "tcp-close requires network socket".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "tcp-close requires network socket".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 // === Stub implementations for remaining functions ===
 
 pub fn primitive_udp_socket(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "udp-socket not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_udp_bind(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "udp-bind not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_udp_send_to(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "udp-send-to not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_udp_recv_from(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "udp-recv-from not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_unix_connect(_args: &[Value]) -> Result<Value> {
     #[cfg(unix)]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "unix-connect not yet implemented".to_string(),
             None,
-        ))
+        )))
     }
     
     #[cfg(not(unix))]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "Unix domain sockets not available on this platform".to_string(),
             None,
-        ))
+        )))
     }
 }
 
 pub fn primitive_unix_listen(_args: &[Value]) -> Result<Value> {
     #[cfg(unix)]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "unix-listen not yet implemented".to_string(),
             None,
-        ))
+        )))
     }
     
     #[cfg(not(unix))]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "Unix domain sockets not available on this platform".to_string(),
             None,
-        ))
+        )))
     }
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_resolve_hostname(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("resolve-hostname expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("resolve-hostname expects 1 or 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let hostname = extract_string(&args[0], "resolve-hostname")?;
@@ -861,14 +862,16 @@ pub fn primitive_resolve_hostname(args: &[Value]) -> Result<Value> {
     
     let runtime = crate::stdlib::async_io::get_async_runtime();
     
-    let result = runtime.block_on(async move {
+    
+    
+    runtime.block_on(async move {
         let resolver = match TokioAsyncResolver::tokio_from_system_conf() {
             Ok(resolver) => resolver,
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot create DNS resolver: {}", e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot create DNS resolver: {e}"),
                     None,
-                ));
+                )));
             }
         };
         
@@ -882,106 +885,105 @@ pub fn primitive_resolve_hostname(args: &[Value]) -> Result<Value> {
                             .collect();
                         Ok(list_to_value(ips))
                     }
-                    Err(e) => Err(DiagnosticError::runtime_error(
-                        format!("DNS lookup failed for '{}': {}", hostname, e),
+                    Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                        format!("DNS lookup failed for '{hostname}': {e}"),
                         None,
-                    )),
+                    ))),
                 }
             }
-            _ => Err(DiagnosticError::runtime_error(
-                format!("Unsupported DNS record type: {}", record_type),
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Unsupported DNS record type: {record_type}"),
                 None,
-            )),
+            ))),
         }
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_resolve_hostname(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "resolve-hostname requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_reverse_dns_lookup(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "reverse-dns-lookup not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_http_get(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "http-get not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_http_post(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "http-post not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_http_server(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "http-server not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_tls_connect(_args: &[Value]) -> Result<Value> {
     #[cfg(feature = "tls")]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "tls-connect not yet implemented".to_string(),
             None,
-        ))
+        )))
     }
     
     #[cfg(not(feature = "tls"))]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "tls-connect requires TLS feature".to_string(),
             None,
-        ))
+        )))
     }
 }
 
 pub fn primitive_tls_listen(_args: &[Value]) -> Result<Value> {
     #[cfg(feature = "tls")]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "tls-listen not yet implemented".to_string(),
             None,
-        ))
+        )))
     }
     
     #[cfg(not(feature = "tls"))]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "tls-listen requires TLS feature".to_string(),
             None,
-        ))
+        )))
     }
 }
 
 pub fn primitive_parse_url(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("parse-url expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let url_str = extract_string(&args[0], "parse-url")?;
     
     match Url::parse(&url_str) {
         Ok(url) => {
+            #[allow(clippy::mutable_key_type)]
             let mut result = HashMap::new();
             
             result.insert(
@@ -1024,25 +1026,25 @@ pub fn primitive_parse_url(args: &[Value]) -> Result<Value> {
             
             Ok(Value::Hashtable(Arc::new(std::sync::RwLock::new(result))))
         }
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Invalid URL '{}': {}", url_str, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Invalid URL '{url_str}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_format_url(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "format-url not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_network_interface_list(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "network-interface-list not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= HELPER FUNCTIONS =============
@@ -1051,10 +1053,10 @@ pub fn primitive_network_interface_list(_args: &[Value]) -> Result<Value> {
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires string arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1062,10 +1064,10 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
 fn extract_boolean(value: &Value, operation: &str) -> Result<bool> {
     match value {
         Value::Literal(crate::ast::Literal::Boolean(b)) => Ok(*b),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires boolean arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires boolean arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1076,16 +1078,16 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
             if let Some(i) = lit.to_i64() {
                 Ok(i)
             } else {
-                Err(DiagnosticError::runtime_error(
-                    format!("{} requires integer arguments", operation),
+                Err(Box::new(DiagnosticError::runtime_error(
+                    format!("{operation} requires integer arguments"),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires integer arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires integer arguments"),
             None,
-        )),
+        ))),
     }
 }
 

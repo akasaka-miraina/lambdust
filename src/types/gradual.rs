@@ -184,12 +184,12 @@ pub fn gradualize(type_: &Type) -> Type {
         Type::Effectful { input, effects, output } => {
             Type::Effectful {
                 input: Box::new(gradualize(input)),
-                effects: effects.clone()),
+                effects: effects.clone(),
                 output: Box::new(gradualize(output)),
             }
         }
         // Base types and Dynamic remain unchanged
-        _ => type_.clone()),
+        _ => type_.clone(),
     }
 }
 
@@ -223,12 +223,12 @@ pub fn staticize(type_: &Type, fresh_var_supply: &mut impl FnMut() -> TypeVar) -
         Type::Effectful { input, effects, output } => {
             Type::Effectful {
                 input: Box::new(staticize(input, fresh_var_supply)),
-                effects: effects.clone()),
+                effects: effects.clone(),
                 output: Box::new(staticize(output, fresh_var_supply)),
             }
         }
         // Other types remain unchanged
-        _ => type_.clone()),
+        _ => type_.clone(),
     }
 }
 
@@ -258,14 +258,14 @@ pub fn insert_cast(source: &Type, target: &Type) -> Cast {
     match (source, target) {
         // Upcast to Dynamic
         (_, Type::Dynamic) => Cast::Upcast {
-            from: source.clone()),
-            to: target.clone()),
+            from: source.clone(),
+            to: target.clone(),
         },
         
         // Downcast from Dynamic
         (Type::Dynamic, _) => Cast::Downcast {
-            from: source.clone()),
-            to: target.clone()),
+            from: source.clone(),
+            to: target.clone(),
         },
         
         // Structural casts for compound types
@@ -297,8 +297,8 @@ pub fn insert_cast(source: &Type, target: &Type) -> Cast {
             if p1.len() != p2.len() {
                 // Arity mismatch - need runtime check
                 return Cast::Downcast {
-                    from: source.clone()),
-                    to: target.clone()),
+                    from: source.clone(),
+                    to: target.clone(),
                 };
             }
             
@@ -327,13 +327,13 @@ pub fn insert_cast(source: &Type, target: &Type) -> Cast {
         _ => {
             if consistent(source, target) {
                 Cast::Upcast {
-                    from: source.clone()),
-                    to: target.clone()),
+                    from: source.clone(),
+                    to: target.clone(),
                 }
             } else {
                 Cast::Downcast {
-                    from: source.clone()),
-                    to: target.clone()),
+                    from: source.clone(),
+                    to: target.clone(),
                 }
             }
         }
@@ -411,12 +411,12 @@ pub fn approximate_type(type_: &Type) -> Type {
         Type::Effectful { input, effects, output } => {
             Type::Effectful {
                 input: Box::new(approximate_type(input)),
-                effects: effects.clone()),
+                effects: effects.clone(),
                 output: Box::new(approximate_type(output)),
             }
         }
         // Other types remain unchanged
-        _ => type_.clone()),
+        _ => type_.clone(),
     }
 }
 

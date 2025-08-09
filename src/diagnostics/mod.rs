@@ -196,7 +196,7 @@ impl Error {
     /// Creates an arity error for a function called with wrong number of arguments.
     pub fn arity_error(function_name: &str, expected: usize, actual: usize) -> Self {
         Self::RuntimeError {
-            message: format!("Function '{}' expects {} arguments, got {}", function_name, expected, actual),
+            message: format!("Function '{function_name}' expects {expected} arguments, got {actual}"),
             span: None,
         }
     }
@@ -211,7 +211,7 @@ impl Error {
     /// Creates a type mismatch error with expected type information.
     pub fn type_mismatch_error(expected: &str, actual: impl std::fmt::Debug) -> Self {
         Self::RuntimeError {
-            message: format!("Expected {}, got {:?}", expected, actual),
+            message: format!("Expected {expected}, got {actual:?}"),
             span: None,
         }
     }
@@ -243,7 +243,7 @@ impl Error {
     /// Creates a not-implemented error for development.
     pub fn not_implemented(feature: &str, span: Span) -> Self {
         Self::InternalError {
-            message: format!("Feature '{}' not yet implemented", feature),
+            message: format!("Feature '{feature}' not yet implemented"),
         }
     }
 
@@ -278,7 +278,7 @@ impl From<std::io::Error> for Error {
 
 impl From<std::io::Error> for Box<Error> {
     fn from(err: std::io::Error) -> Self {
-        Error::from(err).into())
+        Error::from(err).into()
     }
 }
 

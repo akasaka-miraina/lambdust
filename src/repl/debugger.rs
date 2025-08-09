@@ -27,6 +27,12 @@ pub struct BreakpointManager {
     conditional_breakpoints: HashMap<String, String>,
 }
 
+impl Default for BreakpointManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BreakpointManager {
     pub fn new() -> Self {
         Self {
@@ -67,7 +73,7 @@ impl BreakpointManager {
     }
 
     pub fn list_breakpoints(&self) -> Vec<String> {
-        self.breakpoints.iter().clone())().collect()
+        self.breakpoints.iter().cloned().collect()
     }
 
     pub fn clear_all(&mut self) {
@@ -145,7 +151,7 @@ impl Debugger {
 
     pub fn set_breakpoint(&mut self, expression: &str) -> Result<()> {
         if !self.enabled {
-            return Err(Box::new(Error::runtime_error("Debugger not enabled", None).boxed());
+            return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
         
         self.breakpoint_manager.add_breakpoint(expression);
@@ -154,7 +160,7 @@ impl Debugger {
 
     pub fn remove_breakpoint(&mut self, expression: &str) -> Result<bool> {
         if !self.enabled {
-            return Err(Box::new(Error::runtime_error("Debugger not enabled", None).boxed());
+            return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
         
         Ok(self.breakpoint_manager.remove_breakpoint(expression))
@@ -166,7 +172,7 @@ impl Debugger {
 
     pub fn step(&mut self) -> Result<()> {
         if !self.enabled {
-            return Err(Box::new(Error::runtime_error("Debugger not enabled", None).boxed());
+            return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
         
         self.step_mode = StepMode::StepInto;
@@ -177,7 +183,7 @@ impl Debugger {
 
     pub fn step_over(&mut self) -> Result<()> {
         if !self.enabled {
-            return Err(Box::new(Error::runtime_error("Debugger not enabled", None).boxed());
+            return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
         
         self.step_mode = StepMode::StepOver;
@@ -188,7 +194,7 @@ impl Debugger {
 
     pub fn step_out(&mut self) -> Result<()> {
         if !self.enabled {
-            return Err(Box::new(Error::runtime_error("Debugger not enabled", None).boxed());
+            return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
         
         self.step_mode = StepMode::StepOut;
@@ -199,7 +205,7 @@ impl Debugger {
 
     pub fn continue_execution(&mut self) -> Result<()> {
         if !self.enabled {
-            return Err(Box::new(Error::runtime_error("Debugger not enabled", None).boxed());
+            return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
         
         self.step_mode = StepMode::Continue;
@@ -218,7 +224,7 @@ impl Debugger {
                     frame.expression
                 );
                 if let Some(line) = frame.line_number {
-                    println!("      at line {}", line);
+                    println!("      at line {line}");
                 }
             }
         } else {
@@ -231,7 +237,7 @@ impl Debugger {
         if let Some(ref context) = self.debug_context {
             println!("Variables in current scope:");
             for (name, value) in &context.variables {
-                println!("  {} = {}", name, value);
+                println!("  {name} = {value}");
             }
             
             // Show local variables from current call frame
@@ -239,7 +245,7 @@ impl Debugger {
                 if !current_frame.local_vars.is_empty() {
                     println!("Local variables:");
                     for (name, value) in &current_frame.local_vars {
-                        println!("  {} = {}", name, value);
+                        println!("  {name} = {value}");
                     }
                 }
             }
@@ -251,7 +257,7 @@ impl Debugger {
 
     pub fn evaluate_with_debug(&mut self, lambdust: &mut Lambdust, input: &str) -> Result<()> {
         if !self.enabled {
-            return Err(Box::new(Error::runtime_error("Debugger not enabled", None).boxed());
+            return Err(Box::new(Error::runtime_error("Debugger not enabled", None)));
         }
 
         // Create a debug context for this evaluation
@@ -266,13 +272,13 @@ impl Debugger {
             ],
             current_expression: input.to_string(),
             variables: HashMap::new(),
-            step_mode: self.step_mode.clone()),
+            step_mode: self.step_mode.clone(),
         };
 
         // Check if we should break on this expression
         if self.breakpoint_manager.should_break(input, &context) {
             self.execution_paused = true;
-            println!("🔴 Breakpoint hit: {}", input);
+            println!("🔴 Breakpoint hit: {input}");
             self.debug_context = Some(context);
             return Ok(());
         }
@@ -282,13 +288,13 @@ impl Debugger {
         
         match lambdust.eval(input, Some("<repl-debug>")) {
             Ok(result) => {
-                println!("🟢 {}", result);
+                println!("🟢 {result}");
                 // Reset debug context after successful evaluation
                 self.debug_context = None;
                 Ok(())
             }
             Err(e) => {
-                println!("🔴 Debug Error: {}", e);
+                println!("🔴 Debug Error: {e}");
                 // Keep debug context for inspection
                 Ok(())
             }
@@ -320,7 +326,7 @@ impl Debugger {
             DebugCommand::Break(expr) => self.set_breakpoint(&expr),
             DebugCommand::RemoveBreak(expr) => {
                 self.remove_breakpoint(&expr)?;
-                println!("Breakpoint removed: {}", expr);
+                println!("Breakpoint removed: {expr}");
                 Ok(())
             }
             DebugCommand::ListBreaks => {
@@ -339,7 +345,7 @@ impl Debugger {
             DebugCommand::ShowVars => self.show_variables(),
             DebugCommand::Evaluate(expr) => {
                 // TODO: Evaluate expression in current debug context
-                println!("Evaluating: {}", expr);
+                println!("Evaluating: {expr}");
                 Ok(())
             }
         }

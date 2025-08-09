@@ -118,34 +118,24 @@ impl BytecodeOptimizer {
             changed = false;
             
             // Apply enabled optimization passes
-            if self.config.constant_folding {
-                if self.apply_constant_folding(&mut bytecode)? {
-                    changed = true;
-                }
+            if self.config.constant_folding && self.apply_constant_folding(&mut bytecode)? {
+                changed = true;
             }
             
-            if self.config.dead_code_elimination {
-                if self.apply_dead_code_elimination(&mut bytecode)? {
-                    changed = true;
-                }
+            if self.config.dead_code_elimination && self.apply_dead_code_elimination(&mut bytecode)? {
+                changed = true;
             }
             
-            if self.config.instruction_combining {
-                if self.apply_instruction_combining(&mut bytecode)? {
-                    changed = true;
-                }
+            if self.config.instruction_combining && self.apply_instruction_combining(&mut bytecode)? {
+                changed = true;
             }
             
-            if self.config.tail_call_optimization {
-                if self.apply_tail_call_optimization(&mut bytecode)? {
-                    changed = true;
-                }
+            if self.config.tail_call_optimization && self.apply_tail_call_optimization(&mut bytecode)? {
+                changed = true;
             }
             
-            if self.config.register_allocation {
-                if self.apply_register_allocation(&mut bytecode)? {
-                    changed = true;
-                }
+            if self.config.register_allocation && self.apply_register_allocation(&mut bytecode)? {
+                changed = true;
             }
             
             pass_count += 1;
@@ -353,7 +343,7 @@ impl BytecodeOptimizer {
     
     /// Gets optimization statistics.
     pub fn get_stats(&self) -> OptimizationStats {
-        self.stats.clone())
+        self.stats.clone()
     }
     
     /// Resets optimization statistics.
@@ -381,7 +371,7 @@ impl BytecodeOptimizer {
         
         if stats.instructions_before > 0 {
             let reduction_percent = (stats.instructions_eliminated as f64 / stats.instructions_before as f64) * 100.0;
-            report.push_str(&format!("Code size reduction: {:.1}%\n", reduction_percent));
+            report.push_str(&format!("Code size reduction: {reduction_percent:.1}%\n"));
         }
         
         report.push_str(&format!("Optimization time: {:.2} ms\n", stats.optimization_time_us as f64 / 1000.0));

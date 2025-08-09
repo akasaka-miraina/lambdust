@@ -17,11 +17,17 @@ pub mod cache;
 pub mod scheme_loader;
 
 // Individual structure modules
+/// Module identification and namespace management
 pub mod module_id;
+/// Module definitions, sources, and compilation units
 pub mod module;
+/// Module metadata including dependencies and exports
 pub mod module_metadata;
+/// Import specifications for module dependency resolution
 pub mod import_spec;
+/// Export specifications for module interface definition
 pub mod export_spec;
+/// Core module system managing loading, resolution, and caching
 pub mod module_system;
 
 use crate::diagnostics::Result;
@@ -97,16 +103,23 @@ impl std::fmt::Display for ModuleError {
                 write!(f, "Circular dependency detected: {}", 
                        cycle.iter().map(format_module_id).collect::<Vec<_>>().join(" -> "))
             }
-            ModuleError::ImportConflict(symbol) => write!(f, "Import conflict for symbol: {}", symbol),
-            ModuleError::InvalidDefinition(msg) => write!(f, "Invalid module definition: {}", msg),
-            ModuleError::ImportError(msg) => write!(f, "Import error: {}", msg),
-            ModuleError::ExportError(msg) => write!(f, "Export error: {}", msg),
-            ModuleError::CompilationError(msg) => write!(f, "Module compilation error: {}", msg),
+            ModuleError::ImportConflict(symbol) => write!(f, "Import conflict for symbol: {symbol}"),
+            ModuleError::InvalidDefinition(msg) => write!(f, "Invalid module definition: {msg}"),
+            ModuleError::ImportError(msg) => write!(f, "Import error: {msg}"),
+            ModuleError::ExportError(msg) => write!(f, "Export error: {msg}"),
+            ModuleError::CompilationError(msg) => write!(f, "Module compilation error: {msg}"),
         }
     }
 }
 
 impl std::error::Error for ModuleError {}
+
+impl ModuleError {
+    /// Converts this ModuleError into a Box<ModuleError> for use with Result types.
+    pub fn boxed(self) -> Box<ModuleError> {
+        Box::new(self)
+    }
+}
 
 impl From<ModuleError> for crate::diagnostics::Error {
     fn from(err: ModuleError) -> Self {
@@ -122,17 +135,17 @@ impl From<ModuleError> for crate::diagnostics::Error {
             }
             ModuleError::ImportConflict(symbol) => {
                 crate::diagnostics::Error::runtime_error(
-                    format!("Import conflict for symbol: {}", symbol),
+                    format!("Import conflict for symbol: {symbol}"),
                     None,
                 )
             }
             ModuleError::CircularDependency(cycle) => {
                 let cycle_str = cycle.iter()
-                    .map(|id| format_module_id(id))
+                    .map(format_module_id)
                     .collect::<Vec<_>>()
                     .join(" -> ");
                 crate::diagnostics::Error::runtime_error(
-                    format!("Circular dependency detected: {}", cycle_str),
+                    format!("Circular dependency detected: {cycle_str}"),
                     None,
                 )
             }

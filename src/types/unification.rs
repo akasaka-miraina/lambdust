@@ -122,7 +122,7 @@ impl Unifier {
                 if n1 == n2 && k1 == k2 {
                     Ok(())
                 } else {
-                    Err(self.type_mismatch_error(type1.clone()), type2.clone()), span))
+                    Err(Box::new(self.type_mismatch_error(type1.clone(), type2.clone(), span)))
                 }
             }
             
@@ -190,14 +190,14 @@ impl Unifier {
             }
             
             // Type mismatch
-            _ => Err(self.type_mismatch_error(type1.clone()), type2.clone()), span)),
+            _ => Err(Box::new(self.type_mismatch_error(type1.clone(), type2.clone(), span))),
         }
     }
     
     /// Unifies a type variable with a type.
     fn unify_variable(&mut self, var: &TypeVar, type_: &Type, span: Option<Span>) -> Result<()> {
         // Check if variable is already bound
-        if let Some(bound_type) = self.substitution.get(var).clone())() {
+        if let Some(bound_type) = self.substitution.get(var).cloned() {
             return self.unify_types(&bound_type, type_, span);
         }
         
@@ -206,11 +206,11 @@ impl Unifier {
             return Err(Box::new(Error::type_error(
                 format!("Infinite type: {var} occurs in {type_}"),
                 span.unwrap_or(Span::new(0, 0)),
-            ));
+            )));
         }
         
         // Create new substitution and compose with existing one
-        let new_subst = Substitution::single(var.clone()), type_.clone());
+        let new_subst = Substitution::single(var.clone(), type_.clone());
         self.substitution = self.substitution.compose(&new_subst);
         
         Ok(())
@@ -234,7 +234,7 @@ impl Unifier {
                     params2.len()
                 ),
                 span.unwrap_or(Span::new(0, 0)),
-            ));
+            )));
         }
         
         // Unify parameter types
@@ -256,15 +256,15 @@ impl Unifier {
         span: Option<Span>,
     ) -> Result<()> {
         if vars1.len() != vars2.len() {
-            return Err(self.type_mismatch_error(
+            return Err(Box::new(self.type_mismatch_error(
                 Type::Forall { vars: vars1.to_vec(), body: Box::new(body1.clone()) },
                 Type::Forall { vars: vars2.to_vec(), body: Box::new(body2.clone()) },
                 span,
-            ));
+            )));
         }
         
         // Alpha-rename vars2 to vars1 in body2
-        let mut renamed_body2 = body2.clone());
+        let mut renamed_body2 = body2.clone();
         for (v1, v2) in vars1.iter().zip(vars2.iter()) {
             renamed_body2 = self.alpha_rename(&renamed_body2, v2, v1);
         }
@@ -297,7 +297,7 @@ impl Unifier {
                     effects2.len()
                 ),
                 span.unwrap_or(Span::new(0, 0)),
-            ));
+            )));
         }
         
         for (e1, e2) in effects1.iter().zip(effects2.iter()) {
@@ -317,7 +317,7 @@ impl Unifier {
             _ => Err(Box::new(Error::type_error(
                 format!("Effect mismatch: {effect1:?} vs {effect2:?}"),
                 span.unwrap_or(Span::new(0, 0)),
-            )),
+            ))),
         }
     }
     
@@ -345,7 +345,7 @@ impl Unifier {
                     return Err(Box::new(Error::type_error(
                         "Row field mismatch in closed rows".to_string(),
                         span.unwrap_or(Span::new(0, 0)),
-                    ));
+                    )));
                 }
             }
             (Some(var), None) => {
@@ -353,7 +353,7 @@ impl Unifier {
                 // var must unify with a row containing only fields2_only
                 let remaining_fields: std::collections::HashMap<_, _> = fields2_only
                     .into_iter()
-                    .map(|k| (k.clone()), row2.fields[k].clone()))
+                    .map(|k| (k.clone(), row2.fields[k].clone()))
                     .collect();
                 let remaining_row = Row::closed(remaining_fields);
                 self.unify_variable(var, &Type::Record(remaining_row), span)?;
@@ -362,7 +362,7 @@ impl Unifier {
                 // row1 is closed, row2 is open
                 let remaining_fields: std::collections::HashMap<_, _> = fields1_only
                     .into_iter()
-                    .map(|k| (k.clone()), row1.fields[k].clone()))
+                    .map(|k| (k.clone(), row1.fields[k].clone()))
                     .collect();
                 let remaining_row = Row::closed(remaining_fields);
                 self.unify_variable(var, &Type::Record(remaining_row), span)?;
@@ -375,7 +375,7 @@ impl Unifier {
                         return Err(Box::new(Error::type_error(
                             "Row variable field mismatch".to_string(),
                             span.unwrap_or(Span::new(0, 0)),
-                        ));
+                        )));
                     }
                 } else {
                     // Different variables - need to create new row with shared extension
@@ -392,10 +392,10 @@ impl Unifier {
     /// Alpha-renames a type variable in a type.
     fn alpha_rename(&self, type_: &Type, old_var: &TypeVar, new_var: &TypeVar) -> Type {
         if old_var == new_var {
-            return type_.clone());
+            return type_.clone();
         }
         
-        let subst = Substitution::single(old_var.clone()), Type::Variable(new_var.clone()));
+        let subst = Substitution::single(old_var.clone(), Type::Variable(new_var.clone()));
         subst.apply_to_type(type_)
     }
     

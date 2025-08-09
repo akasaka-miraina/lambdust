@@ -193,10 +193,10 @@ fn bind_gradual_typing(env: &Arc<ThreadSafeEnvironment>) {
 /// type-of procedure
 fn primitive_type_of(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("type-of expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let type_name = get_value_type_name(&args[0]);
@@ -206,10 +206,10 @@ fn primitive_type_of(args: &[Value]) -> Result<Value> {
 /// type? predicate
 fn primitive_type_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("type? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Check if the value is a type representation
@@ -220,82 +220,82 @@ fn primitive_type_p(args: &[Value]) -> Result<Value> {
 /// type-name procedure
 fn primitive_type_name(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("type-name expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::Type(type_val) => {
             let name = match type_val.as_ref() {
-                crate::eval::value::TypeValue::Base(name) => name.clone()),
+                crate::eval::value::TypeValue::Base(name) => name.clone(),
                 crate::eval::value::TypeValue::Function { .. } => "function".to_string(),
                 crate::eval::value::TypeValue::Union(_) => "union".to_string(),
                 crate::eval::value::TypeValue::Intersection(_) => "intersection".to_string(),
-                crate::eval::value::TypeValue::Variable(name) => name.clone()),
+                crate::eval::value::TypeValue::Variable(name) => name.clone(),
             };
             Ok(Value::string(name))
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "type-name requires a type argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// type-union procedure
 fn primitive_type_union(_args: &[Value]) -> Result<Value> {
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "type-union requires type system integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// type-intersection procedure
 fn primitive_type_intersection(_args: &[Value]) -> Result<Value> {
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "type-intersection requires type system integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// type-difference procedure
 fn primitive_type_difference(_args: &[Value]) -> Result<Value> {
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "type-difference requires type system integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// subtype? predicate
 fn primitive_subtype_p(_args: &[Value]) -> Result<Value> {
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "subtype? requires type system integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// type-equivalent? predicate
 fn primitive_type_equivalent_p(_args: &[Value]) -> Result<Value> {
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "type-equivalent? requires type system integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// type-check procedure
 fn primitive_type_check(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("type-check expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, just return whether the value matches the basic type
@@ -309,10 +309,10 @@ fn primitive_type_check(args: &[Value]) -> Result<Value> {
 /// type-assert procedure
 fn primitive_type_assert(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("type-assert expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let type_check_result = primitive_type_check(args)?;
@@ -320,21 +320,21 @@ fn primitive_type_assert(args: &[Value]) -> Result<Value> {
     if type_check_result.is_truthy() {
         Ok(args[0].clone())
     } else {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             format!("Type assertion failed: expected {}, got {}", 
                     args[1], get_value_type_name(&args[0])),
             None,
-        ))
+        )))
     }
 }
 
 /// type-cast procedure
 fn primitive_type_cast(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("type-cast expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, just return the value unchanged
@@ -357,26 +357,26 @@ fn primitive_unknown_type(_args: &[Value]) -> Result<Value> {
 /// make-function-type procedure
 fn primitive_make_function_type(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("make-function-type expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "make-function-type requires type system integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// function-type? predicate
 fn primitive_function_type_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("function-type? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -391,19 +391,19 @@ fn primitive_function_type_p(args: &[Value]) -> Result<Value> {
 /// function-parameter-types procedure
 fn primitive_function_parameter_types(_args: &[Value]) -> Result<Value> {
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "function-parameter-types requires type system integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// function-return-type procedure
 fn primitive_function_return_type(_args: &[Value]) -> Result<Value> {
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "function-return-type requires type system integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= HELPER FUNCTIONS =============
@@ -436,7 +436,7 @@ fn get_value_type_name(value: &Value) -> String {
         Value::Port(_) => "port".to_string(),
         Value::Promise(_) => "promise".to_string(),
         Value::Type(_) => "type".to_string(),
-        Value::Foreign(obj) => obj.type_name.clone()),
+        Value::Foreign(obj) => obj.type_name.clone(),
         Value::ErrorObject(_) => "error".to_string(),
         Value::CharSet(_) => "char-set".to_string(),
         Value::Parameter(_) => "parameter".to_string(),

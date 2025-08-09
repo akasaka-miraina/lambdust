@@ -9,7 +9,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lambdust_runtime_creation() {
-        let runtime = LambdustRuntime::new(Some(2));
+        let runtime = LambdustRuntime::new();
         assert!(runtime.is_ok());
         
         if let Ok(runtime) = runtime {
@@ -20,7 +20,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_simple_evaluation() {
-        let runtime = LambdustRuntime::new(Some(1)).expect("Failed to create runtime");
+        let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         // Create a simple literal expression
         let expr = Expr::Literal(Literal::Number(42.0));
@@ -36,7 +36,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_parallel_evaluation() {
-        let runtime = LambdustRuntime::new(Some(2)).expect("Failed to create runtime");
+        let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         // Create multiple simple expressions
         let expressions = vec![
@@ -56,7 +56,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_evaluator_handle() {
-        let runtime = LambdustRuntime::new(Some(1)).expect("Failed to create runtime");
+        let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         let handle = runtime.spawn_evaluator().expect("Failed to spawn evaluator");
         assert_eq!(handle.id, 0); // First handle should have ID 0
@@ -129,7 +129,7 @@ mod tests {
 
     #[tokio::test] 
     async fn test_thread_pool_statistics() {
-        let runtime = LambdustRuntime::new(Some(2)).expect("Failed to create runtime");
+        let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         let stats = runtime.thread_pool.statistics();
         assert_eq!(stats.active_workers, 2);
@@ -170,7 +170,7 @@ mod tests {
         let effect = Effect::IO;
         let result = coordinator.coordinate_local_effect(
             thread_id, 
-            effect.clone()), 
+            effect.clone(), 
             &[crate::eval::Value::integer(42)]
         );
         assert!(result.is_ok());
@@ -410,7 +410,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_integrated_runtime_features() {
-        let runtime = LambdustRuntime::new(Some(2)).expect("Failed to create runtime");
+        let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         // Test accessing all coordinators
         let global_env = runtime.global_env();
@@ -461,7 +461,7 @@ mod tests {
         
         // Simulate multiple threads with transactions
         let handles: Vec<_> = (0..4).map(|i| {
-            let env = global_env.clone());
+            let env = global_env.clone();
             tokio::spawn(async move {
                 let thread_id = std::thread::current().id();
                 let tx_id = env.start_transaction(thread_id).expect("Failed to start transaction");
@@ -469,7 +469,7 @@ mod tests {
                 // Each thread defines a unique variable
                 let var_name = format!("concurrent_var_{}", i);
                 let define_result = env.define_global_transactional(
-                    var_name.clone()),
+                    var_name.clone(),
                     crate::eval::Value::integer(i),
                     thread_id
                 );

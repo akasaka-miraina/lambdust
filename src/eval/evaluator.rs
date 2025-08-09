@@ -181,7 +181,7 @@ impl Evaluator {
         loop {
             step = match step {
                 EvalStep::Return(value) => return Ok(value),
-                EvalStep::Error(error) => return Err(error),
+                EvalStep::Error(error) => return Err(Box::new(error)),
                 EvalStep::Continue { expr, env } => self.eval_step(&expr, env),
                 EvalStep::TailCall { procedure, args, location } => {
                     self.apply_procedure(procedure, args, location)
@@ -217,7 +217,7 @@ impl Evaluator {
         // First pass: create bindings for all defines
         for define_expr in &defines {
             if let Expr::Define { name, .. } = &define_expr.inner {
-                self.global_env.define(name.clone()), Value::Unspecified);
+                self.global_env.define(name.clone(), Value::Unspecified);
             }
         }
         
@@ -238,15 +238,15 @@ impl Evaluator {
         // Evaluate non-lambda defines first
         for define_expr in &non_lambda_defines {
             let mut step = EvalStep::Continue {
-                expr: (**define_expr).clone()),
-                env: self.global_env.clone()),
+                expr: (**define_expr).clone(),
+                env: self.global_env.clone(),
             };
 
             // Trampoline loop for each define
             loop {
                 step = match step {
                     EvalStep::Return(_) => break, // Define returns unspecified
-                    EvalStep::Error(error) => return Err(error),
+                    EvalStep::Error(error) => return Err(Box::new(error)),
                     EvalStep::Continue { expr, env } => self.eval_step(&expr, env),
                     EvalStep::TailCall { procedure, args, location } => {
                         self.apply_procedure(procedure, args, location)
@@ -261,15 +261,15 @@ impl Evaluator {
         // Now evaluate lambda defines - they will see all bound names
         for define_expr in &lambda_defines {
             let mut step = EvalStep::Continue {
-                expr: (**define_expr).clone()),
-                env: self.global_env.clone()),
+                expr: (**define_expr).clone(),
+                env: self.global_env.clone(),
             };
 
             // Trampoline loop for each define
             loop {
                 step = match step {
                     EvalStep::Return(_) => break, // Define returns unspecified
-                    EvalStep::Error(error) => return Err(error),
+                    EvalStep::Error(error) => return Err(Box::new(error)),
                     EvalStep::Continue { expr, env } => self.eval_step(&expr, env),
                     EvalStep::TailCall { procedure, args, location } => {
                         self.apply_procedure(procedure, args, location)
@@ -286,8 +286,8 @@ impl Evaluator {
         
         for expr in &other_exprs {
             let mut step = EvalStep::Continue {
-                expr: (*expr).clone()),
-                env: self.global_env.clone()),
+                expr: (*expr).clone(),
+                env: self.global_env.clone(),
             };
 
             // Trampoline loop for each expression
@@ -297,7 +297,7 @@ impl Evaluator {
                         result = value;
                         break;
                     }
-                    EvalStep::Error(error) => return Err(error),
+                    EvalStep::Error(error) => return Err(Box::new(error)),
                     EvalStep::Continue { expr, env } => self.eval_step(&expr, env),
                     EvalStep::TailCall { procedure, args, location } => {
                         self.apply_procedure(procedure, args, location)
@@ -333,10 +333,10 @@ impl Evaluator {
             // Special forms
             Expr::Quote(quoted) => self.eval_quote(quoted),
             Expr::Lambda { formals, metadata, body } => {
-                self.eval_lambda(formals, metadata, body, env.clone()), expr.span)
+                self.eval_lambda(formals, metadata, body, env.clone(), expr.span)
             }
             Expr::CaseLambda { clauses, metadata } => {
-                self.eval_case_lambda(clauses, metadata, env.clone()), expr.span)
+                self.eval_case_lambda(clauses, metadata, env.clone(), expr.span)
             }
             Expr::If { test, consequent, alternative } => {
                 self.eval_if(test, consequent, alternative.as_ref().map(|boxed| boxed.as_ref()), env, expr.span)
@@ -363,7 +363,7 @@ impl Evaluator {
                 // For now, just evaluate the expression and ignore the type
                 // TODO: Integrate with type system
                 EvalStep::Continue {
-                    expr: (**inner_expr).clone()),
+                    expr: (**inner_expr).clone(),
                     env,
                 }
             }
@@ -402,9 +402,9 @@ impl Evaluator {
                 match self.eval(car, env.clone()) {
                     Ok(car_val) => match self.eval(cdr, env) {
                         Ok(cdr_val) => EvalStep::Return(Value::pair(car_val, cdr_val)),
-                        Err(e) => EvalStep::Error(e),
+                        Err(e) => EvalStep::Error(*e),
                     },
-                    Err(e) => EvalStep::Error(e),
+                    Err(e) => EvalStep::Error(*e),
                 }
             }
 
@@ -421,7 +421,7 @@ impl Evaluator {
         // Convert AST expression to runtime value
         match self.ast_to_value(&quoted.inner) {
             Ok(value) => EvalStep::Return(value),
-            Err(e) => EvalStep::Error(e),
+            Err(e) => EvalStep::Error(*e),
         }
     }
 
@@ -445,13 +445,13 @@ impl Evaluator {
         let mut eval_metadata = HashMap::new();
         for (key, value_expr) in metadata {
             match self.eval(value_expr, env.clone()) {
-                Ok(value) => { eval_metadata.insert(key.clone()), value); }
-                Err(e) => return EvalStep::Error(e),
+                Ok(value) => { eval_metadata.insert(key.clone(), value); }
+                Err(e) => return EvalStep::Error(*e),
             }
         }
 
         let procedure = Procedure {
-            formals: formals.clone()),
+            formals: formals.clone(),
             body: body.to_vec(),
             environment: env.to_thread_safe(),
             name: eval_metadata.get("name").and_then(|v| v.as_string().map(|s| s.to_string())),
@@ -491,8 +491,8 @@ impl Evaluator {
         let mut eval_metadata = HashMap::new();
         for (key, value_expr) in metadata {
             match self.eval(value_expr, env.clone()) {
-                Ok(value) => { eval_metadata.insert(key.clone()), value); }
-                Err(e) => return EvalStep::Error(e),
+                Ok(value) => { eval_metadata.insert(key.clone(), value); }
+                Err(e) => return EvalStep::Error(*e),
             }
         }
 
@@ -526,12 +526,12 @@ impl Evaluator {
                 
                 if test_value.is_truthy() {
                     EvalStep::Continue {
-                        expr: consequent.clone()),
+                        expr: consequent.clone(),
                         env,
                     }
                 } else if let Some(alt) = alternative {
                     EvalStep::Continue {
-                        expr: alt.clone()),
+                        expr: alt.clone(),
                         env,
                     }
                 } else {
@@ -540,7 +540,7 @@ impl Evaluator {
             }
             Err(e) => {
                 self.stack_trace.pop(); // Remove if frame
-                EvalStep::Error(e)
+                EvalStep::Error(*e)
             }
         }
     }
@@ -571,11 +571,11 @@ impl Evaluator {
                     if let Value::Procedure(proc_arc) = value {
                         let proc = proc_arc.as_ref();
                         let updated_proc = Procedure {
-                            formals: proc.formals.clone()),
-                            body: proc.body.clone()),
+                            formals: proc.formals.clone(),
+                            body: proc.body.clone(),
                             environment: env.to_thread_safe(), // Capture current environment state
                             name: Some(name.to_string()), // Set the procedure name for recursive reference
-                            metadata: proc.metadata.clone()),
+                            metadata: proc.metadata.clone(),
                             source: proc.source,
                         };
                         env.define(name.to_string(), Value::Procedure(Arc::new(updated_proc)));
@@ -586,7 +586,7 @@ impl Evaluator {
                 }
                 Err(e) => {
                     self.stack_trace.pop();
-                    EvalStep::Error(e)
+                    EvalStep::Error(*e)
                 }
             }
         } else {
@@ -599,7 +599,7 @@ impl Evaluator {
                 }
                 Err(e) => {
                     self.stack_trace.pop();
-                    EvalStep::Error(e)
+                    EvalStep::Error(*e)
                 }
             }
         }
@@ -618,7 +618,7 @@ impl Evaluator {
         match self.eval(value_expr, env.clone()) {
             Ok(value) => {
                 // Check if set! should be automatically lifted to State monad
-                let args = vec![Value::symbol(crate::utils::intern_symbol(name)), value.clone())];
+                let args = vec![Value::symbol(crate::utils::intern_symbol(name)), value.clone()];
                 if let Some(lifted) = self.effect_lifter.lift_operation("set!", &args) {
                     self.stack_trace.pop();
                     return self.handle_monadic_computation(lifted, env, span);
@@ -641,7 +641,7 @@ impl Evaluator {
             }
             Err(e) => {
                 self.stack_trace.pop();
-                EvalStep::Error(e)
+                EvalStep::Error(*e)
             }
         }
     }
@@ -665,7 +665,7 @@ impl Evaluator {
             }
             Err(e) => {
                 self.stack_trace.pop();
-                EvalStep::Error(e)
+                EvalStep::Error(*e)
             }
         }
     }
@@ -699,7 +699,7 @@ impl Evaluator {
             }
             Err(e) => {
                 self.stack_trace.pop();
-                EvalStep::Error(e)
+                EvalStep::Error(*e)
             }
         }
     }
@@ -717,7 +717,7 @@ impl Evaluator {
         match self.eval(proc_expr, env.clone()) {
             Ok(procedure) => {
                 // Create a continuation that captures the current evaluation context
-                let continuation = self.capture_continuation(env.clone()), None);
+                let continuation = self.capture_continuation(env.clone(), None);
                 let cont_value = Value::Continuation(Arc::new(continuation));
                 
                 self.stack_trace.pop();
@@ -731,7 +731,7 @@ impl Evaluator {
             }
             Err(e) => {
                 self.stack_trace.pop();
-                EvalStep::Error(e)
+                EvalStep::Error(*e)
             }
         }
     }
@@ -753,7 +753,7 @@ impl Evaluator {
                 Ok(value) => eval_args.push(value),
                 Err(e) => {
                     self.stack_trace.pop();
-                    return EvalStep::Error(e);
+                    return EvalStep::Error(*e);
                 }
             }
         }
@@ -766,14 +766,12 @@ impl Evaluator {
             }
             Err(e) => {
                 // Create a new error with span information
-                let error_with_span = match e {
-                    Error::RuntimeError { message, .. } => {
-                        Error::runtime_error(message, Some(span))
-                    }
+                let error_with_span = match *e {
+                    Error::RuntimeError { message, .. } => Box::new(Error::runtime_error(message, Some(span))),
                     _ => e,
                 };
                 self.stack_trace.pop();
-                EvalStep::Error(error_with_span)
+                EvalStep::Error(*error_with_span)
             }
         }
     }
@@ -793,7 +791,7 @@ impl Evaluator {
             for operand in operands {
                 match self.eval(operand, env.clone()) {
                     Ok(value) => args.push(value),
-                    Err(e) => return EvalStep::Error(e),
+                    Err(e) => return EvalStep::Error(*e),
                 }
             }
             
@@ -813,7 +811,7 @@ impl Evaluator {
                 for operand in operands {
                     match self.eval(operand, env.clone()) {
                         Ok(value) => args.push(value),
-                        Err(e) => return EvalStep::Error(e),
+                        Err(e) => return EvalStep::Error(*e),
                     }
                 }
 
@@ -824,7 +822,7 @@ impl Evaluator {
                     location: Some(span),
                 }
             }
-            Err(e) => EvalStep::Error(e),
+            Err(e) => EvalStep::Error(*e),
         }
     }
 
@@ -843,7 +841,7 @@ impl Evaluator {
                 } else {
                     EvalStep::CallContinuation {
                         continuation: cont,
-                        value: args[0].clone()),
+                        value: args[0].clone(),
                     }
                 }
             }
@@ -851,7 +849,7 @@ impl Evaluator {
                 // Parameters are callable as procedures
                 match crate::stdlib::parameters::call_parameter(&param, &args) {
                     Ok(value) => EvalStep::Return(value),
-                    Err(e) => EvalStep::Error(e),
+                    Err(e) => EvalStep::Error(*e),
                 }
             }
             _ => EvalStep::Error(Error::runtime_error(
@@ -870,7 +868,7 @@ impl Evaluator {
     ) -> EvalStep {
         // Check arity
         if let Err(e) = self.check_arity(&proc.formals, args.len(), location) {
-            return EvalStep::Error(e);
+            return EvalStep::Error(*e);
         }
 
         // Create new environment for procedure body
@@ -881,7 +879,7 @@ impl Evaluator {
         if let Some(proc_name) = &proc.name {
             // First check the global environment (for define-based functions)
             if let Some(global_value) = self.global_env.lookup(proc_name) {
-                new_env = new_env.define_cow(proc_name.clone()), global_value);
+                new_env = new_env.define_cow(proc_name.clone(), global_value);
             }
             // TODO: Also check parent environments for letrec-based functions
         }
@@ -889,19 +887,19 @@ impl Evaluator {
         // Bind parameters using thread-safe environment
         let bound_env = match self.bind_parameters_thread_safe(&proc.formals, &args, new_env, location) {
             Ok(env) => env,
-            Err(e) => return EvalStep::Error(e),
+            Err(e) => return EvalStep::Error(*e),
         };
 
         // Push context frame for continuation capture
         self.push_context_frame(Frame::ProcedureCall {
-            procedure_name: proc.name.clone()),
-            remaining_body: proc.body.clone()),
-            environment: bound_env.clone()),
-            source: location.unwrap_or_else(Span::default),
+            procedure_name: proc.name.clone(),
+            remaining_body: proc.body.clone(),
+            environment: bound_env.clone(),
+            source: location.unwrap_or_default(),
         });
 
         // Push stack frame
-        self.stack_trace.push(StackFrame::procedure_call(proc.name.clone()), location));
+        self.stack_trace.push(StackFrame::procedure_call(proc.name.clone(), location));
 
         // Convert back to legacy environment for eval_sequence
         let legacy_env = bound_env.to_legacy();
@@ -925,15 +923,15 @@ impl Evaluator {
         let arg_count = args.len();
         
         // Find the first matching clause
-        for (_i, clause) in case_lambda.clauses.iter().enumerate() {
+        for clause in case_lambda.clauses.iter() {
             if self.formals_match_arity(&clause.formals, arg_count) {
                 // Create temporary procedure from matching clause
                 let temp_proc = Procedure {
-                    formals: clause.formals.clone()),
-                    body: clause.body.clone()),
-                    environment: case_lambda.environment.clone()),
-                    name: case_lambda.name.clone()),
-                    metadata: case_lambda.metadata.clone()),
+                    formals: clause.formals.clone(),
+                    body: clause.body.clone(),
+                    environment: case_lambda.environment.clone(),
+                    name: case_lambda.name.clone(),
+                    metadata: case_lambda.metadata.clone(),
                     source: case_lambda.source,
                 };
                 
@@ -953,7 +951,7 @@ impl Evaluator {
         
         let proc_name = case_lambda.name
             .as_ref()
-            .map(|n| format!("case-lambda procedure '{}'", n))
+            .map(|n| format!("case-lambda procedure '{n}'"))
             .unwrap_or_else(|| "case-lambda procedure".to_string());
         
         EvalStep::Error(Error::runtime_error(
@@ -1008,7 +1006,7 @@ impl Evaluator {
         }
 
         // Push stack frame
-        self.stack_trace.push(StackFrame::primitive(prim.name.clone()), location));
+        self.stack_trace.push(StackFrame::primitive(prim.name.clone(), location));
 
         // Call implementation
         let result = match &prim.implementation {
@@ -1019,7 +1017,7 @@ impl Evaluator {
                 Err(Box::new(Error::runtime_error(
                     "FFI not yet implemented".to_string(),
                     location,
-                ))
+                )))
             }
         };
 
@@ -1027,7 +1025,7 @@ impl Evaluator {
 
         match result {
             Ok(value) => EvalStep::Return(value),
-            Err(e) => EvalStep::Error(e),
+            Err(e) => EvalStep::Error(*e),
         }
     }
 
@@ -1051,7 +1049,7 @@ impl Evaluator {
     /// Captures the current continuation.
     fn capture_continuation(&self, env: Rc<Environment>, current_expr: Option<Spanned<Expr>>) -> Continuation {
         // Clone the current context stack
-        let captured_stack = self.context_stack.clone());
+        let captured_stack = self.context_stack.clone();
         
         Continuation::new(
             captured_stack,
@@ -1064,7 +1062,7 @@ impl Evaluator {
     /// Restores a captured continuation and returns the given value.
     fn restore_continuation(&mut self, continuation: &Continuation, value: Value) -> EvalStep {
         // Restore the context stack
-        self.context_stack = continuation.stack.clone());
+        self.context_stack = continuation.stack.clone();
         
         // The continuation essentially performs a non-local exit
         // by abandoning the current computation and returning the value
@@ -1105,13 +1103,13 @@ impl Evaluator {
         // Evaluate all but the last expression for side effects
         for expr in &exprs[..exprs.len() - 1] {
             if let Err(e) = self.eval(expr, env.clone()) {
-                return EvalStep::Error(e);
+                return EvalStep::Error(*e);
             }
         }
 
         // Tail call the last expression
         EvalStep::Continue {
-            expr: exprs[exprs.len() - 1].clone()),
+            expr: exprs[exprs.len() - 1].clone(),
             env,
         }
     }
@@ -1130,8 +1128,8 @@ impl Evaluator {
         // Evaluate all binding values in the original environment
         for binding in bindings {
             match self.eval(&binding.value, env.clone()) {
-                Ok(value) => new_env.define(binding.name.clone()), value),
-                Err(e) => return EvalStep::Error(e),
+                Ok(value) => new_env.define(binding.name.clone(), value),
+                Err(e) => return EvalStep::Error(*e),
             }
         }
 
@@ -1154,10 +1152,10 @@ impl Evaluator {
             match self.eval(&binding.value, current_env.clone()) {
                 Ok(value) => {
                     let new_env = current_env.extend(self.generation);
-                    new_env.define(binding.name.clone()), value);
+                    new_env.define(binding.name.clone(), value);
                     current_env = new_env;
                 }
-                Err(e) => return EvalStep::Error(e),
+                Err(e) => return EvalStep::Error(*e),
             }
         }
 
@@ -1178,16 +1176,16 @@ impl Evaluator {
 
         // First pass: bind all names to unspecified
         for binding in bindings {
-            new_env.define(binding.name.clone()), Value::Unspecified);
+            new_env.define(binding.name.clone(), Value::Unspecified);
         }
 
         // Second pass: evaluate all expressions and update bindings
         for binding in bindings {
             match self.eval(&binding.value, new_env.clone()) {
                 Ok(value) => {
-                    new_env.define(binding.name.clone()), value);
+                    new_env.define(binding.name.clone(), value);
                 }
-                Err(e) => return EvalStep::Error(e),
+                Err(e) => return EvalStep::Error(*e),
             }
         }
 
@@ -1196,14 +1194,14 @@ impl Evaluator {
             if let Some(Value::Procedure(proc_arc)) = new_env.lookup(&binding.name) {
                 let proc = proc_arc.as_ref();
                 let updated_proc = Procedure {
-                    formals: proc.formals.clone()),
-                    body: proc.body.clone()),
+                    formals: proc.formals.clone(),
+                    body: proc.body.clone(),
                     environment: new_env.to_thread_safe(), // Capture final environment state
                     name: Some(binding.name.clone()),
-                    metadata: proc.metadata.clone()),
+                    metadata: proc.metadata.clone(),
                     source: proc.source,
                 };
-                new_env.define(binding.name.clone()), Value::Procedure(Arc::new(updated_proc)));
+                new_env.define(binding.name.clone(), Value::Procedure(Arc::new(updated_proc)));
             }
         }
 
@@ -1233,7 +1231,7 @@ impl Evaluator {
                         return self.eval_sequence(&clause.body, env);
                     }
                 }
-                Err(e) => return EvalStep::Error(e),
+                Err(e) => return EvalStep::Error(*e),
             }
         }
 
@@ -1255,13 +1253,13 @@ impl Evaluator {
                         return EvalStep::Return(value);
                     }
                 }
-                Err(e) => return EvalStep::Error(e),
+                Err(e) => return EvalStep::Error(*e),
             }
         }
 
         // Tail call the last expression
         EvalStep::Continue {
-            expr: exprs[exprs.len() - 1].clone()),
+            expr: exprs[exprs.len() - 1].clone(),
             env,
         }
     }
@@ -1280,13 +1278,13 @@ impl Evaluator {
                         return EvalStep::Return(value);
                     }
                 }
-                Err(e) => return EvalStep::Error(e),
+                Err(e) => return EvalStep::Error(*e),
             }
         }
 
         // Tail call the last expression
         EvalStep::Continue {
-            expr: exprs[exprs.len() - 1].clone()),
+            expr: exprs[exprs.len() - 1].clone(),
             env,
         }
     }
@@ -1336,7 +1334,7 @@ impl Evaluator {
                                                 location: Some(span),
                                             };
                                         }
-                                        Err(e) => return EvalStep::Error(e),
+                                        Err(e) => return EvalStep::Error(*e),
                                     }
                                 } else {
                                     // Regular clause: evaluate the body
@@ -1346,7 +1344,7 @@ impl Evaluator {
                         }
                         Err(e) => {
                             // Error in test expression - this becomes the new exception
-                            return EvalStep::Error(e);
+                            return EvalStep::Error(*e);
                         }
                     }
                 }
@@ -1379,7 +1377,7 @@ impl Evaluator {
         let runtime_bindings = match process_parameter_bindings(bindings, |expr| {
             // We need to evaluate expressions synchronously here
             // Create a temporary evaluator to evaluate the expressions
-            match self.eval(&Spanned::new(expr.clone()), span), env.clone()) {
+            match self.eval(&Spanned::new(expr.clone(), span), env.clone()) {
                 Ok(value) => Ok(value),
                 Err(e) => Err(e),
             }
@@ -1387,7 +1385,7 @@ impl Evaluator {
             Ok(bindings) => bindings,
             Err(e) => {
                 self.stack_trace.pop();
-                return EvalStep::Error(e);
+                return EvalStep::Error(*e);
             }
         };
         
@@ -1410,7 +1408,7 @@ impl Evaluator {
                     Err(Box::new(Error::runtime_error(
                         format!("Expected {} arguments, got {}", params.len(), arg_count),
                         location,
-                    ))
+                    )))
                 } else {
                     Ok(())
                 }
@@ -1421,7 +1419,7 @@ impl Evaluator {
                     Err(Box::new(Error::runtime_error(
                         format!("Expected at least {} arguments, got {}", fixed.len(), arg_count),
                         location,
-                    ))
+                    )))
                 } else {
                     Ok(())
                 }
@@ -1432,7 +1430,7 @@ impl Evaluator {
                     Err(Box::new(Error::runtime_error(
                         format!("Expected at least {} arguments, got {}", fixed.len(), arg_count),
                         location,
-                    ))
+                    )))
                 } else {
                     Ok(())
                 }
@@ -1494,18 +1492,18 @@ impl Evaluator {
         match formals {
             Formals::Fixed(params) => {
                 for (param, arg) in params.iter().zip(args.iter()) {
-                    env.define(param.clone()), arg.clone());
+                    env.define(param.clone(), arg.clone());
                 }
             }
             Formals::Variable(param) => {
                 // Bind all arguments as a list
                 let args_list = Value::list(args.to_vec());
-                env.define(param.clone()), args_list);
+                env.define(param.clone(), args_list);
             }
             Formals::Mixed { fixed, rest } => {
                 // Bind fixed parameters
                 for (param, arg) in fixed.iter().zip(args.iter()) {
-                    env.define(param.clone()), arg.clone());
+                    env.define(param.clone(), arg.clone());
                 }
                 
                 // Bind remaining arguments as a list
@@ -1514,13 +1512,13 @@ impl Evaluator {
                 } else {
                     Value::Nil
                 };
-                env.define(rest.clone()), rest_args);
+                env.define(rest.clone(), rest_args);
             }
             Formals::Keyword { fixed, rest: _, keywords: _ } => {
                 // TODO: Implement proper keyword argument binding
                 // For now, just bind fixed parameters
                 for (param, arg) in fixed.iter().zip(args.iter()) {
-                    env.define(param.clone()), arg.clone());
+                    env.define(param.clone(), arg.clone());
                 }
             }
         }
@@ -1541,18 +1539,18 @@ impl Evaluator {
         match formals {
             Formals::Fixed(params) => {
                 for (param, arg) in params.iter().zip(args.iter()) {
-                    current_env = current_env.define_cow(param.clone()), arg.clone());
+                    current_env = current_env.define_cow(param.clone(), arg.clone());
                 }
             }
             Formals::Variable(param) => {
                 // Bind all arguments as a list
                 let args_list = Value::list(args.to_vec());
-                current_env = current_env.define_cow(param.clone()), args_list);
+                current_env = current_env.define_cow(param.clone(), args_list);
             }
             Formals::Mixed { fixed, rest } => {
                 // Bind fixed parameters
                 for (param, arg) in fixed.iter().zip(args.iter()) {
-                    current_env = current_env.define_cow(param.clone()), arg.clone());
+                    current_env = current_env.define_cow(param.clone(), arg.clone());
                 }
                 
                 // Bind remaining arguments as a list
@@ -1561,13 +1559,13 @@ impl Evaluator {
                 } else {
                     Value::Nil
                 };
-                current_env = current_env.define_cow(rest.clone()), rest_args);
+                current_env = current_env.define_cow(rest.clone(), rest_args);
             }
             Formals::Keyword { fixed, rest: _, keywords: _ } => {
                 // TODO: Implement proper keyword argument binding
                 // For now, just bind fixed parameters
                 for (param, arg) in fixed.iter().zip(args.iter()) {
-                    current_env = current_env.define_cow(param.clone()), arg.clone());
+                    current_env = current_env.define_cow(param.clone(), arg.clone());
                 }
             }
         }
@@ -1618,7 +1616,7 @@ impl Evaluator {
                 Err(Box::new(Error::runtime_error(
                     "Only syntax-rules transformers are currently supported".to_string(),
                     Some(transformer_expr.span),
-                ))
+                )))
             }
         }
     }
@@ -1696,7 +1694,7 @@ impl Evaluator {
                 }
                 Err(e) => {
                     self.stack_trace.pop();
-                    return EvalStep::Error(e);
+                    return EvalStep::Error(*e);
                 }
             }
         }
@@ -1719,10 +1717,7 @@ impl Evaluator {
         use crate::module_system::{import::parse_import_spec, ModuleId, ModuleNamespace};
         
         // Convert the spec expression to import specification
-        let import_spec = match self.parse_import_expression(spec_expr) {
-            Ok(spec) => spec,
-            Err(e) => return Err(e),
-        };
+        let import_spec = self.parse_import_expression(spec_expr)?;
 
         // Load the module using the scheme library loader
         match self.scheme_loader.load_library(&import_spec.module_id) {
@@ -1747,7 +1742,7 @@ impl Evaluator {
                     return Err(Box::new(Error::syntax_error(
                         "Empty import specification".to_string(),
                         Some(spec_expr.span),
-                    ));
+                    )));
                 }
 
                 // Parse module identifier from first element
@@ -1762,14 +1757,14 @@ impl Evaluator {
             // Also handle Application syntax: (srfi 41) gets parsed as (srfi . (41))
             Expr::Application { operator, operands } => {
                 // Construct a pseudo-list from the application
-                let mut elements = vec![operator.as_ref().clone())];
-                elements.extend(operands.iter().clone())());
+                let mut elements = vec![operator.as_ref().clone()];
+                elements.extend(operands.iter().cloned());
                 
                 if elements.is_empty() {
                     return Err(Box::new(Error::syntax_error(
                         "Empty import specification".to_string(),
                         Some(spec_expr.span),
-                    ));
+                    )));
                 }
 
                 // For applications, the elements directly represent the module components
@@ -1781,7 +1776,7 @@ impl Evaluator {
             _ => Err(Box::new(Error::syntax_error(
                 format!("Import specification must be a list, found: {:?}", spec_expr.inner),
                 Some(spec_expr.span),
-            )),
+            ))),
         }
     }
 
@@ -1795,7 +1790,7 @@ impl Evaluator {
                     return Err(Box::new(Error::syntax_error(
                         "Module identifier cannot be empty".to_string(),
                         Some(expr.span),
-                    ));
+                    )));
                 }
 
                 let mut components = Vec::new();
@@ -1806,7 +1801,7 @@ impl Evaluator {
                         _ => return Err(Box::new(Error::syntax_error(
                             "Module identifier components must be symbols".to_string(),
                             Some(element.span),
-                        )),
+                        ))),
                     }
                 }
 
@@ -1823,7 +1818,7 @@ impl Evaluator {
             _ => Err(Box::new(Error::syntax_error(
                 "Module identifier must be a list".to_string(),
                 Some(expr.span),
-            )),
+            ))),
         }
     }
 
@@ -1835,7 +1830,7 @@ impl Evaluator {
             return Err(Box::new(Error::runtime_error(
                 "Module identifier cannot be empty".to_string(),
                 None,
-            ));
+            )));
         }
 
         let mut components = Vec::new();
@@ -1850,12 +1845,12 @@ impl Evaluator {
                 _ => return Err(Box::new(Error::syntax_error(
                     format!("Module identifier components must be symbols or numbers, found: {:?}", element.inner),
                     Some(element.span),
-                )),
+                ))),
             }
         }
 
         // Debug output to see what we're constructing
-        eprintln!("Debug: Constructed module components: {:?}", components);
+        eprintln!("Debug: Constructed module components: {components:?}");
 
         // Determine namespace based on first component
         let namespace = match components[0].as_str() {
@@ -1878,7 +1873,7 @@ impl Evaluator {
         };
 
         let module_id = ModuleId { components: module_components, namespace };
-        eprintln!("Debug: Final module ID: {:?}", module_id);
+        eprintln!("Debug: Final module ID: {module_id:?}");
         
         Ok(module_id)
     }
@@ -1900,7 +1895,7 @@ impl Evaluator {
                         let _old_context = self.effect_system.enter_context(vec![Effect::IO]);
                         EvalStep::Return(value)
                     },
-                    Err(e) => EvalStep::Error(e),
+                    Err(e) => EvalStep::Error(*e),
                 }
             },
             MonadicValue::State(state_comp) => {
@@ -1912,7 +1907,7 @@ impl Evaluator {
                         let _old_context = self.effect_system.enter_context(vec![Effect::State]);
                         EvalStep::Return(value)
                     },
-                    Err(e) => EvalStep::Error(e),
+                    Err(e) => EvalStep::Error(*e),
                 }
             },
             MonadicValue::Error(error_comp) => {
@@ -1922,12 +1917,12 @@ impl Evaluator {
                         let _old_context = self.effect_system.enter_context(vec![Effect::Error]);
                         EvalStep::Return(value)
                     },
-                    Err(e) => EvalStep::Error(e),
+                    Err(e) => EvalStep::Error(*e),
                 }
             },
             MonadicValue::Combined(combined) => {
                 // Handle combined effects by using the primary computation
-                self.handle_monadic_computation(combined.primary().clone()), _env, _span)
+                self.handle_monadic_computation(combined.primary().clone(), _env, _span)
             }
         }
     }
@@ -1961,7 +1956,7 @@ impl Evaluator {
                 }
                 Err(e) => {
                     self.stack_trace.pop();
-                    return EvalStep::Error(e);
+                    return EvalStep::Error(*e);
                 }
             }
         }
@@ -1978,7 +1973,7 @@ impl Evaluator {
                 }
                 Err(e) => {
                     self.stack_trace.pop();
-                    return EvalStep::Error(e);
+                    return EvalStep::Error(*e);
                 }
             }
         }
@@ -2096,7 +2091,7 @@ mod tests {
         // Push some context frames first
         let thread_safe_env = env.to_thread_safe();
         evaluator.push_context_frame(Frame::CallCC {
-            environment: thread_safe_env.clone()),
+            environment: thread_safe_env.clone(),
             source: Span::default(),
         });
         
@@ -2124,8 +2119,8 @@ mod tests {
             Ok(Value::Literal(Literal::Number(n))) => {
                 assert_eq!(n, 42.0);
             }
-            Ok(other) => panic!("Expected number 42, got {:?}", other),
-            Err(e) => panic!("Evaluation failed: {:?}", e),
+            Ok(other) => panic!("Expected number 42, got {other:?}"),
+            Err(e) => panic!("Evaluation failed: {e:?}"),
         }
     }
 
@@ -2154,7 +2149,7 @@ mod tests {
             }
             Err(e) => {
                 // Check that it's not a parsing error but a runtime limitation
-                let error_msg = format!("{:?}", e);
+                let error_msg = format!("{e:?}");
                 assert!(error_msg.contains("call/cc") || error_msg.contains("continuation") || error_msg.contains("escape"));
             }
         }
@@ -2173,22 +2168,22 @@ mod tests {
         let mut evaluator = Evaluator::new();
         
         // First invocation should succeed
-        let result1 = evaluator.call_continuation(continuation.clone()), Value::integer(42));
+        let result1 = evaluator.call_continuation(continuation.clone(), Value::integer(42));
         match result1 {
             EvalStep::Return(Value::Literal(Literal::Number(n))) => {
                 assert_eq!(n, 42.0);
             }
-            other => panic!("Expected return of 42, got {:?}", other),
+            other => panic!("Expected return of 42, got {other:?}"),
         }
         
         // Second invocation should fail
         let result2 = evaluator.call_continuation(continuation, Value::integer(84));
         match result2 {
             EvalStep::Error(e) => {
-                let error_msg = format!("{:?}", e);
+                let error_msg = format!("{e:?}");
                 assert!(error_msg.contains("more than once"));
             }
-            other => panic!("Expected error for second invocation, got {:?}", other),
+            other => panic!("Expected error for second invocation, got {other:?}"),
         }
     }
 
@@ -2220,14 +2215,14 @@ mod tests {
         
         // Test different frame types can be created
         let _call_cc_frame = Frame::CallCC {
-            environment: env.clone()),
+            environment: env.clone(),
             source: Span::default(),
         };
         
         let _proc_call_frame = Frame::ProcedureCall {
             procedure_name: Some("test".to_string()),
             remaining_body: vec![],
-            environment: env.clone()),
+            environment: env.clone(),
             source: Span::default(),
         };
         
@@ -2235,7 +2230,7 @@ mod tests {
             operator: Value::integer(42),
             evaluated_args: vec![],
             remaining_args: vec![],
-            environment: env.clone()),
+            environment: env.clone(),
             source: Span::default(),
         };
         
@@ -2262,7 +2257,7 @@ mod tests {
                 // Success is good
             }
             Err(e) => {
-                let error_msg = format!("{:?}", e);
+                let error_msg = format!("{e:?}");
                 // Should not be an "unimplemented expression" error
                 assert!(!error_msg.contains("Unimplemented expression type"));
             }

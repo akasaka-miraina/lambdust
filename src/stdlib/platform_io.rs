@@ -128,7 +128,7 @@ impl HighPerformanceIo {
                 events: Vec::with_capacity(32),
             }),
             Err(e) => {
-                eprintln!("Failed to create kqueue, falling back to mio: {}", e);
+                eprintln!("Failed to create kqueue, falling back to mio: {e}");
                 Self::create_mio_handle()
             }
         }
@@ -245,8 +245,7 @@ impl HighPerformanceIo {
         match kq_fd.kevent(&[], events, timeout_spec) {
             Ok(num_events) => {
                 let mut completions = Vec::new();
-                for i in 0..num_events {
-                    let event = &events[i];
+                for event in &events[0..num_events] {
                     let user_data = event.udata() as u64;
                     
                     if let Some(operation) = pending_operations.remove(&user_data) {
@@ -476,10 +475,10 @@ fn bind_event_systems(env: &Arc<ThreadSafeEnvironment>) {
 
 pub fn primitive_create_high_performance_io(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("create-high-performance-io expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let backend = if args.len() == 1 {
@@ -490,19 +489,19 @@ pub fn primitive_create_high_performance_io(args: &[Value]) -> Result<Value> {
     
     match HighPerformanceIo::new() {
         Ok(hp_io) => Ok(Value::opaque(Box::new(hp_io))),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot create high-performance I/O: {}", e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot create high-performance I/O: {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_submit_io_operation(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("submit-io-operation expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let operation_str = extract_string(&args[1], "submit-io-operation")?;
@@ -514,10 +513,10 @@ pub fn primitive_submit_io_operation(args: &[Value]) -> Result<Value> {
         "send" => IoOperation::Send,
         "receive" => IoOperation::Receive,
         _ => {
-            return Err(DiagnosticError::runtime_error(
-                format!("Unknown I/O operation: {}", operation_str),
+            return Err(Box::new(DiagnosticError::runtime_error(
+                format!("Unknown I/O operation: {operation_str}"),
                 None,
-            ));
+            )));
         }
     };
     
@@ -535,25 +534,25 @@ pub fn primitive_submit_io_operation(args: &[Value]) -> Result<Value> {
                 // In reality, we'd need a different approach for mutability
                 Ok(Value::integer(1)) // Placeholder operation ID
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "submit-io-operation requires high-performance I/O handle".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "submit-io-operation requires high-performance I/O handle".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_poll_io_completions(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("poll-io-completions expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let timeout_ms = if args.len() > 1 {
@@ -570,25 +569,25 @@ pub fn primitive_poll_io_completions(args: &[Value]) -> Result<Value> {
                 // In reality, we'd poll for completions and return them
                 Ok(Value::Nil) // Placeholder - would return list of completions
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "poll-io-completions requires high-performance I/O handle".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "poll-io-completions requires high-performance I/O handle".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_batch_io_operations(_args: &[Value]) -> Result<Value> {
     // TODO: Implement batched I/O operations
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "batch-io-operations not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Platform Detection ===
@@ -614,6 +613,7 @@ pub fn primitive_platform_name(_args: &[Value]) -> Result<Value> {
 }
 
 pub fn primitive_platform_capabilities(_args: &[Value]) -> Result<Value> {
+    #[allow(clippy::mutable_key_type)]
     let mut capabilities = HashMap::new();
     
     // I/O backends
@@ -677,10 +677,10 @@ pub fn primitive_platform_capabilities(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_io_backend_available_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("io-backend-available? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let backend = extract_string(&args[0], "io-backend-available?")?;
@@ -701,16 +701,17 @@ pub fn primitive_io_backend_available_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_platform_file_attributes(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("platform-file-attributes expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "platform-file-attributes")?;
     
     match std::fs::metadata(&path) {
         Ok(metadata) => {
+            #[allow(clippy::mutable_key_type)]
             let mut attributes = HashMap::new();
             
             #[cfg(unix)]
@@ -768,53 +769,53 @@ pub fn primitive_platform_file_attributes(args: &[Value]) -> Result<Value> {
             
             Ok(Value::Hashtable(Arc::new(std::sync::RwLock::new(attributes))))
         }
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot get attributes for '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot get attributes for '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_set_platform_file_attributes(_args: &[Value]) -> Result<Value> {
     // TODO: Implement platform-specific attribute setting
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "set-platform-file-attributes not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_file_system_info(_args: &[Value]) -> Result<Value> {
     // TODO: Implement file system information retrieval
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "file-system-info not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Event Systems ===
 
 pub fn primitive_create_event_watcher(_args: &[Value]) -> Result<Value> {
     // TODO: Implement event watcher creation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "create-event-watcher not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_watch_file_events(_args: &[Value]) -> Result<Value> {
     // TODO: Implement file event watching
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "watch-file-events not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_poll_events(_args: &[Value]) -> Result<Value> {
     // TODO: Implement event polling
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "poll-events not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= HELPER FUNCTIONS =============
@@ -823,10 +824,10 @@ pub fn primitive_poll_events(_args: &[Value]) -> Result<Value> {
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires string arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -837,16 +838,16 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
             if let Some(i) = lit.to_i64() {
                 Ok(i)
             } else {
-                Err(DiagnosticError::runtime_error(
-                    format!("{} requires integer arguments", operation),
+                Err(Box::new(DiagnosticError::runtime_error(
+                    format!("{operation} requires integer arguments"),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires integer arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires integer arguments"),
             None,
-        )),
+        ))),
     }
 }
 

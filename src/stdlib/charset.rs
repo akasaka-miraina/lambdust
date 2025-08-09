@@ -57,7 +57,7 @@ impl CharSet {
         let start_code = start as u32;
         let end_code = end as u32;
         let chars = (start_code..=end_code)
-            .filter_map(|code| char::from_u32(code))
+            .filter_map(char::from_u32)
             .collect();
         
         Self { chars }
@@ -87,39 +87,39 @@ impl CharSet {
 
     /// Adds a character to the set (returns a new set).
     pub fn insert(&self, c: char) -> Self {
-        let mut new_chars = self.chars.clone());
+        let mut new_chars = self.chars.clone();
         new_chars.insert(c);
         Self { chars: new_chars }
     }
 
     /// Removes a character from the set (returns a new set).
     pub fn remove(&self, c: char) -> Self {
-        let mut new_chars = self.chars.clone());
+        let mut new_chars = self.chars.clone();
         new_chars.remove(&c);
         Self { chars: new_chars }
     }
 
     /// Returns the union of two character sets.
     pub fn union(&self, other: &Self) -> Self {
-        let chars = self.chars.union(&other.chars).clone())().collect();
+        let chars = self.chars.union(&other.chars).cloned().collect();
         Self { chars }
     }
 
     /// Returns the intersection of two character sets.
     pub fn intersection(&self, other: &Self) -> Self {
-        let chars = self.chars.intersection(&other.chars).clone())().collect();
+        let chars = self.chars.intersection(&other.chars).cloned().collect();
         Self { chars }
     }
 
     /// Returns the difference between two character sets (self - other).
     pub fn difference(&self, other: &Self) -> Self {
-        let chars = self.chars.difference(&other.chars).clone())().collect();
+        let chars = self.chars.difference(&other.chars).cloned().collect();
         Self { chars }
     }
 
     /// Returns the symmetric difference (XOR) of two character sets.
     pub fn symmetric_difference(&self, other: &Self) -> Self {
-        let chars = self.chars.symmetric_difference(&other.chars).clone())().collect();
+        let chars = self.chars.symmetric_difference(&other.chars).cloned().collect();
         Self { chars }
     }
 
@@ -166,12 +166,7 @@ impl CharSet {
 
     /// Converts the character set to a vector of characters.
     pub fn to_vec(&self) -> Vec<char> {
-        self.chars.iter().clone())().collect()
-    }
-
-    /// Converts the character set to a string.
-    pub fn to_string(&self) -> String {
-        self.chars.iter().collect()
+        self.chars.iter().cloned().collect()
     }
 
     /// Filters a character set using a predicate function.
@@ -179,7 +174,7 @@ impl CharSet {
     where
         F: Fn(char) -> bool,
     {
-        let chars = self.chars.iter().filter(|&&c| predicate(c)).clone())().collect();
+        let chars = self.chars.iter().filter(|&&c| predicate(c)).cloned().collect();
         Self { chars }
     }
 
@@ -214,7 +209,7 @@ impl fmt::Display for CharSet {
                         write!(f, " ")?;
                     }
                     if c.is_ascii_graphic() || c == ' ' {
-                        write!(f, "{}", c)?;
+                        write!(f, "{c}")?;
                     } else {
                         write!(f, "\\u{{{:04x}}}", c as u32)?;
                     }
@@ -257,7 +252,7 @@ impl StandardCharSets {
 
     /// Whitespace characters
     pub fn whitespace() -> CharSet {
-        CharSet::from_chars([' ', '\t', '\n', '\r', '\x0C', '\x0B'].iter().clone())())
+        CharSet::from_chars([' ', '\t', '\n', '\r', '\x0C', '\x0B'].iter().cloned())
     }
 
     /// ASCII punctuation characters
@@ -268,7 +263,7 @@ impl StandardCharSets {
 
     /// ASCII graphic characters (visible characters)
     pub fn graphic() -> CharSet {
-        CharSet::from_chars((33..=126).filter_map(|code| char::from_u32(code)))
+        CharSet::from_chars((33..=126).filter_map(char::from_u32))
     }
 
     /// ASCII printable characters (graphic + space)
@@ -278,7 +273,7 @@ impl StandardCharSets {
 
     /// ASCII control characters
     pub fn ascii() -> CharSet {
-        CharSet::from_chars((0..=127).filter_map(|code| char::from_u32(code)))
+        CharSet::from_chars((0..=127).filter_map(char::from_u32))
     }
 
     /// Empty character set
@@ -298,12 +293,12 @@ impl StandardCharSets {
 
     /// Blank characters (space and tab)
     pub fn blank() -> CharSet {
-        CharSet::from_chars([' ', '\t'].iter().clone())())
+        CharSet::from_chars([' ', '\t'].iter().cloned())
     }
 
     /// ISO control characters
     pub fn iso_control() -> CharSet {
-        CharSet::from_chars((0..=31).chain(127..=159).filter_map(|code| char::from_u32(code)))
+        CharSet::from_chars((0..=31).chain(127..=159).filter_map(char::from_u32))
     }
 }
 
@@ -520,10 +515,10 @@ fn bind_charset_conversions(env: &Arc<ThreadSafeEnvironment>) {
 fn get_charset(value: &Value) -> Result<&CharSet> {
     match value {
         Value::CharSet(charset) => Ok(charset),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "Expected character set".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -531,10 +526,10 @@ fn get_charset(value: &Value) -> Result<&CharSet> {
 fn get_char(value: &Value) -> Result<char> {
     match value {
         Value::Literal(Literal::Character(c)) => Ok(*c),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "Expected character".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -542,10 +537,10 @@ fn get_char(value: &Value) -> Result<char> {
 
 fn primitive_char_set_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-set? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(matches!(args[0], Value::CharSet(_))))
@@ -553,10 +548,10 @@ fn primitive_char_set_p(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char-set= requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
 
     let first = get_charset(&args[0])?;
@@ -572,10 +567,10 @@ fn primitive_char_set_equal(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_subset(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char-set<= requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
 
     for i in 0..args.len() - 1 {
@@ -591,10 +586,10 @@ fn primitive_char_set_subset(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_contains(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-set-contains? expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let charset = get_charset(&args[0])?;
@@ -618,14 +613,14 @@ fn primitive_char_set(args: &[Value]) -> Result<Value> {
 
 fn primitive_list_to_char_set(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list->char-set expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let char_list = args[0].as_list().ok_or_else(|| {
-        DiagnosticError::runtime_error("Expected a list".to_string(), None)
+        Box::new(DiagnosticError::runtime_error("Expected a list".to_string(), None))
     })?;
 
     let mut chars = Vec::new();
@@ -635,7 +630,7 @@ fn primitive_list_to_char_set(args: &[Value]) -> Result<Value> {
     }
 
     let base_charset = if args.len() == 2 {
-        get_charset(&args[1])?.clone())
+        get_charset(&args[1])?.clone()
     } else {
         CharSet::new()
     };
@@ -646,18 +641,18 @@ fn primitive_list_to_char_set(args: &[Value]) -> Result<Value> {
 
 fn primitive_string_to_char_set(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string->char-set expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let s = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error("Expected a string".to_string(), None)
+        Box::new(DiagnosticError::runtime_error("Expected a string".to_string(), None))
     })?;
 
     let base_charset = if args.len() == 2 {
-        get_charset(&args[1])?.clone())
+        get_charset(&args[1])?.clone()
     } else {
         CharSet::new()
     };
@@ -668,34 +663,34 @@ fn primitive_string_to_char_set(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_filter(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-set-filter expects 2 or 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     // For now, we'll implement a simple version that doesn't support procedure filtering
     // This would require the evaluator context to call the predicate function
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "char-set-filter with procedure predicates not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 fn primitive_ucs_range_to_char_set(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("ucs-range->char-set expects 2-4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let start = args[0].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error("Expected integer for start".to_string(), None)
+        Box::new(DiagnosticError::runtime_error("Expected integer for start".to_string(), None))
     })? as u32;
 
     let end = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error("Expected integer for end".to_string(), None)
+        Box::new(DiagnosticError::runtime_error("Expected integer for end".to_string(), None))
     })? as u32;
 
     let error_on_invalid = if args.len() >= 3 {
@@ -705,7 +700,7 @@ fn primitive_ucs_range_to_char_set(args: &[Value]) -> Result<Value> {
     };
 
     let base_charset = if args.len() == 4 {
-        get_charset(&args[3])?.clone())
+        get_charset(&args[3])?.clone()
     } else {
         CharSet::new()
     };
@@ -718,12 +713,12 @@ fn primitive_ucs_range_to_char_set(args: &[Value]) -> Result<Value> {
         .map(|code| {
             char::from_u32(code).ok_or_else(|| {
                 if error_on_invalid {
-                    DiagnosticError::runtime_error(
-                        format!("Invalid Unicode code point: {}", code),
+                    Box::new(DiagnosticError::runtime_error(
+                        format!("Invalid Unicode code point: {code}"),
                         None,
-                    )
+                    ))
                 } else {
-                    DiagnosticError::runtime_error("Invalid Unicode code point".to_string(), None)
+                    Box::new(DiagnosticError::runtime_error("Invalid Unicode code point".to_string(), None))
                 }
             })
         })
@@ -738,10 +733,10 @@ fn primitive_ucs_range_to_char_set(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_size(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-set-size expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let charset = get_charset(&args[0])?;
@@ -750,18 +745,18 @@ fn primitive_char_set_size(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_count(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-set-count expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     // For now, we'll implement a simple version that doesn't support procedure filtering
     // This would require the evaluator context to call the predicate function
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "char-set-count with procedure predicates not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 fn primitive_char_set_union(args: &[Value]) -> Result<Value> {
@@ -769,7 +764,7 @@ fn primitive_char_set_union(args: &[Value]) -> Result<Value> {
         return Ok(Value::CharSet(Arc::new(CharSet::new())));
     }
 
-    let mut result = get_charset(&args[0])?.clone());
+    let mut result = get_charset(&args[0])?.clone();
     for arg in &args[1..] {
         let charset = get_charset(arg)?;
         result = result.union(charset);
@@ -783,7 +778,7 @@ fn primitive_char_set_intersection(args: &[Value]) -> Result<Value> {
         return Ok(Value::CharSet(Arc::new(StandardCharSets::full())));
     }
 
-    let mut result = get_charset(&args[0])?.clone());
+    let mut result = get_charset(&args[0])?.clone();
     for arg in &args[1..] {
         let charset = get_charset(arg)?;
         result = result.intersection(charset);
@@ -794,13 +789,13 @@ fn primitive_char_set_intersection(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_difference(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char-set-difference requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
 
-    let mut result = get_charset(&args[0])?.clone());
+    let mut result = get_charset(&args[0])?.clone();
     for arg in &args[1..] {
         let charset = get_charset(arg)?;
         result = result.difference(charset);
@@ -811,10 +806,10 @@ fn primitive_char_set_difference(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_complement(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-set-complement expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let charset = get_charset(&args[0])?;
@@ -827,7 +822,7 @@ fn primitive_char_set_xor(args: &[Value]) -> Result<Value> {
         return Ok(Value::CharSet(Arc::new(CharSet::new())));
     }
 
-    let mut result = get_charset(&args[0])?.clone());
+    let mut result = get_charset(&args[0])?.clone();
     for arg in &args[1..] {
         let charset = get_charset(arg)?;
         result = result.symmetric_difference(charset);
@@ -840,10 +835,10 @@ fn primitive_char_set_xor(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_to_list(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-set->list expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let charset = get_charset(&args[0])?;
@@ -856,14 +851,14 @@ fn primitive_char_set_to_list(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_set_to_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-set->string expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let charset = get_charset(&args[0])?;
-    let s = charset.to_string();
+    let s: String = charset.iter().collect();
     Ok(Value::string(s))
 }
 

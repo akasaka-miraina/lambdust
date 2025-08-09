@@ -92,22 +92,18 @@ impl Tree {
             }
             Tree::Node { value, left, right, .. } => {
                 if index == 0 {
-                    Some(Arc::new(Tree::node(new_value, left.clone()), right.clone())))
+                    Some(Arc::new(Tree::node(new_value, left.clone(), right.clone())))
                 } else {
                     index -= 1; // Skip the root
                     let left_size = left.size();
                     if index < left_size {
-                        if let Some(new_left) = left.update(index, new_value) {
-                            Some(Arc::new(Tree::node(value.clone()), new_left, right.clone())))
-                        } else {
-                            None
-                        }
+                        left.update(index, new_value).map(|new_left| {
+                            Arc::new(Tree::node(value.clone(), new_left, right.clone()))
+                        })
                     } else {
-                        if let Some(new_right) = right.update(index - left_size, new_value) {
-                            Some(Arc::new(Tree::node(value.clone()), left.clone()), new_right)))
-                        } else {
-                            None
-                        }
+                        right.update(index - left_size, new_value).map(|new_right| {
+                            Arc::new(Tree::node(value.clone(), left.clone(), new_right))
+                        })
                     }
                 }
             }
@@ -177,7 +173,7 @@ impl RandomAccessList {
     /// Creates a named random access list for debugging
     pub fn with_name(name: impl Into<String>) -> Self {
         let mut list = Self::new();
-        list.name = Some(name.into())
+        list.name = Some(name.into());
         list
     }
     
@@ -244,7 +240,7 @@ impl RandomAccessList {
         match &*first_digit.tree {
             Tree::Leaf(value) => {
                 // Simple case: just remove the leaf
-                Some((value.clone()), Self {
+                Some((value.clone(), Self {
                     digits,
                     total_size: self.total_size - 1,
                     name: self.name,
@@ -255,14 +251,14 @@ impl RandomAccessList {
                 let left_weight = (first_digit.weight - 1) / 2;
                 let right_weight = left_weight;
                 
-                let left_digit = Digit::new(left.clone()), left_weight);
-                let right_digit = Digit::new(right.clone()), right_weight);
+                let left_digit = Digit::new(left.clone(), left_weight);
+                let right_digit = Digit::new(right.clone(), right_weight);
                 
                 // Insert the split digits at the front
                 digits.insert(0, right_digit);
                 digits.insert(0, left_digit);
                 
-                Some((value.clone()), Self {
+                Some((value.clone(), Self {
                     digits,
                     total_size: self.total_size - 1,
                     name: self.name,
@@ -316,7 +312,7 @@ impl RandomAccessList {
             Some(Self {
                 digits: new_digits,
                 total_size: self.total_size,
-                name: self.name.clone()),
+                name: self.name.clone(),
             })
         } else {
             None
@@ -339,7 +335,7 @@ impl RandomAccessList {
     
     /// Appends another list to this one
     pub fn append(&self, other: &Self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         for value in other.iter() {
             result = result.cons_back(value);
         }
@@ -373,7 +369,7 @@ impl RandomAccessList {
     
     /// Gets all elements except the first
     pub fn tail(&self) -> Option<Self> {
-        self.clone()).uncons_front().map(|(_, tail)| tail)
+        self.clone().uncons_front().map(|(_, tail)| tail)
     }
     
     /// Maps over all elements
@@ -455,7 +451,7 @@ impl RandomAccessList {
     pub fn split_at(&self, index: usize) -> (Self, Self) {
         let values = self.to_vec();
         if index >= values.len() {
-            (self.clone()), Self::new())
+            (self.clone(), Self::new())
         } else {
             let (left, right) = values.split_at(index);
             (Self::from_vec(left.to_vec()), Self::from_vec(right.to_vec()))
@@ -482,7 +478,7 @@ impl Default for RandomAccessList {
 
 impl Persistent<Value> for RandomAccessList {
     fn insert(&self, element: Value) -> Self {
-        self.clone()).cons_front(element)
+        self.clone().cons_front(element)
     }
     
     fn remove(&self, element: &Value) -> Self {
@@ -649,7 +645,7 @@ impl ThreadSafeRandomAccessList {
     
     /// Gets element by index
     pub fn get(&self, index: usize) -> Option<Value> {
-        self.inner.read().unwrap().get(index).clone())()
+        self.inner.read().unwrap().get(index).cloned()
     }
     
     /// Sets element by index
@@ -682,7 +678,7 @@ impl ThreadSafeRandomAccessList {
     where
         F: FnOnce(&MutableRandomAccessList) -> R,
     {
-        f(&*self.inner.read().unwrap())
+        f(&self.inner.read().unwrap())
     }
     
     /// Executes closure with write access
@@ -690,7 +686,7 @@ impl ThreadSafeRandomAccessList {
     where
         F: FnOnce(&mut MutableRandomAccessList) -> R,
     {
-        f(&mut *self.inner.write().unwrap())
+        f(&mut self.inner.write().unwrap())
     }
 }
 
@@ -704,7 +700,7 @@ impl Default for ThreadSafeRandomAccessList {
 impl RandomAccessList {
     /// SRFI-101: ra-list-ref with error handling
     pub fn ra_list_ref(&self, index: usize) -> ContainerResult<Value> {
-        self.get(index).clone())().ok_or(ContainerError::IndexOutOfBounds {
+        self.get(index).cloned().ok_or(ContainerError::IndexOutOfBounds {
             index,
             length: self.len(),
         })
@@ -720,12 +716,12 @@ impl RandomAccessList {
     
     /// SRFI-101: ra-list-cons
     pub fn ra_list_cons(&self, value: Value) -> Self {
-        self.clone()).cons_front(value)
+        self.clone().cons_front(value)
     }
     
     /// SRFI-101: ra-list-car
     pub fn ra_list_car(&self) -> ContainerResult<Value> {
-        self.head().clone())().ok_or(ContainerError::EmptyContainer {
+        self.head().cloned().ok_or(ContainerError::EmptyContainer {
             operation: "ra-list-car".to_string(),
         })
     }

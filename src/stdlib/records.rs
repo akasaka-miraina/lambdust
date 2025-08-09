@@ -223,7 +223,7 @@ fn primitive_make_record_type(args: &[Value]) -> Result<Value> {
     
     // Extract type name
     let type_name = match &args[0] {
-        Value::Literal(crate::ast::Literal::String(name)) => name.clone()),
+        Value::Literal(crate::ast::Literal::String(name)) => name.clone(),
         Value::Symbol(sym_id) => {
             if let Some(name) = crate::utils::symbol_name(*sym_id) {
                 name
@@ -280,7 +280,7 @@ fn primitive_make_record_type(args: &[Value]) -> Result<Value> {
     // Create record type
     let type_id = next_record_type_id();
     let field_info: Vec<FieldInfo> = field_names.iter().map(|name| FieldInfo {
-        name: name.clone()),
+        name: name.clone(),
         accessor: format!("{}-{}", type_name, name),
         mutator: Some(format!("{}-{}-set!", type_name, name)),
     }).collect();
@@ -410,7 +410,7 @@ fn primitive_record_accessor(args: &[Value]) -> Result<Value> {
     
     // Extract field name
     let field_name = match &args[1] {
-        Value::Literal(crate::ast::Literal::String(name)) => name.clone()),
+        Value::Literal(crate::ast::Literal::String(name)) => name.clone(),
         Value::Symbol(sym_id) => {
             if let Some(name) = crate::utils::symbol_name(*sym_id) {
                 name
@@ -499,7 +499,7 @@ fn primitive_record_mutator(args: &[Value]) -> Result<Value> {
     
     // Extract field name
     let field_name = match &args[1] {
-        Value::Literal(crate::ast::Literal::String(name)) => name.clone()),
+        Value::Literal(crate::ast::Literal::String(name)) => name.clone(),
         Value::Symbol(sym_id) => {
             if let Some(name) = crate::utils::symbol_name(*sym_id) {
                 name

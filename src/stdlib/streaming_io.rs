@@ -381,10 +381,10 @@ fn bind_pipeline_operations(env: &Arc<ThreadSafeEnvironment>) {
 
 pub fn primitive_create_stream(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("create-stream expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let source = extract_string(&args[0], "create-stream")?;
@@ -402,10 +402,10 @@ pub fn primitive_create_stream(args: &[Value]) -> Result<Value> {
             "lz4" => Some(CompressionType::Lz4),
             "none" => None,
             _ => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Unsupported compression type: {}", comp_str),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Unsupported compression type: {comp_str}"),
                     None,
-                ));
+                )));
             }
         }
     } else {
@@ -424,10 +424,10 @@ pub fn primitive_create_stream(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_stream_read_chunk(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("stream-read-chunk expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let max_size = if args.len() > 1 {
@@ -444,33 +444,33 @@ pub fn primitive_stream_read_chunk(args: &[Value]) -> Result<Value> {
                 // In reality, we'd need mutable access to the processor
                 Ok(Value::Nil) // Placeholder - would return next chunk
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "stream-read-chunk requires stream processor".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "stream-read-chunk requires stream processor".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_stream_write_chunk(_args: &[Value]) -> Result<Value> {
     // TODO: Implement stream chunk writing
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "stream-write-chunk not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_stream_finished_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("stream-finished? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Extract stream processor from opaque value
@@ -479,16 +479,16 @@ pub fn primitive_stream_finished_p(args: &[Value]) -> Result<Value> {
             if let Some(processor) = opaque_data.downcast_ref::<StreamProcessor>() {
                 Ok(Value::boolean(processor.is_finished()))
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "stream-finished? requires stream processor".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "stream-finished? requires stream processor".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -501,27 +501,27 @@ pub fn primitive_stream_close(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_compress_stream(_args: &[Value]) -> Result<Value> {
     // TODO: Implement stream compression
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "compress-stream not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_decompress_stream(_args: &[Value]) -> Result<Value> {
     // TODO: Implement stream decompression
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "decompress-stream not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "compression")]
 pub fn primitive_gzip_compress(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("gzip-compress expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let data = extract_bytevector(&args[0], "gzip-compress")?;
@@ -538,34 +538,34 @@ pub fn primitive_gzip_compress(args: &[Value]) -> Result<Value> {
         Ok(()) => {
             match encoder.finish() {
                 Ok(compressed) => Ok(Value::bytevector(compressed)),
-                Err(e) => Err(DiagnosticError::runtime_error(
+                Err(e) => Err(Box::new(DiagnosticError::runtime_error(
                     format!("Gzip compression failed: {}", e),
                     None,
-                )),
+                ))),
             }
         }
-        Err(e) => Err(DiagnosticError::runtime_error(
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
             format!("Gzip compression failed: {}", e),
             None,
-        )),
+        ))),
     }
 }
 
 #[cfg(not(feature = "compression"))]
 pub fn primitive_gzip_compress(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "gzip-compress requires compression feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "compression")]
 pub fn primitive_gzip_decompress(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("gzip-decompress expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let compressed = extract_bytevector(&args[0], "gzip-decompress")?;
@@ -574,28 +574,28 @@ pub fn primitive_gzip_decompress(args: &[Value]) -> Result<Value> {
     
     match decoder.read_to_end(&mut decompressed) {
         Ok(_) => Ok(Value::bytevector(decompressed)),
-        Err(e) => Err(DiagnosticError::runtime_error(
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
             format!("Gzip decompression failed: {}", e),
             None,
-        )),
+        ))),
     }
 }
 
 #[cfg(not(feature = "compression"))]
 pub fn primitive_gzip_decompress(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "gzip-decompress requires compression feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "compression")]
 pub fn primitive_zstd_compress(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("zstd-compress expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let data = extract_bytevector(&args[0], "zstd-compress")?;
@@ -607,56 +607,56 @@ pub fn primitive_zstd_compress(args: &[Value]) -> Result<Value> {
     
     match zstd::encode_all(&data[..], level) {
         Ok(compressed) => Ok(Value::bytevector(compressed)),
-        Err(e) => Err(DiagnosticError::runtime_error(
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
             format!("Zstd compression failed: {}", e),
             None,
-        )),
+        ))),
     }
 }
 
 #[cfg(not(feature = "compression"))]
 pub fn primitive_zstd_compress(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "zstd-compress requires compression feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "compression")]
 pub fn primitive_zstd_decompress(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("zstd-decompress expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let compressed = extract_bytevector(&args[0], "zstd-decompress")?;
     
     match zstd::decode_all(&compressed[..]) {
         Ok(decompressed) => Ok(Value::bytevector(decompressed)),
-        Err(e) => Err(DiagnosticError::runtime_error(
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
             format!("Zstd decompression failed: {}", e),
             None,
-        )),
+        ))),
     }
 }
 
 #[cfg(not(feature = "compression"))]
 pub fn primitive_zstd_decompress(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "zstd-decompress requires compression feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "compression")]
 pub fn primitive_lz4_compress(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("lz4-compress expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let data = extract_bytevector(&args[0], "lz4-compress")?;
@@ -666,19 +666,19 @@ pub fn primitive_lz4_compress(args: &[Value]) -> Result<Value> {
 
 #[cfg(not(feature = "compression"))]
 pub fn primitive_lz4_compress(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "lz4-compress requires compression feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "compression")]
 pub fn primitive_lz4_decompress(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("lz4-decompress expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let compressed = extract_bytevector(&args[0], "lz4-decompress")?;
@@ -686,29 +686,29 @@ pub fn primitive_lz4_decompress(args: &[Value]) -> Result<Value> {
     
     match decompress(&compressed, expected_size) {
         Ok(decompressed) => Ok(Value::bytevector(decompressed)),
-        Err(e) => Err(DiagnosticError::runtime_error(
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
             format!("LZ4 decompression failed: {}", e),
             None,
-        )),
+        ))),
     }
 }
 
 #[cfg(not(feature = "compression"))]
 pub fn primitive_lz4_decompress(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "lz4-decompress requires compression feature".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Memory-mapped File Operations ===
 
 pub fn primitive_memory_map_file(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("memory-map-file expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "memory-map-file")?;
@@ -719,27 +719,27 @@ pub fn primitive_memory_map_file(args: &[Value]) -> Result<Value> {
     };
     
     if !read_only {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "Writable memory mapping not yet implemented".to_string(),
             None,
-        ));
+        )));
     }
     
     match MemoryMappedFile::new(&path) {
         Ok(mmap_file) => Ok(Value::opaque(Box::new(mmap_file))),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot memory-map file '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot memory-map file '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_mmap_read_chunk(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("mmap-read-chunk expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let chunk_size = extract_integer(&args[1], "mmap-read-chunk")? as usize;
@@ -752,33 +752,33 @@ pub fn primitive_mmap_read_chunk(args: &[Value]) -> Result<Value> {
                 // In reality, we'd need a different approach for mutability
                 Ok(Value::Nil) // Placeholder
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "mmap-read-chunk requires memory-mapped file".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "mmap-read-chunk requires memory-mapped file".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_mmap_seek(_args: &[Value]) -> Result<Value> {
     // TODO: Implement memory-mapped file seeking
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "mmap-seek not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_mmap_size(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("mmap-size expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Extract memory-mapped file from opaque value
@@ -787,16 +787,16 @@ pub fn primitive_mmap_size(args: &[Value]) -> Result<Value> {
             if let Some(mmap_file) = opaque_data.downcast_ref::<MemoryMappedFile>() {
                 Ok(Value::integer(mmap_file.size as i64))
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "mmap-size requires memory-mapped file".to_string(),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "mmap-size requires memory-mapped file".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -804,52 +804,52 @@ pub fn primitive_mmap_size(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_stream_map(_args: &[Value]) -> Result<Value> {
     // TODO: Implement stream mapping
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "stream-map not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_stream_filter(_args: &[Value]) -> Result<Value> {
     // TODO: Implement stream filtering
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "stream-filter not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_stream_fold(_args: &[Value]) -> Result<Value> {
     // TODO: Implement stream folding
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "stream-fold not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Pipeline Operations ===
 
 pub fn primitive_create_pipeline(_args: &[Value]) -> Result<Value> {
     // TODO: Implement pipeline creation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "create-pipeline not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_pipeline_add_stage(_args: &[Value]) -> Result<Value> {
     // TODO: Implement pipeline stage addition
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "pipeline-add-stage not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_pipeline_execute(_args: &[Value]) -> Result<Value> {
     // TODO: Implement pipeline execution
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "pipeline-execute not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= HELPER FUNCTIONS =============
@@ -858,10 +858,10 @@ pub fn primitive_pipeline_execute(_args: &[Value]) -> Result<Value> {
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires string arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -869,10 +869,10 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
 fn extract_boolean(value: &Value, operation: &str) -> Result<bool> {
     match value {
         Value::Literal(crate::ast::Literal::Boolean(b)) => Ok(*b),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires boolean arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires boolean arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -883,16 +883,16 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
             if let Some(i) = lit.to_i64() {
                 Ok(i)
             } else {
-                Err(DiagnosticError::runtime_error(
-                    format!("{} requires integer arguments", operation),
+                Err(Box::new(DiagnosticError::runtime_error(
+                    format!("{operation} requires integer arguments"),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires integer arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires integer arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -900,10 +900,10 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
 fn extract_bytevector(value: &Value, operation: &str) -> Result<Vec<u8>> {
     match value {
         Value::Literal(crate::ast::Literal::Bytevector(bv)) => Ok(bv.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires bytevector arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires bytevector arguments"),
             None,
-        )),
+        ))),
     }
 }
 

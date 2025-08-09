@@ -540,10 +540,10 @@ fn bind_utility_operations(env: &Arc<ThreadSafeEnvironment>) {
 
 pub fn primitive_input_port_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("input-port? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("input-port? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -554,10 +554,10 @@ pub fn primitive_input_port_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_output_port_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("output-port? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("output-port? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -568,10 +568,10 @@ pub fn primitive_output_port_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_textual_port_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("textual-port? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("textual-port? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -582,10 +582,10 @@ pub fn primitive_textual_port_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_binary_port_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("binary-port? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("binary-port? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -596,10 +596,10 @@ pub fn primitive_binary_port_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_port_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("port? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("port? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_port()))
@@ -607,18 +607,18 @@ pub fn primitive_port_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_port_open_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("port-open? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("port-open? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::Port(port) => Ok(Value::boolean(port.is_open())),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "port-open? requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -629,10 +629,10 @@ pub fn primitive_port_open_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_open_input_file(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("open-input-file expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("open-input-file expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let filename = extract_string(&args[0], "open-input-file")?;
@@ -646,10 +646,10 @@ pub fn primitive_open_input_file(args: &[Value]) -> Result<Value> {
                 *handle.write().unwrap() = Some(PortFileHandle::TextReader(reader));
             }
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot open file '{}': {}", path, e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot open file '{path}': {e}"),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -659,10 +659,10 @@ pub fn primitive_open_input_file(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_open_output_file(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("open-output-file expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("open-output-file expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let filename = extract_string(&args[0], "open-output-file")?;
@@ -676,10 +676,10 @@ pub fn primitive_open_output_file(args: &[Value]) -> Result<Value> {
                 *handle.write().unwrap() = Some(PortFileHandle::TextWriter(writer));
             }
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot create file '{}': {}", path, e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot create file '{path}': {e}"),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -689,10 +689,10 @@ pub fn primitive_open_output_file(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_open_binary_input_file(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("open-binary-input-file expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("open-binary-input-file expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let filename = extract_string(&args[0], "open-binary-input-file")?;
@@ -705,10 +705,10 @@ pub fn primitive_open_binary_input_file(args: &[Value]) -> Result<Value> {
                 *handle.write().unwrap() = Some(PortFileHandle::BinaryReader(reader));
             }
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot open binary file '{}': {}", path, e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot open binary file '{path}': {e}"),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -718,10 +718,10 @@ pub fn primitive_open_binary_input_file(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_open_binary_output_file(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("open-binary-output-file expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("open-binary-output-file expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let filename = extract_string(&args[0], "open-binary-output-file")?;
@@ -734,10 +734,10 @@ pub fn primitive_open_binary_output_file(args: &[Value]) -> Result<Value> {
                 *handle.write().unwrap() = Some(PortFileHandle::BinaryWriter(writer));
             }
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot create binary file '{}': {}", path, e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot create binary file '{path}': {e}"),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -747,10 +747,10 @@ pub fn primitive_open_binary_output_file(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_close_port(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("close-port expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("close-port expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -758,62 +758,62 @@ pub fn primitive_close_port(args: &[Value]) -> Result<Value> {
             port.close();
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "close-port requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_close_input_port(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("close-input-port expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("close-input-port expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::Port(port) => {
             if !port.is_input() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "close-input-port requires an input port".to_string(),
                     None,
-                ));
+                )));
             }
             port.close();
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "close-input-port requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_close_output_port(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("close-output-port expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("close-output-port expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::Port(port) => {
             if !port.is_output() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "close-output-port requires an output port".to_string(),
                     None,
-                ));
+                )));
             }
             port.close();
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "close-output-port requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -821,10 +821,10 @@ pub fn primitive_close_output_port(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_open_input_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("open-input-string expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("open-input-string expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let string = extract_string(&args[0], "open-input-string")?;
@@ -839,38 +839,38 @@ pub fn primitive_open_output_string(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_get_output_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("get-output-string expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("get-output-string expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::Port(port) => {
             if !port.is_output() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "get-output-string requires an output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             match &port.implementation {
                 PortImpl::String { content, .. } => {
-                    let result = content.read().unwrap().clone());
+                    let result = content.read().unwrap().clone();
                     // Reset the string for future accumulation
                     content.write().unwrap().clear();
                     Ok(Value::string(result))
                 }
-                _ => Err(DiagnosticError::runtime_error(
+                _ => Err(Box::new(DiagnosticError::runtime_error(
                     "get-output-string requires a string output port".to_string(),
                     None,
-                )),
+                ))),
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "get-output-string requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -878,10 +878,10 @@ pub fn primitive_get_output_string(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_open_input_bytevector(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("open-input-bytevector expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("open-input-bytevector expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let bytevector = extract_bytevector(&args[0], "open-input-bytevector")?;
@@ -896,38 +896,38 @@ pub fn primitive_open_output_bytevector(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_get_output_bytevector(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("get-output-bytevector expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::Port(port) => {
             if !port.is_output() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "get-output-bytevector requires an output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             match &port.implementation {
                 PortImpl::Bytevector { content, .. } => {
-                    let result = content.read().unwrap().clone());
+                    let result = content.read().unwrap().clone();
                     // Reset the bytevector for future accumulation
                     content.write().unwrap().clear();
                     Ok(Value::bytevector(result))
                 }
-                _ => Err(DiagnosticError::runtime_error(
+                _ => Err(Box::new(DiagnosticError::runtime_error(
                     "get-output-bytevector requires a bytevector output port".to_string(),
                     None,
-                )),
+                ))),
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "get-output-bytevector requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -937,28 +937,28 @@ pub fn primitive_read(args: &[Value]) -> Result<Value> {
     let port = if args.is_empty() {
         current_ports::get_current_input_port()
     } else if args.len() == 1 {
-        args[0].clone())
+        args[0].clone()
     } else {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read requires an input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             // Read text from port and parse as S-expression
@@ -968,7 +968,7 @@ pub fn primitive_read(args: &[Value]) -> Result<Value> {
                     let mut lexer = Lexer::new(&text, None);
                     let tokens = lexer.tokenize().map_err(|e| {
                         DiagnosticError::runtime_error(
-                            format!("read: lexer error: {}", e),
+                            format!("read: lexer error: {e}"),
                             None,
                         )
                     })?;
@@ -986,10 +986,10 @@ pub fn primitive_read(args: &[Value]) -> Result<Value> {
                 Err(e) => Err(e),
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -997,36 +997,36 @@ pub fn primitive_read_char(args: &[Value]) -> Result<Value> {
     let port = if args.is_empty() {
         current_ports::get_current_input_port()
     } else if args.len() == 1 {
-        args[0].clone())
+        args[0].clone()
     } else {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read-char expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-char requires a textual input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-char from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             read_char_from_port(&port_ref, false)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-char requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1034,36 +1034,36 @@ pub fn primitive_peek_char(args: &[Value]) -> Result<Value> {
     let port = if args.is_empty() {
         current_ports::get_current_input_port()
     } else if args.len() == 1 {
-        args[0].clone())
+        args[0].clone()
     } else {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("peek-char expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "peek-char requires a textual input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "peek-char from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             read_char_from_port(&port_ref, true)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "peek-char requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1071,76 +1071,76 @@ pub fn primitive_read_line(args: &[Value]) -> Result<Value> {
     let port = if args.is_empty() {
         current_ports::get_current_input_port()
     } else if args.len() == 1 {
-        args[0].clone())
+        args[0].clone()
     } else {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read-line expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-line requires a textual input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-line from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             read_line_from_port(&port_ref)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-line requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_read_string(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read-string expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let k = extract_integer(&args[0], "read-string")? as usize;
     let port = if args.len() == 1 {
         current_ports::get_current_input_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-string requires a textual input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-string from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             read_string_from_port(&port_ref, k)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-string requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1148,36 +1148,36 @@ pub fn primitive_read_u8(args: &[Value]) -> Result<Value> {
     let port = if args.is_empty() {
         current_ports::get_current_input_port()
     } else if args.len() == 1 {
-        args[0].clone())
+        args[0].clone()
     } else {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read-u8 expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() || !port_ref.is_binary() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-u8 requires a binary input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-u8 from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             read_u8_from_port(&port_ref, false)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-u8 requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1185,92 +1185,92 @@ pub fn primitive_peek_u8(args: &[Value]) -> Result<Value> {
     let port = if args.is_empty() {
         current_ports::get_current_input_port()
     } else if args.len() == 1 {
-        args[0].clone())
+        args[0].clone()
     } else {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("peek-u8 expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() || !port_ref.is_binary() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "peek-u8 requires a binary input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "peek-u8 from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             read_u8_from_port(&port_ref, true)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "peek-u8 requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_read_bytevector(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read-bytevector expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let k = extract_integer(&args[0], "read-bytevector")? as usize;
     let port = if args.len() == 1 {
         current_ports::get_current_input_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() || !port_ref.is_binary() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-bytevector requires a binary input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-bytevector from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             read_bytevector_from_port(&port_ref, k)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-bytevector requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_read_bytevector_bang(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read-bytevector! expects 1 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let bytevector = extract_bytevector(&args[0], "read-bytevector!")?;
     let port = if args.len() == 1 {
         current_ports::get_current_input_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     let start = if args.len() >= 3 {
@@ -1286,34 +1286,35 @@ pub fn primitive_read_bytevector_bang(args: &[Value]) -> Result<Value> {
     };
     
     if start > end || end > bytevector.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "read-bytevector!: invalid start/end indices".to_string(),
             None,
-        ));
+        )));
     }
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_input() || !port_ref.is_binary() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-bytevector! requires a binary input port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "read-bytevector! from closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
-            read_bytevector_bang_from_port(&port_ref, &mut bytevector.clone()), start, end)
+            let mut bytevector_copy = bytevector.clone();
+            read_bytevector_bang_from_port(&port_ref, &mut bytevector_copy, start, end)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-bytevector! requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1331,43 +1332,43 @@ pub fn primitive_u8_ready_p(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_write(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("write expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let value = &args[0];
     let port = if args.len() == 1 {
         current_ports::get_current_output_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_output() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write requires a textual output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write to closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
-            let output = format!("{}", value);
+            let output = format!("{value}");
             write_string_to_port(&port_ref, &output)?;
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "write requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1383,140 +1384,140 @@ pub fn primitive_write_simple(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_display(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("display expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let value = &args[0];
     let port = if args.len() == 1 {
         current_ports::get_current_output_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_output() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "display requires a textual output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "display to closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             let output = display_value(value);
             write_string_to_port(&port_ref, &output)?;
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "display requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_newline(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("newline expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let port = if args.is_empty() {
         current_ports::get_current_output_port()
     } else {
-        args[0].clone())
+        args[0].clone()
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_output() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "newline requires a textual output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "newline to closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             write_string_to_port(&port_ref, "\n")?;
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "newline requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_write_char(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("write-char expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "write-char")?;
     let port = if args.len() == 1 {
         current_ports::get_current_output_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_output() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write-char requires a textual output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write-char to closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             write_string_to_port(&port_ref, &ch.to_string())?;
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "write-char requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_write_string(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("write-string expects 1 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let string = extract_string(&args[0], "write-string")?;
     let port = if args.len() == 1 {
         current_ports::get_current_output_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     let start = if args.len() >= 3 {
@@ -1532,93 +1533,93 @@ pub fn primitive_write_string(args: &[Value]) -> Result<Value> {
     };
     
     if start > end || end > string.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "write-string: invalid start/end indices".to_string(),
             None,
-        ));
+        )));
     }
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_output() || !port_ref.is_textual() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write-string requires a textual output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write-string to closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             let substring = &string[start..end];
             write_string_to_port(&port_ref, substring)?;
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "write-string requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_write_u8(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("write-u8 expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let byte = extract_integer(&args[0], "write-u8")? as u8;
     let port = if args.len() == 1 {
         current_ports::get_current_output_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_output() || !port_ref.is_binary() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write-u8 requires a binary output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write-u8 to closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             write_u8_to_port(&port_ref, byte)?;
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "write-u8 requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_write_bytevector(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("write-bytevector expects 1 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let bytevector = extract_bytevector(&args[0], "write-bytevector")?;
     let port = if args.len() == 1 {
         current_ports::get_current_output_port()
     } else {
-        args[1].clone())
+        args[1].clone()
     };
     
     let start = if args.len() >= 3 {
@@ -1634,35 +1635,35 @@ pub fn primitive_write_bytevector(args: &[Value]) -> Result<Value> {
     };
     
     if start > end || end > bytevector.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "write-bytevector: invalid start/end indices".to_string(),
             None,
-        ));
+        )));
     }
     
     match port {
         Value::Port(port_ref) => {
             if !port_ref.is_output() || !port_ref.is_binary() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write-bytevector requires a binary output port".to_string(),
                     None,
-                ));
+                )));
             }
             
             if !port_ref.is_open() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "write-bytevector to closed port".to_string(),
                     None,
-                ));
+                )));
             }
             
             write_bytevector_to_port(&port_ref, &bytevector[start..end])?;
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "write-bytevector requires a port argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1679,10 +1680,10 @@ pub fn primitive_eof_object(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_eof_object_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("eof-object? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(is_eof_value(&args[0])))
@@ -1692,10 +1693,10 @@ pub fn primitive_eof_object_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_file_exists_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-exists? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let filename = extract_string(&args[0], "file-exists?")?;
@@ -1704,19 +1705,19 @@ pub fn primitive_file_exists_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_delete_file(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("delete-file expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let filename = extract_string(&args[0], "delete-file")?;
     match std::fs::remove_file(&filename) {
         Ok(()) => Ok(Value::Unspecified),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot delete file '{}': {}", filename, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot delete file '{filename}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1726,10 +1727,10 @@ pub fn primitive_delete_file(args: &[Value]) -> Result<Value> {
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires string arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1737,10 +1738,10 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
 fn extract_character(value: &Value, operation: &str) -> Result<char> {
     match value {
         Value::Literal(crate::ast::Literal::Character(c)) => Ok(*c),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires character arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires character arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1751,16 +1752,16 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
             if let Some(i) = lit.to_i64() {
                 Ok(i)
             } else {
-                Err(DiagnosticError::runtime_error(
-                    format!("{} requires integer arguments", operation),
+                Err(Box::new(DiagnosticError::runtime_error(
+                    format!("{operation} requires integer arguments"),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires integer arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires integer arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1768,10 +1769,10 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
 fn extract_bytevector(value: &Value, operation: &str) -> Result<Vec<u8>> {
     match value {
         Value::Literal(crate::ast::Literal::Bytevector(bv)) => Ok(bv.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires bytevector arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires bytevector arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1795,19 +1796,19 @@ fn is_eof_value(value: &Value) -> bool {
 /// Converts an expression to a value (placeholder implementation).
 fn expr_to_value(_expr: crate::ast::Expr) -> Result<Value> {
     // This would need proper implementation based on the AST structure
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "expr_to_value not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 /// Reads text from a port for parsing.
 fn read_text_from_port(_port: &Port) -> Result<Option<String>> {
     // Placeholder implementation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "read_text_from_port not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 /// Reads a character from a port.
@@ -1828,10 +1829,10 @@ fn read_char_from_port(port: &Port, peek: bool) -> Result<Value> {
             
             Ok(Value::Literal(crate::ast::Literal::Character(ch)))
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-char: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1857,10 +1858,10 @@ fn read_line_from_port(port: &Port) -> Result<Value> {
                 Ok(Value::string(line))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-line: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1882,10 +1883,10 @@ fn read_string_from_port(port: &Port, k: usize) -> Result<Value> {
             
             Ok(Value::string(result))
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-string: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1907,10 +1908,10 @@ fn read_u8_from_port(port: &Port, peek: bool) -> Result<Value> {
             
             Ok(Value::integer(byte as i64))
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-u8: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1922,17 +1923,17 @@ fn write_string_to_port(port: &Port, s: &str) -> Result<()> {
             Ok(())
         }
         PortImpl::Standard(StandardPort::Stdout) => {
-            print!("{}", s);
+            print!("{s}");
             Ok(())
         }
         PortImpl::Standard(StandardPort::Stderr) => {
-            eprint!("{}", s);
+            eprint!("{s}");
             Ok(())
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "write-string: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1943,10 +1944,10 @@ fn write_u8_to_port(port: &Port, byte: u8) -> Result<()> {
             content.write().unwrap().push(byte);
             Ok(())
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "write-u8: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1968,15 +1969,15 @@ fn read_bytevector_from_port(port: &Port, k: usize) -> Result<Value> {
             
             Ok(Value::bytevector(result))
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-bytevector: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// Reads bytes into an existing bytevector.
-fn read_bytevector_bang_from_port(port: &Port, bytevector: &mut Vec<u8>, start: usize, end: usize) -> Result<Value> {
+fn read_bytevector_bang_from_port(port: &Port, bytevector: &mut [u8], start: usize, end: usize) -> Result<Value> {
     match &port.implementation {
         PortImpl::Bytevector { content, position } => {
             let content_guard = content.read().unwrap();
@@ -1999,10 +2000,10 @@ fn read_bytevector_bang_from_port(port: &Port, bytevector: &mut Vec<u8>, start: 
             *pos_guard += to_read;
             Ok(Value::integer(to_read as i64))
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-bytevector!: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -2013,19 +2014,19 @@ fn write_bytevector_to_port(port: &Port, bytes: &[u8]) -> Result<()> {
             content.write().unwrap().extend_from_slice(bytes);
             Ok(())
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "write-bytevector: unsupported port type".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// Formats a value for display (without quotes for strings).
 fn display_value(value: &Value) -> String {
     match value {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone()),
+        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
         Value::Literal(crate::ast::Literal::Character(c)) => c.to_string(),
-        _ => format!("{}", value),
+        _ => format!("{value}"),
     }
 }
 
@@ -2056,7 +2057,7 @@ mod tests {
     #[test]
     fn test_eof_object() {
         let eof = primitive_eof_object(&[]).unwrap();
-        let args = vec![eof.clone())];
+        let args = vec![eof.clone()];
         let result = primitive_eof_object_p(&args).unwrap();
         assert_eq!(result, Value::boolean(true));
         

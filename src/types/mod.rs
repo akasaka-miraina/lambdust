@@ -365,8 +365,8 @@ impl Type {
                 argument.collect_free_vars(vars, bound);
             }
             Type::Forall { vars: qvars, body } | Type::Exists { vars: qvars, body } => {
-                let mut new_bound = bound.clone());
-                new_bound.extend(qvars.iter().clone())());
+                let mut new_bound = bound.clone();
+                new_bound.extend(qvars.iter().cloned());
                 body.collect_free_vars(vars, &new_bound);
             }
             Type::Constrained { constraints, type_ } => {
@@ -390,7 +390,7 @@ impl Type {
                 }
             }
             Type::Recursive { var, body } => {
-                let mut new_bound = bound.clone());
+                let mut new_bound = bound.clone();
                 new_bound.insert(var.clone());
                 body.collect_free_vars(vars, &new_bound);
             }

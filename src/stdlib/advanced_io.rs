@@ -325,10 +325,10 @@ fn bind_platform_operations(env: &Arc<ThreadSafeEnvironment>) {
 
 pub fn primitive_create_directory(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("create-directory expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "create-directory")?;
@@ -346,19 +346,19 @@ pub fn primitive_create_directory(args: &[Value]) -> Result<Value> {
     
     match result {
         Ok(()) => Ok(Value::Unspecified),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot create directory '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot create directory '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_delete_directory(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("delete-directory expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "delete-directory")?;
@@ -376,19 +376,19 @@ pub fn primitive_delete_directory(args: &[Value]) -> Result<Value> {
     
     match result {
         Ok(()) => Ok(Value::Unspecified),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot delete directory '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot delete directory '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_copy_file(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("copy-file expects 2 or 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let src = extract_string(&args[0], "copy-file")?;
@@ -400,27 +400,27 @@ pub fn primitive_copy_file(args: &[Value]) -> Result<Value> {
     };
     
     if !overwrite && Path::new(&dst).exists() {
-        return Err(DiagnosticError::runtime_error(
-            format!("Destination file '{}' already exists", dst),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("Destination file '{dst}' already exists"),
             None,
-        ));
+        )));
     }
     
     match std::fs::copy(&src, &dst) {
         Ok(_) => Ok(Value::Unspecified),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot copy file '{}' to '{}': {}", src, dst, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot copy file '{src}' to '{dst}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_move_file(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("move-file expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let src = extract_string(&args[0], "move-file")?;
@@ -428,19 +428,19 @@ pub fn primitive_move_file(args: &[Value]) -> Result<Value> {
     
     match std::fs::rename(&src, &dst) {
         Ok(()) => Ok(Value::Unspecified),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot move file '{}' to '{}': {}", src, dst, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot move file '{src}' to '{dst}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_create_symbolic_link(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("create-symbolic-link expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let target = extract_string(&args[0], "create-symbolic-link")?;
@@ -450,10 +450,10 @@ pub fn primitive_create_symbolic_link(args: &[Value]) -> Result<Value> {
     {
         match std::os::unix::fs::symlink(&target, &link) {
             Ok(()) => Ok(Value::Unspecified),
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Cannot create symbolic link '{}' -> '{}': {}", link, target, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot create symbolic link '{link}' -> '{target}': {e}"),
                 None,
-            )),
+            ))),
         }
     }
     
@@ -468,38 +468,38 @@ pub fn primitive_create_symbolic_link(args: &[Value]) -> Result<Value> {
         
         match result {
             Ok(()) => Ok(Value::Unspecified),
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Cannot create symbolic link '{}' -> '{}': {}", link, target, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot create symbolic link '{link}' -> '{target}': {e}"),
                 None,
-            )),
+            ))),
         }
     }
     
     #[cfg(not(any(unix, windows)))]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "Symbolic links not supported on this platform".to_string(),
             None,
-        ))
+        )))
     }
 }
 
 pub fn primitive_read_symbolic_link(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read-symbolic-link expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let link = extract_string(&args[0], "read-symbolic-link")?;
     
     match std::fs::read_link(&link) {
         Ok(target) => Ok(Value::string(target.to_string_lossy().to_string())),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot read symbolic link '{}': {}", link, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot read symbolic link '{link}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -507,10 +507,10 @@ pub fn primitive_read_symbolic_link(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_list_directory(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list-directory expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "list-directory")?;
@@ -533,29 +533,29 @@ pub fn primitive_list_directory(args: &[Value]) -> Result<Value> {
                         }
                     }
                     Err(e) => {
-                        return Err(DiagnosticError::runtime_error(
-                            format!("Error reading directory entry: {}", e),
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            format!("Error reading directory entry: {e}"),
                             None,
-                        ));
+                        )));
                     }
                 }
             }
             
             Ok(list_to_value(result))
         }
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot read directory '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot read directory '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_directory_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("directory? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "directory?")?;
@@ -568,10 +568,10 @@ pub fn primitive_current_directory(args: &[Value]) -> Result<Value> {
             // Get current directory
             match std::env::current_dir() {
                 Ok(path) => Ok(Value::string(path.to_string_lossy().to_string())),
-                Err(e) => Err(DiagnosticError::runtime_error(
-                    format!("Cannot get current directory: {}", e),
+                Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot get current directory: {e}"),
                     None,
-                )),
+                ))),
             }
         }
         1 => {
@@ -579,25 +579,25 @@ pub fn primitive_current_directory(args: &[Value]) -> Result<Value> {
             let path = extract_string(&args[0], "current-directory")?;
             match std::env::set_current_dir(&path) {
                 Ok(()) => Ok(Value::Unspecified),
-                Err(e) => Err(DiagnosticError::runtime_error(
-                    format!("Cannot set current directory to '{}': {}", path, e),
+                Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot set current directory to '{path}': {e}"),
                     None,
-                )),
+                ))),
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("current-directory expects 0 or 1 arguments, got {}", args.len()),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_walk_directory(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("walk-directory expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "walk-directory")?;
@@ -630,10 +630,10 @@ pub fn primitive_walk_directory(args: &[Value]) -> Result<Value> {
                 result.push(Value::string(path));
             }
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Error walking directory: {}", e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Error walking directory: {e}"),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -645,16 +645,17 @@ pub fn primitive_walk_directory(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_file_metadata(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-metadata expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "file-metadata")?;
     
     match std::fs::metadata(&path) {
         Ok(metadata) => {
+            #[allow(clippy::mutable_key_type)]
             let mut result = HashMap::new();
             
             // Basic properties
@@ -710,38 +711,38 @@ pub fn primitive_file_metadata(args: &[Value]) -> Result<Value> {
             
             Ok(Value::Hashtable(Arc::new(std::sync::RwLock::new(result))))
         }
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot get metadata for '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot get metadata for '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_file_size(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-size expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "file-size")?;
     
     match std::fs::metadata(&path) {
         Ok(metadata) => Ok(Value::integer(metadata.len() as i64)),
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot get size of '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot get size of '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_file_modification_time(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-modification-time expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "file-modification-time")?;
@@ -752,31 +753,31 @@ pub fn primitive_file_modification_time(args: &[Value]) -> Result<Value> {
                 Ok(time) => {
                     match time.duration_since(UNIX_EPOCH) {
                         Ok(duration) => Ok(Value::integer(duration.as_secs() as i64)),
-                        Err(e) => Err(DiagnosticError::runtime_error(
-                            format!("Invalid modification time: {}", e),
+                        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                            format!("Invalid modification time: {e}"),
                             None,
-                        )),
+                        ))),
                     }
                 }
-                Err(e) => Err(DiagnosticError::runtime_error(
-                    format!("Cannot get modification time for '{}': {}", path, e),
+                Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot get modification time for '{path}': {e}"),
                     None,
-                )),
+                ))),
             }
         }
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot get metadata for '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot get metadata for '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_file_access_time(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-access-time expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "file-access-time")?;
@@ -787,22 +788,22 @@ pub fn primitive_file_access_time(args: &[Value]) -> Result<Value> {
                 Ok(time) => {
                     match time.duration_since(UNIX_EPOCH) {
                         Ok(duration) => Ok(Value::integer(duration.as_secs() as i64)),
-                        Err(e) => Err(DiagnosticError::runtime_error(
-                            format!("Invalid access time: {}", e),
+                        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                            format!("Invalid access time: {e}"),
                             None,
-                        )),
+                        ))),
                     }
                 }
-                Err(e) => Err(DiagnosticError::runtime_error(
-                    format!("Cannot get access time for '{}': {}", path, e),
+                Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot get access time for '{path}': {e}"),
                     None,
-                )),
+                ))),
             }
         }
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot get metadata for '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot get metadata for '{path}': {e}"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -810,10 +811,10 @@ pub fn primitive_file_access_time(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_file_readable_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-readable? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "file-readable?")?;
@@ -827,10 +828,10 @@ pub fn primitive_file_readable_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_file_writable_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-writable? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "file-writable?")?;
@@ -844,10 +845,10 @@ pub fn primitive_file_writable_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_file_executable_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-executable? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "file-executable?")?;
@@ -885,10 +886,10 @@ pub fn primitive_file_executable_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_set_file_permissions(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("set-file-permissions expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "set-file-permissions")?;
@@ -900,10 +901,10 @@ pub fn primitive_set_file_permissions(args: &[Value]) -> Result<Value> {
         let permissions = std::fs::Permissions::from_mode(mode);
         match std::fs::set_permissions(&path, permissions) {
             Ok(()) => Ok(Value::Unspecified),
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Cannot set permissions for '{}': {}", path, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot set permissions for '{path}': {e}"),
                 None,
-            )),
+            ))),
         }
     }
     
@@ -917,16 +918,16 @@ pub fn primitive_set_file_permissions(args: &[Value]) -> Result<Value> {
                 permissions.set_readonly(readonly);
                 match std::fs::set_permissions(&path, permissions) {
                     Ok(()) => Ok(Value::Unspecified),
-                    Err(e) => Err(DiagnosticError::runtime_error(
-                        format!("Cannot set permissions for '{}': {}", path, e),
+                    Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Cannot set permissions for '{path}': {e}"),
                         None,
-                    )),
+                    ))),
                 }
             }
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Cannot get metadata for '{}': {}", path, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot get metadata for '{path}': {e}"),
                 None,
-            )),
+            ))),
         }
     }
 }
@@ -935,74 +936,74 @@ pub fn primitive_set_file_permissions(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_watch_file(_args: &[Value]) -> Result<Value> {
     // TODO: Implement file watching using notify crate
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "watch-file not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_unwatch_file(_args: &[Value]) -> Result<Value> {
     // TODO: Implement file unwatching
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "unwatch-file not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_tcp_connect(_args: &[Value]) -> Result<Value> {
     // TODO: Implement TCP connection
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "tcp-connect not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_tcp_listen(_args: &[Value]) -> Result<Value> {
     // TODO: Implement TCP listening
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "tcp-listen not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_udp_socket(_args: &[Value]) -> Result<Value> {
     // TODO: Implement UDP socket creation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "udp-socket not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_resolve_hostname(_args: &[Value]) -> Result<Value> {
     // TODO: Implement hostname resolution
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "resolve-hostname not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_compress_data(_args: &[Value]) -> Result<Value> {
     // TODO: Implement data compression
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "compress-data not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_decompress_data(_args: &[Value]) -> Result<Value> {
     // TODO: Implement data decompression
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "decompress-data not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_memory_map_file(_args: &[Value]) -> Result<Value> {
     // TODO: Implement memory-mapped files
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "memory-map-file not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= HELPER FUNCTIONS =============
@@ -1011,10 +1012,10 @@ pub fn primitive_memory_map_file(_args: &[Value]) -> Result<Value> {
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires string arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1022,10 +1023,10 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
 fn extract_boolean(value: &Value, operation: &str) -> Result<bool> {
     match value {
         Value::Literal(crate::ast::Literal::Boolean(b)) => Ok(*b),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires boolean arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires boolean arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1036,16 +1037,16 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
             if let Some(i) = lit.to_i64() {
                 Ok(i)
             } else {
-                Err(DiagnosticError::runtime_error(
-                    format!("{} requires integer arguments", operation),
+                Err(Box::new(DiagnosticError::runtime_error(
+                    format!("{operation} requires integer arguments"),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires integer arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires integer arguments"),
             None,
-        )),
+        ))),
     }
 }
 

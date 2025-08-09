@@ -3,9 +3,16 @@ use crate::diagnostics::SourceMap;
 use crate::lexer::Token;
 use std::sync::Arc;
 
+/// A builder for configuring and creating parser instances.
+/// 
+/// `ParserBuilder` provides a fluent interface for configuring parser settings
+/// such as error recovery behavior and source mapping for enhanced diagnostics.
+/// Use this builder to customize parser behavior before parsing token streams.
 #[derive(Debug)]
 pub struct ParserBuilder {
+    /// Configuration for error recovery behavior during parsing
     recovery_config: RecoveryConfig,
+    /// Optional source map for enhanced error reporting with source locations
     source_map: Option<Arc<SourceMap>>,
 }
 

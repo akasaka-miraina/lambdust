@@ -168,10 +168,10 @@ impl MultithreadedEvaluator {
         
         // Create a thread-safe evaluator context
         let context = ThreadSafeEvalContext {
-            local_env: self.local_env.clone()),
+            local_env: self.local_env.clone(),
             generation: self.local_generation,
-            global_env: self.global_env.clone()),
-            effect_coordinator: self.effect_coordinator.clone()),
+            global_env: self.global_env.clone(),
+            effect_coordinator: self.effect_coordinator.clone(),
         };
         
         // Use a simplified evaluation approach that's thread-safe
@@ -198,15 +198,15 @@ impl MultithreadedEvaluator {
                     Ok(value)
                 } else {
                     Err(crate::diagnostics::Error::runtime_error(
-                        format!("Unbound variable: {}", name),
+                        format!("Unbound variable: {name}"),
                         Some(expr.span),
-                    ))
+                    ).boxed())
                 }
             }
 
             // Quote
             Expr::Quote(quoted) => {
-                self.ast_to_value(&quoted.inner)
+                Self::ast_to_value(&quoted.inner)
             }
 
             // Lambda (creates closure with thread-safe environment)
@@ -215,13 +215,13 @@ impl MultithreadedEvaluator {
                     return Err(crate::diagnostics::Error::runtime_error(
                         "Lambda body cannot be empty".to_string(),
                         Some(expr.span),
-                    ));
+                    ).boxed());
                 }
 
                 let procedure = crate::eval::value::Procedure {
-                    formals: formals.clone()),
+                    formals: formals.clone(),
                     body: body.to_vec(),
-                    environment: context.local_env.clone()),
+                    environment: context.local_env.clone(),
                     name: None,
                     metadata: std::collections::HashMap::new(),
                     source: Some(expr.span),
@@ -246,7 +246,7 @@ impl MultithreadedEvaluator {
             // Define (affects global environment)
             Expr::Define { name, value, metadata: _ } => {
                 let val = self.eval_with_context(value, context.clone())?;
-                context.global_env.define_global(name.clone()), val)?;
+                context.global_env.define_global(name.clone(), val)?;
                 Ok(Value::Unspecified)
             }
 
@@ -268,7 +268,7 @@ impl MultithreadedEvaluator {
                     return Err(crate::diagnostics::Error::runtime_error(
                         "Begin form cannot be empty".to_string(),
                         Some(expr.span),
-                    ));
+                    ).boxed());
                 }
 
                 let mut result = Value::Unspecified;
@@ -282,7 +282,7 @@ impl MultithreadedEvaluator {
             _ => Err(crate::diagnostics::Error::runtime_error(
                 format!("Unimplemented expression type in multithreaded evaluator: {:?}", expr.inner),
                 Some(expr.span),
-            )),
+            ).boxed()),
         }
     }
 
@@ -306,8 +306,8 @@ impl MultithreadedEvaluator {
                 let new_context = ThreadSafeEvalContext {
                     local_env: bound_env,
                     generation: context.generation + 1,
-                    global_env: context.global_env.clone()),
-                    effect_coordinator: context.effect_coordinator.clone()),
+                    global_env: context.global_env.clone(),
+                    effect_coordinator: context.effect_coordinator.clone(),
                 };
                 
                 // Evaluate body
@@ -330,14 +330,14 @@ impl MultithreadedEvaluator {
                         Err(crate::diagnostics::Error::runtime_error(
                             "FFI not yet implemented in multithreaded evaluator".to_string(),
                             Some(span),
-                        ))
+                        ).boxed())
                     }
                 }
             }
             _ => Err(crate::diagnostics::Error::runtime_error(
-                format!("Cannot apply non-procedure: {}", procedure),
+                format!("Cannot apply non-procedure: {procedure}"),
                 Some(span),
-            )),
+            ).boxed()),
         }
     }
 
@@ -358,28 +358,28 @@ impl MultithreadedEvaluator {
                     return Err(crate::diagnostics::Error::runtime_error(
                         format!("Expected {} arguments, got {}", params.len(), args.len()),
                         None,
-                    ));
+                    ).boxed());
                 }
                 
                 for (param, arg) in params.iter().zip(args.iter()) {
-                    current_env = current_env.define_cow(param.clone()), arg.clone());
+                    current_env = current_env.define_cow(param.clone(), arg.clone());
                 }
             }
             Formals::Variable(param) => {
                 let args_list = Value::list(args.to_vec());
-                current_env = current_env.define_cow(param.clone()), args_list);
+                current_env = current_env.define_cow(param.clone(), args_list);
             }
             Formals::Mixed { fixed, rest } => {
                 if args.len() < fixed.len() {
                     return Err(crate::diagnostics::Error::runtime_error(
                         format!("Expected at least {} arguments, got {}", fixed.len(), args.len()),
                         None,
-                    ));
+                    ).boxed());
                 }
                 
                 // Bind fixed parameters
                 for (param, arg) in fixed.iter().zip(args.iter()) {
-                    current_env = current_env.define_cow(param.clone()), arg.clone());
+                    current_env = current_env.define_cow(param.clone(), arg.clone());
                 }
                 
                 // Bind rest parameters
@@ -388,13 +388,13 @@ impl MultithreadedEvaluator {
                 } else {
                     Value::Nil
                 };
-                current_env = current_env.define_cow(rest.clone()), rest_args);
+                current_env = current_env.define_cow(rest.clone(), rest_args);
             }
             Formals::Keyword { .. } => {
                 return Err(crate::diagnostics::Error::runtime_error(
                     "Keyword arguments not yet implemented in multithreaded evaluator".to_string(),
                     None,
-                ));
+                ).boxed());
             }
         }
         
@@ -402,7 +402,7 @@ impl MultithreadedEvaluator {
     }
 
     /// Converts an AST expression to a runtime value (for quote).
-    fn ast_to_value(&self, expr: &Expr) -> Result<Value> {
+    fn ast_to_value(expr: &Expr) -> Result<Value> {
         use crate::utils::intern_symbol;
         
         match expr {
@@ -410,14 +410,14 @@ impl MultithreadedEvaluator {
             Expr::Identifier(name) => Ok(Value::Symbol(intern_symbol(name))),
             Expr::Keyword(k) => Ok(Value::Keyword(k.clone())),
             Expr::Pair { car, cdr } => {
-                let car_val = self.ast_to_value(&car.inner)?;
-                let cdr_val = self.ast_to_value(&cdr.inner)?;
+                let car_val = Self::ast_to_value(&car.inner)?;
+                let cdr_val = Self::ast_to_value(&cdr.inner)?;
                 Ok(Value::pair(car_val, cdr_val))
             }
             Expr::Application { operator, operands } => {
-                let mut values = vec![self.ast_to_value(&operator.inner)?];
+                let mut values = vec![Self::ast_to_value(&operator.inner)?];
                 for operand in operands {
-                    values.push(self.ast_to_value(&operand.inner)?);
+                    values.push(Self::ast_to_value(&operand.inner)?);
                 }
                 Ok(Value::list(values))
             }
@@ -485,7 +485,7 @@ impl EvaluatorWorker {
         
         let worker = Self {
             evaluator,
-            sender: sender.clone()),
+            sender: sender.clone(),
         };
         
         (worker, sender)

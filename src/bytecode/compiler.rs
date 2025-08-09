@@ -172,7 +172,7 @@ impl BytecodeCompiler {
         bytecode.add_instruction(Instruction::new(OpCode::Halt));
         
         // Update bytecode metadata
-        bytecode.constants = constant_pool.clone());
+        bytecode.constants = constant_pool.clone();
         bytecode.local_count = context.locals.len();
         bytecode.max_stack_depth = context.max_stack_depth;
         
@@ -188,7 +188,7 @@ impl BytecodeCompiler {
         Ok(CompilationResult {
             bytecode,
             constant_pool,
-            stats: self.stats.clone()),
+            stats: self.stats.clone(),
         })
     }
     
@@ -213,7 +213,7 @@ impl BytecodeCompiler {
         bytecode.add_instruction(Instruction::new(OpCode::Halt));
         
         // Update bytecode metadata  
-        bytecode.constants = constant_pool.clone());
+        bytecode.constants = constant_pool.clone();
         bytecode.local_count = context.locals.len();
         bytecode.max_stack_depth = context.max_stack_depth;
         
@@ -229,7 +229,7 @@ impl BytecodeCompiler {
         Ok(CompilationResult {
             bytecode,
             constant_pool,
-            stats: self.stats.clone()),
+            stats: self.stats.clone(),
         })
     }
     
@@ -287,7 +287,7 @@ impl BytecodeCompiler {
                 self.compile_quote(quoted, bytecode, constant_pool, context)
             }
             
-            _ => Err(Box::new(Error::compilation_error(format!("Unsupported expression type: {:?}", expr).boxed())),
+            _ => Err(Box::new(Error::compilation_error(format!("Unsupported expression type: {expr:?}")))),
         }
     }
     
@@ -308,7 +308,7 @@ impl BytecodeCompiler {
             Literal::Complex { real, imaginary } => {
                 // For now, just use the real part (TODO: proper complex number support)
                 if *imaginary != 0.0 {
-                    return Err(Box::new(Error::compilation_error("Complex literals not yet fully supported in bytecode".to_string().boxed()));
+                    return Err(Box::new(Error::compilation_error("Complex literals not yet fully supported in bytecode".to_string())));
                 }
                 ConstantValue::Number(*real)
             }
@@ -317,7 +317,7 @@ impl BytecodeCompiler {
             Literal::Character(c) => ConstantValue::String(c.to_string()), // Store as string for simplicity
             Literal::Bytevector(_bytes) => {
                 // Create a special constant for bytevectors
-                return Err(Box::new(Error::compilation_error("Bytevector literals not yet supported in bytecode".to_string().boxed()));
+                return Err(Box::new(Error::compilation_error("Bytevector literals not yet supported in bytecode".to_string())));
             }
             Literal::Nil => {
                 // Use a special nil constant or empty list representation
@@ -417,7 +417,7 @@ impl BytecodeCompiler {
             Formals::Fixed(params) => {
                 for (i, param) in params.iter().enumerate() {
                     let local = LocalVariable {
-                        name: param.clone()),
+                        name: param.clone(),
                         index: i as u16,
                         scope_depth: 0,
                         mutable: false,
@@ -428,7 +428,7 @@ impl BytecodeCompiler {
             }
             Formals::Variable(param) => {
                 let local = LocalVariable {
-                    name: param.clone()),
+                    name: param.clone(),
                     index: 0,
                     scope_depth: 0,
                     mutable: false,
@@ -439,7 +439,7 @@ impl BytecodeCompiler {
             Formals::Mixed { fixed, rest } => {
                 for (i, param) in fixed.iter().enumerate() {
                     let local = LocalVariable {
-                        name: param.clone()),
+                        name: param.clone(),
                         index: i as u16,
                         scope_depth: 0,
                         mutable: false,
@@ -448,7 +448,7 @@ impl BytecodeCompiler {
                 }
                 // Add rest parameter
                 let rest_local = LocalVariable {
-                    name: rest.clone()),
+                    name: rest.clone(),
                     index: fixed.len() as u16,
                     scope_depth: 0,
                     mutable: false,
@@ -459,7 +459,7 @@ impl BytecodeCompiler {
             Formals::Keyword { fixed, rest, keywords: _ } => {
                 for (i, param) in fixed.iter().enumerate() {
                     let local = LocalVariable {
-                        name: param.clone()),
+                        name: param.clone(),
                         index: i as u16,
                         scope_depth: 0,
                         mutable: false,
@@ -469,7 +469,7 @@ impl BytecodeCompiler {
                 let mut count = fixed.len();
                 if let Some(rest) = rest {
                     let rest_local = LocalVariable {
-                        name: rest.clone()),
+                        name: rest.clone(),
                         index: count as u16,
                         scope_depth: 0,
                         mutable: false,
@@ -549,7 +549,7 @@ impl BytecodeCompiler {
         let symbol_id = crate::utils::intern_symbol(name).id();
         if let Some(local) = self.find_local(SymbolId::new(symbol_id), context) {
             if !local.mutable {
-                return Err(Box::new(Error::compilation_error(format!("Cannot assign to immutable variable: {}", name).boxed()));
+                return Err(Box::new(Error::compilation_error(format!("Cannot assign to immutable variable: {name}"))));
             }
             bytecode.add_instruction(Instruction::with_operand(OpCode::StoreLocal, Operand::LocalIndex(local.index)));
         } else {
@@ -670,7 +670,7 @@ impl BytecodeCompiler {
             // Create local variable
             let local_index = context.locals.len() as u16;
             let local = LocalVariable {
-                name: binding.name.clone()),
+                name: binding.name.clone(),
                 index: local_index,
                 scope_depth: context.scope_depth,
                 mutable: false,
@@ -713,7 +713,7 @@ impl BytecodeCompiler {
             // Create local variable
             let local_index = context.locals.len() as u16;
             let local = LocalVariable {
-                name: binding.name.clone()),
+                name: binding.name.clone(),
                 index: local_index,
                 scope_depth: context.scope_depth,
                 mutable: true, // letrec bindings are mutable during initialization
@@ -734,7 +734,7 @@ impl BytecodeCompiler {
                 bytecode.add_instruction(Instruction::with_operand(OpCode::StoreLocal, Operand::LocalIndex(local.index)));
                 self.pop_stack(context);
             } else {
-                return Err(Box::new(Error::compilation_error(format!("Internal error: letrec binding not found: {}", binding.name).boxed()));
+                return Err(Box::new(Error::compilation_error(format!("Internal error: letrec binding not found: {}", binding.name))));
             }
         }
         
@@ -770,7 +770,7 @@ impl BytecodeCompiler {
                 Ok(())
             }
             _ => {
-                Err(Box::new(Error::compilation_error("Complex quoted expressions not yet supported in bytecode".to_string().boxed()))
+                Err(Box::new(Error::compilation_error("Complex quoted expressions not yet supported in bytecode".to_string())))
             }
         }
     }
@@ -809,7 +809,7 @@ impl BytecodeCompiler {
             
             BuiltinOperation::Subtract => {
                 if operands.is_empty() {
-                    return Err(Box::new(Error::compilation_error("- requires at least one argument".to_string().boxed()));
+                    return Err(Box::new(Error::compilation_error("- requires at least one argument".to_string())));
                 }
                 
                 // Compile first operand
@@ -852,7 +852,7 @@ impl BytecodeCompiler {
             
             BuiltinOperation::Equal => {
                 if operands.len() != 2 {
-                    return Err(Box::new(Error::compilation_error("= requires exactly 2 arguments".to_string().boxed()));
+                    return Err(Box::new(Error::compilation_error("= requires exactly 2 arguments".to_string())));
                 }
                 
                 self.compile_expression_internal(&operands[0].inner, bytecode, constant_pool, context)?;
@@ -865,7 +865,7 @@ impl BytecodeCompiler {
             
             BuiltinOperation::Cons => {
                 if operands.len() != 2 {
-                    return Err(Box::new(Error::compilation_error("cons requires exactly 2 arguments".to_string().boxed()));
+                    return Err(Box::new(Error::compilation_error("cons requires exactly 2 arguments".to_string())));
                 }
                 
                 self.compile_expression_internal(&operands[0].inner, bytecode, constant_pool, context)?;
@@ -878,7 +878,7 @@ impl BytecodeCompiler {
             
             BuiltinOperation::Car => {
                 if operands.len() != 1 {
-                    return Err(Box::new(Error::compilation_error("car requires exactly 1 argument".to_string().boxed()));
+                    return Err(Box::new(Error::compilation_error("car requires exactly 1 argument".to_string())));
                 }
                 
                 self.compile_expression_internal(&operands[0].inner, bytecode, constant_pool, context)?;
@@ -889,7 +889,7 @@ impl BytecodeCompiler {
             
             BuiltinOperation::Cdr => {
                 if operands.len() != 1 {
-                    return Err(Box::new(Error::compilation_error("cdr requires exactly 1 argument".to_string().boxed()));
+                    return Err(Box::new(Error::compilation_error("cdr requires exactly 1 argument".to_string())));
                 }
                 
                 self.compile_expression_internal(&operands[0].inner, bytecode, constant_pool, context)?;

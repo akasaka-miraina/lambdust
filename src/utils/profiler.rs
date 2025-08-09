@@ -273,7 +273,7 @@ impl Profiler {
         if let Ok(mut stats) = self.category_stats.write() {
             let category_stats = stats.entry(entry.category.clone()).or_insert_with(|| {
                 CategoryStats {
-                    category: entry.category.clone()),
+                    category: entry.category.clone(),
                     operation_count: 0,
                     total_duration: Duration::ZERO,
                     average_duration: Duration::ZERO,
@@ -336,7 +336,7 @@ impl Profiler {
     /// Gets category statistics.
     pub fn get_category_stats(&self) -> HashMap<ProfileCategory, CategoryStats> {
         if let Ok(stats) = self.category_stats.read() {
-            stats.clone())
+            stats.clone()
         } else {
             HashMap::new()
         }
@@ -345,7 +345,7 @@ impl Profiler {
     /// Gets system metrics.
     pub fn get_system_metrics(&self) -> SystemMetrics {
         if let Ok(metrics) = self.system_metrics.read() {
-            metrics.clone())
+            metrics.clone()
         } else {
             SystemMetrics {
                 total_cpu_time: Duration::ZERO,
@@ -363,7 +363,7 @@ impl Profiler {
     /// Gets recent profile entries.
     pub fn get_recent_entries(&self, count: usize) -> Vec<ProfileEntry> {
         if let Ok(entries) = self.entries.read() {
-            entries.iter().rev().take(count).clone())().collect()
+            entries.iter().rev().take(count).cloned().collect()
         } else {
             Vec::new()
         }
@@ -373,8 +373,8 @@ impl Profiler {
     #[allow(private_interfaces)]
     pub fn get_cpu_samples(&self) -> Vec<CpuSample> {
         if let Ok(cpu_profiler) = self.cpu_profiler.lock() {
-            if let Some(ref profiler) = cpu_profiler.as_ref() {
-                profiler.samples.clone())
+            if let Some(profiler) = cpu_profiler.as_ref() {
+                profiler.samples.clone()
             } else {
                 Vec::new()
             }
@@ -401,7 +401,7 @@ impl Profiler {
         // Find hotspots (categories with highest total time)
         let mut hotspots: Vec<_> = category_stats.values().collect();
         hotspots.sort_by(|a, b| b.total_duration.cmp(&a.total_duration));
-        let top_hotspots: Vec<_> = hotspots.into_iter().take(5).clone())().collect();
+        let top_hotspots: Vec<_> = hotspots.into_iter().take(5).cloned().collect();
         
         PerformanceReport {
             timestamp: Instant::now(),
@@ -532,13 +532,13 @@ impl<'a> Drop for ProfileSession<'a> {
         
         let entry = ProfileEntry {
             id: self.id.0,
-            category: self.category.clone()),
-            operation: self.operation.clone()),
+            category: self.category.clone(),
+            operation: self.operation.clone(),
             start_time: self.start_time,
             duration,
             memory_allocated,
             memory_freed,
-            metadata: self.metadata.clone()),
+            metadata: self.metadata.clone(),
             thread_id: std::thread::current().id(),
         };
         
@@ -635,7 +635,7 @@ impl PerformanceReport {
         if !self.memory_recommendations.is_empty() {
             report.push_str("=== Memory Recommendations ===\n");
             for rec in &self.memory_recommendations {
-                report.push_str(&format!("• {}\n", rec));
+                report.push_str(&format!("• {rec}\n"));
             }
             report.push('\n');
         }
@@ -643,7 +643,7 @@ impl PerformanceReport {
         if !self.optimization_suggestions.is_empty() {
             report.push_str("=== Optimization Suggestions ===\n");
             for suggestion in &self.optimization_suggestions {
-                report.push_str(&format!("• {}\n", suggestion));
+                report.push_str(&format!("• {suggestion}\n"));
             }
             report.push('\n');
         }
@@ -718,7 +718,7 @@ mod tests {
         
         // Profile multiple operations in the same category
         for i in 0..5 {
-            let _session = profiler.start_profile(ProfileCategory::Parsing, &format!("operation_{}", i));
+            let _session = profiler.start_profile(ProfileCategory::Parsing, &format!("operation_{}", i).as_str());
             thread::sleep(Duration::from_millis(1));
         }
         

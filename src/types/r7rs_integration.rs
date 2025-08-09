@@ -644,21 +644,21 @@ impl R7RSIntegration {
     pub fn check_comparator(&self, _name: &str, element_type: &Type) -> Result<ComparatorType> {
         // Verify that the element type supports the required operations
         let mut constraints = vec![
-            Constraint { class: "Eq".to_string(), type_: element_type.clone()) },
+            Constraint { class: "Eq".to_string(), type_: element_type.clone() },
         ];
         
         // Check if ordering is supported
         if self.supports_ordering(element_type) {
-            constraints.push(Constraint { class: "Ord".to_string(), type_: element_type.clone()) });
+            constraints.push(Constraint { class: "Ord".to_string(), type_: element_type.clone() });
         }
         
         // Check if hashing is supported
         if self.supports_hashing(element_type) {
-            constraints.push(Constraint { class: "Hash".to_string(), type_: element_type.clone()) });
+            constraints.push(Constraint { class: "Hash".to_string(), type_: element_type.clone() });
         }
         
         Ok(ComparatorType {
-            element_type: element_type.clone()),
+            element_type: element_type.clone(),
             constraints,
             procedures: self.default_comparator_procedures(element_type),
         })
@@ -681,18 +681,18 @@ impl R7RSIntegration {
                 Type::function(vec![Type::Dynamic], Type::Boolean)
             )),
             equality: TypeScheme::monomorphic(
-                Type::function(vec![element_type.clone()), element_type.clone())], Type::Boolean)
+                Type::function(vec![element_type.clone(), element_type.clone()], Type::Boolean)
             ),
             ordering: if self.supports_ordering(element_type) {
                 Some(TypeScheme::monomorphic(
-                    Type::function(vec![element_type.clone()), element_type.clone())], Type::Symbol)
+                    Type::function(vec![element_type.clone(), element_type.clone()], Type::Symbol)
                 ))
             } else {
                 None
             },
             hash: if self.supports_hashing(element_type) {
                 Some(TypeScheme::monomorphic(
-                    Type::function(vec![element_type.clone())], Type::Number)
+                    Type::function(vec![element_type.clone()], Type::Number)
                 ))
             } else {
                 None
@@ -714,15 +714,15 @@ impl R7RSIntegration {
                 "hash-table-delete!" => Ok(hash_table_type.operations.delete.clone()),
                 "hash-table-contains?" => Ok(hash_table_type.operations.contains.clone()),
                 _ => Err(Box::new(Error::type_error(
-                    format!("Unknown hash table operation: {}", operation),
+                    format!("Unknown hash table operation: {operation}"),
                     Span::default(),
-                )),
+                ))),
             }
         } else {
             Err(Box::new(Error::type_error(
                 "Hash table type not found".to_string(),
                 Span::default(),
-            ))
+            )))
         }
     }
     
@@ -733,7 +733,7 @@ impl R7RSIntegration {
         Ok(GeneratorType {
             element_type: Type::Dynamic,
             state_type: Some(Type::Dynamic),
-            operations: self.generator_types.get("generator").unwrap().operations.clone()),
+            operations: self.generator_types.get("generator").unwrap().operations.clone(),
         })
     }
     
@@ -752,9 +752,9 @@ impl R7RSIntegration {
             }
         } else {
             Err(Box::new(Error::type_error(
-                format!("Unknown immutable type: {}", type_name),
+                format!("Unknown immutable type: {type_name}"),
                 Span::default(),
-            ))
+            )))
         }
     }
     

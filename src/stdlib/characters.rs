@@ -258,10 +258,10 @@ fn bind_character_case_operations(env: &Arc<ThreadSafeEnvironment>) {
 /// char? predicate
 fn primitive_char_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let is_char = matches!(args[0], Value::Literal(crate::ast::Literal::Character(_)));
@@ -271,10 +271,10 @@ fn primitive_char_p(args: &[Value]) -> Result<Value> {
 /// char-alphabetic? predicate
 fn primitive_char_alphabetic_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-alphabetic? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-alphabetic?")?;
@@ -284,10 +284,10 @@ fn primitive_char_alphabetic_p(args: &[Value]) -> Result<Value> {
 /// char-numeric? predicate
 fn primitive_char_numeric_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-numeric? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-numeric?")?;
@@ -297,10 +297,10 @@ fn primitive_char_numeric_p(args: &[Value]) -> Result<Value> {
 /// char-whitespace? predicate
 fn primitive_char_whitespace_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-whitespace? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-whitespace?")?;
@@ -310,10 +310,10 @@ fn primitive_char_whitespace_p(args: &[Value]) -> Result<Value> {
 /// char-upper-case? predicate
 fn primitive_char_upper_case_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-upper-case? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-upper-case?")?;
@@ -323,10 +323,10 @@ fn primitive_char_upper_case_p(args: &[Value]) -> Result<Value> {
 /// char-lower-case? predicate
 fn primitive_char_lower_case_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-lower-case? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-lower-case?")?;
@@ -336,10 +336,10 @@ fn primitive_char_lower_case_p(args: &[Value]) -> Result<Value> {
 /// char-title-case? predicate
 fn primitive_char_title_case_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-title-case? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-title-case?")?;
@@ -351,10 +351,10 @@ fn primitive_char_title_case_p(args: &[Value]) -> Result<Value> {
 /// char-general-category function
 fn primitive_char_general_category(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-general-category expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-general-category")?;
@@ -372,11 +372,7 @@ fn primitive_char_general_category(args: &[Value]) -> Result<Value> {
     } else if ch.is_numeric() {
         "Nd" // Number, decimal digit
     } else if ch.is_whitespace() {
-        if ch == ' ' {
-            "Zs" // Separator, space
-        } else {
-            "Zs" // Separator, space (simplified)
-        }
+        "Zs" // Separator, space
     } else if ch.is_control() {
         "Cc" // Other, control
     } else if ch.is_ascii_punctuation() {
@@ -391,10 +387,10 @@ fn primitive_char_general_category(args: &[Value]) -> Result<Value> {
 /// Character comparison implementations
 fn primitive_char_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = extract_character(&args[0], "char=?")?;
@@ -411,10 +407,10 @@ fn primitive_char_equal(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_less(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char<? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -430,10 +426,10 @@ fn primitive_char_less(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_greater(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char>? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -449,10 +445,10 @@ fn primitive_char_greater(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_less_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char<=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -468,10 +464,10 @@ fn primitive_char_less_equal(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_greater_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char>=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -488,10 +484,10 @@ fn primitive_char_greater_equal(args: &[Value]) -> Result<Value> {
 /// Case-insensitive character comparison implementations
 fn primitive_char_ci_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char-ci=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = extract_character(&args[0], "char-ci=?")?.to_ascii_lowercase();
@@ -508,10 +504,10 @@ fn primitive_char_ci_equal(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_ci_less(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char-ci<? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -527,10 +523,10 @@ fn primitive_char_ci_less(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_ci_greater(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char-ci>? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -546,10 +542,10 @@ fn primitive_char_ci_greater(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_ci_less_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char-ci<=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -565,10 +561,10 @@ fn primitive_char_ci_less_equal(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_ci_greater_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "char-ci>=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -585,10 +581,10 @@ fn primitive_char_ci_greater_equal(args: &[Value]) -> Result<Value> {
 /// Character conversion implementations
 fn primitive_char_to_integer(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char->integer expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char->integer")?;
@@ -597,10 +593,10 @@ fn primitive_char_to_integer(args: &[Value]) -> Result<Value> {
 
 fn primitive_integer_to_char(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("integer->char expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let n = args[0].as_integer().ok_or_else(|| {
@@ -611,28 +607,28 @@ fn primitive_integer_to_char(args: &[Value]) -> Result<Value> {
     })?;
     
     if n < 0 || n > char::MAX as u32 as i64 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "integer->char argument out of character range".to_string(),
             None,
-        ));
+        )));
     }
     
     match char::from_u32(n as u32) {
         Some(ch) => Ok(Value::Literal(crate::ast::Literal::Character(ch))),
-        None => Err(DiagnosticError::runtime_error(
+        None => Err(Box::new(DiagnosticError::runtime_error(
             "integer->char invalid character code".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// Character case operations
 fn primitive_char_upcase(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-upcase expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-upcase")?;
@@ -641,10 +637,10 @@ fn primitive_char_upcase(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_downcase(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-downcase expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-downcase")?;
@@ -653,10 +649,10 @@ fn primitive_char_downcase(args: &[Value]) -> Result<Value> {
 
 fn primitive_char_foldcase(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-foldcase expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-foldcase")?;
@@ -667,10 +663,10 @@ fn primitive_char_foldcase(args: &[Value]) -> Result<Value> {
 /// char-titlecase case conversion
 fn primitive_char_titlecase(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("char-titlecase expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let ch = extract_character(&args[0], "char-titlecase")?;
@@ -685,10 +681,10 @@ fn primitive_char_titlecase(args: &[Value]) -> Result<Value> {
 fn extract_character(value: &Value, operation: &str) -> Result<char> {
     match value {
         Value::Literal(crate::ast::Literal::Character(c)) => Ok(*c),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires character arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -701,10 +697,10 @@ mod tests {
     #[test]
     fn test_char_predicates() {
         let char_a = Value::Literal(crate::ast::Literal::Character('a'));
-        let result = primitive_char_p(&[char_a.clone())]).unwrap();
+        let result = primitive_char_p(&[char_a.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
-        let result = primitive_char_alphabetic_p(&[char_a.clone())]).unwrap();
+        let result = primitive_char_alphabetic_p(&[char_a.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
         let char_5 = Value::Literal(crate::ast::Literal::Character('5'));
@@ -717,10 +713,10 @@ mod tests {
         let char_a = Value::Literal(crate::ast::Literal::Character('a'));
         let char_b = Value::Literal(crate::ast::Literal::Character('b'));
         
-        let result = primitive_char_equal(&[char_a.clone()), char_a.clone())]).unwrap();
+        let result = primitive_char_equal(&[char_a.clone(), char_a.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
-        let result = primitive_char_less(&[char_a.clone()), char_b.clone())]).unwrap();
+        let result = primitive_char_less(&[char_a.clone(), char_b.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
         let result = primitive_char_greater(&[char_b, char_a]).unwrap();

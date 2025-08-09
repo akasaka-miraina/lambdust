@@ -120,7 +120,7 @@ pub fn demo_type_checking() {
     
     for (value_desc, value) in &test_values {
         for predicate in &type_predicates {
-            let args = vec![value.clone())];
+            let args = vec![value.clone()];
             if let Ok(result) = bridge.call_rust_function(predicate, &args) {
                 println!("(primitive '{predicate} {value_desc}) => {result}");
             }
@@ -144,7 +144,7 @@ pub fn demo_lists() {
     ]);
     
     // List length
-    let args = vec![test_list.clone())];
+    let args = vec![test_list.clone()];
     if let Ok(result) = bridge.call_rust_function("list-length", &args) {
         println!("(primitive 'list-length '(\"apple\" \"banana\" \"cherry\" \"date\")) => {result}");
     }

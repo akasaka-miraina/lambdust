@@ -44,13 +44,13 @@ impl CallFrame {
     
     /// Creates a call frame with file information.
     pub fn with_file_name(mut self, file_name: impl Into<String>) -> Self {
-        self.file_name = Some(file_name.into())
+        self.file_name = Some(file_name.into());
         self
     }
     
     /// Creates a call frame with context information.
     pub fn with_context(mut self, context: impl Into<String>) -> Self {
-        self.context = Some(context.into())
+        self.context = Some(context.into());
         self
     }
     
@@ -70,7 +70,7 @@ impl fmt::Display for CallFrame {
         write!(f, "  at {}", self.function_name)?;
         
         if let Some(file) = &self.file_name {
-            write!(f, " in {}", file)?;
+            write!(f, " in {file}")?;
         }
         
         if let Some(call_site) = &self.call_site {
@@ -80,7 +80,7 @@ impl fmt::Display for CallFrame {
         }
         
         if let Some(context) = &self.context {
-            write!(f, " [{}]", context)?;
+            write!(f, " [{context}]")?;
         }
         
         Ok(())
@@ -203,7 +203,7 @@ impl CallStack {
         }
         
         for frame in self.display_frames() {
-            result.push_str(&format!("{}\n", frame));
+            result.push_str(&format!("{frame}\n"));
         }
         
         result.trim_end().to_string()

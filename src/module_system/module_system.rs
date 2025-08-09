@@ -44,7 +44,7 @@ impl ModuleSystem {
         
         // Cache the resolved module
         let module_arc = Arc::new(resolved);
-        self.cache.insert(id.clone()), module_arc.clone());
+        self.cache.insert(id.clone(), module_arc.clone());
         
         Ok(module_arc)
     }
@@ -59,7 +59,7 @@ impl ModuleSystem {
 
     /// Registers a built-in module.
     pub fn register_builtin_module(&mut self, module: Module) {
-        let id = module.id.clone());
+        let id = module.id.clone();
         self.cache.insert(id, Arc::new(module));
     }
 

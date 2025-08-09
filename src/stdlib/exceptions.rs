@@ -53,8 +53,8 @@ impl ExceptionObject {
         Self {
             exception_type: "error".to_string(),
             value: Value::ErrorObject(Arc::new(ErrorObject {
-                message: message.clone()),
-                irritants: irritants.clone()),
+                message: message.clone(),
+                irritants: irritants.clone(),
             })),
             message: Some(message),
             irritants,
@@ -67,8 +67,8 @@ impl ExceptionObject {
         Self {
             exception_type: "read-error".to_string(),
             value: Value::ErrorObject(Arc::new(ErrorObject {
-                message: message.clone()),
-                irritants: irritants.clone()),
+                message: message.clone(),
+                irritants: irritants.clone(),
             })),
             message: Some(message),
             irritants,
@@ -81,8 +81,8 @@ impl ExceptionObject {
         Self {
             exception_type: "file-error".to_string(),
             value: Value::ErrorObject(Arc::new(ErrorObject {
-                message: message.clone()),
-                irritants: irritants.clone()),
+                message: message.clone(),
+                irritants: irritants.clone(),
             })),
             message: Some(message),
             irritants,
@@ -246,10 +246,10 @@ fn bind_exception_handling(env: &Arc<ThreadSafeEnvironment>) {
 /// raise procedure - raises a non-continuable exception
 pub fn primitive_raise(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("raise expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -257,23 +257,23 @@ pub fn primitive_raise(args: &[Value]) -> Result<Value> {
     // Create an exception object from the raised value
     let exception = if let Value::ErrorObject(_) = obj {
         // Already an error object, wrap as exception
-        ExceptionObject::new("error".to_string(), obj.clone()), false)
+        ExceptionObject::new("error".to_string(), obj.clone(), false)
     } else {
         // General exception
-        ExceptionObject::new("exception".to_string(), obj.clone()), false)
+        ExceptionObject::new("exception".to_string(), obj.clone(), false)
     };
     
     // Convert to a DiagnosticError that carries the exception information
-    Err(DiagnosticError::exception(exception))
+    Err(Box::new(DiagnosticError::exception(exception)))
 }
 
 /// raise-continuable procedure - raises a continuable exception
 fn primitive_raise_continuable(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("raise-continuable expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -281,32 +281,32 @@ fn primitive_raise_continuable(args: &[Value]) -> Result<Value> {
     // Create a continuable exception object
     let exception = if let Value::ErrorObject(_) = obj {
         // Already an error object, wrap as continuable exception
-        ExceptionObject::new("error".to_string(), obj.clone()), true)
+        ExceptionObject::new("error".to_string(), obj.clone(), true)
     } else {
         // General continuable exception
-        ExceptionObject::new("exception".to_string(), obj.clone()), true)
+        ExceptionObject::new("exception".to_string(), obj.clone(), true)
     };
     
     // Convert to a DiagnosticError that carries the exception information
-    Err(DiagnosticError::exception(exception))
+    Err(Box::new(DiagnosticError::exception(exception)))
 }
 
 /// error procedure - creates and raises an error object
 fn primitive_error(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "error requires at least a message argument".to_string(),
             None,
-        ));
+        )));
     }
     
     // First argument must be a string (the message)
     let message = match &args[0] {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone()),
-        _ => return Err(DiagnosticError::runtime_error(
+        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
+        _ => return Err(Box::new(DiagnosticError::runtime_error(
             "error message must be a string".to_string(),
             None,
-        )),
+        ))),
     };
     
     // Remaining arguments are irritants
@@ -315,7 +315,7 @@ fn primitive_error(args: &[Value]) -> Result<Value> {
     // Create error object and raise it
     let exception = ExceptionObject::error(message, irritants);
     
-    Err(DiagnosticError::exception(exception))
+    Err(Box::new(DiagnosticError::exception(exception)))
 }
 
 // ============= EXCEPTION PREDICATE IMPLEMENTATIONS =============
@@ -323,10 +323,10 @@ fn primitive_error(args: &[Value]) -> Result<Value> {
 /// error? and error-object? predicate
 fn primitive_error_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("error? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let is_error = matches!(args[0], Value::ErrorObject(_));
@@ -336,10 +336,10 @@ fn primitive_error_p(args: &[Value]) -> Result<Value> {
 /// read-error? predicate
 fn primitive_read_error_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("read-error? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, we don't have specific read-error objects
@@ -350,10 +350,10 @@ fn primitive_read_error_p(args: &[Value]) -> Result<Value> {
 /// file-error? predicate
 fn primitive_file_error_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("file-error? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, we don't have specific file-error objects
@@ -366,40 +366,40 @@ fn primitive_file_error_p(args: &[Value]) -> Result<Value> {
 /// error-object-message accessor
 fn primitive_error_object_message(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("error-object-message expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::ErrorObject(error) => {
             Ok(Value::string(error.message.clone()))
         },
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "error-object-message requires an error object".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// error-object-irritants accessor
 fn primitive_error_object_irritants(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("error-object-irritants expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
         Value::ErrorObject(error) => {
             Ok(Value::list(error.irritants.clone()))
         },
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "error-object-irritants requires an error object".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -409,10 +409,10 @@ fn primitive_error_object_irritants(args: &[Value]) -> Result<Value> {
 fn primitive_with_exception_handler(_args: &[Value]) -> Result<Value> {
     // This requires deeper integration with the evaluator to properly
     // set up exception handling contexts
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "with-exception-handler requires evaluator integration (implemented via guard syntax)".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(test)]
@@ -472,7 +472,7 @@ mod tests {
         let irritants = vec![Value::integer(1), Value::string("test")];
         let error_obj = Value::ErrorObject(Arc::new(ErrorObject::new(
             "test".to_string(), 
-            irritants.clone())
+            irritants.clone()
         )));
         
         let result = primitive_error_object_irritants(&[error_obj]).unwrap();
@@ -486,11 +486,15 @@ mod tests {
         assert!(result.is_err());
         
         // Should be a DiagnosticError containing exception information
-        if let Err(DiagnosticError::Exception { exception, .. }) = result {
-            assert_eq!(exception.exception_type, "exception");
-            assert!(!exception.continuable);
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.exception_type, "exception");
+                assert!(!exception.continuable);
+            } else {
+                panic!("Expected exception error");
+            }
         } else {
-            panic!("Expected exception error");
+            panic!("Expected error result");
         }
     }
     
@@ -501,11 +505,15 @@ mod tests {
         assert!(result.is_err());
         
         // Should be a DiagnosticError containing continuable exception information
-        if let Err(DiagnosticError::Exception { exception, .. }) = result {
-            assert_eq!(exception.exception_type, "exception");
-            assert!(exception.continuable);
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.exception_type, "exception");
+                assert!(exception.continuable);
+            } else {
+                panic!("Expected exception error");
+            }
         } else {
-            panic!("Expected exception error");
+            panic!("Expected error result");
         }
     }
     
@@ -516,13 +524,17 @@ mod tests {
         assert!(result.is_err());
         
         // Should be a DiagnosticError containing error exception
-        if let Err(DiagnosticError::Exception { exception, .. }) = result {
-            assert_eq!(exception.exception_type, "error");
-            assert!(exception.is_error());
-            assert_eq!(exception.message, Some("Error message".to_string()));
-            assert_eq!(exception.irritants, vec![Value::integer(42)]);
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.exception_type, "error");
+                assert!(exception.is_error());
+                assert_eq!(exception.message, Some("Error message".to_string()));
+                assert_eq!(exception.irritants, vec![Value::integer(42)]);
+            } else {
+                panic!("Expected exception error");
+            }
         } else {
-            panic!("Expected exception error");
+            panic!("Expected error result");
         }
     }
     

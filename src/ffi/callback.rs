@@ -46,22 +46,22 @@ impl fmt::Display for CallbackError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CallbackError::NotFound(name) => {
-                write!(f, "Callback not found: {}", name)
+                write!(f, "Callback not found: {name}")
             }
             CallbackError::InvalidSignature { callback, reason } => {
-                write!(f, "Invalid callback signature for '{}': {}", callback, reason)
+                write!(f, "Invalid callback signature for '{callback}': {reason}")
             }
             CallbackError::ExecutionFailed { callback, error } => {
-                write!(f, "Callback '{}' execution failed: {}", callback, error)
+                write!(f, "Callback '{callback}' execution failed: {error}")
             }
             CallbackError::ConversionError(e) => {
-                write!(f, "Callback type conversion error: {}", e)
+                write!(f, "Callback type conversion error: {e}")
             }
             CallbackError::AlreadyRegistered(name) => {
-                write!(f, "Callback '{}' is already registered", name)
+                write!(f, "Callback '{name}' is already registered")
             }
             CallbackError::Expired(name) => {
-                write!(f, "Callback '{}' has expired", name)
+                write!(f, "Callback '{name}' has expired")
             }
             CallbackError::StackOverflow => {
                 write!(f, "Callback stack overflow protection triggered")
@@ -101,8 +101,10 @@ pub struct CallbackSignature {
 
 /// Calling conventions for callbacks
 #[derive(Debug, Clone, PartialEq)]
+#[derive(Default)]
 pub enum CallingConvention {
     /// C calling convention (default)
+    #[default]
     C,
     /// Standard call (Windows)
     Stdcall,
@@ -112,11 +114,6 @@ pub enum CallingConvention {
     SystemV,
 }
 
-impl Default for CallingConvention {
-    fn default() -> Self {
-        CallingConvention::C
-    }
-}
 
 /// A registered callback function
 #[derive(Debug)]
@@ -248,7 +245,7 @@ impl CallbackRegistry {
 
         // Create callback function
         let callback = Arc::new(CallbackFunction {
-            signature: signature.clone()),
+            signature: signature.clone(),
             function,
             environment,
             registered_at: SystemTime::now(),
@@ -261,7 +258,7 @@ impl CallbackRegistry {
         // Register the callback
         {
             let mut callbacks = self.callbacks.write().unwrap();
-            callbacks.insert(signature.name.clone()), callback);
+            callbacks.insert(signature.name.clone(), callback);
         }
 
         // Update statistics
@@ -303,13 +300,13 @@ impl CallbackRegistry {
     /// Get a callback by name
     pub fn get_callback(&self, name: &str) -> Option<Arc<CallbackFunction>> {
         let callbacks = self.callbacks.read().unwrap();
-        callbacks.get(name).clone())()
+        callbacks.get(name).cloned()
     }
 
     /// List all registered callbacks
     pub fn list_callbacks(&self) -> Vec<String> {
         let callbacks = self.callbacks.read().unwrap();
-        callbacks.keys().clone())().collect()
+        callbacks.keys().cloned().collect()
     }
 
     /// Clean up expired callbacks
@@ -333,7 +330,7 @@ impl CallbackRegistry {
 
     /// Get callback statistics
     pub fn stats(&self) -> CallbackStats {
-        self.stats.read().unwrap().clone())
+        self.stats.read().unwrap().clone()
     }
 
     /// Generate a C function pointer for the callback
@@ -353,6 +350,14 @@ impl CallbackRegistry {
     }
 
     /// Execute a callback (called from generated C code)
+    ///
+    /// # Safety
+    /// 
+    /// The caller must ensure that:
+    /// - `args` is a valid pointer to an array of `arg_count` valid `*const c_void` pointers
+    /// - Each pointer in the `args` array points to valid data of the expected type for the callback
+    /// - The memory pointed to by `args` and its elements remains valid for the duration of this call
+    /// - The callback is thread-safe if called from multiple threads
     pub unsafe fn execute_callback(
         &self,
         name: &str,

@@ -306,7 +306,7 @@ async fn test_mutex() {
     let mut handles = Vec::new();
     
     for _ in 0..10 {
-        let mutex_clone = mutex.clone());
+        let mutex_clone = mutex.clone();
         let handle = tokio::spawn(async move {
             let mut guard = mutex_clone.lock().await;
             let current = guard.get().as_integer().unwrap();
@@ -330,7 +330,7 @@ async fn test_rwlock() {
     // Multiple readers
     let mut read_handles = Vec::new();
     for _ in 0..5 {
-        let rwlock_clone = rwlock.clone());
+        let rwlock_clone = rwlock.clone();
         let handle = tokio::spawn(async move {
             let guard = rwlock_clone.read().await;
             assert_eq!(guard.get().as_integer().unwrap(), 42);
@@ -382,7 +382,7 @@ async fn test_semaphore() {
 #[tokio::test]
 async fn test_condition_variable() {
     let condvar = sync::CondVar::new();
-    let condvar_clone = condvar.clone());
+    let condvar_clone = condvar.clone();
     
     let handle = tokio::spawn(async move {
         sleep(Duration::from_millis(100)).await;
@@ -401,7 +401,7 @@ async fn test_barrier() {
     let mut handles = Vec::new();
     
     for i in 0..3 {
-        let barrier_clone = barrier.clone());
+        let barrier_clone = barrier.clone();
         let handle = tokio::spawn(async move {
             sleep(Duration::from_millis(i * 50)).await;
             let result = barrier_clone.wait().await;
@@ -425,7 +425,7 @@ async fn test_atomic_counter() {
     let mut handles = Vec::new();
     
     for _ in 0..100 {
-        let counter_clone = counter.clone());
+        let counter_clone = counter.clone();
         let handle = tokio::spawn(async move {
             counter_clone.increment();
         });
@@ -518,7 +518,7 @@ async fn test_producer_consumer_pattern() {
     let receiver = channel.receiver();
     
     // Producer
-    let producer_sender = sender.clone());
+    let producer_sender = sender.clone();
     let producer = tokio::spawn(async move {
         for i in 0..100 {
             producer_sender.send(Value::integer(i)).await.unwrap();
@@ -555,7 +555,7 @@ async fn test_work_distribution() {
     let ops = parallel::ParallelOps::new(config);
     
     // Create a large dataset
-    let values: Vec<Value> = (0..1000).map(|i| Value::integer(i)).collect();
+    let values: Vec<Value> = (0..1000).map(Value::integer).collect();
     
     let future = ops.par_map(values, |v| {
         let n = v.as_integer().unwrap();

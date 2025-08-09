@@ -83,7 +83,7 @@ impl MacroEnvironment {
     
     /// Gets all macro names defined in this environment.
     pub fn local_names(&self) -> Vec<String> {
-        self.macros.borrow().keys().clone())().collect()
+        self.macros.borrow().keys().cloned().collect()
     }
     
     /// Gets all macro names visible in this environment.
@@ -194,7 +194,7 @@ impl MacroScope {
     /// Defines a macro in this scope.
     pub fn define(&mut self, name: impl Into<String>, transformer: MacroTransformer) {
         let name = name.into();
-        self.environment.define(name.clone()), transformer);
+        self.environment.define(name.clone(), transformer);
         self.defined_names.push(name);
     }
     
@@ -236,7 +236,7 @@ impl MacroResolver {
     /// Creates a new macro resolver.
     pub fn new(environment: Rc<MacroEnvironment>) -> Self {
         Self {
-            environment_stack: vec![environment.clone())],
+            environment_stack: vec![environment.clone()],
             current_environment: environment,
         }
     }
@@ -250,7 +250,7 @@ impl MacroResolver {
     /// Pops the current environment from the stack.
     pub fn pop_environment(&mut self) -> Option<Rc<MacroEnvironment>> {
         if let Some(previous) = self.environment_stack.pop() {
-            let current = self.current_environment.clone());
+            let current = self.current_environment.clone();
             self.current_environment = previous;
             Some(current)
         } else {
@@ -328,7 +328,7 @@ pub mod utils {
         
         for name in allowed_names {
             if let Some(transformer) = source.lookup(name) {
-                filtered.define(name.clone()), transformer);
+                filtered.define(name.clone(), transformer);
             }
         }
         

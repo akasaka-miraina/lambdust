@@ -53,7 +53,7 @@ fn register_future_operations(env: &ThreadSafeEnvironment) {
             arity_max: Some(1),
             implementation: crate::eval::value::PrimitiveImpl::RustFn(|args| {
                 if args.len() != 1 {
-                    return Err(Box::new(Error::runtime_error("future-resolved expects 1 argument".to_string(), None));
+                    return Err(Box::new(Error::runtime_error("future-resolved expects 1 argument".to_string(), None)));
                 }
                 let future = Future::resolved(args[0].clone());
                 Ok(Value::Future(Arc::new(future)))
@@ -70,7 +70,7 @@ fn register_future_operations(env: &ThreadSafeEnvironment) {
             arity_max: Some(1),
             implementation: PrimitiveImpl::RustFn(|args| {
                 if args.len() != 1 {
-                    return Err(Box::new(Error::runtime_error("future-rejected expects 1 argument".to_string(), None));
+                    return Err(Box::new(Error::runtime_error("future-rejected expects 1 argument".to_string(), None)));
                 }
                 let error = Error::runtime_error(args[0].to_string(), None);
                 let future = Future::rejected(error);
@@ -88,7 +88,7 @@ fn register_future_operations(env: &ThreadSafeEnvironment) {
             arity_max: Some(0),
             implementation: PrimitiveImpl::RustFn(|args| {
                 if !args.is_empty() {
-                    return Err(Box::new(Error::runtime_error("promise expects no arguments".to_string(), None));
+                    return Err(Box::new(Error::runtime_error("promise expects no arguments".to_string(), None)));
                 }
                 let promise = Promise::new();
                 // Convert the promise to a future for consistency with the concurrency model
@@ -153,11 +153,11 @@ fn register_channel_operations(env: &ThreadSafeEnvironment) {
                     backpressure: true,
                 }
             } else {
-                return Err(Box::new(Error::runtime_error("make-channel expects 0 or 1 arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("make-channel expects 0 or 1 arguments".to_string(), None)));
             };
             
             let channel = Channel::new(config)
-                .map_err(|e| Error::runtime_error(format!("Failed to create channel: {}", e), None))?;
+                .map_err(|e| Error::runtime_error(format!("Failed to create channel: {e}"), None))?;
             Ok(Value::Channel(Arc::new(channel)))
             }),
             effects: vec![crate::effects::Effect::State],
@@ -230,10 +230,10 @@ fn register_parallel_operations(env: &ThreadSafeEnvironment) {
     // (par-map proc list) - Parallel map
     fn par_map_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 2 {
-                return Err(Box::new(Error::runtime_error("par-map expects 2 arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("par-map expects 2 arguments".to_string(), None)));
             }
             
-            let proc = args[0].clone());
+            let proc = args[0].clone();
             let list = &args[1];
             
             // Convert Scheme list to Vec<Value>
@@ -268,10 +268,10 @@ fn register_parallel_operations(env: &ThreadSafeEnvironment) {
     // (par-filter pred list) - Parallel filter
     fn par_filter_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 2 {
-                return Err(Box::new(Error::runtime_error("par-filter expects 2 arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("par-filter expects 2 arguments".to_string(), None)));
             }
             
-            let pred = args[0].clone());
+            let pred = args[0].clone();
             let list = &args[1];
             
             // Convert Scheme list to Vec<Value>
@@ -305,11 +305,11 @@ fn register_parallel_operations(env: &ThreadSafeEnvironment) {
     // (par-reduce proc identity list) - Parallel reduce
     fn par_reduce_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 3 {
-                return Err(Box::new(Error::runtime_error("par-reduce expects 3 arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("par-reduce expects 3 arguments".to_string(), None)));
             }
             
-            let proc = args[0].clone());
-            let identity = args[1].clone());
+            let proc = args[0].clone();
+            let identity = args[1].clone();
             let list = &args[2];
             
             // Convert Scheme list to Vec<Value>
@@ -348,9 +348,9 @@ fn register_sync_operations(env: &ThreadSafeEnvironment) {
             let value = if args.is_empty() {
                 Value::Nil
             } else if args.len() == 1 {
-                args[0].clone())
+                args[0].clone()
             } else {
-                return Err(Box::new(Error::runtime_error("make-mutex expects 0 or 1 arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("make-mutex expects 0 or 1 arguments".to_string(), None)));
             };
             
             let mutex = Mutex::new(value);
@@ -362,7 +362,7 @@ fn register_sync_operations(env: &ThreadSafeEnvironment) {
     // (make-semaphore permits) - Create a semaphore
     fn make_semaphore_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 1 {
-                return Err(Box::new(Error::runtime_error("make-semaphore expects 1 argument".to_string(), None));
+                return Err(Box::new(Error::runtime_error("make-semaphore expects 1 argument".to_string(), None)));
             }
             
             let permits = args[0].as_number()
@@ -382,7 +382,7 @@ fn register_sync_operations(env: &ThreadSafeEnvironment) {
                 args[0].as_number()
                     .ok_or_else(|| Error::runtime_error("Initial value must be a number".to_string(), None))? as i64
             } else {
-                return Err(Box::new(Error::runtime_error("make-atomic-counter expects 0 or 1 arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("make-atomic-counter expects 0 or 1 arguments".to_string(), None)));
             };
             
             let counter = AtomicCounter::new(initial);
@@ -394,14 +394,14 @@ fn register_sync_operations(env: &ThreadSafeEnvironment) {
     // (atomic-counter-increment! counter) - Increment atomic counter
     fn atomic_counter_increment_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 1 {
-                return Err(Box::new(Error::runtime_error("atomic-counter-increment! expects 1 argument".to_string(), None));
+                return Err(Box::new(Error::runtime_error("atomic-counter-increment! expects 1 argument".to_string(), None)));
             }
             
             if let Value::AtomicCounter(counter) = &args[0] {
                 let new_value = counter.increment();
                 Ok(Value::integer(new_value))
             } else {
-                Err(Box::new(Error::runtime_error("Argument must be an atomic counter".to_string(), None))
+                Err(Box::new(Error::runtime_error("Argument must be an atomic counter".to_string(), None)))
             }
     }
     
@@ -410,14 +410,14 @@ fn register_sync_operations(env: &ThreadSafeEnvironment) {
     // (atomic-counter-get counter) - Get atomic counter value
     fn atomic_counter_get_impl(args: &[Value]) -> Result<Value> {
         if args.len() != 1 {
-            return Err(Box::new(Error::runtime_error("atomic-counter-get expects 1 argument".to_string(), None));
+            return Err(Box::new(Error::runtime_error("atomic-counter-get expects 1 argument".to_string(), None)));
         }
         
         if let Value::AtomicCounter(counter) = &args[0] {
             let value = counter.get();
             Ok(Value::integer(value))
         } else {
-            Err(Box::new(Error::runtime_error("Argument must be an atomic counter".to_string(), None))
+            Err(Box::new(Error::runtime_error("Argument must be an atomic counter".to_string(), None)))
         }
     }
     
@@ -429,7 +429,7 @@ fn register_actor_operations(env: &ThreadSafeEnvironment) {
     // (spawn-actor behavior) - Spawn a new actor
     fn spawn_actor_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 1 {
-                return Err(Box::new(Error::runtime_error("spawn-actor expects 1 argument".to_string(), None));
+                return Err(Box::new(Error::runtime_error("spawn-actor expects 1 argument".to_string(), None)));
             }
             
             // For simplicity, spawn an echo actor
@@ -449,20 +449,20 @@ fn register_actor_operations(env: &ThreadSafeEnvironment) {
     // (actor-tell actor-id message) - Send a message to an actor
     fn actor_tell_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 2 {
-                return Err(Box::new(Error::runtime_error("actor-tell expects 2 arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("actor-tell expects 2 arguments".to_string(), None)));
             }
             
             let actor_id = args[0].as_number()
                 .ok_or_else(|| Error::runtime_error("Actor ID must be a number".to_string(), None))? as u64;
-            let message = args[1].clone());
+            let message = args[1].clone();
             
             let system = global_actor_system();
             if let Some(actor_ref) = system.get_actor(crate::concurrency::actors::ActorId(actor_id)) {
                 actor_ref.tell(message)
-                    .map_err(|e| Error::runtime_error(format!("Failed to send message: {}", e), None))?;
+                    .map_err(|e| Error::runtime_error(format!("Failed to send message: {e}"), None))?;
                 Ok(Value::Unspecified)
             } else {
-                Err(Box::new(Error::runtime_error("Actor not found".to_string(), None))
+                Err(Box::new(Error::runtime_error("Actor not found".to_string(), None)))
             }
     }
     
@@ -474,15 +474,15 @@ fn register_scheduler_operations(env: &ThreadSafeEnvironment) {
     // (submit-task thunk) - Submit a task to the scheduler
     fn submit_task_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 1 {
-                return Err(Box::new(Error::runtime_error("submit-task expects 1 argument".to_string(), None));
+                return Err(Box::new(Error::runtime_error("submit-task expects 1 argument".to_string(), None)));
             }
             
-            let thunk = args[0].clone());
+            let thunk = args[0].clone();
             
             let task_id = submit_task(move || {
                 // In a real implementation, you'd call the Scheme thunk here
                 Ok(Value::Unspecified)
-            }).map_err(|e| Error::runtime_error(format!("Failed to submit task: {}", e), None))?;
+            }).map_err(|e| Error::runtime_error(format!("Failed to submit task: {e}"), None))?;
             
             Ok(Value::integer(task_id.as_u64() as i64))
     }
@@ -492,10 +492,10 @@ fn register_scheduler_operations(env: &ThreadSafeEnvironment) {
     // (submit-priority-task thunk priority) - Submit a priority task
     fn submit_priority_task_impl(args: &[Value]) -> Result<Value> {
             if args.len() != 2 {
-                return Err(Box::new(Error::runtime_error("submit-priority-task expects 2 arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("submit-priority-task expects 2 arguments".to_string(), None)));
             }
             
-            let thunk = args[0].clone());
+            let thunk = args[0].clone();
             let priority_num = args[1].as_number()
                 .ok_or_else(|| Error::runtime_error("Priority must be a number".to_string(), None))? as u8;
             
@@ -504,13 +504,13 @@ fn register_scheduler_operations(env: &ThreadSafeEnvironment) {
                 1 => Priority::Normal,
                 2 => Priority::High,
                 3 => Priority::Critical,
-                _ => return Err(Box::new(Error::runtime_error("Priority must be 0-3".to_string(), None)),
+                _ => return Err(Box::new(Error::runtime_error("Priority must be 0-3".to_string(), None))),
             };
             
             let task_id = submit_priority_task(move || {
                 // In a real implementation, you'd call the Scheme thunk here
                 Ok(Value::Unspecified)
-            }, priority).map_err(|e| Error::runtime_error(format!("Failed to submit task: {}", e), None))?;
+            }, priority).map_err(|e| Error::runtime_error(format!("Failed to submit task: {e}"), None))?;
             
             Ok(Value::integer(task_id.as_u64() as i64))
     }
@@ -523,7 +523,7 @@ fn register_distributed_operations(env: &ThreadSafeEnvironment) {
     // (make-distributed-node) - Create a distributed node
     fn make_distributed_node_impl(args: &[Value]) -> Result<Value> {
             if !args.is_empty() {
-                return Err(Box::new(Error::runtime_error("make-distributed-node expects no arguments".to_string(), None));
+                return Err(Box::new(Error::runtime_error("make-distributed-node expects no arguments".to_string(), None)));
             }
             
             let node = DistributedNode::new();
@@ -590,12 +590,12 @@ pub mod macros {
 /// Implementation of (future-delay duration value)
 fn primitive_future_delay(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::runtime_error("future-delay expects 2 arguments".to_string(), None));
+        return Err(Box::new(Error::runtime_error("future-delay expects 2 arguments".to_string(), None)));
     }
     
     let duration_ms = args[0].as_number()
         .ok_or_else(|| Error::runtime_error("Duration must be a number".to_string(), None))?;
-    let value = args[1].clone());
+    let value = args[1].clone();
     let duration = Duration::from_millis(duration_ms as u64);
     
     let future = FutureOps::delay_value(duration, value);
@@ -605,7 +605,7 @@ fn primitive_future_delay(args: &[Value]) -> Result<Value> {
 /// Implementation of (future-all futures)
 fn primitive_future_all(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("future-all expects 1 argument".to_string(), None));
+        return Err(Box::new(Error::runtime_error("future-all expects 1 argument".to_string(), None)));
     }
     
     let futures_list = &args[0];
@@ -619,12 +619,12 @@ fn primitive_future_all(args: &[Value]) -> Result<Value> {
                 if let Value::Future(future) = car.as_ref() {
                     futures.push((**future).clone());
                 } else {
-                    return Err(Box::new(Error::runtime_error("Expected future in list".to_string(), None));
+                    return Err(Box::new(Error::runtime_error("Expected future in list".to_string(), None)));
                 }
                 current = cdr;
             }
             Value::Nil => break,
-            _ => return Err(Box::new(Error::runtime_error("Expected list of futures".to_string(), None)),
+            _ => return Err(Box::new(Error::runtime_error("Expected list of futures".to_string(), None))),
         }
     }
     
@@ -635,7 +635,7 @@ fn primitive_future_all(args: &[Value]) -> Result<Value> {
 /// Implementation of (future-race futures)
 fn primitive_future_race(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("future-race expects 1 argument".to_string(), None));
+        return Err(Box::new(Error::runtime_error("future-race expects 1 argument".to_string(), None)));
     }
     
     let futures_list = &args[0];
@@ -649,12 +649,12 @@ fn primitive_future_race(args: &[Value]) -> Result<Value> {
                 if let Value::Future(future) = car.as_ref() {
                     futures.push((**future).clone());
                 } else {
-                    return Err(Box::new(Error::runtime_error("Expected future in list".to_string(), None));
+                    return Err(Box::new(Error::runtime_error("Expected future in list".to_string(), None)));
                 }
                 current = cdr;
             }
             Value::Nil => break,
-            _ => return Err(Box::new(Error::runtime_error("Expected list of futures".to_string(), None)),
+            _ => return Err(Box::new(Error::runtime_error("Expected list of futures".to_string(), None))),
         }
     }
     
@@ -665,36 +665,36 @@ fn primitive_future_race(args: &[Value]) -> Result<Value> {
 /// Implementation of (make-unbounded-channel)
 fn primitive_make_unbounded_channel(args: &[Value]) -> Result<Value> {
     if !args.is_empty() {
-        return Err(Box::new(Error::runtime_error("make-unbounded-channel expects no arguments".to_string(), None));
+        return Err(Box::new(Error::runtime_error("make-unbounded-channel expects no arguments".to_string(), None)));
     }
     
     let channel = Channel::unbounded()
-        .map_err(|e| Error::runtime_error(format!("Failed to create channel: {}", e), None))?;
+        .map_err(|e| Error::runtime_error(format!("Failed to create channel: {e}"), None))?;
     Ok(Value::Channel(Arc::new(channel)))
 }
 
 /// Implementation of (make-broadcast-channel capacity)
 fn primitive_make_broadcast_channel(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("make-broadcast-channel expects 1 argument".to_string(), None));
+        return Err(Box::new(Error::runtime_error("make-broadcast-channel expects 1 argument".to_string(), None)));
     }
     
     let capacity = args[0].as_number()
         .ok_or_else(|| Error::runtime_error("Capacity must be a number".to_string(), None))?;
     
     let channel = Channel::broadcast(capacity as usize)
-        .map_err(|e| Error::runtime_error(format!("Failed to create channel: {}", e), None))?;
+        .map_err(|e| Error::runtime_error(format!("Failed to create channel: {e}"), None))?;
     Ok(Value::Channel(Arc::new(channel)))
 }
 
 /// Implementation of (channel-send! channel value)
 fn primitive_channel_send(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::runtime_error("channel-send! expects 2 arguments".to_string(), None));
+        return Err(Box::new(Error::runtime_error("channel-send! expects 2 arguments".to_string(), None)));
     }
     
     if let Value::Channel(channel) = &args[0] {
-        let value = args[1].clone());
+        let value = args[1].clone();
         let sender = channel.sender();
         
         let future = Future::new(async move {
@@ -703,14 +703,14 @@ fn primitive_channel_send(args: &[Value]) -> Result<Value> {
         
         Ok(Value::Future(Arc::new(future)))
     } else {
-        Err(Box::new(Error::runtime_error("First argument must be a channel".to_string(), None))
+        Err(Box::new(Error::runtime_error("First argument must be a channel".to_string(), None)))
     }
 }
 
 /// Implementation of (channel-recv! channel)
 fn primitive_channel_recv(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("channel-recv! expects 1 argument".to_string(), None));
+        return Err(Box::new(Error::runtime_error("channel-recv! expects 1 argument".to_string(), None)));
     }
     
     if let Value::Channel(channel) = &args[0] {
@@ -723,7 +723,7 @@ fn primitive_channel_recv(args: &[Value]) -> Result<Value> {
         
         Ok(Value::Future(Arc::new(future)))
     } else {
-        Err(Box::new(Error::runtime_error("Argument must be a channel".to_string(), None))
+        Err(Box::new(Error::runtime_error("Argument must be a channel".to_string(), None)))
     }
 }
 

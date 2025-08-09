@@ -13,9 +13,9 @@ pub fn value_to_numeric(value: &Value) -> Result<NumericValue> {
     match value {
         Value::Literal(literal) => {
             NumericValue::from_literal(literal)
-                .ok_or_else(|| Error::type_error("Expected numeric value", Span::default()))
+                .ok_or_else(|| Box::new(Error::type_error("Expected numeric value", Span::default())))
         }
-        _ => Err(Box::new(Error::type_error("Expected numeric value", Span::default().boxed())),
+        _ => Err(Box::new(Error::type_error("Expected numeric value", Span::default()))),
     }
 }
 
@@ -34,12 +34,12 @@ pub fn extract_numeric_args(args: &[Value]) -> Result<Vec<NumericValue>> {
 /// Helper to extract exactly N numeric arguments
 pub fn extract_n_numeric_args<const N: usize>(args: &[Value]) -> Result<[NumericValue; N]> {
     if args.len() != N {
-        return Err(Box::new(Error::arity_error("extract_n_numeric_args", N, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("extract_n_numeric_args", N, args.len())));
     }
     
     let numeric_args = extract_numeric_args(args)?;
     numeric_args.try_into()
-        .map_err(|_| Error::internal_error("Failed to convert to fixed-size array"))
+        .map_err(|_| Box::new(Error::internal_error("Failed to convert to fixed-size array")))
 }
 
 // ============= BASIC ARITHMETIC PRIMITIVES =============
@@ -53,7 +53,7 @@ pub fn primitive_add(args: &[Value]) -> Result<Value> {
     let numeric_args = extract_numeric_args(args)?;
     let result = numeric_args.iter()
         .skip(1)
-        .fold(numeric_args[0].clone()), |acc, arg| tower::add(&acc, arg));
+        .fold(numeric_args[0].clone(), |acc, arg| tower::add(&acc, arg));
     
     Ok(numeric_to_value(&result))
 }
@@ -61,7 +61,7 @@ pub fn primitive_add(args: &[Value]) -> Result<Value> {
 /// Subtraction with automatic type promotion
 pub fn primitive_subtract(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::arity_error("subtract", 1, 0.into().boxed()));
+        return Err(Box::new(Error::arity_error("subtract", 1, 0)));
     }
     
     let numeric_args = extract_numeric_args(args)?;
@@ -73,7 +73,7 @@ pub fn primitive_subtract(args: &[Value]) -> Result<Value> {
         // Binary subtraction
         numeric_args.iter()
             .skip(1)
-            .fold(numeric_args[0].clone()), |acc, arg| tower::subtract(&acc, arg))
+            .fold(numeric_args[0].clone(), |acc, arg| tower::subtract(&acc, arg))
     };
     
     Ok(numeric_to_value(&result))
@@ -88,7 +88,7 @@ pub fn primitive_multiply(args: &[Value]) -> Result<Value> {
     let numeric_args = extract_numeric_args(args)?;
     let result = numeric_args.iter()
         .skip(1)
-        .fold(numeric_args[0].clone()), |acc, arg| tower::multiply(&acc, arg));
+        .fold(numeric_args[0].clone(), |acc, arg| tower::multiply(&acc, arg));
     
     Ok(numeric_to_value(&result))
 }
@@ -96,7 +96,7 @@ pub fn primitive_multiply(args: &[Value]) -> Result<Value> {
 /// Division with automatic type promotion
 pub fn primitive_divide(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::arity_error("divide", 1, 0.into().boxed()));
+        return Err(Box::new(Error::arity_error("divide", 1, 0)));
     }
     
     let numeric_args = extract_numeric_args(args)?;
@@ -107,7 +107,7 @@ pub fn primitive_divide(args: &[Value]) -> Result<Value> {
             .map_err(|msg| Error::runtime_error(&msg, Some(Span::default())))?
     } else {
         // Binary division
-        let mut result = numeric_args[0].clone());
+        let mut result = numeric_args[0].clone();
         for arg in &numeric_args[1..] {
             result = tower::divide(&result, arg)
                 .map_err(|msg| Error::runtime_error(&msg, Some(Span::default())))?;
@@ -123,7 +123,7 @@ pub fn primitive_divide(args: &[Value]) -> Result<Value> {
 /// Numeric equality
 pub fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len())));
     }
     
     let numeric_args = extract_numeric_args(args)?;
@@ -139,7 +139,7 @@ pub fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
 /// Numeric less than
 pub fn primitive_less_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len())));
     }
     
     let numeric_args = extract_numeric_args(args)?;
@@ -154,7 +154,7 @@ pub fn primitive_less_than(args: &[Value]) -> Result<Value> {
 /// Numeric greater than
 pub fn primitive_greater_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len())));
     }
     
     let numeric_args = extract_numeric_args(args)?;
@@ -169,7 +169,7 @@ pub fn primitive_greater_than(args: &[Value]) -> Result<Value> {
 /// Numeric less than or equal
 pub fn primitive_less_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len())));
     }
     
     let numeric_args = extract_numeric_args(args)?;
@@ -185,7 +185,7 @@ pub fn primitive_less_equal(args: &[Value]) -> Result<Value> {
 /// Numeric greater than or equal
 pub fn primitive_greater_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 2, args.len())));
     }
     
     let numeric_args = extract_numeric_args(args)?;
@@ -213,7 +213,7 @@ pub fn primitive_exp(args: &[Value]) -> Result<Value> {
             if let NumericValue::Real(r) = promoted {
                 NumericValue::real(r.exp())
             } else {
-                return Err(Box::new(Error::type_error("Cannot compute exp of this type", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Cannot compute exp of this type", Span::default())));
             }
         }
     };
@@ -238,7 +238,7 @@ pub fn primitive_log(args: &[Value]) -> Result<Value> {
                 let log_c = c.ln();
                 NumericValue::complex(log_c.real, log_c.imaginary)
             } else {
-                return Err(Box::new(Error::type_error("Cannot compute log of this type", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Cannot compute log of this type", Span::default())));
             }
         }
     };
@@ -275,7 +275,7 @@ pub fn primitive_sin(args: &[Value]) -> Result<Value> {
             if let NumericValue::Real(r) = promoted {
                 NumericValue::real(r.sin())
             } else {
-                return Err(Box::new(Error::type_error("Cannot compute sin of this type", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Cannot compute sin of this type", Span::default())));
             }
         }
     };
@@ -298,7 +298,7 @@ pub fn primitive_cos(args: &[Value]) -> Result<Value> {
             if let NumericValue::Real(r) = promoted {
                 NumericValue::real(r.cos())
             } else {
-                return Err(Box::new(Error::type_error("Cannot compute cos of this type", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Cannot compute cos of this type", Span::default())));
             }
         }
     };
@@ -321,7 +321,7 @@ pub fn primitive_tan(args: &[Value]) -> Result<Value> {
             if let NumericValue::Real(r) = promoted {
                 NumericValue::real(r.tan())
             } else {
-                return Err(Box::new(Error::type_error("Cannot compute tan of this type", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Cannot compute tan of this type", Span::default())));
             }
         }
     };
@@ -342,7 +342,7 @@ pub fn primitive_gamma(args: &[Value]) -> Result<Value> {
             if let NumericValue::Real(r) = promoted {
                 NumericValue::real(functions::gamma(r))
             } else {
-                return Err(Box::new(Error::type_error("Gamma function requires real argument", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Gamma function requires real argument", Span::default())));
             }
         }
     };
@@ -361,7 +361,7 @@ pub fn primitive_erf(args: &[Value]) -> Result<Value> {
             if let NumericValue::Real(r) = promoted {
                 NumericValue::real(functions::erf(r))
             } else {
-                return Err(Box::new(Error::type_error("Error function requires real argument", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Error function requires real argument", Span::default())));
             }
         }
     };
@@ -380,7 +380,7 @@ pub fn primitive_bessel_j0(args: &[Value]) -> Result<Value> {
             if let NumericValue::Real(r) = promoted {
                 NumericValue::real(functions::bessel_j0(r))
             } else {
-                return Err(Box::new(Error::type_error("Bessel function requires real argument", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Bessel function requires real argument", Span::default())));
             }
         }
     };
@@ -393,7 +393,7 @@ pub fn primitive_bessel_j0(args: &[Value]) -> Result<Value> {
 /// Check if value is a number
 pub fn primitive_number_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len())));
     }
     
     let is_number = matches!(&args[0], Value::Literal(lit) if lit.is_number());
@@ -403,7 +403,7 @@ pub fn primitive_number_p(args: &[Value]) -> Result<Value> {
 /// Check if value is exact
 pub fn primitive_exact_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len())));
     }
     
     let is_exact = match value_to_numeric(&args[0]) {
@@ -417,7 +417,7 @@ pub fn primitive_exact_p(args: &[Value]) -> Result<Value> {
 /// Check if value is inexact
 pub fn primitive_inexact_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len())));
     }
     
     let is_inexact = match value_to_numeric(&args[0]) {
@@ -431,7 +431,7 @@ pub fn primitive_inexact_p(args: &[Value]) -> Result<Value> {
 /// Check if value is integer
 pub fn primitive_integer_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len())));
     }
     
     let is_integer = match value_to_numeric(&args[0]) {
@@ -445,7 +445,7 @@ pub fn primitive_integer_p(args: &[Value]) -> Result<Value> {
 /// Check if value is real
 pub fn primitive_real_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len())));
     }
     
     let is_real = match value_to_numeric(&args[0]) {
@@ -459,7 +459,7 @@ pub fn primitive_real_p(args: &[Value]) -> Result<Value> {
 /// Check if value is complex
 pub fn primitive_complex_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len())));
     }
     
     let is_complex = value_to_numeric(&args[0]).is_ok();
@@ -487,38 +487,38 @@ pub fn primitive_inexact(args: &[Value]) -> Result<Value> {
 /// Get mathematical or physical constant
 pub fn primitive_constant(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 1, args.len())));
     }
     
     let name = match &args[0] {
-        Value::Literal(Literal::String(s)) => s.clone()),
+        Value::Literal(Literal::String(s)) => s.clone(),
         Value::Symbol(id) => {
             // Convert symbol to string for lookup
             if let Some(name) = crate::utils::symbol_name(*id) {
                 name
             } else {
-                return Err(Box::new(Error::type_error("Unknown symbol", Span::default().boxed()));
+                return Err(Box::new(Error::type_error("Unknown symbol", Span::default())));
             }
         }
-        _ => return Err(Box::new(Error::type_error("Expected string or symbol", Span::default().boxed())),
+        _ => return Err(Box::new(Error::type_error("Expected string or symbol", Span::default()))),
     };
     
     if let Some(constant) = constants::get_constant(&name) {
         Ok(numeric_to_value(&constant))
     } else {
-        Err(Box::new(Error::runtime_error(&format!("Unknown constant: {}", name), Some(Span::default())))
+        Err(Box::new(Error::runtime_error(format!("Unknown constant: {name}"), Some(Span::default()))))
     }
 }
 
 /// List available constants
 pub fn primitive_list_constants(args: &[Value]) -> Result<Value> {
     if !args.is_empty() {
-        return Err(Box::new(Error::arity_error("numeric-function", 0, args.len().boxed()));
+        return Err(Box::new(Error::arity_error("numeric-function", 0, args.len())));
     }
     
     let constant_names = constants::list_constants();
     let values: Vec<Value> = constant_names.into_iter()
-        .map(|name| Value::string(name))
+        .map(Value::string)
         .collect();
     
     Ok(Value::list(values))
@@ -559,10 +559,10 @@ mod tests {
 
     #[test]
     fn test_type_predicates() {
-        let number_val = Value::Literal(Literal::Number(3.14));
+        let number_val = Value::Literal(Literal::Number(std::f64::consts::PI));
         let string_val = Value::Literal(Literal::String("hello".to_string()));
         
-        let result = primitive_number_p(&[number_val.clone())]).unwrap();
+        let result = primitive_number_p(&[number_val.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
         let result = primitive_number_p(&[string_val]).unwrap();
@@ -576,7 +576,7 @@ mod tests {
     fn test_mathematical_functions() {
         let arg = Value::Literal(Literal::Number(1.0));
         
-        let result = primitive_sin(&[arg.clone())]).unwrap();
+        let result = primitive_sin(&[arg.clone()]).unwrap();
         let sin_1 = result.as_number().unwrap();
         assert!((sin_1 - 1.0_f64.sin()).abs() < 1e-10);
         

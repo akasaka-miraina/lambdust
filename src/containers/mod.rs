@@ -60,6 +60,7 @@ pub trait Container {
 
 /// Trait for containers that support iteration
 pub trait Iterable<T> {
+    /// Iterator type that yields items of type T
     type Iterator: Iterator<Item = T>;
     
     /// Returns an iterator over the container's elements
@@ -104,28 +105,35 @@ pub mod capacities {
 pub enum ContainerError {
     /// Index out of bounds
     IndexOutOfBounds {
+        /// The invalid index that was accessed
         index: usize,
+        /// The actual length of the container
         length: usize,
     },
     
     /// Empty container operation
     EmptyContainer {
+        /// The operation that was attempted on an empty container
         operation: String,
     },
     
     /// Key not found in associative container
     KeyNotFound {
+        /// The key that was not found
         key: String,
     },
     
     /// Invalid comparator
     InvalidComparator {
+        /// Description of what makes the comparator invalid
         message: String,
     },
     
     /// Capacity exceeded
     CapacityExceeded {
+        /// The requested capacity that was too large
         requested: usize,
+        /// The maximum allowed capacity
         maximum: usize,
     },
 }
@@ -134,19 +142,19 @@ impl std::fmt::Display for ContainerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ContainerError::IndexOutOfBounds { index, length } => {
-                write!(f, "Index {} out of bounds for container of length {}", index, length)
+                write!(f, "Index {index} out of bounds for container of length {length}")
             }
             ContainerError::EmptyContainer { operation } => {
-                write!(f, "Cannot perform '{}' on empty container", operation)
+                write!(f, "Cannot perform '{operation}' on empty container")
             }
             ContainerError::KeyNotFound { key } => {
-                write!(f, "Key '{}' not found", key)
+                write!(f, "Key '{key}' not found")
             }
             ContainerError::InvalidComparator { message } => {
-                write!(f, "Invalid comparator: {}", message)
+                write!(f, "Invalid comparator: {message}")
             }
             ContainerError::CapacityExceeded { requested, maximum } => {
-                write!(f, "Requested capacity {} exceeds maximum {}", requested, maximum)
+                write!(f, "Requested capacity {requested} exceeds maximum {maximum}")
             }
         }
     }
@@ -288,7 +296,7 @@ pub mod utils {
                     Ordering::Equal
                 } else {
                     // Fallback to string comparison for different types
-                    format!("{:?}", a_disc).cmp(&format!("{:?}", b_disc))
+                    format!("{a_disc:?}").cmp(&format!("{b_disc:?}"))
                 }
             },
         }

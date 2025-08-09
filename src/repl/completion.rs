@@ -18,7 +18,7 @@ pub struct Completion {
 
 impl Completion {
     pub fn new(text: String, completion_type: CompletionType) -> Self {
-        let display = text.clone());
+        let display = text.clone();
         Self {
             text,
             display,
@@ -331,7 +331,7 @@ impl CompletionProvider {
         // Built-in functions
         for (name, info) in &self.builtin_functions {
             if name.to_lowercase().starts_with(prefix) {
-                let mut completion = Completion::new(name.clone()), CompletionType::Function);
+                let mut completion = Completion::new(name.clone(), CompletionType::Function);
                 if let Some(ref sig) = info.signature {
                     completion = completion.with_signature(sig.clone());
                 }
@@ -343,7 +343,7 @@ impl CompletionProvider {
         // Special forms
         for (name, info) in &self.special_forms {
             if name.to_lowercase().starts_with(prefix) {
-                let mut completion = Completion::new(name.clone()), CompletionType::SpecialForm);
+                let mut completion = Completion::new(name.clone(), CompletionType::SpecialForm);
                 if let Some(ref sig) = info.signature {
                     completion = completion.with_signature(sig.clone());
                 }
@@ -355,14 +355,14 @@ impl CompletionProvider {
         // Keywords
         for keyword in &self.keywords {
             if keyword.to_lowercase().starts_with(prefix) {
-                completions.push(Completion::new(keyword.clone()), CompletionType::Keyword));
+                completions.push(Completion::new(keyword.clone(), CompletionType::Keyword));
             }
         }
 
         // User definitions
         for (name, info) in &self.user_definitions {
             if name.to_lowercase().starts_with(prefix) {
-                let mut completion = Completion::new(name.clone()), info.completion_type.clone());
+                let mut completion = Completion::new(name.clone(), info.completion_type.clone());
                 if let Some(ref sig) = info.signature {
                     completion = completion.with_signature(sig.clone());
                 }
@@ -375,7 +375,7 @@ impl CompletionProvider {
         if context.context_type == ContextType::Import {
             for (name, info) in &self.srfi_modules {
                 if name.to_lowercase().starts_with(prefix) {
-                    let completion = Completion::new(name.clone()), CompletionType::Library)
+                    let completion = Completion::new(name.clone(), CompletionType::Library)
                         .with_description(format!("SRFI-{}: {}", info.srfi_number, info.title));
                     completions.push(completion);
                 }
@@ -441,7 +441,7 @@ impl CompletionProvider {
                 if let Some(name) = entry.file_name().to_str() {
                     if name.starts_with(filename_prefix) {
                         let full_path = if prefix.ends_with('/') || prefix.ends_with('\\') {
-                            format!("{}{}", prefix, name)
+                            format!("{prefix}{name}")
                         } else if let Some(parent) = path.parent() {
                             format!("{}/{}", parent.display(), name)
                         } else {
@@ -449,7 +449,7 @@ impl CompletionProvider {
                         };
 
                         let display = if entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false) {
-                            format!("{}/", name)
+                            format!("{name}/")
                         } else {
                             name.to_string()
                         };
@@ -495,7 +495,7 @@ impl CompletionProvider {
 
         // Find the current word
         while current_word_start < cursor_pos && 
-              chars.get(current_word_start).map_or(false, |c| c.is_whitespace()) {
+              chars.get(current_word_start).is_some_and(|c| c.is_whitespace()) {
             current_word_start += 1;
         }
 

@@ -32,11 +32,11 @@ pub fn apply_direct_export(
     
     for symbol in symbols {
         if let Some(value) = bindings.get(symbol) {
-            exports.insert(symbol.clone()), value.clone());
+            exports.insert(symbol.clone(), value.clone());
         } else {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                format!("Cannot export undefined symbol: {}", symbol)
-            )));
+                format!("Cannot export undefined symbol: {symbol}")
+            ))));
         }
     }
     
@@ -52,11 +52,11 @@ pub fn apply_rename_export(
     
     for (internal_name, external_name) in rename_map {
         if let Some(value) = bindings.get(internal_name) {
-            exports.insert(external_name.clone()), value.clone());
+            exports.insert(external_name.clone(), value.clone());
         } else {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                format!("Cannot export undefined symbol: {}", internal_name)
-            )));
+                format!("Cannot export undefined symbol: {internal_name}")
+            ))));
         }
     }
     
@@ -71,7 +71,7 @@ pub fn parse_export_spec(export_form: &[Spanned<Expr>]) -> Result<ExportSpec> {
         return Err(Box::new(Error::syntax_error(
             "Empty export specification".to_string(),
             None,
-        ));
+        )));
     }
 
     let mut symbols = Vec::new();
@@ -93,13 +93,13 @@ pub fn parse_export_spec(export_form: &[Spanned<Expr>]) -> Result<ExportSpec> {
                     _ => return Err(Box::new(Error::syntax_error(
                         "Unknown export form".to_string(),
                         Some(elements[0].span),
-                    )),
+                    ))),
                 }
             }
             _ => return Err(Box::new(Error::syntax_error(
                 "Invalid export specification".to_string(),
                 Some(expr.span),
-            )),
+            ))),
         }
     }
     
@@ -111,7 +111,7 @@ pub fn parse_export_spec(export_form: &[Spanned<Expr>]) -> Result<ExportSpec> {
         return Err(Box::new(Error::syntax_error(
             "Cannot mix direct exports and rename exports".to_string(),
             None,
-        ));
+        )));
     };
     
     Ok(ExportSpec { symbols, config })
@@ -127,19 +127,19 @@ fn parse_rename_spec(
     match &spec.inner {
         Expr::List(pair) if pair.len() == 2 => {
             let internal_name = match &pair[0].inner {
-                Expr::Symbol(symbol) => symbol.clone()),
+                Expr::Symbol(symbol) => symbol.clone(),
                 _ => return Err(Box::new(Error::syntax_error(
                     "Rename specification must contain symbols".to_string(),
                     Some(pair[0].span),
-                )),
+                ))),
             };
             
             let external_name = match &pair[1].inner {
-                Expr::Symbol(symbol) => symbol.clone()),
+                Expr::Symbol(symbol) => symbol.clone(),
                 _ => return Err(Box::new(Error::syntax_error(
                     "Rename specification must contain symbols".to_string(),
                     Some(pair[1].span),
-                )),
+                ))),
             };
             
             rename_map.insert(internal_name, external_name);
@@ -148,7 +148,7 @@ fn parse_rename_spec(
         _ => Err(Box::new(Error::syntax_error(
             "Rename specification must be a pair of symbols".to_string(),
             Some(spec.span),
-        )),
+        ))),
     }
 }
 
@@ -163,8 +163,8 @@ pub fn validate_export_spec(
             for symbol in &spec.symbols {
                 if !available_bindings.contains_key(symbol) {
                     return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                        format!("Cannot export undefined symbol: {}", symbol)
-                    )));
+                        format!("Cannot export undefined symbol: {symbol}")
+                    ))));
                 }
             }
         }
@@ -173,8 +173,8 @@ pub fn validate_export_spec(
             for internal_name in rename_map.keys() {
                 if !available_bindings.contains_key(internal_name) {
                     return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                        format!("Cannot export undefined symbol: {}", internal_name)
-                    )));
+                        format!("Cannot export undefined symbol: {internal_name}")
+                    ))));
                 }
             }
             
@@ -183,8 +183,8 @@ pub fn validate_export_spec(
             for external_name in rename_map.values() {
                 if !external_names.insert(external_name) {
                     return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
-                        format!("Duplicate export name: {}", external_name)
-                    )));
+                        format!("Duplicate export name: {external_name}")
+                    ))));
                 }
             }
         }
@@ -197,7 +197,7 @@ pub fn validate_export_spec(
 pub fn create_default_export_spec(bindings: &HashMap<String, Value>) -> ExportSpec {
     let symbols: Vec<String> = bindings.keys()
         .filter(|symbol| !is_private_symbol(symbol))
-        .clone())()
+        .cloned()
         .collect();
     
     ExportSpec {
@@ -226,7 +226,7 @@ pub fn intersect_export_specs(
             // Intersect symbol lists
             let intersection: Vec<String> = spec1.symbols.iter()
                 .filter(|symbol| spec2.symbols.contains(symbol))
-                .clone())()
+                .cloned()
                 .collect();
             
             Ok(ExportSpec {
@@ -237,7 +237,7 @@ pub fn intersect_export_specs(
         _ => Err(Box::new(Error::syntax_error(
             "Cannot intersect export specifications with different configurations".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -249,7 +249,7 @@ pub fn union_export_specs(
     match (&spec1.config, &spec2.config) {
         (ExportConfig::Direct, ExportConfig::Direct) => {
             // Union symbol lists
-            let mut union_symbols = spec1.symbols.clone());
+            let mut union_symbols = spec1.symbols.clone();
             for symbol in &spec2.symbols {
                 if !union_symbols.contains(symbol) {
                     union_symbols.push(symbol.clone());
@@ -264,7 +264,7 @@ pub fn union_export_specs(
         _ => Err(Box::new(Error::syntax_error(
             "Cannot union export specifications with different configurations".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -277,7 +277,7 @@ pub fn filter_export_spec(
         ExportConfig::Direct => {
             let filtered_symbols: Vec<String> = spec.symbols.iter()
                 .filter(|symbol| !excluded_symbols.contains(symbol))
-                .clone())()
+                .cloned()
                 .collect();
             
             ExportSpec {
@@ -288,7 +288,7 @@ pub fn filter_export_spec(
         ExportConfig::Rename(rename_map) => {
             let filtered_map: HashMap<String, String> = rename_map.iter()
                 .filter(|(internal_name, _)| !excluded_symbols.contains(internal_name))
-                .map(|(k, v)| (k.clone()), v.clone()))
+                .map(|(k, v)| (k.clone(), v.clone()))
                 .collect();
             
             ExportSpec {

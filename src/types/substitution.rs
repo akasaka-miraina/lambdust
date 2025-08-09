@@ -56,7 +56,7 @@ impl Substitution {
                     // Apply substitution recursively to handle chains
                     self.apply_to_type(substituted)
                 } else {
-                    type_.clone())
+                    type_.clone()
                 }
             }
             Type::Pair(a, b) => {
@@ -75,8 +75,8 @@ impl Substitution {
             }
             Type::Constructor { name, kind } => {
                 Type::Constructor {
-                    name: name.clone()),
-                    kind: kind.clone()),
+                    name: name.clone(),
+                    kind: kind.clone(),
                 }
             }
             Type::Application { constructor, argument } => {
@@ -89,7 +89,7 @@ impl Substitution {
                 // Remove any variables that are bound by the forall
                 let filtered_subst = self.remove_vars(vars);
                 Type::Forall {
-                    vars: vars.clone()),
+                    vars: vars.clone(),
                     body: Box::new(filtered_subst.apply_to_type(body)),
                 }
             }
@@ -97,7 +97,7 @@ impl Substitution {
                 // Remove any variables that are bound by the exists
                 let filtered_subst = self.remove_vars(vars);
                 Type::Exists {
-                    vars: vars.clone()),
+                    vars: vars.clone(),
                     body: Box::new(filtered_subst.apply_to_type(body)),
                 }
             }
@@ -126,12 +126,12 @@ impl Substitution {
                 // Remove the recursive variable from substitution
                 let filtered_subst = self.remove_var(var);
                 Type::Recursive {
-                    var: var.clone()),
+                    var: var.clone(),
                     body: Box::new(filtered_subst.apply_to_type(body)),
                 }
             }
             // Base types are unchanged
-            _ => type_.clone()),
+            _ => type_.clone(),
         }
     }
     
@@ -141,7 +141,7 @@ impl Substitution {
         let filtered_subst = self.remove_vars(&scheme.vars);
         
         TypeScheme {
-            vars: scheme.vars.clone()),
+            vars: scheme.vars.clone(),
             constraints: scheme.constraints
                 .iter()
                 .map(|c| filtered_subst.apply_to_constraint(c))
@@ -153,7 +153,7 @@ impl Substitution {
     /// Applies this substitution to a constraint.
     pub fn apply_to_constraint(&self, constraint: &Constraint) -> Constraint {
         Constraint {
-            class: constraint.class.clone()),
+            class: constraint.class.clone(),
             type_: self.apply_to_type(&constraint.type_),
         }
     }
@@ -163,7 +163,7 @@ impl Substitution {
         match effect {
             Effect::State(t) => Effect::State(self.apply_to_type(t)),
             Effect::Exception(t) => Effect::Exception(self.apply_to_type(t)),
-            Effect::Pure | Effect::Error | Effect::IO | Effect::Custom(_) => effect.clone()),
+            Effect::Pure | Effect::Error | Effect::IO | Effect::Custom(_) => effect.clone(),
         }
     }
     
@@ -172,13 +172,13 @@ impl Substitution {
         Row {
             fields: row.fields
                 .iter()
-                .map(|(name, type_)| (name.clone()), self.apply_to_type(type_)))
+                .map(|(name, type_)| (name.clone(), self.apply_to_type(type_)))
                 .collect(),
             rest: row.rest.as_ref().map(|var| {
                 if let Some(Type::Variable(new_var)) = self.mapping.get(var) {
-                    new_var.clone())
+                    new_var.clone()
                 } else {
-                    var.clone())
+                    var.clone()
                 }
             }),
         }
@@ -192,13 +192,13 @@ impl Substitution {
         
         // Apply self to all types in other's mapping
         for (var, type_) in &other.mapping {
-            new_mapping.insert(var.clone()), self.apply_to_type(type_));
+            new_mapping.insert(var.clone(), self.apply_to_type(type_));
         }
         
         // Add mappings from self that are not in other
         for (var, type_) in &self.mapping {
             if !other.mapping.contains_key(var) {
-                new_mapping.insert(var.clone()), type_.clone());
+                new_mapping.insert(var.clone(), type_.clone());
             }
         }
         
@@ -209,7 +209,7 @@ impl Substitution {
     
     /// Removes a variable from the substitution domain.
     pub fn remove_var(&self, var: &TypeVar) -> Substitution {
-        let mut new_mapping = self.mapping.clone());
+        let mut new_mapping = self.mapping.clone();
         new_mapping.remove(var);
         Substitution {
             mapping: new_mapping,
@@ -218,7 +218,7 @@ impl Substitution {
     
     /// Removes multiple variables from the substitution domain.
     pub fn remove_vars(&self, vars: &[TypeVar]) -> Substitution {
-        let mut new_mapping = self.mapping.clone());
+        let mut new_mapping = self.mapping.clone();
         for var in vars {
             new_mapping.remove(var);
         }
@@ -233,7 +233,7 @@ impl Substitution {
         let mapping = self.mapping
             .iter()
             .filter(|(var, _)| var_set.contains(var))
-            .map(|(var, type_)| (var.clone()), type_.clone()))
+            .map(|(var, type_)| (var.clone(), type_.clone()))
             .collect();
         
         Substitution { mapping }
@@ -241,7 +241,7 @@ impl Substitution {
     
     /// Gets all variables in the domain of this substitution.
     pub fn domain(&self) -> Vec<TypeVar> {
-        self.mapping.keys().clone())().collect()
+        self.mapping.keys().cloned().collect()
     }
     
     /// Gets all variables in the range of this substitution.
@@ -270,7 +270,7 @@ impl Substitution {
             }
         }
         
-        let mut new_mapping = self.mapping.clone());
+        let mut new_mapping = self.mapping.clone();
         new_mapping.insert(var, type_);
         Ok(Substitution {
             mapping: new_mapping,
@@ -281,7 +281,7 @@ impl Substitution {
     ///
     /// This applies the substitution recursively until a fixed point is reached.
     pub fn normalize(&self) -> Substitution {
-        let mut current = self.clone());
+        let mut current = self.clone();
         let mut changed = true;
         
         // Apply substitution repeatedly until no changes occur
@@ -294,7 +294,7 @@ impl Substitution {
                 if &new_type != type_ {
                     changed = true;
                 }
-                new_mapping.insert(var.clone()), new_type);
+                new_mapping.insert(var.clone(), new_type);
             }
             
             current.mapping = new_mapping;
@@ -393,7 +393,7 @@ mod tests {
     #[test]
     fn test_single_substitution() {
         let var = TypeVar::with_id(1);
-        let subst = Substitution::single(var.clone()), Type::Number);
+        let subst = Substitution::single(var.clone(), Type::Number);
         
         assert!(!subst.is_empty());
         assert!(subst.contains_var(&var));
@@ -406,8 +406,8 @@ mod tests {
         let var2 = TypeVar::with_id(2);
         let var3 = TypeVar::with_id(3);
         
-        let subst1 = Substitution::single(var1.clone()), Type::Variable(var2.clone()));
-        let subst2 = Substitution::single(var2.clone()), Type::Number);
+        let subst1 = Substitution::single(var1.clone(), Type::Variable(var2.clone()));
+        let subst2 = Substitution::single(var2.clone(), Type::Number);
         
         let composed = subst1.compose(&subst2);
         
@@ -432,16 +432,16 @@ mod tests {
         let var1 = TypeVar::with_id(1);
         let var2 = TypeVar::with_id(2);
         
-        let forall_type = Type::forall(vec![var1.clone())], Type::Variable(var1.clone()));
-        let subst = Substitution::single(var1.clone()), Type::Number);
+        let forall_type = Type::forall(vec![var1.clone()], Type::Variable(var1.clone()));
+        let subst = Substitution::single(var1.clone(), Type::Number);
         
         // var1 is bound by forall, so substitution shouldn't affect it
         let result = subst.apply_to_type(&forall_type);
         assert_eq!(result, forall_type);
         
         // But free variables should be substituted
-        let free_var_type = Type::forall(vec![var1.clone())], Type::Variable(var2.clone()));
-        let subst2 = Substitution::single(var2.clone()), Type::String);
+        let free_var_type = Type::forall(vec![var1.clone()], Type::Variable(var2.clone()));
+        let subst2 = Substitution::single(var2.clone(), Type::String);
         let result2 = subst2.apply_to_type(&free_var_type);
         assert_eq!(result2, Type::forall(vec![var1], Type::String));
     }
@@ -454,8 +454,8 @@ mod tests {
         
         // Create a chain: var1 -> var2 -> var3 -> Number
         let mut mapping = HashMap::new();
-        mapping.insert(var1.clone()), Type::Variable(var2.clone()));
-        mapping.insert(var2.clone()), Type::Variable(var3.clone()));
+        mapping.insert(var1.clone(), Type::Variable(var2.clone()));
+        mapping.insert(var2.clone(), Type::Variable(var3.clone()));
         mapping.insert(var3, Type::Number);
         
         let subst = Substitution { mapping };

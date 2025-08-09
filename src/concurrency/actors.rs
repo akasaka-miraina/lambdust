@@ -17,6 +17,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ActorId(pub u64);
 
+impl Default for ActorId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ActorId {
     /// Creates a new unique actor ID.
     pub fn new() -> Self {
@@ -52,8 +58,8 @@ pub struct Message {
 impl Clone for Message {
     fn clone(&self) -> Self {
         Self {
-            sender: self.sender.clone()),
-            payload: self.payload.clone()),
+            sender: self.sender,
+            payload: self.payload.clone(),
             timestamp: self.timestamp,
             reply_to: None, // Can't clone the sender, so we set it to None
         }
@@ -85,9 +91,9 @@ impl Message {
     pub fn reply(self, response: Value) -> Result<()> {
         if let Some(reply_to) = self.reply_to {
             reply_to.send(response)
-                .map_err(|_| Error::runtime_error("Failed to send reply".to_string(), None))
+                .map_err(|_| Box::new(Error::runtime_error("Failed to send reply".to_string(), None)))
         } else {
-            Err(Box::new(Error::runtime_error("No reply channel available".to_string(), None))
+            Err(Box::new(Error::runtime_error("No reply channel available".to_string(), None)))
         }
     }
 }
@@ -191,8 +197,8 @@ impl ActorContext {
     pub fn actor_ref(&self) -> ActorRef {
         ActorRef {
             id: self.id,
-            sender: self.sender.clone()),
-            system: self.system.clone()),
+            sender: self.sender.clone(),
+            system: self.system.clone(),
         }
     }
 
@@ -213,7 +219,7 @@ impl ActorContext {
         if let Some(child) = self.children.remove(&child_id) {
             child.stop()
         } else {
-            Err(Box::new(Error::runtime_error("Child actor not found".to_string(), None))
+            Err(Box::new(Error::runtime_error("Child actor not found".to_string(), None)))
         }
     }
 
@@ -313,7 +319,7 @@ impl ActorSystem {
     }
 
     /// Creates a new actor system with default configuration.
-    pub fn default() -> Arc<Self> {
+    pub fn new_default() -> Arc<Self> {
         Self::new(ActorSystemConfig::default())
     }
 
@@ -330,14 +336,14 @@ impl ActorSystem {
         let actor_ref = ActorRef {
             id,
             sender: tx,
-            system: self.clone()),
+            system: self.clone(),
         };
 
         let mut ctx = ActorContext {
             id,
-            sender: actor_ref.sender.clone()),
-            system: self.clone()),
-            parent: parent.clone()),
+            sender: actor_ref.sender.clone(),
+            system: self.clone(),
+            parent: parent.clone(),
             children: HashMap::new(),
         };
 
@@ -345,26 +351,21 @@ impl ActorSystem {
         actor.pre_start(&mut ctx).await?;
 
         // Spawn the actor task
-        let system = self.clone());
+        let system = self.clone();
         let join_handle = tokio::spawn(async move {
-            loop {
-                match rx.recv().await {
-                    Some(message) => {
-                        // Check for system messages
-                        if let Value::Symbol(sym) = &message.payload {
-                            if sym.to_string() == "$stop" {
-                                break;
-                            }
-                        }
-
-                        // Process the message
-                        if let Err(error) = actor.receive(message, &mut ctx).await {
-                            // Handle actor failure
-                            system.handle_actor_failure(id, error).await;
-                            break;
-                        }
+            while let Some(message) = rx.recv().await {
+                // Check for system messages
+                if let Value::Symbol(sym) = &message.payload {
+                    if sym.to_string() == "$stop" {
+                        break;
                     }
-                    None => break, // Channel closed
+                }
+
+                // Process the message
+                if let Err(error) = actor.receive(message, &mut ctx).await {
+                    // Handle actor failure
+                    system.handle_actor_failure(id, error).await;
+                    break;
                 }
             }
 
@@ -374,7 +375,7 @@ impl ActorSystem {
 
         // Register the actor
         let actor_info = ActorInfo {
-            actor_ref: actor_ref.clone()),
+            actor_ref: actor_ref.clone(),
             join_handle,
             parent: parent.map(|p| p.id()),
             children: Vec::new(),
@@ -406,7 +407,7 @@ impl ActorSystem {
         if let Some(info) = actor_info {
             info.actor_ref.stop()?;
             info.join_handle.await
-                .map_err(|e| Error::runtime_error(format!("Failed to stop actor: {}", e), None))?;
+                .map_err(|e| Error::runtime_error(format!("Failed to stop actor: {e}"), None))?;
         }
 
         Ok(())
@@ -414,19 +415,19 @@ impl ActorSystem {
 
     /// Handles actor failure according to supervision strategy.
     async fn handle_actor_failure(&self, actor_id: ActorId, error: Box<Error>) {
-        let strategy = self.config.default_supervision_strategy.clone());
+        let strategy = self.config.default_supervision_strategy.clone();
         
         match strategy {
             SupervisionStrategy::Restart => {
                 // TODO: Implement actor restart logic
-                eprintln!("Actor {} failed with error: {}. Restarting...", actor_id, error);
+                eprintln!("Actor {actor_id} failed with error: {error}. Restarting...");
             }
             SupervisionStrategy::Stop => {
                 let _ = self.stop_actor(actor_id).await;
             }
             SupervisionStrategy::Escalate => {
                 // TODO: Escalate to parent
-                eprintln!("Actor {} failed with error: {}. Escalating...", actor_id, error);
+                eprintln!("Actor {actor_id} failed with error: {error}. Escalating...");
             }
             SupervisionStrategy::Resume => {
                 // Do nothing - let the actor continue
@@ -469,7 +470,14 @@ pub struct CounterActor {
     count: i64,
 }
 
+impl Default for CounterActor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CounterActor {
+    /// Creates a new counter actor with count initialized to zero.
     pub fn new() -> Self {
         Self { count: 0 }
     }
@@ -497,7 +505,7 @@ impl Actor for CounterActor {
                 }
             }
             _ => {
-                return Err(Box::new(Error::runtime_error("Unknown message".to_string(), None));
+                return Err(Box::new(Error::runtime_error("Unknown message".to_string(), None)));
             }
         }
         Ok(())
@@ -510,6 +518,7 @@ pub struct SupervisorActor {
 }
 
 impl SupervisorActor {
+    /// Creates a new supervisor actor with the specified supervision strategy.
     pub fn new(strategy: SupervisionStrategy) -> Self {
         Self { strategy }
     }
@@ -538,7 +547,7 @@ static GLOBAL_ACTOR_SYSTEM: std::sync::OnceLock<Arc<ActorSystem>> = std::sync::O
 
 /// Gets the global actor system.
 pub fn global_actor_system() -> Arc<ActorSystem> {
-    GLOBAL_ACTOR_SYSTEM.get_or_init(|| ActorSystem::default()).clone())
+    GLOBAL_ACTOR_SYSTEM.get_or_init(ActorSystem::new_default).clone()
 }
 
 /// Initializes the actor system.
@@ -557,14 +566,11 @@ pub async fn shutdown() -> Result<()> {
 
 // Implement necessary traits for SymbolId
 impl crate::utils::SymbolId {
+    /// Creates a SymbolId from a string (placeholder implementation).
     pub fn from(s: String) -> Self {
         // This is a simplified implementation
         // In practice, you'd use a proper symbol interner
         Self(s.len()) // Placeholder implementation
     }
 
-    pub fn to_string(&self) -> String {
-        // This is a placeholder - in practice you'd look up the string
-        format!("symbol-{}", self.0)
-    }
 }

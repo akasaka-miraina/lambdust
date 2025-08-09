@@ -31,7 +31,7 @@ impl FfiRegistry {
     where
         F: FfiFunction + 'static,
     {
-        let name = function.signature().name.clone());
+        let name = function.signature().name.clone();
         let registered_fn = RegisteredFunction {
             function: Arc::new(function),
             registered_at: std::time::SystemTime::now(),
@@ -54,7 +54,7 @@ impl FfiRegistry {
     pub fn call(&self, name: &str, args: &[Value]) -> std::result::Result<Value, FfiError> {
         let function = {
             let functions = self.functions.read().unwrap();
-            functions.get(name).clone())()
+            functions.get(name).cloned()
         };
         
         let function = function.ok_or_else(|| FfiError::FunctionNotFound(name.to_string()))?;
@@ -92,12 +92,12 @@ impl FfiRegistry {
     /// Lists all registered function names.
     pub fn list_functions(&self) -> Vec<String> {
         let functions = self.functions.read().unwrap();
-        functions.keys().clone())().collect()
+        functions.keys().cloned().collect()
     }
     
     /// Gets FFI usage statistics.
     pub fn stats(&self) -> FfiStats {
-        self.stats.read().unwrap().clone())
+        self.stats.read().unwrap().clone()
     }
     
     /// Clears all registered functions.

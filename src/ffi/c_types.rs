@@ -191,17 +191,17 @@ impl fmt::Display for CType {
             CType::Double => write!(f, "double"),
             CType::Char => write!(f, "char"),
             CType::WChar => write!(f, "wchar_t"),
-            CType::Pointer(inner) => write!(f, "{}*", inner),
-            CType::Array(inner, size) => write!(f, "{}[{}]", inner, size),
+            CType::Pointer(inner) => write!(f, "{inner}*"),
+            CType::Array(inner, size) => write!(f, "{inner}[{size}]"),
             CType::CString => write!(f, "char*"),
             CType::WString => write!(f, "wchar_t*"),
-            CType::Struct { name, .. } => write!(f, "struct {}", name),
-            CType::Union { name, .. } => write!(f, "union {}", name),
+            CType::Struct { name, .. } => write!(f, "struct {name}"),
+            CType::Union { name, .. } => write!(f, "union {name}"),
             CType::Function { return_type, parameters, variadic }  => {
-                write!(f, "{} (", return_type)?;
+                write!(f, "{return_type} (")?;
                 for (i, param) in parameters.iter().enumerate() {
                     if i > 0 { write!(f, ", ")?; }
-                    write!(f, "{}", param)?;
+                    write!(f, "{param}")?;
                 }
                 if *variadic {
                     if !parameters.is_empty() { write!(f, ", ")?; }
@@ -209,7 +209,7 @@ impl fmt::Display for CType {
                 }
                 write!(f, ")")
             }
-            CType::Handle(name) => write!(f, "{}*", name),
+            CType::Handle(name) => write!(f, "{name}*"),
         }
     }
 }
@@ -249,25 +249,25 @@ impl fmt::Display for ConversionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ConversionError::TypeMismatch { expected, actual }  => {
-                write!(f, "Type mismatch: expected {}, got {}", expected, actual)
+                write!(f, "Type mismatch: expected {expected}, got {actual}")
             }
             ConversionError::InvalidPointer  => {
                 write!(f, "Invalid or null pointer")
             }
             ConversionError::BufferOverflow { buffer_size, requested_size }  => {
-                write!(f, "Buffer overflow: buffer size {}, requested {}", buffer_size, requested_size)
+                write!(f, "Buffer overflow: buffer size {buffer_size}, requested {requested_size}")
             }
             ConversionError::StringConversion(msg)  => {
-                write!(f, "String conversion error: {}", msg)
+                write!(f, "String conversion error: {msg}")
             }
             ConversionError::FieldNotFound { struct_name, field_name }  => {
-                write!(f, "Field '{}' not found in struct '{}'", field_name, struct_name)
+                write!(f, "Field '{field_name}' not found in struct '{struct_name}'")
             }
             ConversionError::IndexOutOfBounds { index, length }  => {
-                write!(f, "Array index {} out of bounds (length {})", index, length)
+                write!(f, "Array index {index} out of bounds (length {length})")
             }
             ConversionError::AllocationFailed(size)  => {
-                write!(f, "Memory allocation failed for {} bytes", size)
+                write!(f, "Memory allocation failed for {size} bytes")
             }
         }
     }
@@ -304,9 +304,16 @@ impl CDataBuffer {
     }
 
     /// Create a buffer from existing data (non-owning)
+    ///
+    /// # Safety
+    /// 
+    /// The caller must ensure that:
+    /// - `data` is a valid pointer to at least `c_type.size()` bytes
+    /// - The memory pointed to by `data` remains valid for the lifetime of the returned buffer
+    /// - The memory layout matches the expectations of `c_type`
     pub unsafe fn from_raw(data: *const u8, c_type: CType) -> Self {
         let size = c_type.size();
-        let data_slice = slice::from_raw_parts(data, size);
+        let data_slice = unsafe { slice::from_raw_parts(data, size) };
         Self {
             data: data_slice.to_vec(),
             c_type,
@@ -335,11 +342,28 @@ impl CDataBuffer {
     }
 
     /// Convert to a specific type
+    ///
+    /// # Safety
+    /// 
+    /// The caller must ensure that:
+    /// - The buffer contains valid data for type `T`
+    /// - The buffer size is at least `size_of::<T>()`
+    /// - The data alignment is compatible with type `T`
+    /// - The resulting reference does not outlive the buffer
     pub unsafe fn as_type<T>(&self) -> &T {
-        &*(self.as_ptr() as *const T)
+        unsafe { &*(self.as_ptr() as *const T) }
     }
 
     /// Convert to a mutable specific type
+    ///
+    /// # Safety
+    /// 
+    /// The caller must ensure that:
+    /// - The buffer contains valid data for type `T`
+    /// - The buffer size is at least `size_of::<T>()`
+    /// - The data alignment is compatible with type `T`
+    /// - The resulting mutable reference does not outlive the buffer
+    /// - No other references to the buffer exist during the lifetime of the returned reference
     pub unsafe fn as_type_mut<T>(&mut self) -> &mut T {
         unsafe { &mut *(self.as_mut_ptr() as *mut T) }
     }
@@ -408,7 +432,7 @@ impl TypeMarshaller {
         let size = (offset + max_alignment - 1) & !(max_alignment - 1);
         
         let struct_type = CType::Struct {
-            name: name.clone()),
+            name: name.clone(),
             fields: calculated_fields,
             alignment: max_alignment,
             size,
@@ -468,7 +492,7 @@ impl TypeMarshaller {
                     *(ptr as *mut i64) = *i as i64;
                 }
                 (Value::Literal(Literal::Number(i)), CType::UInt8) => {
-                    *(ptr as *mut u8) = *i as u8;
+                    *ptr = *i as u8;
                 }
                 (Value::Literal(Literal::Number(i)), CType::UInt16) => {
                     *(ptr as *mut u16) = *i as u16;
@@ -508,8 +532,8 @@ impl TypeMarshaller {
                 }
                 _  => {
                     return Err(ConversionError::TypeMismatch {
-                        expected: c_type.clone()),
-                        actual: format!("{:?}", value),
+                        expected: c_type.clone(),
+                        actual: format!("{value:?}"),
                     });
                 }
             }
@@ -537,7 +561,7 @@ impl TypeMarshaller {
                 CType::Int16 => Value::Literal(Literal::Number(*(ptr as *const i16) as f64)),
                 CType::Int32 => Value::Literal(Literal::Number(*(ptr as *const i32) as f64)),
                 CType::Int64 => Value::Literal(Literal::Number(*(ptr as *const i64) as f64)),
-                CType::UInt8 => Value::Literal(Literal::Number(*(ptr as *const u8) as f64)),
+                CType::UInt8 => Value::Literal(Literal::Number(*ptr as f64)),
                 CType::UInt16 => Value::Literal(Literal::Number(*(ptr as *const u16) as f64)),
                 CType::UInt32 => Value::Literal(Literal::Number(*(ptr as *const u32) as f64)),
                 CType::UInt64 => Value::Literal(Literal::Number(*(ptr as *const u64) as f64)),
@@ -567,7 +591,7 @@ impl TypeMarshaller {
                 }
                 _  => {
                     return Err(ConversionError::TypeMismatch {
-                        expected: c_type.clone()),
+                        expected: c_type.clone(),
                         actual: "unsupported type".to_string(),
                     });
                 }

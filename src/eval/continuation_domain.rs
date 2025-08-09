@@ -174,8 +174,10 @@ pub enum CompositionType {
     
     /// Loop composition (for implementing loops)
     Loop {
+        /// The condition function to test for loop continuation.
         condition: Box<dyn Fn(&Value) -> bool + Send + Sync>,
-        body: CapturedContinuation,
+        /// The continuation body to execute in each loop iteration.
+        body: Box<CapturedContinuation>,
     },
 }
 
@@ -185,7 +187,7 @@ impl std::fmt::Debug for CompositionType {
             CompositionType::Sequential => write!(f, "Sequential"),
             CompositionType::Parallel => write!(f, "Parallel"),
             CompositionType::Conditional(_) => write!(f, "Conditional(<function>)"),
-            CompositionType::Loop { body, .. } => write!(f, "Loop {{ condition: <function>, body: {:?} }}", body),
+            CompositionType::Loop { body, .. } => write!(f, "Loop {{ condition: <function>, body: {body:?} }}"),
         }
     }
 }
@@ -203,7 +205,7 @@ impl Clone for CompositionType {
             CompositionType::Loop { condition: _, body } => {
                 CompositionType::Loop {
                     condition: Box::new(|_| false), // Fallback condition
-                    body: body.clone()),
+                    body: Box::new(*body.clone()),
                 }
             },
         }
@@ -237,6 +239,12 @@ static CONTINUATION_ID_COUNTER: std::sync::atomic::AtomicU64 =
 
 fn next_continuation_id() -> ContinuationId {
     ContinuationId(CONTINUATION_ID_COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst))
+}
+
+impl Default for ContinuationCaptureService {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ContinuationCaptureService {
@@ -273,7 +281,7 @@ impl ContinuationCaptureService {
                     self.capture_config.max_capture_depth
                 ),
                 Some(capture_location),
-            ));
+            )));
         }
         
         let id = next_continuation_id();
@@ -288,10 +296,10 @@ impl ContinuationCaptureService {
         
         Ok(CapturedContinuation {
             id,
-            context: context.clone()),
+            context: context.clone(),
             metadata,
             is_invoked: false,
-            captured_environment: context.environment().clone()),
+            captured_environment: context.environment().clone(),
         })
     }
     
@@ -316,6 +324,12 @@ impl ContinuationCaptureService {
     /// Get the capture configuration
     pub fn config(&self) -> &CaptureConfiguration {
         &self.capture_config
+    }
+}
+
+impl Default for ContinuationApplicationService {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -347,7 +361,7 @@ impl ContinuationApplicationService {
         if self.application_config.validate_before_apply {
             if let Err(err) = self.validate_continuation(&continuation) {
                 return Ok(ContinuationApplicationResult::Error {
-                    error: err,
+                    error: *err,
                     failed_continuation: continuation,
                 });
             }
@@ -382,7 +396,7 @@ impl ContinuationApplicationService {
                 }
             }
             Err(error) => Ok(ContinuationApplicationResult::Error {
-                error,
+                error: *error,
                 failed_continuation: continuation,
             }),
         }
@@ -394,7 +408,7 @@ impl ContinuationApplicationService {
             return Err(Box::new(Error::runtime_error(
                 "Cannot apply already-invoked continuation".to_string(),
                 Some(continuation.metadata.capture_location),
-            ));
+            )));
         }
         
         // Additional validation checks could be added here
@@ -406,6 +420,12 @@ impl ContinuationApplicationService {
     /// Get the application configuration
     pub fn config(&self) -> &ApplicationConfiguration {
         &self.application_config
+    }
+}
+
+impl Default for ContinuationCompositionService {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -433,7 +453,7 @@ impl ContinuationCompositionService {
                     self.composition_config.max_composition_depth
                 ),
                 None,
-            ));
+            )));
         }
         
         // Compose the contexts
@@ -545,7 +565,7 @@ impl CapturedContinuation {
         );
         
         if let Some(ref name) = self.metadata.debug_name {
-            format!("{} '{}'", base, name)
+            format!("{base} '{name}'")
         } else {
             base
         }

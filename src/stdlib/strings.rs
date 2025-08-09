@@ -61,10 +61,10 @@ impl CharacterSet {
                 if let Some(s) = value.as_string() {
                     Ok(CharacterSet::String(s.to_string()))
                 } else {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         "Character set must be a character, string, or predicate".to_string(),
                         None,
-                    ))
+                    )))
                 }
             }
         }
@@ -210,10 +210,10 @@ fn bind_string_utilities(env: &Arc<ThreadSafeEnvironment>) {
 /// make-string procedure
 pub fn primitive_make_string(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("make-string expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let length = args[0].as_integer().ok_or_else(|| {
@@ -224,10 +224,10 @@ pub fn primitive_make_string(args: &[Value]) -> Result<Value> {
     })?;
     
     if length < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "make-string length must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let fill_char = if args.len() == 2 {
@@ -255,10 +255,10 @@ pub fn primitive_string(args: &[Value]) -> Result<Value> {
 /// string-length procedure
 pub fn primitive_string_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-length expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-length")?;
@@ -268,10 +268,10 @@ pub fn primitive_string_length(args: &[Value]) -> Result<Value> {
 /// string-copy procedure
 pub fn primitive_string_copy(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-copy expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-copy")?;
@@ -287,10 +287,10 @@ pub fn primitive_string_copy(args: &[Value]) -> Result<Value> {
         })? as usize;
         
         if start_idx > length {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "string-copy start index out of bounds".to_string(),
                 None,
-            ));
+            )));
         }
         start_idx
     } else {
@@ -306,10 +306,10 @@ pub fn primitive_string_copy(args: &[Value]) -> Result<Value> {
         })? as usize;
         
         if end_idx > length || end_idx < start {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "string-copy end index out of bounds".to_string(),
                 None,
-            ));
+            )));
         }
         end_idx
     } else {
@@ -325,10 +325,10 @@ pub fn primitive_string_copy(args: &[Value]) -> Result<Value> {
 /// string? predicate
 fn primitive_string_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_string()))
@@ -337,19 +337,19 @@ fn primitive_string_p(args: &[Value]) -> Result<Value> {
 /// string-null? predicate
 pub fn primitive_string_null_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-null? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(s) = args[0].as_string() {
         Ok(Value::boolean(s.is_empty()))
     } else {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "string-null? requires string argument".to_string(),
             None,
-        ))
+        )))
     }
 }
 
@@ -358,10 +358,10 @@ pub fn primitive_string_null_p(args: &[Value]) -> Result<Value> {
 /// string-ref procedure
 pub fn primitive_string_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-ref expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-ref")?;
@@ -375,10 +375,10 @@ pub fn primitive_string_ref(args: &[Value]) -> Result<Value> {
     let chars: Vec<char> = s.chars().collect();
     
     if index >= chars.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-ref index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     Ok(Value::Literal(crate::ast::Literal::Character(chars[index])))
@@ -387,18 +387,18 @@ pub fn primitive_string_ref(args: &[Value]) -> Result<Value> {
 /// string-set! procedure (mutation)
 fn primitive_string_set(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-set! expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Note: In a full implementation, this would require mutable string support
     // For now, we return an error indicating this operation is not supported
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "string-set! requires mutable string support (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= STRING COMPARISON IMPLEMENTATIONS =============
@@ -406,10 +406,10 @@ fn primitive_string_set(args: &[Value]) -> Result<Value> {
 /// string=? procedure
 pub fn primitive_string_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = extract_string(&args[0], "string=?")?;
@@ -427,10 +427,10 @@ pub fn primitive_string_equal(args: &[Value]) -> Result<Value> {
 /// string<? procedure
 pub fn primitive_string_less(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string<? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -447,10 +447,10 @@ pub fn primitive_string_less(args: &[Value]) -> Result<Value> {
 /// string>? procedure
 pub fn primitive_string_greater(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string>? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -467,10 +467,10 @@ pub fn primitive_string_greater(args: &[Value]) -> Result<Value> {
 /// string<=? procedure
 pub fn primitive_string_less_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string<=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -487,10 +487,10 @@ pub fn primitive_string_less_equal(args: &[Value]) -> Result<Value> {
 /// string>=? procedure
 pub fn primitive_string_greater_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string>=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -507,10 +507,10 @@ pub fn primitive_string_greater_equal(args: &[Value]) -> Result<Value> {
 /// Case-insensitive string comparison implementations
 pub fn primitive_string_ci_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-ci=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = extract_string(&args[0], "string-ci=?")?.to_lowercase();
@@ -527,10 +527,10 @@ pub fn primitive_string_ci_equal(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_string_ci_less(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-ci<? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -546,10 +546,10 @@ pub fn primitive_string_ci_less(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_string_ci_greater(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-ci>? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -565,10 +565,10 @@ pub fn primitive_string_ci_greater(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_string_ci_less_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-ci<=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -584,10 +584,10 @@ pub fn primitive_string_ci_less_equal(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_string_ci_greater_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-ci>=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -618,10 +618,10 @@ pub fn primitive_string_append(args: &[Value]) -> Result<Value> {
 /// substring procedure
 pub fn primitive_substring(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("substring expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "substring")?;
@@ -643,10 +643,10 @@ pub fn primitive_substring(args: &[Value]) -> Result<Value> {
     let length = chars.len();
     
     if start > length || end > length || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "substring indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let result: String = chars[start..end].iter().collect();
@@ -656,42 +656,42 @@ pub fn primitive_substring(args: &[Value]) -> Result<Value> {
 /// string-fill! procedure (mutation)
 fn primitive_string_fill(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-fill! expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Note: In a full implementation, this would require mutable string support
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "string-fill! requires mutable string support (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// string-copy! procedure (mutation)
 fn primitive_string_copy_mut(args: &[Value]) -> Result<Value> {
     if args.len() < 3 || args.len() > 5 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-copy! expects 3 to 5 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // Note: In a full implementation, this would require mutable string support
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "string-copy! requires mutable string support (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// string-upcase procedure
 pub fn primitive_string_upcase(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-upcase expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-upcase")?;
@@ -701,10 +701,10 @@ pub fn primitive_string_upcase(args: &[Value]) -> Result<Value> {
 /// string-downcase procedure
 pub fn primitive_string_downcase(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-downcase expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-downcase")?;
@@ -714,10 +714,10 @@ pub fn primitive_string_downcase(args: &[Value]) -> Result<Value> {
 /// string-foldcase procedure
 pub fn primitive_string_foldcase(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-foldcase expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-foldcase")?;
@@ -730,10 +730,10 @@ pub fn primitive_string_foldcase(args: &[Value]) -> Result<Value> {
 /// string->list procedure
 pub fn primitive_string_to_list(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string->list expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string->list")?;
@@ -763,10 +763,10 @@ pub fn primitive_string_to_list(args: &[Value]) -> Result<Value> {
     };
     
     if start > length || end > length || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string->list indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let char_values: Vec<Value> = chars[start..end]
@@ -780,10 +780,10 @@ pub fn primitive_string_to_list(args: &[Value]) -> Result<Value> {
 /// list->string procedure
 pub fn primitive_list_to_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list->string expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list = args[0].as_list().ok_or_else(|| {
@@ -806,10 +806,10 @@ pub fn primitive_list_to_string(args: &[Value]) -> Result<Value> {
 /// string->vector procedure
 fn primitive_string_to_vector(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string->vector expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string->vector")?;
@@ -839,10 +839,10 @@ fn primitive_string_to_vector(args: &[Value]) -> Result<Value> {
     };
     
     if start > length || end > length || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string->vector indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let char_values: Vec<Value> = chars[start..end]
@@ -856,18 +856,18 @@ fn primitive_string_to_vector(args: &[Value]) -> Result<Value> {
 /// vector->string procedure
 fn primitive_vector_to_string(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector->string expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let vector = match &args[0] {
-        Value::Vector(v) => v.read().unwrap().clone()),
-        _ => return Err(DiagnosticError::runtime_error(
+        Value::Vector(v) => v.read().unwrap().clone(),
+        _ => return Err(Box::new(DiagnosticError::runtime_error(
             "vector->string requires a vector argument".to_string(),
             None,
-        )),
+        ))),
     };
     
     let length = vector.len();
@@ -895,10 +895,10 @@ fn primitive_vector_to_string(args: &[Value]) -> Result<Value> {
     };
     
     if start > length || end > length || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "vector->string indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let mut result = String::new();
@@ -914,10 +914,10 @@ fn primitive_vector_to_string(args: &[Value]) -> Result<Value> {
 /// string->utf8 procedure
 fn primitive_string_to_utf8(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string->utf8 expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string->utf8")?;
@@ -935,18 +935,18 @@ fn primitive_string_to_utf8(args: &[Value]) -> Result<Value> {
 /// utf8->string procedure
 fn primitive_utf8_to_string(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("utf8->string expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let vector = match &args[0] {
-        Value::Vector(v) => v.read().unwrap().clone()),
-        _ => return Err(DiagnosticError::runtime_error(
+        Value::Vector(v) => v.read().unwrap().clone(),
+        _ => return Err(Box::new(DiagnosticError::runtime_error(
             "utf8->string requires a vector argument".to_string(),
             None,
-        )),
+        ))),
     };
     
     let mut bytes = Vec::new();
@@ -960,10 +960,10 @@ fn primitive_utf8_to_string(args: &[Value]) -> Result<Value> {
         })?;
         
         if !(0..=255).contains(&byte) {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "utf8->string byte values must be between 0 and 255".to_string(),
                 None,
-            ));
+            )));
         }
         
         bytes.push(byte as u8);
@@ -971,10 +971,10 @@ fn primitive_utf8_to_string(args: &[Value]) -> Result<Value> {
     
     match String::from_utf8(bytes) {
         Ok(s) => Ok(Value::string(s)),
-        Err(_) => Err(DiagnosticError::runtime_error(
+        Err(_) => Err(Box::new(DiagnosticError::runtime_error(
             "utf8->string invalid UTF-8 sequence".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -983,10 +983,10 @@ fn primitive_utf8_to_string(args: &[Value]) -> Result<Value> {
 /// Extracts a string from a Value.
 fn extract_string<'a>(value: &'a Value, operation: &str) -> Result<&'a str> {
     value.as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires string arguments"),
             None,
-        )
+        ))
     })
 }
 
@@ -994,10 +994,10 @@ fn extract_string<'a>(value: &'a Value, operation: &str) -> Result<&'a str> {
 fn extract_character(value: &Value, operation: &str) -> Result<char> {
     match value {
         Value::Literal(crate::ast::Literal::Character(c)) => Ok(*c),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires character arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1006,20 +1006,20 @@ fn extract_character(value: &Value, operation: &str) -> Result<char> {
 /// string-for-each procedure - R7RS required
 fn primitive_string_for_each(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-for-each requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
     
     // Verify procedure is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-for-each first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     let strings: Result<Vec<&str>> = args[1..].iter()
@@ -1066,18 +1066,18 @@ fn primitive_string_for_each(args: &[Value]) -> Result<Value> {
                         func(&char_args)?;
                     },
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "string-for-each with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "string-for-each with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1088,20 +1088,20 @@ fn primitive_string_for_each(args: &[Value]) -> Result<Value> {
 /// string-map procedure - R7RS required
 fn primitive_string_map(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-map requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
     
     // Verify procedure is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-map first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     let strings: Result<Vec<&str>> = args[1..].iter()
@@ -1144,10 +1144,10 @@ fn primitive_string_map(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&char_args)?,
                     PrimitiveImpl::Native(func) => func(&char_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "string-map with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
                 
@@ -1157,18 +1157,18 @@ fn primitive_string_map(args: &[Value]) -> Result<Value> {
                         result_chars.push(ch);
                     },
                     _ => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "string-map procedure must return a character".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "string-map with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1181,10 +1181,10 @@ fn primitive_string_map(args: &[Value]) -> Result<Value> {
 /// string-append-list procedure (used by Scheme module)
 fn primitive_string_append_list(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-append-list expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list = args[0].as_list().ok_or_else(|| {
@@ -1207,10 +1207,10 @@ fn primitive_string_append_list(args: &[Value]) -> Result<Value> {
 /// string-trim procedure
 fn primitive_string_trim(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-trim expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-trim")?;
@@ -1231,20 +1231,16 @@ fn primitive_string_trim(args: &[Value]) -> Result<Value> {
 /// string-trim-left procedure
 fn primitive_string_trim_left(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-trim-left expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-trim-left")?;
     
     let default_chars = [' ', '\t', '\n', '\r'];
-    let trim_chars = if args.len() > 1 {
-        &default_chars[..]
-    } else {
-        &default_chars[..]
-    };
+    let trim_chars = &default_chars[..];
     
     let result = s.trim_start_matches(|c| trim_chars.contains(&c));
     Ok(Value::string(result.to_string()))
@@ -1253,20 +1249,16 @@ fn primitive_string_trim_left(args: &[Value]) -> Result<Value> {
 /// string-trim-right procedure
 fn primitive_string_trim_right(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-trim-right expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-trim-right")?;
     
     let default_chars = [' ', '\t', '\n', '\r'];
-    let trim_chars = if args.len() > 1 {
-        &default_chars[..]
-    } else {
-        &default_chars[..]
-    };
+    let trim_chars = &default_chars[..];
     
     let result = s.trim_end_matches(|c| trim_chars.contains(&c));
     Ok(Value::string(result.to_string()))
@@ -1275,10 +1267,10 @@ fn primitive_string_trim_right(args: &[Value]) -> Result<Value> {
 /// string-split procedure
 fn primitive_string_split(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-split expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-split")?;
@@ -1294,10 +1286,10 @@ fn primitive_string_split(args: &[Value]) -> Result<Value> {
 /// string-join procedure
 fn primitive_string_join(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-join expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list = args[0].as_list().ok_or_else(|| {
@@ -1324,10 +1316,10 @@ fn primitive_string_join(args: &[Value]) -> Result<Value> {
 /// string-contains? procedure
 fn primitive_string_contains_p(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-contains? expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let haystack = extract_string(&args[0], "string-contains?")?;
@@ -1339,10 +1331,10 @@ fn primitive_string_contains_p(args: &[Value]) -> Result<Value> {
 /// string-replace procedure
 fn primitive_string_replace(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-replace expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-replace")?;
@@ -1400,10 +1392,10 @@ fn bind_srfi13_modification(env: &Arc<ThreadSafeEnvironment>) {
 /// string-every procedure - test if every character satisfies predicate
 pub fn primitive_string_every(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-every expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let charset = if let Ok(ch) = extract_character(&args[0], "string-every") {
@@ -1412,10 +1404,10 @@ pub fn primitive_string_every(args: &[Value]) -> Result<Value> {
         CharacterSet::String(s.to_string())
     } else {
         // For now, we don't support procedure predicates
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-every predicate procedures not yet supported".to_string(),
             None,
-        ));
+        )));
     };
     
     let s = extract_string(&args[1], "string-every")?;
@@ -1435,10 +1427,10 @@ pub fn primitive_string_every(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-every indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     for ch in &chars[start..end] {
@@ -1453,10 +1445,10 @@ pub fn primitive_string_every(args: &[Value]) -> Result<Value> {
 /// string-any procedure - test if any character satisfies predicate
 pub fn primitive_string_any(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-any expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let charset = if let Ok(ch) = extract_character(&args[0], "string-any") {
@@ -1464,10 +1456,10 @@ pub fn primitive_string_any(args: &[Value]) -> Result<Value> {
     } else if let Some(s) = args[0].as_string() {
         CharacterSet::String(s.to_string())
     } else {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-any predicate procedures not yet supported".to_string(),
             None,
-        ));
+        )));
     };
     
     let s = extract_string(&args[1], "string-any")?;
@@ -1487,10 +1479,10 @@ pub fn primitive_string_any(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-any indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     for ch in &chars[start..end] {
@@ -1507,10 +1499,10 @@ pub fn primitive_string_any(args: &[Value]) -> Result<Value> {
 /// string-tabulate procedure - create string by applying procedure to indices
 pub fn primitive_string_tabulate(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-tabulate expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let proc = &args[0];
@@ -1522,10 +1514,10 @@ pub fn primitive_string_tabulate(args: &[Value]) -> Result<Value> {
     })? as usize;
     
     if !proc.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-tabulate first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     let mut result = String::new();
@@ -1539,10 +1531,10 @@ pub fn primitive_string_tabulate(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&index_arg)?,
                     PrimitiveImpl::Native(func) => func(&index_arg)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "string-tabulate with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
                 
@@ -1550,10 +1542,10 @@ pub fn primitive_string_tabulate(args: &[Value]) -> Result<Value> {
                 result.push(ch);
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "string-tabulate with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -1564,10 +1556,10 @@ pub fn primitive_string_tabulate(args: &[Value]) -> Result<Value> {
 /// reverse-list->string procedure
 pub fn primitive_reverse_list_to_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("reverse-list->string expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list = args[0].as_list().ok_or_else(|| {
@@ -1591,10 +1583,10 @@ pub fn primitive_reverse_list_to_string(args: &[Value]) -> Result<Value> {
 /// string-join procedure (SRFI-13 enhanced version)
 pub fn primitive_string_join_srfi13(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-join expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let strings = args[0].as_list().ok_or_else(|| {
@@ -1615,16 +1607,16 @@ pub fn primitive_string_join_srfi13(args: &[Value]) -> Result<Value> {
             Some(sym) => {
                 match symbol_name(sym) {
                     Some(name) => name.to_string(),
-                    None => return Err(DiagnosticError::runtime_error(
+                    None => return Err(Box::new(DiagnosticError::runtime_error(
                         "string-join grammar symbol not found".to_string(),
                         None,
-                    )),
+                    ))),
                 }
             },
-            _ => return Err(DiagnosticError::runtime_error(
+            _ => return Err(Box::new(DiagnosticError::runtime_error(
                 "string-join grammar must be a symbol".to_string(),
                 None,
-            )),
+            ))),
         }
     } else {
         "infix".to_string()
@@ -1651,10 +1643,10 @@ pub fn primitive_string_join_srfi13(args: &[Value]) -> Result<Value> {
                 format!("{}{}", string_list.join(delimiter), delimiter)
             }
         },
-        _ => return Err(DiagnosticError::runtime_error(
+        _ => return Err(Box::new(DiagnosticError::runtime_error(
             "string-join grammar must be 'infix, 'prefix, or 'suffix".to_string(),
             None,
-        )),
+        ))),
     };
     
     Ok(Value::string(result))
@@ -1663,10 +1655,10 @@ pub fn primitive_string_join_srfi13(args: &[Value]) -> Result<Value> {
 /// string-concatenate procedure
 pub fn primitive_string_concatenate(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-concatenate expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let strings = args[0].as_list().ok_or_else(|| {
@@ -1689,10 +1681,10 @@ pub fn primitive_string_concatenate(args: &[Value]) -> Result<Value> {
 /// string-concatenate-reverse procedure
 pub fn primitive_string_concatenate_reverse(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-concatenate-reverse expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let strings = args[0].as_list().ok_or_else(|| {
@@ -1726,10 +1718,10 @@ pub fn primitive_string_concatenate_reverse(args: &[Value]) -> Result<Value> {
 /// string-take procedure - take first n characters
 pub fn primitive_string_take(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-take expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-take")?;
@@ -1743,10 +1735,10 @@ pub fn primitive_string_take(args: &[Value]) -> Result<Value> {
     let chars: Vec<char> = s.chars().collect();
     
     if n > chars.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-take index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let result: String = chars[..n].iter().collect();
@@ -1756,10 +1748,10 @@ pub fn primitive_string_take(args: &[Value]) -> Result<Value> {
 /// string-drop procedure - drop first n characters
 pub fn primitive_string_drop(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-drop expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-drop")?;
@@ -1773,10 +1765,10 @@ pub fn primitive_string_drop(args: &[Value]) -> Result<Value> {
     let chars: Vec<char> = s.chars().collect();
     
     if n > chars.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-drop index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let result: String = chars[n..].iter().collect();
@@ -1786,10 +1778,10 @@ pub fn primitive_string_drop(args: &[Value]) -> Result<Value> {
 /// string-take-right procedure - take last n characters
 pub fn primitive_string_take_right(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-take-right expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-take-right")?;
@@ -1803,10 +1795,10 @@ pub fn primitive_string_take_right(args: &[Value]) -> Result<Value> {
     let chars: Vec<char> = s.chars().collect();
     
     if n > chars.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-take-right index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let start = chars.len() - n;
@@ -1817,10 +1809,10 @@ pub fn primitive_string_take_right(args: &[Value]) -> Result<Value> {
 /// string-drop-right procedure - drop last n characters
 pub fn primitive_string_drop_right(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-drop-right expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-drop-right")?;
@@ -1834,10 +1826,10 @@ pub fn primitive_string_drop_right(args: &[Value]) -> Result<Value> {
     let chars: Vec<char> = s.chars().collect();
     
     if n > chars.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-drop-right index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let end = chars.len() - n;
@@ -1848,10 +1840,10 @@ pub fn primitive_string_drop_right(args: &[Value]) -> Result<Value> {
 /// string-pad procedure - pad string to given width
 pub fn primitive_string_pad(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-pad expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-pad")?;
@@ -1878,10 +1870,10 @@ pub fn primitive_string_pad(args: &[Value]) -> Result<Value> {
     let s_len = chars.len();
     
     if start > s_len {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-pad start index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let text: String = chars[start..].iter().collect();
@@ -1895,17 +1887,17 @@ pub fn primitive_string_pad(args: &[Value]) -> Result<Value> {
     } else {
         // Pad on the left
         let padding = pad_char.to_string().repeat(len - text_len);
-        Ok(Value::string(format!("{}{}", padding, text)))
+        Ok(Value::string(format!("{padding}{text}")))
     }
 }
 
 /// string-pad-right procedure - pad string to given width on the right
 pub fn primitive_string_pad_right(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-pad-right expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-pad-right")?;
@@ -1932,10 +1924,10 @@ pub fn primitive_string_pad_right(args: &[Value]) -> Result<Value> {
     let s_len = chars.len();
     
     if start > s_len {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-pad-right start index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let text: String = chars[start..].iter().collect();
@@ -1949,7 +1941,7 @@ pub fn primitive_string_pad_right(args: &[Value]) -> Result<Value> {
     } else {
         // Pad on the right
         let padding = pad_char.to_string().repeat(len - text_len);
-        Ok(Value::string(format!("{}{}", text, padding)))
+        Ok(Value::string(format!("{text}{padding}")))
     }
 }
 
@@ -1958,10 +1950,10 @@ pub fn primitive_string_pad_right(args: &[Value]) -> Result<Value> {
 /// string-trim procedure (SRFI-13 enhanced version)
 pub fn primitive_string_trim_srfi13(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-trim expects 1 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-trim")?;
@@ -1988,10 +1980,10 @@ pub fn primitive_string_trim_srfi13(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-trim indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let slice = &chars[start..end];
@@ -2006,10 +1998,10 @@ pub fn primitive_string_trim_srfi13(args: &[Value]) -> Result<Value> {
 /// string-trim-right procedure (SRFI-13 enhanced version)
 pub fn primitive_string_trim_right_srfi13(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-trim-right expects 1 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-trim-right")?;
@@ -2036,10 +2028,10 @@ pub fn primitive_string_trim_right_srfi13(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-trim-right indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let slice = &chars[start..end];
@@ -2056,10 +2048,10 @@ pub fn primitive_string_trim_right_srfi13(args: &[Value]) -> Result<Value> {
 /// string-trim-both procedure
 pub fn primitive_string_trim_both(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-trim-both expects 1 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-trim-both")?;
@@ -2086,10 +2078,10 @@ pub fn primitive_string_trim_both(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-trim-both indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let slice = &chars[start..end];
@@ -2115,10 +2107,10 @@ pub fn primitive_string_trim_both(args: &[Value]) -> Result<Value> {
 /// string-index procedure - find first occurrence of character in character set
 pub fn primitive_string_index(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-index expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-index")?;
@@ -2140,10 +2132,10 @@ pub fn primitive_string_index(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-index indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     for (i, &ch) in chars[start..end].iter().enumerate() {
@@ -2158,10 +2150,10 @@ pub fn primitive_string_index(args: &[Value]) -> Result<Value> {
 /// string-rindex procedure - find last occurrence from left
 pub fn primitive_string_rindex(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-rindex expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-rindex")?;
@@ -2183,10 +2175,10 @@ pub fn primitive_string_rindex(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-rindex indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     for (i, &ch) in chars[start..end].iter().enumerate().rev() {
@@ -2201,10 +2193,10 @@ pub fn primitive_string_rindex(args: &[Value]) -> Result<Value> {
 /// string-index-right procedure - find first occurrence from right
 pub fn primitive_string_index_right(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-index-right expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-index-right")?;
@@ -2226,10 +2218,10 @@ pub fn primitive_string_index_right(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-index-right indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     for i in (start..end).rev() {
@@ -2244,10 +2236,10 @@ pub fn primitive_string_index_right(args: &[Value]) -> Result<Value> {
 /// string-skip procedure - find first character NOT in character set
 pub fn primitive_string_skip(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-skip expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-skip")?;
@@ -2269,10 +2261,10 @@ pub fn primitive_string_skip(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-skip indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     for (i, &ch) in chars[start..end].iter().enumerate() {
@@ -2287,10 +2279,10 @@ pub fn primitive_string_skip(args: &[Value]) -> Result<Value> {
 /// string-skip-right procedure - find first character NOT in character set from right
 pub fn primitive_string_skip_right(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-skip-right expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-skip-right")?;
@@ -2312,10 +2304,10 @@ pub fn primitive_string_skip_right(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-skip-right indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     for i in (start..end).rev() {
@@ -2330,10 +2322,10 @@ pub fn primitive_string_skip_right(args: &[Value]) -> Result<Value> {
 /// string-contains procedure - find substring, return index or false
 pub fn primitive_string_contains(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-contains expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let haystack = extract_string(&args[0], "string-contains")?;
@@ -2355,10 +2347,10 @@ pub fn primitive_string_contains(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-contains indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let search_str: String = h_chars[start..end].iter().collect();
@@ -2372,10 +2364,10 @@ pub fn primitive_string_contains(args: &[Value]) -> Result<Value> {
 /// string-contains-ci procedure - case-insensitive substring search
 pub fn primitive_string_contains_ci(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-contains-ci expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let haystack = extract_string(&args[0], "string-contains-ci")?;
@@ -2397,10 +2389,10 @@ pub fn primitive_string_contains_ci(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-contains-ci indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let search_str: String = h_chars[start..end].iter().collect();
@@ -2416,10 +2408,10 @@ pub fn primitive_string_contains_ci(args: &[Value]) -> Result<Value> {
 /// string-count procedure - count occurrences of characters in character set
 pub fn primitive_string_count(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-count expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-count")?;
@@ -2441,10 +2433,10 @@ pub fn primitive_string_count(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-count indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let count = chars[start..end].iter()
@@ -2459,10 +2451,10 @@ pub fn primitive_string_count(args: &[Value]) -> Result<Value> {
 /// string-compare procedure - three-way comparison
 pub fn primitive_string_compare(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 6 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-compare expects 2 to 6 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s1 = extract_string(&args[0], "string-compare")?;
@@ -2482,10 +2474,10 @@ pub fn primitive_string_compare(args: &[Value]) -> Result<Value> {
 /// string-compare-ci procedure - case-insensitive three-way comparison
 pub fn primitive_string_compare_ci(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 6 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-compare-ci expects 2 to 6 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s1 = extract_string(&args[0], "string-compare-ci")?;
@@ -2506,10 +2498,10 @@ pub fn primitive_string_compare_ci(args: &[Value]) -> Result<Value> {
 /// string-hash procedure - compute hash of string
 pub fn primitive_string_hash(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-hash expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-hash")?;
@@ -2530,10 +2522,10 @@ pub fn primitive_string_hash(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-hash indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let substring: String = chars[start..end].iter().collect();
@@ -2549,10 +2541,10 @@ pub fn primitive_string_hash(args: &[Value]) -> Result<Value> {
 /// string-hash-ci procedure - case-insensitive hash
 pub fn primitive_string_hash_ci(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-hash-ci expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-hash-ci")?;
@@ -2573,10 +2565,10 @@ pub fn primitive_string_hash_ci(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-hash-ci indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let substring: String = chars[start..end].iter().collect();
@@ -2595,10 +2587,10 @@ pub fn primitive_string_hash_ci(args: &[Value]) -> Result<Value> {
 /// string-titlecase procedure - convert to title case
 pub fn primitive_string_titlecase(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-titlecase expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-titlecase")?;
@@ -2619,10 +2611,10 @@ pub fn primitive_string_titlecase(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-titlecase indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let mut result = String::new();
@@ -2646,16 +2638,16 @@ pub fn primitive_string_titlecase(args: &[Value]) -> Result<Value> {
     let prefix: String = chars[..start].iter().collect();
     let suffix: String = chars[end..].iter().collect();
     
-    Ok(Value::string(format!("{}{}{}", prefix, result, suffix)))
+    Ok(Value::string(format!("{prefix}{result}{suffix}")))
 }
 
 /// string-reverse procedure - reverse string
 pub fn primitive_string_reverse(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-reverse expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-reverse")?;
@@ -2676,13 +2668,13 @@ pub fn primitive_string_reverse(args: &[Value]) -> Result<Value> {
     };
     
     if start > len || end > len || start > end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-reverse indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
-    let mut reversed_chars: Vec<char> = chars[start..end].iter().clone())().collect();
+    let mut reversed_chars: Vec<char> = chars[start..end].to_vec();
     reversed_chars.reverse();
     
     // Copy unchanged parts
@@ -2690,16 +2682,16 @@ pub fn primitive_string_reverse(args: &[Value]) -> Result<Value> {
     let suffix: String = chars[end..].iter().collect();
     let reversed: String = reversed_chars.iter().collect();
     
-    Ok(Value::string(format!("{}{}{}", prefix, reversed, suffix)))
+    Ok(Value::string(format!("{prefix}{reversed}{suffix}")))
 }
 
 /// string-replace procedure (SRFI-13 enhanced version)
 pub fn primitive_string_replace_srfi13(args: &[Value]) -> Result<Value> {
     if args.len() < 4 || args.len() > 6 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string-replace expects 4 to 6 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = extract_string(&args[0], "string-replace")?;
@@ -2721,10 +2713,10 @@ pub fn primitive_string_replace_srfi13(args: &[Value]) -> Result<Value> {
     let len = chars.len();
     
     if from_start > len || from_end > len || from_start > from_end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-replace indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     // Optional start/end for replacement string
@@ -2743,17 +2735,17 @@ pub fn primitive_string_replace_srfi13(args: &[Value]) -> Result<Value> {
     };
     
     if repl_start > repl_len || repl_end > repl_len || repl_start > repl_end {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "string-replace replacement indices out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     let prefix: String = chars[..from_start].iter().collect();
     let suffix: String = chars[from_end..].iter().collect();
     let replacement_part: String = repl_chars[repl_start..repl_end].iter().collect();
     
-    Ok(Value::string(format!("{}{}{}", prefix, replacement_part, suffix)))
+    Ok(Value::string(format!("{prefix}{replacement_part}{suffix}")))
 }
 
 #[cfg(test)]

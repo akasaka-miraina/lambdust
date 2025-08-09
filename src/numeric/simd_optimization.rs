@@ -71,7 +71,7 @@ impl SimdNumericOps {
     }
     
     /// Creates a new instance with default configuration
-    pub fn default() -> Self {
+    pub fn with_default() -> Self {
         Self::new(SimdConfig::default())
     }
     
@@ -219,6 +219,12 @@ impl SimdNumericOps {
     }
     
     // AVX2 implementations (256-bit vectors)
+    /// # Safety
+    /// 
+    /// Requires AVX2 instruction set support. The caller must ensure:
+    /// - The target CPU supports AVX2 instructions
+    /// - All input slices have the same length
+    /// - The result slice has sufficient capacity
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx2")]
     unsafe fn add_f64_arrays_avx2(&self, a: &[f64], b: &[f64], result: &mut [f64]) -> Result<(), String> {
@@ -240,6 +246,12 @@ impl SimdNumericOps {
         Ok(())
     }
     
+    /// # Safety
+    /// 
+    /// Requires AVX2 instruction set support. The caller must ensure:
+    /// - The target CPU supports AVX2 instructions
+    /// - All input slices have the same length
+    /// - The result slice has sufficient capacity
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx2")]
     unsafe fn multiply_f64_arrays_avx2(&self, a: &[f64], b: &[f64], result: &mut [f64]) -> Result<(), String> {
@@ -260,6 +272,11 @@ impl SimdNumericOps {
         Ok(())
     }
     
+    /// # Safety
+    /// 
+    /// Requires AVX2 instruction set support. The caller must ensure:
+    /// - The target CPU supports AVX2 instructions
+    /// - Both input slices have the same length
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx2")]
     unsafe fn dot_product_f64_avx2(&self, a: &[f64], b: &[f64]) -> Result<f64, String> {
@@ -286,6 +303,12 @@ impl SimdNumericOps {
         Ok(total)
     }
     
+    /// # Safety
+    /// 
+    /// Requires AVX2 instruction set support. The caller must ensure:
+    /// - The target CPU supports AVX2 instructions
+    /// - All input slices have the same length
+    /// - The result slice has sufficient capacity
     #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
     #[target_feature(enable = "avx2")]
     unsafe fn add_i64_arrays_avx2(&self, a: &[i64], b: &[i64], result: &mut [i64]) -> Result<(), String> {
@@ -473,7 +496,7 @@ pub fn add_numeric_arrays_optimized(a: &[NumericValue], b: &[NumericValue]) -> R
     });
     
     if all_floats && a.len() >= 8 {
-        let simd_ops = SimdNumericOps::default();
+        let simd_ops = SimdNumericOps::with_default();
         let a_floats: Vec<f64> = a.iter().map(|x| if let NumericValue::Real(f) = x { *f } else { 0.0 }).collect();
         let b_floats: Vec<f64> = b.iter().map(|x| if let NumericValue::Real(f) = x { *f } else { 0.0 }).collect();
         let mut result_floats = vec![0.0; a.len()];
@@ -504,7 +527,7 @@ pub fn dot_product_optimized(a: &[NumericValue], b: &[NumericValue]) -> Result<N
     });
     
     if all_floats && a.len() >= 8 {
-        let simd_ops = SimdNumericOps::default();
+        let simd_ops = SimdNumericOps::with_default();
         let a_floats: Vec<f64> = a.iter().map(|x| if let NumericValue::Real(f) = x { *f } else { 0.0 }).collect();
         let b_floats: Vec<f64> = b.iter().map(|x| if let NumericValue::Real(f) = x { *f } else { 0.0 }).collect();
         
@@ -573,7 +596,7 @@ mod tests {
     
     #[test]
     fn test_simd_addition() {
-        let simd_ops = SimdNumericOps::default();
+        let simd_ops = SimdNumericOps::with_default();
         let a = vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0];
         let b = vec![8.0, 7.0, 6.0, 5.0, 4.0, 3.0, 2.0, 1.0];
         let mut result = vec![0.0; 8];
@@ -587,7 +610,7 @@ mod tests {
     
     #[test]
     fn test_simd_dot_product() {
-        let simd_ops = SimdNumericOps::default();
+        let simd_ops = SimdNumericOps::with_default();
         let a = vec![1.0, 2.0, 3.0, 4.0];
         let b = vec![5.0, 6.0, 7.0, 8.0];
         
@@ -633,7 +656,7 @@ mod tests {
     
     #[test]
     fn test_simd_benchmark() {
-        let simd_ops = SimdNumericOps::default();
+        let simd_ops = SimdNumericOps::with_default();
         let results = simd_ops.benchmark_simd_performance(1000);
         
         println!("{}", results.format_results());

@@ -183,28 +183,28 @@ fn primitive_vector(args: &[Value]) -> Result<Value> {
 /// make-vector procedure
 fn primitive_make_vector(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("make-vector expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let length = args[0].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "make-vector first argument must be a non-negative integer".to_string(),
             None,
-        )
+        ))
     })?;
     
     if length < 0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "make-vector length must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     let fill = if args.len() == 2 {
-        args[1].clone())
+        args[1].clone()
     } else {
         Value::Unspecified
     };
@@ -216,10 +216,10 @@ fn primitive_make_vector(args: &[Value]) -> Result<Value> {
 /// vector-copy procedure
 fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector-copy expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let vector = extract_vector(&args[0], "vector-copy")?;
@@ -227,17 +227,17 @@ fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
     
     let start = if args.len() > 1 {
         let start_idx = args[1].as_integer().ok_or_else(|| {
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "vector-copy start index must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize;
         
         if start_idx > length {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "vector-copy start index out of bounds".to_string(),
                 None,
-            ));
+            )));
         }
         start_idx
     } else {
@@ -246,17 +246,17 @@ fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
     
     let end = if args.len() > 2 {
         let end_idx = args[2].as_integer().ok_or_else(|| {
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "vector-copy end index must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize;
         
         if end_idx > length || end_idx < start {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "vector-copy end index out of bounds".to_string(),
                 None,
-            ));
+            )));
         }
         end_idx
     } else {
@@ -272,10 +272,10 @@ fn primitive_vector_copy(args: &[Value]) -> Result<Value> {
 /// vector? predicate
 fn primitive_vector_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_vector()))
@@ -286,10 +286,10 @@ fn primitive_vector_p(args: &[Value]) -> Result<Value> {
 /// vector-length procedure
 fn primitive_vector_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector-length expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let vector = extract_vector(&args[0], "vector-length")?;
@@ -299,25 +299,25 @@ fn primitive_vector_length(args: &[Value]) -> Result<Value> {
 /// vector-ref procedure
 fn primitive_vector_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector-ref expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let vector = extract_vector(&args[0], "vector-ref")?;
     let index = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "vector-ref index must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     if index >= vector.len() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "vector-ref index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     Ok(vector[index].clone())
@@ -326,18 +326,18 @@ fn primitive_vector_ref(args: &[Value]) -> Result<Value> {
 /// vector-set! procedure (mutation)
 fn primitive_vector_set(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector-set! expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let vector_value = &args[0];
     let index = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "vector-set! index must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     let new_value = &args[2];
     
@@ -346,19 +346,19 @@ fn primitive_vector_set(args: &[Value]) -> Result<Value> {
             let mut vector = vector_ref.write().unwrap();
             
             if index >= vector.len() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "vector-set! index out of bounds".to_string(),
                     None,
-                ));
+                )));
             }
             
-            vector[index] = new_value.clone());
+            vector[index] = new_value.clone();
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "vector-set! requires a vector".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -367,10 +367,10 @@ fn primitive_vector_set(args: &[Value]) -> Result<Value> {
 /// vector-fill! procedure (mutation)
 fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector-fill! expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let vector_value = &args[0];
@@ -383,17 +383,17 @@ fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
             
             let start = if args.len() > 2 {
                 let start_idx = args[2].as_integer().ok_or_else(|| {
-                    DiagnosticError::runtime_error(
+                    Box::new(DiagnosticError::runtime_error(
                         "vector-fill! start index must be an integer".to_string(),
                         None,
-                    )
+                    ))
                 })? as usize;
                 
                 if start_idx > length {
-                    return Err(DiagnosticError::runtime_error(
+                    return Err(Box::new(DiagnosticError::runtime_error(
                         "vector-fill! start index out of bounds".to_string(),
                         None,
-                    ));
+                    )));
                 }
                 start_idx
             } else {
@@ -402,17 +402,17 @@ fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
             
             let end = if args.len() > 3 {
                 let end_idx = args[3].as_integer().ok_or_else(|| {
-                    DiagnosticError::runtime_error(
+                    Box::new(DiagnosticError::runtime_error(
                         "vector-fill! end index must be an integer".to_string(),
                         None,
-                    )
+                    ))
                 })? as usize;
                 
                 if end_idx > length || end_idx < start {
-                    return Err(DiagnosticError::runtime_error(
+                    return Err(Box::new(DiagnosticError::runtime_error(
                         "vector-fill! end index out of bounds".to_string(),
                         None,
-                    ));
+                    )));
                 }
                 end_idx
             } else {
@@ -420,33 +420,33 @@ fn primitive_vector_fill(args: &[Value]) -> Result<Value> {
             };
             
             for i in start..end {
-                vector[i] = fill_value.clone());
+                vector[i] = fill_value.clone();
             }
             
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "vector-fill! requires a vector".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// vector-copy! procedure (mutation)
 fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
     if args.len() < 3 || args.len() > 5 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector-copy! expects 3 to 5 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let to_vector = &args[0];
     let at = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "vector-copy! at index must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     let from_vector_value = &args[2];
     
@@ -455,17 +455,17 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
     
     let start = if args.len() > 3 {
         let start_idx = args[3].as_integer().ok_or_else(|| {
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "vector-copy! start index must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize;
         
         if start_idx > from_length {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "vector-copy! start index out of bounds".to_string(),
                 None,
-            ));
+            )));
         }
         start_idx
     } else {
@@ -474,17 +474,17 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
     
     let end = if args.len() > 4 {
         let end_idx = args[4].as_integer().ok_or_else(|| {
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "vector-copy! end index must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize;
         
         if end_idx > from_length || end_idx < start {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "vector-copy! end index out of bounds".to_string(),
                 None,
-            ));
+            )));
         }
         end_idx
     } else {
@@ -497,22 +497,22 @@ fn primitive_vector_copy_mut(args: &[Value]) -> Result<Value> {
             let copy_length = end - start;
             
             if at + copy_length > to_vec.len() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "vector-copy! destination range out of bounds".to_string(),
                     None,
-                ));
+                )));
             }
             
             for (i, j) in (start..end).enumerate() {
-                to_vec[at + i] = from_vector[j].clone());
+                to_vec[at + i] = from_vector[j].clone();
             }
             
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "vector-copy! requires a vector destination".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -533,10 +533,10 @@ fn primitive_vector_append(args: &[Value]) -> Result<Value> {
 /// vector->list procedure
 fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("vector->list expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let vector = extract_vector(&args[0], "vector->list")?;
@@ -544,17 +544,17 @@ fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
     
     let start = if args.len() > 1 {
         let start_idx = args[1].as_integer().ok_or_else(|| {
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "vector->list start index must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize;
         
         if start_idx > length {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "vector->list start index out of bounds".to_string(),
                 None,
-            ));
+            )));
         }
         start_idx
     } else {
@@ -563,17 +563,17 @@ fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
     
     let end = if args.len() > 2 {
         let end_idx = args[2].as_integer().ok_or_else(|| {
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "vector->list end index must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize;
         
         if end_idx > length || end_idx < start {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "vector->list end index out of bounds".to_string(),
                 None,
-            ));
+            )));
         }
         end_idx
     } else {
@@ -587,17 +587,17 @@ fn primitive_vector_to_list(args: &[Value]) -> Result<Value> {
 /// list->vector procedure
 fn primitive_list_to_vector(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list->vector expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list = args[0].as_list().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "list->vector requires a proper list".to_string(),
             None,
-        )
+        ))
     })?;
     
     Ok(Value::vector(list))
@@ -609,10 +609,10 @@ fn primitive_list_to_vector(args: &[Value]) -> Result<Value> {
 fn extract_vector(value: &Value, operation: &str) -> Result<Vec<Value>> {
     match value {
         Value::Vector(vector_ref) => Ok(vector_ref.read().unwrap().clone()),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires a vector"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -621,10 +621,10 @@ fn extract_vector(value: &Value, operation: &str) -> Result<Vec<Value>> {
 /// vector-map procedure - R7RS required
 fn primitive_vector_map(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "vector-map requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
@@ -632,17 +632,17 @@ fn primitive_vector_map(args: &[Value]) -> Result<Value> {
     
     // Verify procedure is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "vector-map first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert all arguments to vectors and find minimum length
     let mut vector_data = Vec::new();
     let mut min_length = usize::MAX;
     
-    for (_i, vector_arg) in vectors.iter().enumerate() {
+    for vector_arg in vectors.iter() {
         let vector = extract_vector(vector_arg, "vector-map")?;
         min_length = min_length.min(vector.len());
         vector_data.push(vector);
@@ -669,19 +669,19 @@ fn primitive_vector_map(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "vector-map with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 };
                 results.push(result);
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "vector-map with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -692,10 +692,10 @@ fn primitive_vector_map(args: &[Value]) -> Result<Value> {
 /// vector-for-each procedure - R7RS required
 fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "vector-for-each requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
@@ -703,17 +703,17 @@ fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
     
     // Verify procedure is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "vector-for-each first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Convert all arguments to vectors and find minimum length
     let mut vector_data = Vec::new();
     let mut min_length = usize::MAX;
     
-    for (_i, vector_arg) in vectors.iter().enumerate() {
+    for vector_arg in vectors.iter() {
         let vector = extract_vector(vector_arg, "vector-for-each")?;
         min_length = min_length.min(vector.len());
         vector_data.push(vector);
@@ -744,18 +744,18 @@ fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
                         func(&proc_args)?;
                     },
                     PrimitiveImpl::ForeignFn { .. } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "vector-for-each with foreign functions not yet implemented".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
             },
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "vector-for-each with user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
@@ -786,7 +786,7 @@ mod tests {
         let args = vec![Value::integer(5), Value::string("hello")];
         let vector = primitive_make_vector(&args).unwrap();
         
-        let length = primitive_vector_length(&[vector.clone())]).unwrap();
+        let length = primitive_vector_length(&[vector.clone()]).unwrap();
         assert_eq!(length, Value::integer(5));
         
         // Check that all elements are "hello"
@@ -802,12 +802,12 @@ mod tests {
             Value::string("c"),
         ]);
         
-        let element = primitive_vector_ref(&[vector.clone()), Value::integer(1)]).unwrap();
+        let element = primitive_vector_ref(&[vector.clone(), Value::integer(1)]).unwrap();
         assert_eq!(element, Value::string("b"));
         
         // Test vector-set!
         let result = primitive_vector_set(&[
-            vector.clone()),
+            vector.clone(),
             Value::integer(1),
             Value::string("modified"),
         ]).unwrap();
@@ -824,10 +824,10 @@ mod tests {
         
         let result = primitive_vector_append(&[vec1, vec2]).unwrap();
         
-        let length = primitive_vector_length(&[result.clone())]).unwrap();
+        let length = primitive_vector_length(&[result.clone()]).unwrap();
         assert_eq!(length, Value::integer(4));
         
-        let first = primitive_vector_ref(&[result.clone()), Value::integer(0)]).unwrap();
+        let first = primitive_vector_ref(&[result.clone(), Value::integer(0)]).unwrap();
         assert_eq!(first, Value::integer(1));
         
         let last = primitive_vector_ref(&[result, Value::integer(3)]).unwrap();
@@ -847,10 +847,10 @@ mod tests {
         let args = vec![original, Value::integer(1), Value::integer(3)];
         let copy = primitive_vector_copy(&args).unwrap();
         
-        let length = primitive_vector_length(&[copy.clone())]).unwrap();
+        let length = primitive_vector_length(&[copy.clone()]).unwrap();
         assert_eq!(length, Value::integer(2));
         
-        let first = primitive_vector_ref(&[copy.clone()), Value::integer(0)]).unwrap();
+        let first = primitive_vector_ref(&[copy.clone(), Value::integer(0)]).unwrap();
         assert_eq!(first, Value::string("b"));
         
         let second = primitive_vector_ref(&[copy, Value::integer(1)]).unwrap();
@@ -867,7 +867,7 @@ mod tests {
         
         let vector = primitive_list_to_vector(&[list]).unwrap();
         
-        let length = primitive_vector_length(&[vector.clone())]).unwrap();
+        let length = primitive_vector_length(&[vector.clone()]).unwrap();
         assert_eq!(length, Value::integer(3));
         
         let back_to_list = primitive_vector_to_list(&[vector]).unwrap();
@@ -890,7 +890,7 @@ mod tests {
         
         // Fill the middle portion
         let result = primitive_vector_fill(&[
-            vector.clone()),
+            vector.clone(),
             Value::string("filled"),
             Value::integer(1),
             Value::integer(3),
@@ -898,14 +898,14 @@ mod tests {
         assert_eq!(result, Value::Unspecified);
         
         // Check that positions 1 and 2 are filled
-        let elem1 = primitive_vector_ref(&[vector.clone()), Value::integer(1)]).unwrap();
+        let elem1 = primitive_vector_ref(&[vector.clone(), Value::integer(1)]).unwrap();
         assert_eq!(elem1, Value::string("filled"));
         
-        let elem2 = primitive_vector_ref(&[vector.clone()), Value::integer(2)]).unwrap();
+        let elem2 = primitive_vector_ref(&[vector.clone(), Value::integer(2)]).unwrap();
         assert_eq!(elem2, Value::string("filled"));
         
         // Check that positions 0 and 3 are unchanged
-        let elem0 = primitive_vector_ref(&[vector.clone()), Value::integer(0)]).unwrap();
+        let elem0 = primitive_vector_ref(&[vector.clone(), Value::integer(0)]).unwrap();
         assert_eq!(elem0, Value::integer(1));
         
         let elem3 = primitive_vector_ref(&[vector, Value::integer(3)]).unwrap();

@@ -29,7 +29,7 @@ impl ListQueue {
     /// Creates a named queue
     pub fn with_name(name: impl Into<String>) -> Self {
         let mut queue = Self::new();
-        queue.name = Some(name.into())
+        queue.name = Some(name.into());
         queue
     }
     
@@ -82,7 +82,7 @@ impl ListQueue {
     
     /// Converts to vector
     pub fn to_vec(&self) -> Vec<Value> {
-        self.data.clone())
+        self.data.clone()
     }
     
     /// Iterator over elements
@@ -92,12 +92,12 @@ impl ListQueue {
     
     /// Appends another queue
     pub fn append(&mut self, other: &Self) {
-        self.data.extend(other.data.iter().clone())());
+        self.data.extend(other.data.iter().cloned());
     }
     
     /// Concatenates with another queue
     pub fn concat(&self, other: &Self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         result.append(other);
         result
     }
@@ -109,7 +109,7 @@ impl ListQueue {
     
     /// Returns a reversed copy
     pub fn reversed(&self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         result.reverse();
         result
     }
@@ -171,12 +171,12 @@ impl ThreadSafeListQueue {
     
     /// Peeks at front element
     pub fn front(&self) -> Option<Value> {
-        self.inner.read().unwrap().front().clone())()
+        self.inner.read().unwrap().front().cloned()
     }
     
     /// Peeks at back element
     pub fn back(&self) -> Option<Value> {
-        self.inner.read().unwrap().back().clone())()
+        self.inner.read().unwrap().back().cloned()
     }
     
     /// Gets the length
@@ -222,7 +222,7 @@ impl ThreadSafeListQueue {
     where
         F: FnOnce(&ListQueue) -> R,
     {
-        f(&*self.inner.read().unwrap())
+        f(&self.inner.read().unwrap())
     }
     
     /// Executes a closure with write access to the inner queue
@@ -230,7 +230,7 @@ impl ThreadSafeListQueue {
     where
         F: FnOnce(&mut ListQueue) -> R,
     {
-        f(&mut *self.inner.write().unwrap())
+        f(&mut self.inner.write().unwrap())
     }
 }
 
@@ -244,14 +244,14 @@ impl Default for ThreadSafeListQueue {
 impl ListQueue {
     /// SRFI-117: list-queue-front with error handling
     pub fn list_queue_front(&self) -> ContainerResult<Value> {
-        self.front().clone())().ok_or(ContainerError::EmptyContainer {
+        self.front().cloned().ok_or(ContainerError::EmptyContainer {
             operation: "list-queue-front".to_string(),
         })
     }
     
     /// SRFI-117: list-queue-back with error handling
     pub fn list_queue_back(&self) -> ContainerResult<Value> {
-        self.back().clone())().ok_or(ContainerError::EmptyContainer {
+        self.back().cloned().ok_or(ContainerError::EmptyContainer {
             operation: "list-queue-back".to_string(),
         })
     }
@@ -324,7 +324,7 @@ impl ListQueue {
     where
         F: FnMut(&Value) -> Value,
     {
-        let mapped: Vec<_> = self.iter().map(|v| f(v)).collect();
+        let mapped: Vec<_> = self.iter().map(f).collect();
         Self::from_vec(mapped)
     }
     
@@ -375,7 +375,7 @@ impl ListQueue {
     where
         F: FnMut(&Value) -> bool,
     {
-        let filtered: Vec<_> = self.iter().filter(|v| predicate(v)).clone())().collect();
+        let filtered: Vec<_> = self.iter().filter(|v| predicate(v)).cloned().collect();
         Self::from_vec(filtered)
     }
     
@@ -384,7 +384,7 @@ impl ListQueue {
     where
         F: FnMut(&Value) -> bool,
     {
-        let filtered: Vec<_> = self.iter().filter(|v| !predicate(v)).clone())().collect();
+        let filtered: Vec<_> = self.iter().filter(|v| !predicate(v)).cloned().collect();
         Self::from_vec(filtered)
     }
     
@@ -412,7 +412,7 @@ impl ListQueue {
     where
         F: FnMut(&Value) -> bool,
     {
-        self.iter().find(|v| predicate(v)).clone())()
+        self.iter().find(|v| predicate(v)).cloned()
     }
     
     /// SRFI-117: list-queue-any
@@ -420,7 +420,7 @@ impl ListQueue {
     where
         F: FnMut(&Value) -> bool,
     {
-        self.iter().any(|v| predicate(v))
+        self.iter().any(predicate)
     }
     
     /// SRFI-117: list-queue-every
@@ -428,7 +428,7 @@ impl ListQueue {
     where
         F: FnMut(&Value) -> bool,
     {
-        self.iter().all(|v| predicate(v))
+        self.iter().all(predicate)
     }
     
     /// SRFI-117: list-queue-count

@@ -42,18 +42,18 @@ fn demo_basic_arithmetic() -> Result<()> {
     let large_int = NumericValue::integer(i64::MAX);
     let one = NumericValue::integer(1);
     let overflow_result = tower::add(&large_int, &one);
-    println!("i64::MAX + 1 = {} (promoted to BigInt)", overflow_result);
+    println!("i64::MAX + 1 = {overflow_result} (promoted to BigInt)");
     
     // Mixed type arithmetic
     let int_val = NumericValue::integer(10);
     let rat_val = NumericValue::rational(1, 3);
     let sum = tower::add(&int_val, &rat_val);
-    println!("10 + 1/3 = {} (promoted to rational)", sum);
+    println!("10 + 1/3 = {sum} (promoted to rational)");
     
     // Division preserving exactness
     let result = tower::divide(&NumericValue::integer(10), &NumericValue::integer(3))
         .map_err(|e| crate::diagnostics::Error::runtime_error(e, None))?;
-    println!("10 / 3 = {} (exact rational)", result);
+    println!("10 / 3 = {result} (exact rational)");
     
     println!();
     Ok(())
@@ -65,8 +65,8 @@ fn demo_complex_numbers() -> Result<()> {
     let c1 = Complex::new(3.0, 4.0);
     let c2 = Complex::new(1.0, 2.0);
     
-    println!("c1 = {}", c1);
-    println!("c2 = {}", c2);
+    println!("c1 = {c1}");
+    println!("c2 = {c2}");
     println!("c1 + c2 = {}", c1 + c2);
     println!("c1 * c2 = {}", c1 * c2);
     println!("c1 / c2 = {}", c1 / c2);
@@ -106,9 +106,9 @@ fn demo_rational_numbers() -> Result<()> {
     
     // Continued fraction representation
     let cf = r1.to_continued_fraction(10);
-    println!("Continued fraction of {}: {:?}", r1, cf);
+    println!("Continued fraction of {r1}: {cf:?}");
     let reconstructed = Rational::from_continued_fraction(&cf);
-    println!("Reconstructed: {}", reconstructed);
+    println!("Reconstructed: {reconstructed}");
     
     // Powers and roots
     println!("{}^2 = {}", r1, r1.powi(2));
@@ -127,15 +127,15 @@ fn demo_big_integers() -> Result<()> {
     let big2 = BigInt::from_str_radix("987654321098765432109876543210", 10)
         .map_err(|e| crate::diagnostics::Error::runtime_error(&e, None))?;
     
-    println!("big1 = {}", big1);
-    println!("big2 = {}", big2);
+    println!("big1 = {big1}");
+    println!("big2 = {big2}");
     println!("big1 + big2 = {}", &big1 + &big2);
     println!("big1 * big2 = {}", &big1 * &big2);
     
     // Bit operations
     let big3 = BigInt::from_i64(12345);
-    println!("{} << 10 = {}", big3, big3.clone()) << 10);
-    println!("{} >> 2 = {}", big3, big3.clone()) >> 2);
+    println!("{} << 10 = {}", big3, big3.clone() << 10);
+    println!("{} >> 2 = {}", big3, big3.clone() >> 2);
     
     // GCD and LCM
     let a = BigInt::from_i64(48);
@@ -179,7 +179,7 @@ fn demo_mathematical_functions() -> Result<()> {
     
     // Numerical differentiation
     let derivative = functions::differentiate(|x| x * x, 2.0, 1e-6);
-    println!("d/dx(x²)|ₓ₌₂ = {} (should be 4)", derivative);
+    println!("d/dx(x²)|ₓ₌₂ = {derivative} (should be 4)");
     
     // FFT demonstration
     let data = vec![
@@ -189,7 +189,7 @@ fn demo_mathematical_functions() -> Result<()> {
         Complex::new(0.0, 0.0),
     ];
     let fft_result = functions::fft(&data);
-    println!("FFT of [1,0,0,0]: {:?}", fft_result);
+    println!("FFT of [1,0,0,0]: {fft_result:?}");
     
     println!();
     Ok(())
@@ -217,7 +217,7 @@ fn demo_constants() -> Result<()> {
     
     // Constant lookup
     if let Some(pi_val) = constants::get_constant("pi") {
-        println!("Retrieved π from constant lookup: {}", pi_val);
+        println!("Retrieved π from constant lookup: {pi_val}");
     }
     
     println!();
@@ -276,7 +276,7 @@ pub fn numeric_repl_demo() -> Result<()> {
     ];
     
     for expr in repl_examples {
-        println!("> {}", expr);
+        println!("> {expr}");
         // In a real implementation, this would parse and evaluate the expression
         match expr {
             "(+ 1 2 3 4 5)" => println!("15"),

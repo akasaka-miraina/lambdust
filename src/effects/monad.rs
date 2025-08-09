@@ -218,7 +218,7 @@ impl MonadicValue {
             MonadicValue::IO(_) => vec![Effect::IO],
             MonadicValue::State(_) => vec![Effect::State],
             MonadicValue::Error(_) => vec![Effect::Error],
-            MonadicValue::Combined(comp) => comp.effects.clone()),
+            MonadicValue::Combined(comp) => comp.effects.clone(),
         }
     }
     
@@ -346,7 +346,7 @@ impl Monad {
     /// Applicative apply operation (<*>).
     pub fn apply(mf: MonadicValue, mv: MonadicValue) -> MonadicValue {
         Self::bind(mf, move |_f_val| {
-            Self::bind(mv.clone()), move |v_val| {
+            Self::bind(mv.clone(), move |v_val| {
                 // Apply the function value to the argument value
                 // This is simplified - in practice, we'd need proper function application
                 MonadicValue::pure(v_val)
@@ -359,12 +359,12 @@ impl Monad {
     where 
         F: FnOnce(Value, Value) -> Value + Clone + 'static,
     {
-        let f = f.clone());
+        let f = f.clone();
         Self::bind(ma, move |a| {
-            let f = f.clone());
-            Self::bind(mb.clone()), move |b| {
-                let f = f.clone());
-                MonadicValue::pure(f(a.clone()), b))
+            let f = f.clone();
+            Self::bind(mb.clone(), move |b| {
+                let f = f.clone();
+                MonadicValue::pure(f(a.clone(), b))
             })
         })
     }
@@ -431,19 +431,19 @@ impl IOComputation {
                     },
                     _ => {
                         // TODO: Implement other IO targets
-                        Err(DiagnosticError::runtime_error(
+                        Err(Box::new(DiagnosticError::runtime_error(
                             "IO target not yet implemented".to_string(),
                             None,
-                        ))
+                        )))
                     }
                 }
             },
             _ => {
                 // TODO: Implement other IO actions
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "IO action not yet implemented".to_string(),
                     None,
-                ))
+                )))
             }
         }
     }
@@ -468,7 +468,7 @@ impl StateComputation {
     /// Executes this state computation, returning the result and new state.
     pub fn execute(&self) -> Result<(Value, Arc<ThreadSafeEnvironment>)> {
         match &self.action {
-            StateAction::Return(value) => Ok((value.clone()), self.initial_env.clone())),
+            StateAction::Return(value) => Ok((value.clone(), self.initial_env.clone())),
             StateAction::Get => {
                 // Return the environment as a value (simplified)
                 Ok((Value::Unspecified, self.initial_env.clone()))
@@ -479,10 +479,10 @@ impl StateComputation {
             StateAction::GetVar(name) => {
                 match self.initial_env.lookup(name) {
                     Some(value) => Ok((value, self.initial_env.clone())),
-                    None => Err(DiagnosticError::runtime_error(
+                    None => Err(Box::new(DiagnosticError::runtime_error(
                         format!("Unbound variable: {name}"),
                         None,
-                    )),
+                    ))),
                 }
             },
             StateAction::SetVar(name, value) => {
@@ -490,22 +490,22 @@ impl StateComputation {
                 if let Some(new_env) = self.initial_env.set_cow(name, value.clone()) {
                     Ok((Value::Unspecified, new_env))
                 } else {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         format!("Variable {name} not found for setting"),
                         None,
-                    ))
+                    )))
                 }
             },
             StateAction::DefineVar(name, value) => {
-                let new_env = self.initial_env.define_cow(name.clone()), value.clone());
+                let new_env = self.initial_env.define_cow(name.clone(), value.clone());
                 Ok((Value::Unspecified, new_env))
             },
             _ => {
                 // TODO: Implement other state actions
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "State action not yet implemented".to_string(),
                     None,
-                ))
+                )))
             }
         }
     }
@@ -544,7 +544,7 @@ impl ErrorComputation {
                     // Simplified error handling - just return a recovery value
                     Ok(Value::string("Error handled".to_string()))
                 } else {
-                    Err(error.clone())
+                    Err(Box::new(error.clone()))
                 }
             },
             ErrorAction::Try(computation) => {
@@ -560,10 +560,10 @@ impl ErrorComputation {
             },
             _ => {
                 // TODO: Implement other error actions
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "Error action not yet implemented".to_string(),
                     None,
-                ))
+                )))
             }
         }
     }

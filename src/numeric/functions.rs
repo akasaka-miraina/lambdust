@@ -321,26 +321,58 @@ pub fn integrate_simpson<F>(f: F, a: f64, b: f64, tolerance: f64) -> f64
 where
     F: Fn(f64) -> f64,
 {
-    fn simpson_recursive<F>(f: &F, a: f64, b: f64, tolerance: f64, 
-                           s: f64, fa: f64, fb: f64, fc: f64, bottom: i32) -> f64
+    /// Parameters for Simpson's rule recursive computation.
+    struct SimpsonParams<'a, F> {
+        f: &'a F,
+        a: f64,
+        b: f64,
+        tolerance: f64,
+        s: f64,
+        fa: f64,
+        fb: f64,
+        fc: f64,
+        bottom: i32,
+    }
+
+    fn simpson_recursive<F>(params: SimpsonParams<'_, F>) -> f64
     where
         F: Fn(f64) -> f64,
     {
-        let c = (a + b) / 2.0;
-        let h = b - a;
-        let d = (a + c) / 2.0;
-        let e = (c + b) / 2.0;
-        let fd = f(d);
-        let fe = f(e);
-        let s_left = (h / 12.0) * (fa + 4.0 * fd + fc);
-        let s_right = (h / 12.0) * (fc + 4.0 * fe + fb);
+        let c = (params.a + params.b) / 2.0;
+        let h = params.b - params.a;
+        let d = (params.a + c) / 2.0;
+        let e = (c + params.b) / 2.0;
+        let fd = (params.f)(d);
+        let fe = (params.f)(e);
+        let s_left = (h / 12.0) * (params.fa + 4.0 * fd + params.fc);
+        let s_right = (h / 12.0) * (params.fc + 4.0 * fe + params.fb);
         let s2 = s_left + s_right;
         
-        if bottom <= 0 || (s2 - s).abs() <= 15.0 * tolerance {
-            s2 + (s2 - s) / 15.0
+        if params.bottom <= 0 || (s2 - params.s).abs() <= 15.0 * params.tolerance {
+            s2 + (s2 - params.s) / 15.0
         } else {
-            simpson_recursive(f, a, c, tolerance / 2.0, s_left, fa, fc, fd, bottom - 1) +
-            simpson_recursive(f, c, b, tolerance / 2.0, s_right, fc, fb, fe, bottom - 1)
+            simpson_recursive(SimpsonParams {
+                f: params.f,
+                a: params.a,
+                b: c,
+                tolerance: params.tolerance / 2.0,
+                s: s_left,
+                fa: params.fa,
+                fb: params.fc,
+                fc: fd,
+                bottom: params.bottom - 1,
+            }) +
+            simpson_recursive(SimpsonParams {
+                f: params.f,
+                a: c,
+                b: params.b,
+                tolerance: params.tolerance / 2.0,
+                s: s_right,
+                fa: params.fc,
+                fb: params.fb,
+                fc: fe,
+                bottom: params.bottom - 1,
+            })
         }
     }
     
@@ -351,7 +383,17 @@ where
     let fc = f(c);
     let s = (h / 6.0) * (fa + 4.0 * fc + fb);
     
-    simpson_recursive(&f, a, b, tolerance, s, fa, fb, fc, 50)
+    simpson_recursive(SimpsonParams {
+        f: &f,
+        a,
+        b,
+        tolerance,
+        s,
+        fa,
+        fb,
+        fc,
+        bottom: 50,
+    })
 }
 
 /// Numerical differentiation using central difference
@@ -388,8 +430,8 @@ fn fft_recursive(data: &[Complex]) -> Vec<Complex> {
     }
     
     // Divide
-    let even: Vec<Complex> = data.iter().step_by(2).clone())().collect();
-    let odd: Vec<Complex> = data.iter().skip(1).step_by(2).clone())().collect();
+    let even: Vec<Complex> = data.iter().step_by(2).cloned().collect();
+    let odd: Vec<Complex> = data.iter().skip(1).step_by(2).cloned().collect();
     
     // Conquer
     let fft_even = fft_recursive(&even);

@@ -231,10 +231,10 @@ use crate::diagnostics::{Error as DiagnosticError, Result};
 /// eq? procedure - identity equality
 fn primitive_eq(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("eq? expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, use PartialEq implementation
@@ -245,10 +245,10 @@ fn primitive_eq(args: &[Value]) -> Result<Value> {
 /// eqv? procedure - operational equivalence
 fn primitive_eqv(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("eqv? expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, use PartialEq implementation
@@ -259,10 +259,10 @@ fn primitive_eqv(args: &[Value]) -> Result<Value> {
 /// equal? procedure - structural equality
 fn primitive_equal(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("equal? expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, use PartialEq implementation
@@ -273,10 +273,10 @@ fn primitive_equal(args: &[Value]) -> Result<Value> {
 /// not procedure - logical negation
 fn primitive_not(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("not expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_falsy()))
@@ -285,10 +285,10 @@ fn primitive_not(args: &[Value]) -> Result<Value> {
 /// boolean? predicate
 fn primitive_boolean_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("boolean? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let is_boolean = matches!(args[0], Value::Literal(crate::ast::Literal::Boolean(_)));
@@ -298,19 +298,19 @@ fn primitive_boolean_p(args: &[Value]) -> Result<Value> {
 /// boolean=? procedure - R7RS boolean equality
 fn primitive_boolean_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "boolean=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     // All arguments must be boolean
     for (i, arg) in args.iter().enumerate() {
         if !matches!(arg, Value::Literal(crate::ast::Literal::Boolean(_))) {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 format!("boolean=? argument {} is not a boolean", i + 1),
                 None,
-            ));
+            )));
         }
     }
     
@@ -333,10 +333,10 @@ fn primitive_boolean_equal(args: &[Value]) -> Result<Value> {
 /// symbol? predicate
 fn primitive_symbol_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("symbol? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_symbol()))
@@ -345,10 +345,10 @@ fn primitive_symbol_p(args: &[Value]) -> Result<Value> {
 /// procedure? predicate
 fn primitive_procedure_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("procedure? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_procedure()))
@@ -357,10 +357,10 @@ fn primitive_procedure_p(args: &[Value]) -> Result<Value> {
 /// symbol->string procedure
 fn primitive_symbol_to_string(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("symbol->string expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -370,26 +370,26 @@ fn primitive_symbol_to_string(args: &[Value]) -> Result<Value> {
             if let Some(name) = symbol_name(*symbol_id) {
                 Ok(Value::string(name))
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "Invalid symbol ID".to_string(),
                     None,
-                ))
+                )))
             }
         },
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "symbol->string requires a symbol argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// string->symbol procedure
 fn primitive_string_to_symbol(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string->symbol expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -399,10 +399,10 @@ fn primitive_string_to_symbol(args: &[Value]) -> Result<Value> {
             let symbol_id = intern_symbol(s.clone());
             Ok(Value::symbol(symbol_id))
         },
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "string->symbol requires a string argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 

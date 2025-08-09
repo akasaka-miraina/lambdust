@@ -11,7 +11,9 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 /// Exact rational number representation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Rational {
+    /// Numerator of the rational number
     pub numerator: i64,
+    /// Denominator of the rational number (never zero)
     pub denominator: i64,
 }
 

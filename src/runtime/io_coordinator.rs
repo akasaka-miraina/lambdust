@@ -140,7 +140,7 @@ pub enum IOOperationType {
 }
 
 /// Parameters for IO operations.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct IOParameters {
     /// File path for file operations
     pub file_path: Option<String>,
@@ -343,8 +343,8 @@ impl IOCoordinator {
         let operation_id = self.ordering_manager.next_sequence();
         let operation = IOOperation {
             id: operation_id,
-            operation_type: operation_type.clone()),
-            resource: resource.clone()),
+            operation_type: operation_type.clone(),
+            resource: resource.clone(),
             parameters,
             started_at: SystemTime::now(),
             status: IOOperationStatus::Pending,
@@ -368,8 +368,8 @@ impl IOCoordinator {
             sequence: operation_id,
             thread_id,
             operation_type,
-            resource: resource.clone()),
-            parameters: operation.parameters.clone()),
+            resource: resource.clone(),
+            parameters: operation.parameters.clone(),
             dependencies,
             submitted_at: SystemTime::now(),
         };
@@ -459,7 +459,7 @@ impl IOCoordinator {
                 _ => {
                     // Add to wait queue
                     existing_lock.wait_queue.push_back((thread_id, lock_type, SystemTime::now()));
-                    return Err(format!("Resource {} is locked, added to wait queue", resource));
+                    return Err(format!("Resource {resource} is locked, added to wait queue"));
                 }
             }
         } else {
@@ -581,7 +581,7 @@ impl IOCoordinator {
     /// Gets the operation history.
     pub fn get_operation_history(&self) -> Vec<IOOperationEvent> {
         let history = self.operation_history.lock().unwrap();
-        history.iter().clone())().collect()
+        history.iter().cloned().collect()
     }
 
     /// Clears the operation history.
@@ -664,7 +664,7 @@ impl IOOrderingManager {
     pub fn complete_operation(&self, sequence: u64) -> Result<PendingIOOperation, String> {
         let mut pending = self.pending_operations.write().unwrap();
         pending.remove(&sequence).ok_or_else(|| {
-            format!("Operation {} not found in pending operations", sequence)
+            format!("Operation {sequence} not found in pending operations")
         })
     }
 
@@ -725,17 +725,6 @@ impl IOCoordinationPolicies {
     }
 }
 
-impl Default for IOParameters {
-    fn default() -> Self {
-        Self {
-            file_path: None,
-            data: None,
-            offset: None,
-            length: None,
-            metadata: HashMap::new(),
-        }
-    }
-}
 
 impl Clone for IOChannel {
     fn clone(&self) -> Self {
@@ -753,12 +742,12 @@ impl Default for IOCoordinator {
 impl Clone for IOCoordinator {
     fn clone(&self) -> Self {
         Self {
-            active_operations: self.active_operations.clone()),
-            resource_locks: self.resource_locks.clone()),
-            ordering_manager: self.ordering_manager.clone()),
-            coordination_channels: self.coordination_channels.clone()),
-            operation_history: self.operation_history.clone()),
-            policies: self.policies.clone()),
+            active_operations: self.active_operations.clone(),
+            resource_locks: self.resource_locks.clone(),
+            ordering_manager: self.ordering_manager.clone(),
+            coordination_channels: self.coordination_channels.clone(),
+            operation_history: self.operation_history.clone(),
+            policies: self.policies.clone(),
         }
     }
 }

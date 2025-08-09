@@ -181,28 +181,40 @@ pub struct LoadedModule {
 }
 
 /// Hooks for module loading/unloading.
+/// Type alias for pre-load hook function
+type PreLoadHook = Box<dyn Fn(&ModuleId) -> Result<()>>;
+
+/// Type alias for post-load hook function
+type PostLoadHook = Box<dyn Fn(&ModuleId, &LoadedModule) -> Result<()>>;
+
+/// Type alias for pre-unload hook function
+type PreUnloadHook = Box<dyn Fn(&ModuleId) -> Result<()>>;
+
+/// Type alias for post-unload hook function
+type PostUnloadHook = Box<dyn Fn(&ModuleId) -> Result<()>>;
+
+/// Module hooks for loading/unloading.
 pub struct ModuleHooks {
     /// Called before module loading
-    pub pre_load: Vec<Box<dyn Fn(&ModuleId) -> Result<()>>>,
+    pub pre_load: Vec<PreLoadHook>,
     /// Called after module loading
-    pub post_load: Vec<Box<dyn Fn(&ModuleId, &LoadedModule) -> Result<()>>>,
+    pub post_load: Vec<PostLoadHook>,
     /// Called before module unloading
-    pub pre_unload: Vec<Box<dyn Fn(&ModuleId) -> Result<()>>>,
+    pub pre_unload: Vec<PreUnloadHook>,
     /// Called after module unloading
-    pub post_unload: Vec<Box<dyn Fn(&ModuleId) -> Result<()>>>,
+    pub post_unload: Vec<PostUnloadHook>,
 }
 
 impl std::fmt::Debug for ModuleHooks {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ModuleHooks")
-            .field("pre_load", &format!("{} hook(s)", self.pre_load.len()))
-            .field("post_load", &format!("{} hook(s)", self.post_load.len()))
-            .field("pre_unload", &format!("{} hook(s)", self.pre_unload.len()))
-            .field("post_unload", &format!("{} hook(s)", self.post_unload.len()))
+            .field("pre_load", &format!("{count} hook(s)", count = self.pre_load.len()))
+            .field("post_load", &format!("{count} hook(s)", count = self.post_load.len()))
+            .field("pre_unload", &format!("{count} hook(s)", count = self.pre_unload.len()))
+            .field("post_unload", &format!("{count} hook(s)", count = self.post_unload.len()))
             .finish()
     }
 }
-
 
 /// Memory manager for garbage collection and monitoring.
 #[derive(Debug)]
@@ -294,9 +306,13 @@ pub struct MemoryPressureMonitor {
 /// Memory pressure level.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MemoryPressureLevel {
+    /// Low memory pressure.
     Low,
+    /// Medium memory pressure.
     Medium,
+    /// High memory pressure.
     High,
+    /// Critical memory pressure.
     Critical,
 }
 
@@ -335,7 +351,7 @@ impl EnvironmentManipulator {
         env_type: EnvironmentType,
     ) -> Result<()> {
         let metadata = EnvironmentMetadata {
-            name: name.clone()),
+            name: name.clone(),
             env_type,
             parent: None,
             children: Vec::new(),
@@ -350,7 +366,7 @@ impl EnvironmentManipulator {
             last_accessed: SystemTime::now(),
         };
 
-        self.environments.insert(name.clone()), handle);
+        self.environments.insert(name.clone(), handle);
         self.hierarchy.add_root(name.clone());
 
         // Track creation change
@@ -376,7 +392,7 @@ impl EnvironmentManipulator {
         let child_env = Rc::new(Environment::new(Some(parent_env.clone()), 0));
 
         let metadata = EnvironmentMetadata {
-            name: child_name.clone()),
+            name: child_name.clone(),
             env_type,
             parent: Some(parent_name.to_string()),
             children: Vec::new(),
@@ -390,13 +406,13 @@ impl EnvironmentManipulator {
         }
 
         let handle = EnvironmentHandle {
-            environment: child_env.clone()),
+            environment: child_env.clone(),
             metadata,
             created_at: SystemTime::now(),
             last_accessed: SystemTime::now(),
         };
 
-        self.environments.insert(child_name.clone()), handle);
+        self.environments.insert(child_name.clone(), handle);
         self.hierarchy.add_child(parent_name.to_string(), child_name.clone());
 
         Ok(child_env)
@@ -406,7 +422,7 @@ impl EnvironmentManipulator {
     pub fn get_environment(&mut self, name: &str) -> Result<Rc<Environment>> {
         let handle = self.environments.get_mut(name)
             .ok_or_else(|| Error::runtime_error(
-                format!("Environment '{}' not found", name),
+                format!("Environment '{name}' not found"),
                 None,
             ))?;
 
@@ -425,7 +441,7 @@ impl EnvironmentManipulator {
         let bindings = env.get_all_bindings();
 
         let snapshot = EnvironmentSnapshot {
-            id: snapshot_id.clone()),
+            id: snapshot_id.clone(),
             environment_name: env_name.to_string(),
             bindings,
             timestamp: SystemTime::now(),
@@ -440,10 +456,10 @@ impl EnvironmentManipulator {
     pub fn restore_from_snapshot(&mut self, snapshot_id: &str) -> Result<()> {
         let snapshot = self.snapshots.get(snapshot_id)
             .ok_or_else(|| Error::runtime_error(
-                format!("Snapshot '{}' not found", snapshot_id),
+                format!("Snapshot '{snapshot_id}' not found"),
                 None,
             ))?
-            .clone());
+            .clone();
 
         let env = self.get_environment(&snapshot.environment_name)?;
 
@@ -481,9 +497,9 @@ impl EnvironmentManipulator {
             Ok(())
         } else {
             Err(Box::new(Error::runtime_error(
-                format!("Environment '{}' not found", name),
+                format!("Environment '{name}' not found"),
                 None,
-            ))
+            )))
         }
     }
 }
@@ -518,9 +534,9 @@ impl ModuleManager {
         let effective_module_id = if let Some(_path) = path {
             // For now, just use the provided module_id
             // In a real implementation, you might create a File namespace module
-            module_id.clone())
+            module_id.clone()
         } else {
-            module_id.clone())
+            module_id.clone()
         };
         
         let module = self.loader.load(&effective_module_id)?;
@@ -529,14 +545,14 @@ impl ModuleManager {
         let module_env = Rc::new(Environment::new(None, 0));
 
         // Install module exports
-        for (_name, _value) in &module.exports {
+        for _value in module.exports.values() {
             // Implementation would install exported bindings
-            // module_env.define(name.clone()), value.clone());
+            // module_env.define(name.clone(), value.clone());
         }
 
         let loaded_module = LoadedModule {
             module,
-            environment: module_env.clone()),
+            environment: module_env.clone(),
             loaded_at: SystemTime::now(),
             load_count: 1,
             dependencies: Vec::new(),
@@ -617,7 +633,7 @@ impl MemoryManager {
         MemoryStats {
             current_usage: self.current_usage(),
             peak_usage: self.usage_tracker.peak_usage,
-            pressure_level: self.pressure_monitor.pressure_level.clone()),
+            pressure_level: self.pressure_monitor.pressure_level,
             gc_runs: self.usage_tracker.usage_history.len(),
         }
     }
@@ -634,7 +650,7 @@ impl MemoryManager {
 
     /// Gets memory pressure level.
     pub fn memory_pressure(&self) -> MemoryPressureLevel {
-        self.pressure_monitor.pressure_level.clone())
+        self.pressure_monitor.pressure_level
     }
 }
 
@@ -652,7 +668,14 @@ pub struct MemoryStats {
 }
 
 // Implementation of helper types and methods
+impl Default for EnvironmentHierarchy {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EnvironmentHierarchy {
+    /// Creates a new environment hierarchy.
     pub fn new() -> Self {
         Self {
             roots: Vec::new(),
@@ -661,12 +684,14 @@ impl EnvironmentHierarchy {
         }
     }
 
+    /// Adds a root environment to the hierarchy.
     pub fn add_root(&mut self, name: String) {
         self.roots.push(name);
     }
 
+    /// Adds a child environment under a parent.
     pub fn add_child(&mut self, parent: String, child: String) {
-        self.relationships.entry(parent.clone()).or_insert_with(Vec::new).push(child.clone());
+        self.relationships.entry(parent.clone()).or_default().push(child.clone());
         self.parent_lookup.insert(child, parent);
     }
 
@@ -686,6 +711,7 @@ impl EnvironmentHierarchy {
 }
 
 impl ChangeTracker {
+    /// Creates a new change tracker with maximum change limit.
     pub fn new(max_changes: usize) -> Self {
         Self {
             changes: HashMap::new(),
@@ -693,8 +719,9 @@ impl ChangeTracker {
         }
     }
 
+    /// Tracks a change for a given environment.
     pub fn track_change(&mut self, env_name: String, change: EnvironmentChange) {
-        let changes = self.changes.entry(env_name).or_insert_with(Vec::new);
+        let changes = self.changes.entry(env_name).or_default();
         
         if changes.len() >= self.max_changes {
             changes.remove(0);
@@ -704,7 +731,14 @@ impl ChangeTracker {
     }
 }
 
+impl Default for ModuleHooks {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ModuleHooks {
+    /// Creates a new module hooks collection.
     pub fn new() -> Self {
         Self {
             pre_load: Vec::new(),
@@ -715,7 +749,14 @@ impl ModuleHooks {
     }
 }
 
+impl Default for MemoryUsageTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryUsageTracker {
+    /// Creates a new memory usage tracker.
     pub fn new() -> Self {
         Self {
             current_usage: Arc::new(RwLock::new(0)),
@@ -744,7 +785,14 @@ impl MemoryUsageTracker {
     }
 }
 
+impl Default for MemoryPressureMonitor {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryPressureMonitor {
+    /// Creates a new memory pressure monitor with default thresholds.
     pub fn new() -> Self {
         let mut warning_thresholds = HashMap::new();
         warning_thresholds.insert(MemoryPressureLevel::Medium, 1024 * 1024 * 100); // 100MB
@@ -760,8 +808,11 @@ impl MemoryPressureMonitor {
 }
 
 // Extension trait for Environment to add manipulation methods
+/// Extension trait for Environment to add manipulation methods.
 pub trait EnvironmentExt {
+    /// Clears all bindings from the environment.
     fn clear_all_bindings(&self);
+    /// Gets all bindings from the environment as a HashMap.
     fn get_all_bindings(&self) -> HashMap<String, Value>;
 }
 

@@ -202,7 +202,7 @@ impl GenerationalGc {
         
         // Track weak reference
         if let Ok(mut weak_refs) = self.weak_refs.write() {
-            weak_refs.entry(ptr.id).or_insert_with(Vec::new).push(weak_ptr.clone());
+            weak_refs.entry(ptr.id).or_default().push(weak_ptr.clone());
         }
         
         weak_ptr
@@ -225,7 +225,6 @@ impl GenerationalGc {
             
             if sizes[2] > self.config.gen2_threshold {
                 self.collect_generation(2);
-                return;
             }
         }
     }
@@ -418,7 +417,7 @@ impl GenerationalGc {
     /// Returns statistics about recent garbage collections.
     pub fn get_stats(&self) -> Vec<GcStats> {
         if let Ok(stats) = self.stats.read() {
-            stats.clone())
+            stats.clone()
         } else {
             Vec::new()
         }
@@ -427,7 +426,7 @@ impl GenerationalGc {
     /// Returns current memory usage by generation.
     pub fn memory_usage(&self) -> Vec<usize> {
         if let Ok(sizes) = self.generation_sizes.read() {
-            sizes.clone())
+            sizes.clone()
         } else {
             vec![0; (MAX_GENERATIONS + 1) as usize]
         }
@@ -630,7 +629,7 @@ mod tests {
         }
         
         fn references(&self) -> Vec<GcPtr> {
-            self.references.clone())
+            self.references.clone()
         }
         
         fn mark(&self) {

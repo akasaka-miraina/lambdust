@@ -17,6 +17,9 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, RwLock};
 
+/// Type alias for environment bindings
+type EnvironmentBindings = Arc<RwLock<Vec<(Arc<str>, OptimizedValue)>>>;
+
 /// Generation counter for environments.  
 pub type Generation = u64;
 
@@ -225,7 +228,7 @@ pub enum OptimizedFrame {
 #[derive(Debug, Clone)]
 pub struct OptimizedEnvironment {
     // Use a single Vec for better cache locality
-    bindings: Arc<RwLock<Vec<(Arc<str>, OptimizedValue)>>>,
+    bindings: EnvironmentBindings,
     parent: Option<Arc<OptimizedEnvironment>>,
     generation: Generation,
     name: Option<Arc<str>>,
@@ -470,19 +473,19 @@ impl fmt::Debug for OptimizedValue {
             ValueTag::Nil => write!(f, "nil"),
             ValueTag::Boolean => {
                 let b = unsafe { self.data.immediate != 0 };
-                write!(f, "{}", b)
+                write!(f, "{b}")
             }
             ValueTag::Fixnum => {
                 let n = unsafe { self.data.immediate as i32 };
-                write!(f, "{}", n)
+                write!(f, "{n}")
             }
             ValueTag::Character => {
                 let ch = unsafe { char::from_u32(self.data.immediate as u32).unwrap_or('?') };
-                write!(f, "#\\{}", ch)
+                write!(f, "#\\{ch}")
             }
             ValueTag::Unspecified => write!(f, "#<unspecified>"),
             _ => {
-                let obj = unsafe { &*(self.data.ptr as *const dyn ValueObj) };
+                let obj = unsafe { &*self.data.ptr };
                 obj.fmt_obj(f)
             }
         }
@@ -499,11 +502,11 @@ impl fmt::Display for OptimizedValue {
             }
             ValueTag::Fixnum => {
                 let n = unsafe { self.data.immediate as i32 };
-                write!(f, "{}", n)
+                write!(f, "{n}")
             }
             ValueTag::Character => {
                 let ch = unsafe { char::from_u32(self.data.immediate as u32).unwrap_or('?') };
-                write!(f, "#\\{}", ch)
+                write!(f, "#\\{ch}")
             }
             ValueTag::Unspecified => write!(f, "#<unspecified>"),
             ValueTag::String => {
@@ -512,12 +515,12 @@ impl fmt::Display for OptimizedValue {
             }
             ValueTag::Number => {
                 let obj = unsafe { &*(self.data.ptr as *const NumberObj) };
-                write!(f, "{}", obj.value)
+                write!(f, "{value}", value = obj.value)
             }
             ValueTag::Symbol => {
                 let obj = unsafe { &*(self.data.ptr as *const SymbolObj) };
                 if let Some(name) = crate::utils::symbol_name(obj.id) {
-                    write!(f, "{}", name)
+                    write!(f, "{name}")
                 } else {
                     write!(f, "#<symbol:{}>", obj.id.id())
                 }
@@ -533,7 +536,7 @@ impl fmt::Display for OptimizedValue {
                 if let Ok(elements) = obj.elements.read() {
                     for (i, element) in elements.iter().enumerate() {
                         if i > 0 { write!(f, " ")?; }
-                        write!(f, "{}", element)?;
+                        write!(f, "{element}")?;
                     }
                 }
                 write!(f, ")")
@@ -551,14 +554,14 @@ impl OptimizedValue {
             ValueTag::Pair => {
                 let obj = unsafe { &*(self.data.ptr as *const PairObj) };
                 if !first { write!(f, " ")?; }
-                write!(f, "{}", obj.car)?;
+                write!(f, "{car}", car = obj.car)?;
                 match obj.cdr.tag {
                     ValueTag::Nil => Ok(()),
                     ValueTag::Pair => obj.cdr.write_list_contents(f, false),
                     _ => write!(f, " . {}", obj.cdr),
                 }
             }
-            _ => write!(f, " . {}", self),
+            _ => write!(f, " . {self}"),
         }
     }
 }
@@ -575,8 +578,8 @@ impl PartialEq for OptimizedValue {
                 unsafe { self.data.immediate == other.data.immediate }
             }
             _ => {
-                let self_obj = unsafe { &*(self.data.ptr as *const dyn ValueObj) };
-                let other_obj = unsafe { &*(other.data.ptr as *const dyn ValueObj) };
+                let self_obj = unsafe { &*self.data.ptr };
+                let other_obj = unsafe { &*other.data.ptr };
                 self_obj.eq_obj(other_obj)
             }
         }
@@ -648,7 +651,7 @@ impl ValueObj for NumberObj {
         hasher.finish()
     }
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.value)
+        write!(f, "{value}", value = self.value)
     }
 }
 
@@ -671,7 +674,7 @@ impl ValueObj for SymbolObj {
     }
     fn fmt_obj(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(name) = crate::utils::symbol_name(self.id) {
-            write!(f, "{}", name)
+            write!(f, "{name}")
         } else {
             write!(f, "#<symbol:{}>", self.id.id())
         }
@@ -731,7 +734,7 @@ impl ValueObj for VectorObj {
         if let Ok(elements) = self.elements.read() {
             for (i, element) in elements.iter().enumerate() {
                 if i > 0 { write!(f, " ")?; }
-                write!(f, "{}", element)?;
+                write!(f, "{element}")?;
             }
         }
         write!(f, ")")
@@ -759,7 +762,7 @@ impl ValueObj for BytevectorObj {
         write!(f, "#u8(")?;
         for (i, byte) in self.bytes.iter().enumerate() {
             if i > 0 { write!(f, " ")?; }
-            write!(f, "{}", byte)?;
+            write!(f, "{byte}")?;
         }
         write!(f, ")")
     }
@@ -885,7 +888,7 @@ mod tests {
     fn test_number_optimization() {
         let small_int = OptimizedValue::number(42.0);
         let large_int = OptimizedValue::number(1e10);
-        let float_val = OptimizedValue::number(3.14);
+        let float_val = OptimizedValue::number(3.4);
         
         // Small integers should be stored as fixnum
         assert_eq!(small_int.tag, ValueTag::Fixnum);

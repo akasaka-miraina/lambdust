@@ -45,7 +45,7 @@ impl StringInterner {
                     if let Some(content) = id_to_string.get(id.0) {
                         return InternedString {
                             id,
-                            content: content.clone()),
+                            content: content.clone(),
                         };
                     }
                 }
@@ -61,7 +61,7 @@ impl StringInterner {
             if let Some(content) = id_to_string.get(id.0) {
                 return InternedString {
                     id,
-                    content: content.clone()),
+                    content: content.clone(),
                 };
             }
         }
@@ -79,7 +79,7 @@ impl StringInterner {
     /// Gets the string content for an interned ID.
     pub fn resolve(&self, id: InternedId) -> Option<Arc<str>> {
         if let Ok(id_to_string) = self.id_to_string.read() {
-            id_to_string.get(id.0).clone())()
+            id_to_string.get(id.0).cloned()
         } else {
             None
         }
@@ -124,11 +124,6 @@ impl InternedString {
     pub fn as_arc_str(&self) -> &Arc<str> {
         &self.content
     }
-
-    /// Converts to a owned String.
-    pub fn to_string(&self) -> String {
-        self.content.to_string()
-    }
 }
 
 impl std::fmt::Display for InternedString {
@@ -163,6 +158,12 @@ pub struct SymbolInterner {
     interner: StringInterner,
     // Pre-allocated symbol IDs for common Scheme keywords
     common_symbols: HashMap<&'static str, InternedId>,
+}
+
+impl Default for SymbolInterner {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SymbolInterner {
@@ -221,7 +222,7 @@ impl SymbolInterner {
     
     /// Gets all pre-interned common symbols.
     pub fn common_symbol_names(&self) -> Vec<&'static str> {
-        self.common_symbols.keys().clone())().collect()
+        self.common_symbols.keys().cloned().collect()
     }
     
     /// Gets statistics about symbol interning.
@@ -280,7 +281,7 @@ impl StringPool {
         
         PooledString {
             string: Some(string),
-            pool: self.pool.clone()),
+            pool: self.pool.clone(),
             max_size: self.max_size,
         }
     }
@@ -426,7 +427,7 @@ mod tests {
         let mut handles = Vec::new();
         
         for i in 0..10 {
-            let interner_clone = interner.clone());
+            let interner_clone = interner.clone();
             let handle = thread::spawn(move || {
                 let s = format!("string_{}", i % 3);
                 interner_clone.intern(&s)

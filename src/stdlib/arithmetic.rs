@@ -676,10 +676,10 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
 /// Subtraction operation (-)
 fn primitive_subtract(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "- requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = extract_number(&args[0], "-")?;
@@ -717,10 +717,10 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
 /// Division operation (/)
 fn primitive_divide(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "/ requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = extract_number(&args[0], "/")?;
@@ -742,10 +742,10 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
 /// Quotient operation (quotient)
 fn primitive_quotient(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("quotient expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("quotient expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let n1 = extract_number(&args[0], "quotient")?;
@@ -757,10 +757,10 @@ fn primitive_quotient(args: &[Value]) -> Result<Value> {
 /// Remainder operation (remainder)
 fn primitive_remainder(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("remainder expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("remainder expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let n1 = extract_number(&args[0], "remainder")?;
@@ -772,10 +772,10 @@ fn primitive_remainder(args: &[Value]) -> Result<Value> {
 /// Modulo operation (modulo)
 fn primitive_modulo(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("modulo expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("modulo expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let n1 = extract_number(&args[0], "modulo")?;
@@ -787,10 +787,10 @@ fn primitive_modulo(args: &[Value]) -> Result<Value> {
 /// Absolute value operation (abs)
 fn primitive_abs(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("abs expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("abs expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "abs")?;
@@ -832,10 +832,10 @@ fn primitive_lcm(args: &[Value]) -> Result<Value> {
 /// Floor-quotient operation
 fn primitive_floor_quotient(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("floor-quotient expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("floor-quotient expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let n1 = extract_number(&args[0], "floor-quotient")?;
@@ -847,10 +847,10 @@ fn primitive_floor_quotient(args: &[Value]) -> Result<Value> {
 /// Floor-remainder operation
 fn primitive_floor_remainder(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("floor-remainder expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("floor-remainder expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let n1 = extract_number(&args[0], "floor-remainder")?;
@@ -862,10 +862,10 @@ fn primitive_floor_remainder(args: &[Value]) -> Result<Value> {
 /// Truncate-quotient operation
 fn primitive_truncate_quotient(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("truncate-quotient expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("truncate-quotient expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let n1 = extract_number(&args[0], "truncate-quotient")?;
@@ -877,10 +877,10 @@ fn primitive_truncate_quotient(args: &[Value]) -> Result<Value> {
 /// Truncate-remainder operation
 fn primitive_truncate_remainder(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("truncate-remainder expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("truncate-remainder expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let n1 = extract_number(&args[0], "truncate-remainder")?;
@@ -894,10 +894,10 @@ fn primitive_truncate_remainder(args: &[Value]) -> Result<Value> {
 /// Exact to inexact conversion
 fn primitive_exact_to_inexact(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("exact->inexact expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("exact->inexact expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "exact->inexact")?;
@@ -907,10 +907,10 @@ fn primitive_exact_to_inexact(args: &[Value]) -> Result<Value> {
 /// Inexact to exact conversion
 fn primitive_inexact_to_exact(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("inexact->exact expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("inexact->exact expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "inexact->exact")?;
@@ -920,20 +920,20 @@ fn primitive_inexact_to_exact(args: &[Value]) -> Result<Value> {
 /// Number to string conversion
 fn primitive_number_to_string(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("number->string expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("number->string expects 1 or 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "number->string")?;
     let radix = if args.len() == 2 {
         match args[1].as_integer() {
             Some(r) if (2..=36).contains(&r) => r as u32,
-            _ => return Err(DiagnosticError::runtime_error(
+            _ => return Err(Box::new(DiagnosticError::runtime_error(
                 "number->string radix must be between 2 and 36".to_string(),
                 None,
-            )),
+            ))),
         }
     } else {
         10
@@ -945,26 +945,26 @@ fn primitive_number_to_string(args: &[Value]) -> Result<Value> {
 /// String to number conversion
 fn primitive_string_to_number(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("string->number expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("string->number expects 1 or 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let s = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "string->number first argument must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let radix = if args.len() == 2 {
         match args[1].as_integer() {
             Some(r) if (2..=36).contains(&r) => r as u32,
-            _ => return Err(DiagnosticError::runtime_error(
+            _ => return Err(Box::new(DiagnosticError::runtime_error(
                 "string->number radix must be between 2 and 36".to_string(),
                 None,
-            )),
+            ))),
         }
     } else {
         10
@@ -979,10 +979,10 @@ fn primitive_string_to_number(args: &[Value]) -> Result<Value> {
 /// Rationalize operation
 fn primitive_rationalize(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("rationalize expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("rationalize expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let x = extract_number(&args[0], "rationalize")?;
@@ -998,17 +998,17 @@ fn primitive_rationalize(args: &[Value]) -> Result<Value> {
 /// Numeric equality (=)
 fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "= requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = extract_number(&args[0], "=")?;
     
     for arg in &args[1..] {
         let num = extract_number(arg, "=")?;
-        if !numbers_equal(first.clone()), num)? {
+        if !numbers_equal(first.clone(), num)? {
             return Ok(Value::boolean(false));
         }
     }
@@ -1019,10 +1019,10 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
 /// Less than (<)
 fn primitive_less_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "< requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -1039,10 +1039,10 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
 /// Greater than (>)
 fn primitive_greater_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "> requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -1059,10 +1059,10 @@ fn primitive_greater_than(args: &[Value]) -> Result<Value> {
 /// Less than or equal (<=)
 fn primitive_less_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "<= requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -1079,10 +1079,10 @@ fn primitive_less_equal(args: &[Value]) -> Result<Value> {
 /// Greater than or equal (>=)
 fn primitive_greater_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             ">= requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -1099,10 +1099,10 @@ fn primitive_greater_equal(args: &[Value]) -> Result<Value> {
 /// Zero predicate (zero?)
 fn primitive_zero_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("zero? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("zero? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "zero?")?;
@@ -1112,10 +1112,10 @@ fn primitive_zero_p(args: &[Value]) -> Result<Value> {
 /// Positive predicate (positive?)
 fn primitive_positive_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("positive? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("positive? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "positive?")?;
@@ -1125,10 +1125,10 @@ fn primitive_positive_p(args: &[Value]) -> Result<Value> {
 /// Negative predicate (negative?)
 fn primitive_negative_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("negative? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("negative? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "negative?")?;
@@ -1138,10 +1138,10 @@ fn primitive_negative_p(args: &[Value]) -> Result<Value> {
 /// Odd predicate (odd?)
 fn primitive_odd_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("odd? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("odd? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "odd?")?;
@@ -1151,10 +1151,10 @@ fn primitive_odd_p(args: &[Value]) -> Result<Value> {
 /// Even predicate (even?)
 fn primitive_even_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("even? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("even? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "even?")?;
@@ -1166,10 +1166,10 @@ fn primitive_even_p(args: &[Value]) -> Result<Value> {
 /// Number predicate (number?)
 fn primitive_number_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("number? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("number? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_number()))
@@ -1178,10 +1178,10 @@ fn primitive_number_p(args: &[Value]) -> Result<Value> {
 /// Integer predicate (integer?)
 fn primitive_integer_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("integer? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("integer? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1194,10 +1194,10 @@ fn primitive_integer_p(args: &[Value]) -> Result<Value> {
 /// Rational predicate (rational?)
 fn primitive_rational_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("rational? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("rational? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1210,10 +1210,10 @@ fn primitive_rational_p(args: &[Value]) -> Result<Value> {
 /// Real predicate (real?)
 fn primitive_real_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("real? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("real? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1226,10 +1226,10 @@ fn primitive_real_p(args: &[Value]) -> Result<Value> {
 /// Complex predicate (complex?)
 fn primitive_complex_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("complex? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("complex? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_number()))
@@ -1238,10 +1238,10 @@ fn primitive_complex_p(args: &[Value]) -> Result<Value> {
 /// Exact predicate (exact?)
 fn primitive_exact_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("exact? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("exact? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1254,10 +1254,10 @@ fn primitive_exact_p(args: &[Value]) -> Result<Value> {
 /// Inexact predicate (inexact?)
 fn primitive_inexact_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("inexact? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("inexact? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1274,17 +1274,17 @@ fn primitive_inexact_p(args: &[Value]) -> Result<Value> {
 /// Maximum function (max)
 fn primitive_max(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "max requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let mut result = extract_number(&args[0], "max")?;
     
     for arg in &args[1..] {
         let num = extract_number(arg, "max")?;
-        if number_greater_than(num.clone()), result.clone())? {
+        if number_greater_than(num.clone(), result.clone())? {
             result = num;
         }
     }
@@ -1295,17 +1295,17 @@ fn primitive_max(args: &[Value]) -> Result<Value> {
 /// Minimum function (min)
 fn primitive_min(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "min requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let mut result = extract_number(&args[0], "min")?;
     
     for arg in &args[1..] {
         let num = extract_number(arg, "min")?;
-        if number_less_than(num.clone()), result.clone())? {
+        if number_less_than(num.clone(), result.clone())? {
             result = num;
         }
     }
@@ -1316,10 +1316,10 @@ fn primitive_min(args: &[Value]) -> Result<Value> {
 /// Floor function (floor)
 fn primitive_floor(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("floor expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("floor expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "floor")?;
@@ -1329,10 +1329,10 @@ fn primitive_floor(args: &[Value]) -> Result<Value> {
 /// Ceiling function (ceiling)
 fn primitive_ceiling(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("ceiling expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("ceiling expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "ceiling")?;
@@ -1342,10 +1342,10 @@ fn primitive_ceiling(args: &[Value]) -> Result<Value> {
 /// Truncate function (truncate)
 fn primitive_truncate(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("truncate expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("truncate expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "truncate")?;
@@ -1355,10 +1355,10 @@ fn primitive_truncate(args: &[Value]) -> Result<Value> {
 /// Round function (round)
 fn primitive_round(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("round expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("round expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "round")?;
@@ -1368,10 +1368,10 @@ fn primitive_round(args: &[Value]) -> Result<Value> {
 /// Exponentiation function (expt)
 fn primitive_expt(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("expt expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("expt expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let base = extract_number(&args[0], "expt")?;
@@ -1383,10 +1383,10 @@ fn primitive_expt(args: &[Value]) -> Result<Value> {
 /// Square root function (sqrt)
 fn primitive_sqrt(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("sqrt expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("sqrt expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "sqrt")?;
@@ -1396,10 +1396,10 @@ fn primitive_sqrt(args: &[Value]) -> Result<Value> {
 /// Exponential function (exp)
 fn primitive_exp(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("exp expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("exp expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "exp")?;
@@ -1409,10 +1409,10 @@ fn primitive_exp(args: &[Value]) -> Result<Value> {
 /// Logarithm function (log)
 fn primitive_log(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("log expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("log expects 1 or 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "log")?;
@@ -1428,10 +1428,10 @@ fn primitive_log(args: &[Value]) -> Result<Value> {
 /// Sine function (sin)
 fn primitive_sin(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("sin expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("sin expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "sin")?;
@@ -1441,10 +1441,10 @@ fn primitive_sin(args: &[Value]) -> Result<Value> {
 /// Cosine function (cos)
 fn primitive_cos(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("cos expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("cos expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "cos")?;
@@ -1454,10 +1454,10 @@ fn primitive_cos(args: &[Value]) -> Result<Value> {
 /// Tangent function (tan)
 fn primitive_tan(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("tan expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("tan expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "tan")?;
@@ -1467,10 +1467,10 @@ fn primitive_tan(args: &[Value]) -> Result<Value> {
 /// Arcsine function (asin)
 fn primitive_asin(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("asin expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("asin expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "asin")?;
@@ -1480,10 +1480,10 @@ fn primitive_asin(args: &[Value]) -> Result<Value> {
 /// Arccosine function (acos)
 fn primitive_acos(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("acos expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("acos expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "acos")?;
@@ -1493,10 +1493,10 @@ fn primitive_acos(args: &[Value]) -> Result<Value> {
 /// Arctangent function (atan)
 fn primitive_atan(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("atan expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("atan expects 1 or 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let y = extract_number(&args[0], "atan")?;
@@ -1512,10 +1512,10 @@ fn primitive_atan(args: &[Value]) -> Result<Value> {
 /// Square function (square)
 fn primitive_square(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("square expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("square expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "square")?;
@@ -1525,10 +1525,10 @@ fn primitive_square(args: &[Value]) -> Result<Value> {
 /// Exact-integer predicate (exact-integer?)
 fn primitive_exact_integer_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("exact-integer? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("exact-integer? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1541,10 +1541,10 @@ fn primitive_exact_integer_p(args: &[Value]) -> Result<Value> {
 /// Finite predicate (finite?)
 fn primitive_finite_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("finite? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("finite? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1557,10 +1557,10 @@ fn primitive_finite_p(args: &[Value]) -> Result<Value> {
 /// Infinite predicate (infinite?)
 fn primitive_infinite_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("infinite? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("infinite? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1573,10 +1573,10 @@ fn primitive_infinite_p(args: &[Value]) -> Result<Value> {
 /// NaN predicate (nan?)
 fn primitive_nan_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("nan? expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("nan? expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     if let Some(num) = try_extract_number(&args[0]) {
@@ -1605,10 +1605,10 @@ fn extract_number(value: &Value, operation: &str) -> Result<NumberValue> {
             Ok(NumberValue::Rational { numerator: *numerator, denominator: *denominator }),
         Value::Literal(Literal::Complex { real, imaginary }) => 
             Ok(NumberValue::Complex { real: *real, imaginary: *imaginary }),
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires numeric arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1772,16 +1772,16 @@ fn divide_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
     // Check for division by zero first
     match &b {
         NumberValue::Integer(0) => {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "Division by zero".to_string(),
                 None,
-            ));
+            )));
         },
         NumberValue::Float(f) if *f == 0.0 => {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "Division by zero".to_string(),
                 None,
-            ));
+            )));
         },
         _ => {}
     }
@@ -1813,10 +1813,10 @@ fn divide_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
             // (a + bi)/(c + di) = ((ac + bd) + (bc - ad)i)/(c² + d²)
             let denom = r2 * r2 + i2 * i2;
             if denom == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "Division by zero complex number".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Complex { 
                 real: (r1 * r2 + i1 * i2) / denom, 
@@ -1831,10 +1831,10 @@ fn divide_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
                 NumberValue::Complex { .. } => unreachable!(),
             };
             if other_real == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "Division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Complex { real: real / other_real, imaginary: imaginary / other_real })
         },
@@ -1847,10 +1847,10 @@ fn divide_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
             };
             let denom = real * real + imaginary * imaginary;
             if denom == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "Division by zero complex number".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Complex { 
                 real: (other_real * real) / denom, 
@@ -1861,10 +1861,10 @@ fn divide_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
             let af = to_float(a)?;
             let bf = to_float(b)?;
             if bf == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "Division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float(af / bf))
         }
@@ -1892,10 +1892,10 @@ fn quotient_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
     let bf = to_float(b)?;
     
     if bf == 0.0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "quotient: division by zero".to_string(),
             None,
-        ));
+        )));
     }
     
     Ok(NumberValue::Float((af / bf).trunc()))
@@ -1907,10 +1907,10 @@ fn remainder_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
     let bf = to_float(b)?;
     
     if bf == 0.0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "remainder: division by zero".to_string(),
             None,
-        ));
+        )));
     }
     
     let quotient = (af / bf).trunc();
@@ -1923,10 +1923,10 @@ fn modulo_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
     let bf = to_float(b)?;
     
     if bf == 0.0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "modulo: division by zero".to_string(),
             None,
-        ));
+        )));
     }
     
     let result = af % bf;
@@ -1953,46 +1953,46 @@ fn abs_number(a: NumberValue) -> Result<NumberValue> {
 fn gcd_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
     let ai = match a {
         NumberValue::Integer(i) => i,
-        _ => return Err(DiagnosticError::runtime_error(
+        _ => return Err(Box::new(DiagnosticError::runtime_error(
             "gcd requires integer arguments".to_string(),
             None,
-        )),
+        ))),
     };
     
     let bi = match b {
         NumberValue::Integer(i) => i,
-        _ => return Err(DiagnosticError::runtime_error(
+        _ => return Err(Box::new(DiagnosticError::runtime_error(
             "gcd requires integer arguments".to_string(),
             None,
-        )),
+        ))),
     };
     
-    let result = gcd_i64(ai.abs() as u64, bi.abs() as u64) as i64;
+    let result = gcd_i64(ai.unsigned_abs(), bi.unsigned_abs()) as i64;
     Ok(NumberValue::Integer(result))
 }
 
 fn lcm_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue> {
     let ai = match a {
         NumberValue::Integer(i) => i,
-        _ => return Err(DiagnosticError::runtime_error(
+        _ => return Err(Box::new(DiagnosticError::runtime_error(
             "lcm requires integer arguments".to_string(),
             None,
-        )),
+        ))),
     };
     
     let bi = match b {
         NumberValue::Integer(i) => i,
-        _ => return Err(DiagnosticError::runtime_error(
+        _ => return Err(Box::new(DiagnosticError::runtime_error(
             "lcm requires integer arguments".to_string(),
             None,
-        )),
+        ))),
     };
     
     if ai == 0 || bi == 0 {
         return Ok(NumberValue::Integer(0));
     }
     
-    let gcd = gcd_i64(ai.abs() as u64, bi.abs() as u64) as i64;
+    let gcd = gcd_i64(ai.unsigned_abs(), bi.unsigned_abs()) as i64;
     let result = (ai.abs() / gcd) * bi.abs();
     Ok(NumberValue::Integer(result))
 }
@@ -2002,19 +2002,19 @@ fn floor_quotient_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue>
     match (a, b) {
         (NumberValue::Float(x), NumberValue::Float(y)) => {
             if y == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "floor-quotient: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float((x / y).floor()))
         },
         (NumberValue::Integer(x), NumberValue::Integer(y)) => {
             if y == 0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "floor-quotient: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             // Integer division with floor semantics
             let result = if (x < 0) != (y < 0) && x % y != 0 {
@@ -2039,10 +2039,10 @@ fn floor_quotient_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue>
                 NumberValue::Complex { real, imaginary: _ } => real, // Use real part for division
             };
             if y == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "floor-quotient: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float((x / y).floor()))
         }
@@ -2054,19 +2054,19 @@ fn floor_remainder_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue
     match (a, b) {
         (NumberValue::Float(x), NumberValue::Float(y)) => {
             if y == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "floor-remainder: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float(x - y * (x / y).floor()))
         },
         (NumberValue::Integer(x), NumberValue::Integer(y)) => {
             if y == 0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "floor-remainder: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             let result = x - y * (if (x < 0) != (y < 0) && x % y != 0 {
                 (x / y) - 1
@@ -2090,10 +2090,10 @@ fn floor_remainder_numbers(a: NumberValue, b: NumberValue) -> Result<NumberValue
                 NumberValue::Complex { real, imaginary: _ } => real, // Use real part for division
             };
             if y == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "floor-remainder: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float(x - y * (x / y).floor()))
         }
@@ -2105,19 +2105,19 @@ fn truncate_quotient_numbers(a: NumberValue, b: NumberValue) -> Result<NumberVal
     match (a, b) {
         (NumberValue::Float(x), NumberValue::Float(y)) => {
             if y == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "truncate-quotient: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float((x / y).trunc()))
         },
         (NumberValue::Integer(x), NumberValue::Integer(y)) => {
             if y == 0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "truncate-quotient: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             // Regular integer division truncates towards zero
             Ok(NumberValue::Integer(x / y))
@@ -2137,10 +2137,10 @@ fn truncate_quotient_numbers(a: NumberValue, b: NumberValue) -> Result<NumberVal
                 NumberValue::Complex { real, imaginary: _ } => real, // Use real part for division
             };
             if y == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "truncate-quotient: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float((x / y).trunc()))
         }
@@ -2152,19 +2152,19 @@ fn truncate_remainder_numbers(a: NumberValue, b: NumberValue) -> Result<NumberVa
     match (a, b) {
         (NumberValue::Float(x), NumberValue::Float(y)) => {
             if y == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "truncate-remainder: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float(x - y * (x / y).trunc()))
         },
         (NumberValue::Integer(x), NumberValue::Integer(y)) => {
             if y == 0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "truncate-remainder: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             // Regular integer remainder
             Ok(NumberValue::Integer(x % y))
@@ -2184,10 +2184,10 @@ fn truncate_remainder_numbers(a: NumberValue, b: NumberValue) -> Result<NumberVa
                 NumberValue::Complex { real, imaginary: _ } => real, // Use real part for division
             };
             if y == 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "truncate-remainder: division by zero".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(NumberValue::Float(x - y * (x / y).trunc()))
         }
@@ -2211,10 +2211,10 @@ fn to_exact(a: NumberValue) -> Result<NumberValue> {
             Ok(NumberValue::Rational { numerator, denominator }),
         NumberValue::Float(f) => {
             if f.is_infinite() || f.is_nan() {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "Cannot convert infinite or NaN to exact".to_string(),
                     None,
-                ));
+                )));
             }
             
             if f.fract() == 0.0 {
@@ -2227,10 +2227,10 @@ fn to_exact(a: NumberValue) -> Result<NumberValue> {
         },
         NumberValue::Complex { real, imaginary } => {
             if imaginary != 0.0 {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "Cannot convert complex number with non-zero imaginary part to exact".to_string(),
                     None,
-                ));
+                )));
             }
             to_exact(NumberValue::Float(real))
         },
@@ -2249,7 +2249,7 @@ fn number_to_string(a: NumberValue, radix: u32) -> String {
         NumberValue::Float(f) => {
             if radix == 10 {
                 if f.fract() == 0.0 && f.is_finite() {
-                    format!("{:.0}", f)
+                    format!("{f:.0}")
                 } else {
                     f.to_string()
                 }
@@ -2269,14 +2269,12 @@ fn number_to_string(a: NumberValue, radix: u32) -> String {
                 } else {
                     format_integer_radix(numerator, radix)
                 }
+            } else if radix == 10 {
+                format!("{numerator}/{denominator}")
             } else {
-                if radix == 10 {
-                    format!("{}/{}", numerator, denominator)
-                } else {
-                    format!("{}/{}", 
-                        format_integer_radix(numerator, radix),
-                        format_integer_radix(denominator, radix))
-                }
+                format!("{}/{}", 
+                    format_integer_radix(numerator, radix),
+                    format_integer_radix(denominator, radix))
             }
         },
         NumberValue::Complex { real, imaginary } => {
@@ -2294,16 +2292,14 @@ fn number_to_string(a: NumberValue, radix: u32) -> String {
                 let real_str = number_to_string(NumberValue::Float(real), radix);
                 if imaginary > 0.0 {
                     if imaginary == 1.0 {
-                        format!("{}+i", real_str)
+                        format!("{real_str}+i")
                     } else {
                         format!("{}+{}i", real_str, number_to_string(NumberValue::Float(imaginary), radix))
                     }
+                } else if imaginary == -1.0 {
+                    format!("{real_str}-i")
                 } else {
-                    if imaginary == -1.0 {
-                        format!("{}-i", real_str)
-                    } else {
-                        format!("{}{}i", real_str, number_to_string(NumberValue::Float(imaginary), radix))
-                    }
+                    format!("{}{}i", real_str, number_to_string(NumberValue::Float(imaginary), radix))
                 }
             }
         },
@@ -2347,10 +2343,10 @@ fn rationalize_number(x: NumberValue, e: NumberValue) -> Result<NumberValue> {
     let ef = to_float(e)?;
     
     if ef < 0.0 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "rationalize: tolerance must be non-negative".to_string(),
             None,
-        ));
+        )));
     }
     
     // Find the simplest rational number within tolerance
@@ -2380,7 +2376,7 @@ fn float_to_rational(f: f64) -> (i64, i64) {
     let mut q1 = 1i64;
     
     for _ in 0..20 { // Limit iterations to prevent infinite loops
-        x = x - a as f64;
+        x -= a as f64;
         if x.abs() < 1e-15 {
             break;
         }
@@ -2579,10 +2575,10 @@ fn numbers_equal(a: NumberValue, b: NumberValue) -> Result<bool> {
 fn number_less_than(a: NumberValue, b: NumberValue) -> Result<bool> {
     // Only defined for real numbers
     if !is_real_number(a.clone()) || !is_real_number(b.clone()) {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "< not defined for complex numbers".to_string(),
             None,
-        ));
+        )));
     }
     
     let af = to_float(a)?;
@@ -2593,10 +2589,10 @@ fn number_less_than(a: NumberValue, b: NumberValue) -> Result<bool> {
 fn number_greater_than(a: NumberValue, b: NumberValue) -> Result<bool> {
     // Only defined for real numbers
     if !is_real_number(a.clone()) || !is_real_number(b.clone()) {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "> not defined for complex numbers".to_string(),
             None,
-        ));
+        )));
     }
     
     let af = to_float(a)?;
@@ -2607,10 +2603,10 @@ fn number_greater_than(a: NumberValue, b: NumberValue) -> Result<bool> {
 fn number_less_equal(a: NumberValue, b: NumberValue) -> Result<bool> {
     // Only defined for real numbers
     if !is_real_number(a.clone()) || !is_real_number(b.clone()) {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "<= not defined for complex numbers".to_string(),
             None,
-        ));
+        )));
     }
     
     let af = to_float(a)?;
@@ -2621,10 +2617,10 @@ fn number_less_equal(a: NumberValue, b: NumberValue) -> Result<bool> {
 fn number_greater_equal(a: NumberValue, b: NumberValue) -> Result<bool> {
     // Only defined for real numbers
     if !is_real_number(a.clone()) || !is_real_number(b.clone()) {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             ">= not defined for complex numbers".to_string(),
             None,
-        ));
+        )));
     }
     
     let af = to_float(a)?;
@@ -2643,10 +2639,10 @@ fn is_zero(a: NumberValue) -> bool {
 
 fn is_positive(a: NumberValue) -> Result<bool> {
     if !is_real_number(a.clone()) {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "positive? not defined for complex numbers".to_string(),
             None,
-        ));
+        )));
     }
     
     let f = to_float(a)?;
@@ -2655,10 +2651,10 @@ fn is_positive(a: NumberValue) -> Result<bool> {
 
 fn is_negative(a: NumberValue) -> Result<bool> {
     if !is_real_number(a.clone()) {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "negative? not defined for complex numbers".to_string(),
             None,
-        ));
+        )));
     }
     
     let f = to_float(a)?;
@@ -2667,37 +2663,37 @@ fn is_negative(a: NumberValue) -> Result<bool> {
 
 fn is_odd(a: NumberValue) -> Result<bool> {
     if !is_integer_number(a.clone()) {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "odd? requires an integer argument".to_string(),
             None,
-        ));
+        )));
     }
     
     match a {
         NumberValue::Integer(i) => Ok(i % 2 != 0),
-        NumberValue::Rational { numerator, denominator } if denominator == 1 => Ok(numerator % 2 != 0),
-        _ => Err(DiagnosticError::runtime_error(
+        NumberValue::Rational { numerator, denominator: 1 } => Ok(numerator % 2 != 0),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "odd? requires an integer argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 fn is_even(a: NumberValue) -> Result<bool> {
     if !is_integer_number(a.clone()) {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "even? requires an integer argument".to_string(),
             None,
-        ));
+        )));
     }
     
     match a {
         NumberValue::Integer(i) => Ok(i % 2 == 0),
-        NumberValue::Rational { numerator, denominator } if denominator == 1 => Ok(numerator % 2 == 0),
-        _ => Err(DiagnosticError::runtime_error(
+        NumberValue::Rational { numerator, denominator: 1 } => Ok(numerator % 2 == 0),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "even? requires an integer argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -2743,18 +2739,16 @@ fn floor_number(a: NumberValue) -> Result<NumberValue> {
         NumberValue::Float(f) => Ok(NumberValue::Float(f.floor())),
         NumberValue::Rational { numerator, denominator } => {
             let result = numerator / denominator;
-            if numerator % denominator == 0 {
-                Ok(NumberValue::Integer(result))
-            } else if numerator > 0 {
+            if numerator % denominator == 0 || numerator > 0 {
                 Ok(NumberValue::Integer(result))
             } else {
                 Ok(NumberValue::Integer(result - 1))
             }
         },
-        NumberValue::Complex { .. } => Err(DiagnosticError::runtime_error(
+        NumberValue::Complex { .. } => Err(Box::new(DiagnosticError::runtime_error(
             "floor not defined for complex numbers".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -2772,10 +2766,10 @@ fn ceiling_number(a: NumberValue) -> Result<NumberValue> {
                 Ok(NumberValue::Integer(result))
             }
         },
-        NumberValue::Complex { .. } => Err(DiagnosticError::runtime_error(
+        NumberValue::Complex { .. } => Err(Box::new(DiagnosticError::runtime_error(
             "ceiling not defined for complex numbers".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -2786,10 +2780,10 @@ fn truncate_number(a: NumberValue) -> Result<NumberValue> {
         NumberValue::Rational { numerator, denominator } => {
             Ok(NumberValue::Integer(numerator / denominator))
         },
-        NumberValue::Complex { .. } => Err(DiagnosticError::runtime_error(
+        NumberValue::Complex { .. } => Err(Box::new(DiagnosticError::runtime_error(
             "truncate not defined for complex numbers".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -2801,10 +2795,10 @@ fn round_number(a: NumberValue) -> Result<NumberValue> {
             let f = numerator as f64 / denominator as f64;
             Ok(NumberValue::Float(f.round()))
         },
-        NumberValue::Complex { .. } => Err(DiagnosticError::runtime_error(
+        NumberValue::Complex { .. } => Err(Box::new(DiagnosticError::runtime_error(
             "round not defined for complex numbers".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -3083,7 +3077,7 @@ fn atan2_number(y: NumberValue, x: NumberValue) -> Result<NumberValue> {
 
 fn square_number(a: NumberValue) -> Result<NumberValue> {
     // Implementation for square
-    multiply_numbers(a.clone()), a)
+    multiply_numbers(a.clone(), a)
 }
 
 fn is_exact_integer(a: NumberValue) -> bool {
@@ -3127,10 +3121,10 @@ fn is_nan_number(a: NumberValue) -> bool {
 /// Make rectangular complex number
 fn primitive_make_rectangular(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("make-rectangular expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("make-rectangular expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let real = to_float(extract_number(&args[0], "make-rectangular")?)?;
@@ -3142,10 +3136,10 @@ fn primitive_make_rectangular(args: &[Value]) -> Result<Value> {
 /// Make polar complex number
 fn primitive_make_polar(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("make-polar expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("make-polar expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let magnitude = to_float(extract_number(&args[0], "make-polar")?)?;
@@ -3160,10 +3154,10 @@ fn primitive_make_polar(args: &[Value]) -> Result<Value> {
 /// Real part of a number
 fn primitive_real_part(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("real-part expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("real-part expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "real-part")?;
@@ -3179,10 +3173,10 @@ fn primitive_real_part(args: &[Value]) -> Result<Value> {
 /// Imaginary part of a number
 fn primitive_imag_part(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("imag-part expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("imag-part expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "imag-part")?;
@@ -3195,10 +3189,10 @@ fn primitive_imag_part(args: &[Value]) -> Result<Value> {
 /// Magnitude of a number
 fn primitive_magnitude(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("magnitude expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("magnitude expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "magnitude")?;
@@ -3209,10 +3203,10 @@ fn primitive_magnitude(args: &[Value]) -> Result<Value> {
 /// Angle of a number
 fn primitive_angle(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("angle expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("angle expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let num = extract_number(&args[0], "angle")?;
@@ -3257,10 +3251,10 @@ fn to_float(num: NumberValue) -> Result<f64> {
             if imaginary == 0.0 {
                 Ok(real)
             } else {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "Cannot convert complex number with non-zero imaginary part to real".to_string(),
                     None,
-                ))
+                )))
             }
         },
     }
@@ -3276,7 +3270,7 @@ fn simplify_rational(numerator: i64, denominator: i64) -> NumberValue {
         return NumberValue::Integer(0);
     }
     
-    let gcd = gcd_i64(numerator.abs() as u64, denominator.abs() as u64) as i64;
+    let gcd = gcd_i64(numerator.unsigned_abs(), denominator.unsigned_abs()) as i64;
     let num = numerator / gcd;
     let den = denominator / gcd;
     
@@ -3305,7 +3299,7 @@ fn complex_asin(z: NumberValue) -> Result<NumberValue> {
         NumberValue::Complex { real, imaginary } => {
             // asin(z) = -i * ln(i*z + sqrt(1-z^2))
             let i_z = NumberValue::Complex { real: -imaginary, imaginary: real };
-            let z_squared = multiply_numbers(z.clone()), z)?;
+            let z_squared = multiply_numbers(z.clone(), z)?;
             let one_minus_z_sq = subtract_numbers(NumberValue::Integer(1), z_squared)?;
             let sqrt_part = sqrt_number(one_minus_z_sq)?;
             let sum = add_numbers(i_z, sqrt_part)?;
@@ -3321,7 +3315,7 @@ fn complex_acos(z: NumberValue) -> Result<NumberValue> {
     match z {
         NumberValue::Complex { real: _, imaginary: _ } => {
             // acos(z) = -i * ln(z + i*sqrt(1-z^2))
-            let z_squared = multiply_numbers(z.clone()), z.clone())?;
+            let z_squared = multiply_numbers(z.clone(), z.clone())?;
             let one_minus_z_sq = subtract_numbers(NumberValue::Integer(1), z_squared)?;
             let sqrt_part = sqrt_number(one_minus_z_sq)?;
             let i_sqrt = match sqrt_part {
@@ -3346,7 +3340,7 @@ fn complex_atan(z: NumberValue) -> Result<NumberValue> {
         NumberValue::Complex { real: _, imaginary: _ } => {
             // atan(z) = (i/2) * ln((i+z)/(i-z))
             let i = NumberValue::Complex { real: 0.0, imaginary: 1.0 };
-            let i_plus_z = add_numbers(i.clone()), z.clone())?;
+            let i_plus_z = add_numbers(i.clone(), z.clone())?;
             let i_minus_z = subtract_numbers(i, z)?;
             let ratio = divide_numbers(i_plus_z, i_minus_z)?;
             let ln_result = log_number(ratio)?;

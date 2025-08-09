@@ -157,12 +157,12 @@ impl Channel {
 
     /// Gets the sender for this channel.
     pub fn sender(&self) -> ChannelSender {
-        self.sender.clone())
+        self.sender.clone()
     }
 
     /// Gets the receiver for this channel.
     pub fn receiver(&self) -> Arc<tokio::sync::Mutex<ChannelReceiver>> {
-        self.receiver.clone())
+        self.receiver.clone()
     }
 
     /// Creates multiple senders for this channel.
@@ -179,7 +179,7 @@ impl Channel {
             SenderInner::Watch(tx) => {
                 Ok(ChannelReceiver { inner: ReceiverInner::Watch(tx.subscribe()) })
             }
-            _ => Err(Box::new(Error::runtime_error("Channel type does not support subscriptions".to_string(), None)),
+            _ => Err(Box::new(Error::runtime_error("Channel type does not support subscriptions".to_string(), None))),
         }
     }
 }
@@ -214,8 +214,8 @@ impl ChannelSender {
             SenderInner::Bounded(tx) => {
                 tx.try_send(value)
                     .map_err(|e| match e {
-                        mpsc::error::TrySendError::Closed(_) => ConcurrencyError::ChannelClosed.into(),
-                        mpsc::error::TrySendError::Full(_) => Error::runtime_error("Channel full".to_string(), None),
+                        mpsc::error::TrySendError::Closed(_) => ConcurrencyError::ChannelClosed.boxed(),
+                        mpsc::error::TrySendError::Full(_) => Error::runtime_error("Channel full".to_string(), None).into(),
                     })
             }
             SenderInner::Unbounded(tx) => {
@@ -279,7 +279,7 @@ impl ChannelReceiver {
                     .map_err(|e| match e {
                         broadcast::error::RecvError::Closed => ConcurrencyError::ChannelClosed.into(),
                         broadcast::error::RecvError::Lagged(n) => 
-                            Error::runtime_error(format!("Lagged behind by {} messages", n), None).into(),
+                            Error::runtime_error(format!("Lagged behind by {n} messages"), None).into(),
                     })
             }
             ReceiverInner::Watch(rx) => {
@@ -296,31 +296,31 @@ impl ChannelReceiver {
             ReceiverInner::Bounded(rx) => {
                 rx.try_recv()
                     .map_err(|e| match e {
-                        mpsc::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None),
-                        mpsc::error::TryRecvError::Disconnected => ConcurrencyError::ChannelClosed.into(),
+                        mpsc::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None).into(),
+                        mpsc::error::TryRecvError::Disconnected => ConcurrencyError::ChannelClosed.boxed(),
                     })
             }
             ReceiverInner::Unbounded(rx) => {
                 rx.try_recv()
                     .map_err(|e| match e {
-                        mpsc::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None),
-                        mpsc::error::TryRecvError::Disconnected => ConcurrencyError::ChannelClosed.into(),
+                        mpsc::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None).into(),
+                        mpsc::error::TryRecvError::Disconnected => ConcurrencyError::ChannelClosed.boxed(),
                     })
             }
             ReceiverInner::Broadcast(rx) => {
                 rx.try_recv()
                     .map_err(|e| match e {
-                        broadcast::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None),
-                        broadcast::error::TryRecvError::Closed => ConcurrencyError::ChannelClosed.into(),
+                        broadcast::error::TryRecvError::Empty => Error::runtime_error("Channel empty".to_string(), None).into(),
+                        broadcast::error::TryRecvError::Closed => ConcurrencyError::ChannelClosed.boxed(),
                         broadcast::error::TryRecvError::Lagged(n) => 
-                            Error::runtime_error(format!("Lagged behind by {} messages", n), None),
+                            Error::runtime_error(format!("Lagged behind by {n} messages"), None).into(),
                     })
             }
             ReceiverInner::Watch(rx) => {
                 match rx.has_changed() {
                     Ok(true) => Ok(rx.borrow_and_update().clone()),
-                    Ok(false) => Err(Box::new(Error::runtime_error("No new value available".to_string(), None)),
-                    Err(e) => Err(Box::new(Error::runtime_error(format!("Watch receiver error: {}", e), None)),
+                    Ok(false) => Err(Box::new(Error::runtime_error("No new value available".to_string(), None))),
+                    Err(e) => Err(Box::new(Error::runtime_error(format!("Watch receiver error: {e}"), None))),
                 }
             }
         }
@@ -402,7 +402,7 @@ impl Select {
     /// Executes the select operation.
     pub async fn execute(self) -> Result<Value> {
         if self.futures.is_empty() {
-            return Err(Box::new(Error::runtime_error("No operations in select".to_string(), None).into())
+            return Err(Box::new(Error::runtime_error("No operations in select".to_string(), None)))
         }
 
         let futures: Vec<_> = self.futures.into_iter()
@@ -435,7 +435,7 @@ impl ChannelOps {
     /// Creates a pipeline of channels connected by transformations.
     pub fn pipeline(stages: Vec<Box<dyn Fn(Value) -> Result<Value> + Send + Sync>>) -> Result<(ChannelSender, Arc<tokio::sync::Mutex<ChannelReceiver>>)> {
         if stages.is_empty() {
-            return Err(Box::new(Error::runtime_error("Empty pipeline".to_string(), None));
+            return Err(Box::new(Error::runtime_error("Empty pipeline".to_string(), None)));
         }
 
         let first_channel = Channel::unbounded()?;
@@ -460,7 +460,7 @@ impl ChannelOps {
                         Ok(value) => {
                             match stage(value) {
                                 Ok(transformed) => {
-                                    if let Err(_) = next_sender.send(transformed).await {
+                                    if next_sender.send(transformed).await.is_err() {
                                         break; // Next stage closed
                                     }
                                 }

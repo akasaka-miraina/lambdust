@@ -90,10 +90,10 @@ impl TextRegex {
     /// Creates a new regex from a pattern.
     pub fn new(pattern: &str) -> Result<Self> {
         let regex = Regex::new(pattern).map_err(|e| {
-            DiagnosticError::runtime_error(
-                format!("Invalid regex pattern: {}", e),
+            Box::new(DiagnosticError::runtime_error(
+                format!("Invalid regex pattern: {e}"),
                 None,
-            )
+            ))
         })?;
         
         Ok(Self {
@@ -157,7 +157,7 @@ impl TextRegex {
 }
 
 impl RegexFlags {
-    pub fn default() -> Self {
+    pub fn new_default() -> Self {
         Self {
             case_insensitive: false,
             multiline: false,
@@ -200,7 +200,7 @@ impl Text {
     }
 
     /// Creates a text from a string slice.
-    pub fn from_str(s: &str) -> Self {
+    pub fn from_string_slice(s: &str) -> Self {
         Self::from_string(s.to_string())
     }
 
@@ -277,15 +277,15 @@ impl Text {
     /// Concatenates this text with another.
     pub fn concat(&self, other: &Self) -> Self {
         if self.is_empty() {
-            return other.clone());
+            return other.clone();
         }
         if other.is_empty() {
-            return self.clone());
+            return self.clone();
         }
 
         let new_content = Arc::new(TextContent::Concat {
-            left: self.content.clone()),
-            right: other.content.clone()),
+            left: self.content.clone(),
+            right: other.content.clone(),
             length: self.byte_length + other.byte_length,
         });
 
@@ -506,7 +506,7 @@ impl TextContent {
     /// Converts the content to a string.
     fn as_string(&self) -> String {
         match self {
-            TextContent::Leaf(s) => s.clone()),
+            TextContent::Leaf(s) => s.clone(),
             TextContent::Concat { left, right, .. } => {
                 let mut result = left.as_string();
                 result.push_str(&right.as_string());
@@ -616,7 +616,7 @@ impl Eq for Text {}
 
 impl PartialOrd for Text {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.compare(other))
+        Some(std::cmp::Ord::cmp(self, other))
     }
 }
 
@@ -640,7 +640,7 @@ impl From<String> for Text {
 
 impl From<&str> for Text {
     fn from(s: &str) -> Self {
-        Self::from_str(s)
+        Self::from_string_slice(s)
     }
 }
 
@@ -664,10 +664,10 @@ impl TryFrom<&Value> for Text {
     fn try_from(value: &Value) -> Result<Self> {
         match value {
             Value::Literal(crate::ast::Literal::String(s)) => Ok(Text::from_string(s.clone())),
-            _ => Err(DiagnosticError::runtime_error(
+            _ => Err(Box::new(DiagnosticError::runtime_error(
                 "Expected text/string value".to_string(),
                 None,
-            ).into()),
+            ))),
         }
     }
 }
@@ -920,57 +920,58 @@ fn primitive_text(args: &[Value]) -> Result<Value> {
                 builder.push_char(*ch);
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "text constructor requires character arguments".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
     
-    Ok(builder.build)
+    Ok(builder.build().into())
 }
 
 /// make-text constructor
 fn primitive_make_text(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("make-text expects 1-2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let len = args[0].as_integer().ok_or_else(|| {
+        Box::new(
         DiagnosticError::runtime_error(
             "make-text first argument must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let ch = if args.len() > 1 {
         match &args[1] {
             Value::Literal(crate::ast::Literal::Character(c)) => *c,
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "make-text second argument must be a character".to_string(),
                     None,
-                ));
+                )));
             }
         }
     } else {
         ' '
     };
     
-    Ok(Text::repeat_char(ch, len))
+    Ok(Text::repeat_char(ch, len).into())
 }
 
 /// text? predicate
 fn primitive_text_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let is_text = matches!(args[0], Value::Literal(crate::ast::Literal::String(_)));
@@ -980,10 +981,10 @@ fn primitive_text_p(args: &[Value]) -> Result<Value> {
 /// text-null? predicate
 fn primitive_text_null_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-null? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
@@ -993,10 +994,10 @@ fn primitive_text_null_p(args: &[Value]) -> Result<Value> {
 /// text-length accessor
 fn primitive_text_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-length expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
@@ -1006,36 +1007,37 @@ fn primitive_text_length(args: &[Value]) -> Result<Value> {
 /// text-ref accessor
 fn primitive_text_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-ref expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let index = args[1].as_integer().ok_or_else(|| {
+        Box::new(
         DiagnosticError::runtime_error(
             "text-ref index must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     match text.char_at(index) {
         Some(ch) => Ok(Value::Literal(crate::ast::Literal::Character(ch))),
-        None => Err(DiagnosticError::runtime_error(
+        None => Err(Box::new(DiagnosticError::runtime_error(
             "text-ref index out of bounds".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// text=? comparison
 fn primitive_text_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "text=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = Text::try_from(&args[0])?;
@@ -1053,10 +1055,10 @@ fn primitive_text_equal(args: &[Value]) -> Result<Value> {
 /// text<? comparison
 fn primitive_text_less(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "text<? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     for window in args.windows(2) {
@@ -1073,10 +1075,10 @@ fn primitive_text_less(args: &[Value]) -> Result<Value> {
 /// text-ci=? case-insensitive comparison
 fn primitive_text_ci_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "text-ci=? requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let first = Text::try_from(&args[0])?.fold_case();
@@ -1094,7 +1096,7 @@ fn primitive_text_ci_equal(args: &[Value]) -> Result<Value> {
 /// text-append manipulation
 fn primitive_text_append(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Ok(Text::new);
+        return Ok(Text::new().into());
     }
     
     let mut result = Text::try_from(&args[0])?;
@@ -1104,32 +1106,34 @@ fn primitive_text_append(args: &[Value]) -> Result<Value> {
         result = result.append(&text);
     }
     
-    Ok(result)
+    Ok(result.into())
 }
 
 /// subtext manipulation
 fn primitive_subtext(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("subtext expects 2-3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let start = args[1].as_integer().ok_or_else(|| {
+        Box::new(
         DiagnosticError::runtime_error(
             "subtext start index must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let end = if args.len() > 2 {
         args[2].as_integer().ok_or_else(|| {
+        Box::new(
             DiagnosticError::runtime_error(
                 "subtext end index must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize
     } else {
         text.char_length()
@@ -1137,20 +1141,20 @@ fn primitive_subtext(args: &[Value]) -> Result<Value> {
     
     match text.substring(start, end) {
         Some(subtext) => Ok(subtext.into()),
-        None => Err(DiagnosticError::runtime_error(
+        None => Err(Box::new(DiagnosticError::runtime_error(
             "subtext indices out of bounds".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// text-copy operation
 fn primitive_text_copy(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-copy expects 1-3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
@@ -1160,18 +1164,20 @@ fn primitive_text_copy(args: &[Value]) -> Result<Value> {
     }
     
     let start = args[1].as_integer().ok_or_else(|| {
+        Box::new(
         DiagnosticError::runtime_error(
             "text-copy start index must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let end = if args.len() > 2 {
         args[2].as_integer().ok_or_else(|| {
+        Box::new(
             DiagnosticError::runtime_error(
                 "text-copy end index must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize
     } else {
         text.char_length()
@@ -1179,42 +1185,43 @@ fn primitive_text_copy(args: &[Value]) -> Result<Value> {
     
     match text.substring(start, end) {
         Some(copy) => Ok(copy.into()),
-        None => Err(DiagnosticError::runtime_error(
+        None => Err(Box::new(DiagnosticError::runtime_error(
             "text-copy indices out of bounds".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// string->text conversion
 fn primitive_string_to_text(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("string->text expects 1-3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let s = args[0].as_string().ok_or_else(|| {
+        Box::new(
         DiagnosticError::runtime_error(
             "string->text first argument must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     // For now, we just convert the entire string
     // In a full implementation, we'd handle start/end indices
-    let text = Text::from_str(s);
-    Ok(text)
+    let text = Text::from_string_slice(s);
+    Ok(text.into())
 }
 
 /// text->string conversion
 fn primitive_text_to_string(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text->string expects 1-3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
@@ -1227,10 +1234,10 @@ fn primitive_text_to_string(args: &[Value]) -> Result<Value> {
 /// text->list conversion
 fn primitive_text_to_list(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text->list expects 1-3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
@@ -1246,17 +1253,18 @@ fn primitive_text_to_list(args: &[Value]) -> Result<Value> {
 /// list->text conversion
 fn primitive_list_to_text(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("list->text expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list = args[0].as_list().ok_or_else(|| {
+        Box::new(
         DiagnosticError::runtime_error(
             "list->text argument must be a list".to_string(),
             None,
-        )
+        ))
     })?;
     
     let mut builder = TextBuilder::new();
@@ -1267,39 +1275,40 @@ fn primitive_list_to_text(args: &[Value]) -> Result<Value> {
                 builder.push_char(ch);
             }
             _ => {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     "list->text list must contain only characters".to_string(),
                     None,
-                ));
+                )));
             }
         }
     }
     
-    Ok(builder.build)
+    Ok(builder.build().into())
 }
 
 /// text-tabulate constructor
 fn primitive_text_tabulate(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-tabulate expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let len = args[0].as_integer().ok_or_else(|| {
+        Box::new(
         DiagnosticError::runtime_error(
             "text-tabulate first argument must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let proc = &args[1];
     if !proc.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "text-tabulate second argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // For now, we'll create a simple implementation
@@ -1307,59 +1316,59 @@ fn primitive_text_tabulate(args: &[Value]) -> Result<Value> {
     let mut builder = TextBuilder::new();
     for i in 0..len {
         // This is a simplified version - would need proper procedure call
-        builder.push_char(('a' as u8 + (i % 26) as u8) as char);
+        builder.push_char((b'a' + (i % 26) as u8) as char);
     }
     
-    Ok(builder.build)
+    Ok(builder.build().into())
 }
 
 /// Unicode normalization functions
 fn primitive_text_normalize_nfc(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-normalize-nfc expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.normalize(NormalizationForm::NFC))
+    Ok(text.normalize(NormalizationForm::NFC).into())
 }
 
 fn primitive_text_normalize_nfd(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-normalize-nfd expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.normalize(NormalizationForm::NFD))
+    Ok(text.normalize(NormalizationForm::NFD).into())
 }
 
 fn primitive_text_normalize_nfkc(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-normalize-nfkc expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.normalize(NormalizationForm::NFKC))
+    Ok(text.normalize(NormalizationForm::NFKC).into())
 }
 
 fn primitive_text_normalize_nfkd(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-normalize-nfkd expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.normalize(NormalizationForm::NFKD))
+    Ok(text.normalize(NormalizationForm::NFKD).into())
 }
 
 #[cfg(test)]
@@ -1368,7 +1377,7 @@ mod tests {
 
     #[test]
     fn test_text_creation() {
-        let text = Text::from_str("Hello, 世界!");
+        let text = Text::from_string_slice("Hello, 世界!");
         assert_eq!(text.as_string(), "Hello, 世界!");
         assert_eq!(text.char_length(), 9);
         assert!(!text.is_empty());
@@ -1376,8 +1385,8 @@ mod tests {
 
     #[test]
     fn test_text_operations() {
-        let t1 = Text::from_str("Hello");
-        let t2 = Text::from_str(", World!");
+        let t1 = Text::from_string_slice("Hello");
+        let t2 = Text::from_string_slice(", World!");
         let result = t1.concat(&t2);
         
         assert_eq!(result.as_string(), "Hello, World!");
@@ -1386,7 +1395,7 @@ mod tests {
 
     #[test]
     fn test_text_substring() {
-        let text = Text::from_str("Hello, World!");
+        let text = Text::from_string_slice("Hello, World!");
         let sub = text.substring(0, 5).unwrap();
         
         assert_eq!(sub.as_string(), "Hello");
@@ -1395,7 +1404,7 @@ mod tests {
 
     #[test]
     fn test_unicode_normalization() {
-        let text = Text::from_str("é"); // composed
+        let text = Text::from_string_slice("é"); // composed
         let nfd = text.normalize(NormalizationForm::NFD);
         
         // NFD should have more characters (base + combining)
@@ -1418,9 +1427,9 @@ mod tests {
 
     #[test]
     fn test_text_comparison() {
-        let t1 = Text::from_str("abc");
-        let t2 = Text::from_str("def");
-        let t3 = Text::from_str("ABC");
+        let t1 = Text::from_string_slice("abc");
+        let t2 = Text::from_string_slice("def");
+        let t3 = Text::from_string_slice("ABC");
         
         assert_eq!(t1.compare(&t2), Ordering::Less);
         assert_eq!(t1.compare_ci(&t3), Ordering::Equal);

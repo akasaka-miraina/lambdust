@@ -1,7 +1,0 @@
-(define p1 (make-promise-value 42))
-(define p2 (make-promise p1))
-(define p3 (make-promise p2))
-(define p4 (make-promise p3))
-(define p5 (make-promise p4))
-(display (force p5))
-(newline)

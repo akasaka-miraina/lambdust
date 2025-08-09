@@ -76,10 +76,15 @@ pub enum NumericValue {
 /// Numeric type classification for the tower
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NumericType {
+    /// Machine-sized integer (i64)
     Integer = 0,
+    /// Arbitrary precision integer
     BigInteger = 1,
+    /// Exact rational number (numerator/denominator)
     Rational = 2,
+    /// IEEE 754 double precision floating point
     Real = 3,
+    /// Complex number with real and imaginary parts
     Complex = 4,
 }
 
@@ -279,17 +284,17 @@ impl NumericValue {
 impl fmt::Display for NumericValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Integer(n) => write!(f, "{}", n),
-            Self::BigInteger(n) => write!(f, "{}", n),
-            Self::Rational(r) => write!(f, "{}", r),
+            Self::Integer(n) => write!(f, "{n}"),
+            Self::BigInteger(n) => write!(f, "{n}"),
+            Self::Rational(r) => write!(f, "{r}"),
             Self::Real(r) => {
                 if r.fract() == 0.0 && r.is_finite() {
                     write!(f, "{}.0", *r as i64)
                 } else {
-                    write!(f, "{}", r)
+                    write!(f, "{r}")
                 }
             }
-            Self::Complex(c) => write!(f, "{}", c),
+            Self::Complex(c) => write!(f, "{c}"),
         }
     }
 }
@@ -315,7 +320,7 @@ mod tests {
     fn test_numeric_value_creation() {
         let int_val = NumericValue::integer(42);
         let rat_val = NumericValue::rational(3, 4);
-        let real_val = NumericValue::real(3.14);
+        let real_val = NumericValue::real(std::f64::consts::PI);
         let complex_val = NumericValue::complex(1.0, 2.0);
 
         assert_eq!(int_val.numeric_type(), NumericType::Integer);
@@ -328,7 +333,7 @@ mod tests {
     fn test_numeric_predicates() {
         let int_val = NumericValue::integer(42);
         let rat_val = NumericValue::rational(3, 4);
-        let real_val = NumericValue::real(3.14);
+        let real_val = NumericValue::real(std::f64::consts::PI);
         let complex_val = NumericValue::complex(1.0, 2.0);
 
         assert!(int_val.is_exact());

@@ -63,7 +63,7 @@ pub struct EvaluationStrategyConfiguration {
 }
 
 /// Performance metrics collector for evaluation strategy optimization
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct PerformanceMetricsCollector {
     /// Metrics for standard evaluator
     standard_metrics: EvaluatorMetrics,
@@ -76,7 +76,7 @@ pub struct PerformanceMetricsCollector {
 }
 
 /// Performance metrics for an evaluator
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct EvaluatorMetrics {
     /// Total number of evaluations
     pub evaluation_count: u64,
@@ -101,7 +101,7 @@ pub struct EvaluatorMetrics {
 }
 
 /// Memory usage statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct MemoryUsageStats {
     /// Peak memory usage in bytes
     pub peak_memory_bytes: usize,
@@ -117,7 +117,7 @@ pub struct MemoryUsageStats {
 }
 
 /// Feature usage statistics
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FeatureUsageStats {
     /// Number of call/cc uses
     pub call_cc_count: u64,
@@ -155,7 +155,7 @@ pub struct MetricsConfiguration {
 }
 
 /// Expression analyzer that determines the best evaluation strategy
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ExpressionAnalyzer {
     /// Analysis configuration
     config: AnalysisConfiguration,
@@ -297,20 +297,27 @@ pub struct MonadicEvaluatorAdapter {
 pub enum UnifiedEvaluationResult {
     /// Result from standard evaluator
     Standard {
+        /// The evaluated value.
         value: Value,
+        /// Performance and evaluation metrics.
         metrics: StandardEvaluationMetrics,
     },
     
     /// Result from monadic evaluator
     Monadic {
+        /// The monadic computation result.
         computation: MonadicComputation<Value>,
-        result: MonadicEvaluationResult,
+        /// Detailed evaluation result with metrics.
+        result: Box<MonadicEvaluationResult>,
     },
     
     /// Result from parallel evaluation (both evaluators)
     Parallel {
+        /// Result from the standard evaluator.
         standard_result: Value,
+        /// Result from the monadic evaluator.
         monadic_result: MonadicComputation<Value>,
+        /// Performance comparison between evaluators.
         performance_comparison: PerformanceComparison,
     },
 }
@@ -510,7 +517,7 @@ impl HybridEvaluator {
                 Err(Box::new(Error::runtime_error(
                     "Unexpected result types from parallel evaluation".to_string(),
                     None,
-                ).boxed())
+                )))
             }
         }
     }
@@ -596,8 +603,8 @@ impl ExpressionAnalyzer {
         
         ExpressionSignature {
             structure_hash: std::hash::Hasher::finish(&hasher),
-            depth: self.calculate_depth(&expr.inner),
-            node_count: self.count_nodes(&expr.inner),
+            depth: Self::calculate_depth(&expr.inner),
+            node_count: Self::count_nodes(&expr.inner),
             feature_flags: self.extract_feature_flags(&expr.inner),
         }
     }
@@ -609,7 +616,7 @@ impl ExpressionAnalyzer {
         let mut effect_complexity = 0.0;
         
         // Analyze for specific features
-        if self.contains_call_cc(&expr.inner) {
+        if Self::contains_call_cc(&expr.inner) {
             detected_features.push(DetectedFeature::CallCC);
             effect_complexity += 0.8;
             reasoning.push("Contains call/cc - high effect complexity".to_string());
@@ -642,7 +649,7 @@ impl ExpressionAnalyzer {
             EvaluationStrategy::Standard
         };
         
-        let confidence = if effect_complexity > 0.8 || effect_complexity < 0.2 {
+        let confidence = if !(0.2..=0.8).contains(&effect_complexity) {
             0.9 // High confidence for clear cases
         } else {
             0.5 // Lower confidence for borderline cases
@@ -664,20 +671,20 @@ impl ExpressionAnalyzer {
     }
     
     /// Check if expression contains call/cc
-    fn contains_call_cc(&self, expr: &Expr) -> bool {
+    fn contains_call_cc(expr: &Expr) -> bool {
         match expr {
             Expr::CallCC(_) => true,
             Expr::Application { operator, operands } => {
-                self.contains_call_cc(&operator.inner) ||
-                operands.iter().any(|arg| self.contains_call_cc(&arg.inner))
+                Self::contains_call_cc(&operator.inner) ||
+                operands.iter().any(|arg| Self::contains_call_cc(&arg.inner))
             }
             Expr::If { test: cond, consequent: then_branch, alternative: else_branch } => {
-                self.contains_call_cc(&cond.inner) ||
-                self.contains_call_cc(&then_branch.inner) ||
-                else_branch.as_ref().map_or(false, |e| self.contains_call_cc(&e.inner))
+                Self::contains_call_cc(&cond.inner) ||
+                Self::contains_call_cc(&then_branch.inner) ||
+                else_branch.as_ref().is_some_and(|e| Self::contains_call_cc(&e.inner))
             }
             Expr::Lambda { body, .. } => {
-                body.iter().any(|e| self.contains_call_cc(&e.inner))
+                body.iter().any(|e| Self::contains_call_cc(&e.inner))
             }
             _ => false,
         }
@@ -712,28 +719,28 @@ impl ExpressionAnalyzer {
     }
     
     /// Calculate the depth of an expression tree
-    fn calculate_depth(&self, expr: &Expr) -> usize {
+    fn calculate_depth(expr: &Expr) -> usize {
         match expr {
             Expr::Application { operator, operands } => {
-                let op_depth = self.calculate_depth(&operator.inner);
+                let op_depth = Self::calculate_depth(&operator.inner);
                 let max_operand_depth = operands.iter()
-                    .map(|arg| self.calculate_depth(&arg.inner))
+                    .map(|arg| Self::calculate_depth(&arg.inner))
                     .max()
                     .unwrap_or(0);
                 1 + op_depth.max(max_operand_depth)
             }
             
             Expr::If { test: cond, consequent: then_branch, alternative: else_branch } => {
-                let cond_depth = self.calculate_depth(&cond.inner);
-                let then_depth = self.calculate_depth(&then_branch.inner);
+                let cond_depth = Self::calculate_depth(&cond.inner);
+                let then_depth = Self::calculate_depth(&then_branch.inner);
                 let else_depth = else_branch.as_ref()
-                    .map_or(0, |e| self.calculate_depth(&e.inner));
+                    .map_or(0, |e| Self::calculate_depth(&e.inner));
                 1 + cond_depth.max(then_depth.max(else_depth))
             }
             
             Expr::Lambda { body, .. } => {
                 1 + body.iter()
-                    .map(|e| self.calculate_depth(&e.inner))
+                    .map(|e| Self::calculate_depth(&e.inner))
                     .max()
                     .unwrap_or(0)
             }
@@ -743,21 +750,21 @@ impl ExpressionAnalyzer {
     }
     
     /// Count the number of nodes in an expression tree
-    fn count_nodes(&self, expr: &Expr) -> usize {
+    fn count_nodes(expr: &Expr) -> usize {
         match expr {
             Expr::Application { operator, operands } => {
-                1 + self.count_nodes(&operator.inner) +
-                operands.iter().map(|arg| self.count_nodes(&arg.inner)).sum::<usize>()
+                1 + Self::count_nodes(&operator.inner) +
+                operands.iter().map(|arg| Self::count_nodes(&arg.inner)).sum::<usize>()
             }
             
             Expr::If { test: cond, consequent: then_branch, alternative: else_branch } => {
-                1 + self.count_nodes(&cond.inner) + 
-                self.count_nodes(&then_branch.inner) +
-                else_branch.as_ref().map_or(0, |e| self.count_nodes(&e.inner))
+                1 + Self::count_nodes(&cond.inner) + 
+                Self::count_nodes(&then_branch.inner) +
+                else_branch.as_ref().map_or(0, |e| Self::count_nodes(&e.inner))
             }
             
             Expr::Lambda { body, .. } => {
-                1 + body.iter().map(|e| self.count_nodes(&e.inner)).sum::<usize>()
+                1 + body.iter().map(|e| Self::count_nodes(&e.inner)).sum::<usize>()
             }
             
             _ => 1,
@@ -768,7 +775,7 @@ impl ExpressionAnalyzer {
     fn extract_feature_flags(&self, expr: &Expr) -> u32 {
         let mut flags = 0u32;
         
-        if self.contains_call_cc(expr) { flags |= 1; }
+        if Self::contains_call_cc(expr) { flags |= 1; }
         if self.contains_io_operations(expr) { flags |= 2; }
         if self.contains_state_operations(expr) { flags |= 4; }
         
@@ -800,7 +807,7 @@ impl MonadicEvaluatorAdapter {
     pub async fn evaluate(&mut self, expr: &Spanned<Expr>, env: Rc<Environment>) -> Result<UnifiedEvaluationResult> {
         let context = EvaluationContext::empty(env.clone());
         let input = MonadicEvaluationInput {
-            expression: expr.clone()),
+            expression: expr.clone(),
             environment: env,
             expected_monad: None,
             context,
@@ -826,8 +833,8 @@ impl MonadicEvaluatorAdapter {
         };
         
         Ok(UnifiedEvaluationResult::Monadic {
-            computation: result.computation.clone()),
-            result,
+            computation: result.computation.clone(),
+            result: Box::new(result),
         })
     }
 }
@@ -969,7 +976,7 @@ mod tests {
             span: Span::default(),
         }));
         
-        assert!(analyzer.contains_call_cc(&call_cc_expr));
+        assert!(ExpressionAnalyzer::contains_call_cc(&call_cc_expr));
     }
     
     #[test]

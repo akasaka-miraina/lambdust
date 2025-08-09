@@ -30,7 +30,7 @@ pub struct SRFI23ErrorObject {
 impl SRFI23ErrorObject {
     /// Creates a new SRFI-23 compliant error object
     pub fn new(message: String, irritants: Vec<Value>) -> Self {
-        let error_object = ErrorObject::new(message.clone()), irritants.clone());
+        let error_object = ErrorObject::new(message.clone(), irritants.clone());
         Self {
             message,
             irritants,
@@ -42,26 +42,26 @@ impl SRFI23ErrorObject {
     pub fn validate_message(value: &Value) -> Result<String> {
         match value {
             Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-            _ => Err(DiagnosticError::runtime_error(
+            _ => Err(Box::new(DiagnosticError::runtime_error(
                 "SRFI-23 error: message must be a string".to_string(),
                 None,
-            )),
+            )))
         }
     }
     
     /// Creates exception object from SRFI-23 error
     pub fn to_exception(&self) -> ExceptionObject {
-        ExceptionObject::error(self.message.clone()), self.irritants.clone())
+        ExceptionObject::error(self.message.clone(), self.irritants.clone())
     }
 }
 
 /// Enhanced SRFI-23 error procedure implementation  
 pub fn enhanced_error_procedure(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "SRFI-23 error: error procedure requires at least one argument (message)".to_string(),
             None,
-        ));
+        )));
     }
     
     // First argument must be a string (SRFI-23 requirement)
@@ -75,16 +75,16 @@ pub fn enhanced_error_procedure(args: &[Value]) -> Result<Value> {
     
     // Convert to exception and raise it
     let exception = srfi23_error.to_exception();
-    Err(DiagnosticError::exception(exception))
+    Err(Box::new(DiagnosticError::exception(exception)))
 }
 
 /// Enhanced error? predicate for SRFI-23 compliance
 pub fn enhanced_error_predicate(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("error? expects exactly 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let is_error = match &args[0] {
@@ -99,10 +99,10 @@ pub fn enhanced_error_predicate(args: &[Value]) -> Result<Value> {
 /// Enhanced error-object-message accessor for SRFI-23 compliance
 pub fn enhanced_error_object_message(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("error-object-message expects exactly 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -110,20 +110,20 @@ pub fn enhanced_error_object_message(args: &[Value]) -> Result<Value> {
             // Return the message as a string value
             Ok(Value::string(error.message.clone()))
         },
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "SRFI-23 error: error-object-message requires an error object".to_string(),
             None,
-        )),
+        )))
     }
 }
 
 /// Enhanced error-object-irritants accessor for SRFI-23 compliance  
 pub fn enhanced_error_object_irritants(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("error-object-irritants expects exactly 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -131,20 +131,20 @@ pub fn enhanced_error_object_irritants(args: &[Value]) -> Result<Value> {
             // Return the irritants as a proper list
             Ok(Value::list(error.irritants.clone()))
         },
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "SRFI-23 error: error-object-irritants requires an error object".to_string(),
             None,
-        )),
+        )))
     }
 }
 
 /// Enhanced raise procedure with better error object handling
 pub fn enhanced_raise_procedure(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("raise expects exactly 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let obj = &args[0];
@@ -153,15 +153,15 @@ pub fn enhanced_raise_procedure(args: &[Value]) -> Result<Value> {
     let exception = match obj {
         Value::ErrorObject(_) => {
             // Already an error object, create exception directly
-            ExceptionObject::new("error".to_string(), obj.clone()), false)
+            ExceptionObject::new("error".to_string(), obj.clone(), false)
         },
         _ => {
             // General object, create general exception
-            ExceptionObject::new("exception".to_string(), obj.clone()), false)
+            ExceptionObject::new("exception".to_string(), obj.clone(), false)
         }
     };
     
-    Err(DiagnosticError::exception(exception))
+    Err(Box::new(DiagnosticError::exception(exception)))
 }
 
 /// Creates enhanced SRFI-23 bindings in the environment
@@ -242,7 +242,7 @@ mod tests {
             Value::symbol(crate::utils::intern_symbol("symbol")),
         ];
         
-        let error_obj = SRFI23ErrorObject::new(message.clone()), irritants.clone());
+        let error_obj = SRFI23ErrorObject::new(message.clone(), irritants.clone());
         
         assert_eq!(error_obj.message, message);
         assert_eq!(error_obj.irritants, irritants);
@@ -264,9 +264,11 @@ mod tests {
         assert!(result.is_err());
         
         // Check error message contains SRFI-23 reference
-        if let Err(DiagnosticError::RuntimeError { message, .. }) = result {
-            assert!(message.contains("SRFI-23"));
-            assert!(message.contains("string"));
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::RuntimeError { message, .. } = boxed_err.as_ref() {
+                assert!(message.contains("SRFI-23"));
+                assert!(message.contains("string"));
+            }
         }
     }
     
@@ -277,12 +279,14 @@ mod tests {
         let result = enhanced_error_procedure(&args);
         assert!(result.is_err());
         
-        if let Err(DiagnosticError::Exception { exception, .. }) = result {
-            assert_eq!(exception.exception_type, "error");
-            assert_eq!(exception.message, Some("Test error".to_string()));
-            assert!(exception.irritants.is_empty());
-        } else {
-            panic!("Expected exception error");
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.exception_type, "error");
+                assert_eq!(exception.message, Some("Test error".to_string()));
+                assert!(exception.irritants.is_empty());
+            } else {
+                panic!("Expected exception error");
+            }
         }
         
         // Test with message and irritants
@@ -294,9 +298,11 @@ mod tests {
         let result = enhanced_error_procedure(&args);
         assert!(result.is_err());
         
-        if let Err(DiagnosticError::Exception { exception, .. }) = result {
-            assert_eq!(exception.message, Some("Error with irritants".to_string()));
-            assert_eq!(exception.irritants.len(), 2);
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.message, Some("Error with irritants".to_string()));
+                assert_eq!(exception.irritants.len(), 2);
+            }
         }
     }
     
@@ -306,9 +312,11 @@ mod tests {
         let result = enhanced_error_procedure(&[]);
         assert!(result.is_err());
         
-        if let Err(DiagnosticError::RuntimeError { message, .. }) = result {
-            assert!(message.contains("SRFI-23"));
-            assert!(message.contains("at least one argument"));
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::RuntimeError { message, .. } = boxed_err.as_ref() {
+                assert!(message.contains("SRFI-23"));
+                assert!(message.contains("at least one argument"));
+            }
         }
         
         // Test with non-string message
@@ -316,9 +324,11 @@ mod tests {
         let result = enhanced_error_procedure(&args);
         assert!(result.is_err());
         
-        if let Err(DiagnosticError::RuntimeError { message, .. }) = result {
-            assert!(message.contains("SRFI-23"));
-            assert!(message.contains("string"));
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::RuntimeError { message, .. } = boxed_err.as_ref() {
+                assert!(message.contains("SRFI-23"));
+                assert!(message.contains("string"));
+            }
         }
     }
     
@@ -355,7 +365,7 @@ mod tests {
         )));
         
         // Test message accessor
-        let result = enhanced_error_object_message(&[error_obj.clone())]);
+        let result = enhanced_error_object_message(&[error_obj.clone()]);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), Value::string("test message"));
         
@@ -381,8 +391,10 @@ mod tests {
         let result = enhanced_raise_procedure(&[error_obj]);
         assert!(result.is_err());
         
-        if let Err(DiagnosticError::Exception { exception, .. }) = result {
-            assert_eq!(exception.exception_type, "error");
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.exception_type, "error");
+            }
         }
         
         // Test raising general object
@@ -390,8 +402,10 @@ mod tests {
         let result = enhanced_raise_procedure(&[general_obj]);
         assert!(result.is_err());
         
-        if let Err(DiagnosticError::Exception { exception, .. }) = result {
-            assert_eq!(exception.exception_type, "exception");
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.exception_type, "exception");
+            }
         }
     }
 }

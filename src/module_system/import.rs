@@ -36,11 +36,11 @@ fn apply_only_import(
     
     for symbol in symbols {
         if let Some(value) = exports.get(symbol) {
-            result.insert(symbol.clone()), value.clone());
+            result.insert(symbol.clone(), value.clone());
         } else {
             return Err(Box::new(Error::from(ModuleError::ImportConflict(
-                format!("Symbol '{}' not found in module exports", symbol)
-            )));
+                format!("Symbol '{symbol}' not found in module exports")
+            ))));
         }
     }
     
@@ -56,7 +56,7 @@ fn apply_except_import(
     
     for (symbol, value) in exports {
         if !except_symbols.contains(symbol) {
-            result.insert(symbol.clone()), value.clone());
+            result.insert(symbol.clone(), value.clone());
         }
     }
     
@@ -72,11 +72,11 @@ fn apply_rename_import(
     
     for (original_name, new_name) in rename_map {
         if let Some(value) = exports.get(original_name) {
-            result.insert(new_name.clone()), value.clone());
+            result.insert(new_name.clone(), value.clone());
         } else {
             return Err(Box::new(Error::from(ModuleError::ImportConflict(
-                format!("Symbol '{}' not found in module exports", original_name)
-            )));
+                format!("Symbol '{original_name}' not found in module exports")
+            ))));
         }
     }
     
@@ -91,7 +91,7 @@ fn apply_prefix_import(
     let mut result = HashMap::new();
     
     for (symbol, value) in exports {
-        let prefixed_name = format!("{}{}", prefix, symbol);
+        let prefixed_name = format!("{prefix}{symbol}");
         result.insert(prefixed_name, value.clone());
     }
     
@@ -104,7 +104,7 @@ pub fn parse_import_spec(import_form: &[Spanned<Expr>]) -> Result<ImportSpec> {
         return Err(Box::new(Error::syntax_error(
             "Empty import specification".to_string(),
             None,
-        ));
+        )));
     }
 
     // First element should be the module identifier
@@ -138,19 +138,19 @@ fn extract_module_name(expr: &Spanned<Expr>) -> Result<String> {
                     _ => return Err(Box::new(Error::syntax_error(
                         "Module name must contain only symbols".to_string(),
                         Some(element.span),
-                    )),
+                    ))),
                 }
             }
             Ok(format!("({})", parts.join(" ")))
         }
         Expr::Symbol(symbol) => {
             // Single symbol module name
-            Ok(format!("({})", symbol))
+            Ok(format!("({symbol})"))
         }
         _ => Err(Box::new(Error::syntax_error(
             "Invalid module name format".to_string(),
             Some(expr.span),
-        )),
+        ))),
     }
 }
 
@@ -162,7 +162,7 @@ fn parse_import_config(config_forms: &[Spanned<Expr>]) -> Result<ImportConfig> {
         return Err(Box::new(Error::syntax_error(
             "Import configuration must be a single form".to_string(),
             None,
-        ));
+        )));
     }
 
     match &config_forms[0].inner {
@@ -175,21 +175,21 @@ fn parse_import_config(config_forms: &[Spanned<Expr>]) -> Result<ImportConfig> {
                         "rename" => parse_rename_config(&elements[1..]),
                         "prefix" => parse_prefix_config(&elements[1..]),
                         _ => Err(Box::new(Error::syntax_error(
-                            format!("Unknown import keyword: {}", keyword),
+                            format!("Unknown import keyword: {keyword}"),
                             Some(elements[0].span),
-                        )),
+                        ))),
                     }
                 }
                 _ => Err(Box::new(Error::syntax_error(
                     "Import configuration must start with a keyword".to_string(),
                     Some(elements[0].span),
-                )),
+                ))),
             }
         }
         _ => Err(Box::new(Error::syntax_error(
             "Import configuration must be a list".to_string(),
             Some(config_forms[0].span),
-        )),
+        ))),
     }
 }
 
@@ -203,7 +203,7 @@ fn parse_only_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
             _ => return Err(Box::new(Error::syntax_error(
                 "Only configuration must contain only symbols".to_string(),
                 Some(element.span),
-            )),
+            ))),
         }
     }
     
@@ -220,7 +220,7 @@ fn parse_except_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
             _ => return Err(Box::new(Error::syntax_error(
                 "Except configuration must contain only symbols".to_string(),
                 Some(element.span),
-            )),
+            ))),
         }
     }
     
@@ -235,38 +235,38 @@ fn parse_rename_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
         match &element.inner {
             Expr::Application { operator, operands } if operands.len() == 1 => {
                 let original = match &operator.inner {
-                    Expr::Identifier(symbol) => symbol.clone()),
+                    Expr::Identifier(symbol) => symbol.clone(),
                     _ => return Err(Box::new(Error::syntax_error(
                         "Rename pair must contain symbols".to_string(),
                         Some(operator.span),
-                    )),
+                    ))),
                 };
                 
                 let new_name = match &operands[0].inner {
-                    Expr::Identifier(symbol) => symbol.clone()),
+                    Expr::Identifier(symbol) => symbol.clone(),
                     _ => return Err(Box::new(Error::syntax_error(
                         "Rename pair must contain symbols".to_string(),
                         Some(operands[0].span),
-                    )),
+                    ))),
                 };
                 
                 rename_map.insert(original, new_name);
             }
             Expr::Pair { car, cdr } => {
                 let original = match &car.inner {
-                    Expr::Identifier(symbol) => symbol.clone()),
+                    Expr::Identifier(symbol) => symbol.clone(),
                     _ => return Err(Box::new(Error::syntax_error(
                         "Rename pair must contain symbols".to_string(),
                         Some(car.span),
-                    )),
+                    ))),
                 };
                 
                 let new_name = match &cdr.inner {
-                    Expr::Identifier(symbol) => symbol.clone()),
+                    Expr::Identifier(symbol) => symbol.clone(),
                     _ => return Err(Box::new(Error::syntax_error(
                         "Rename pair must contain symbols".to_string(),
                         Some(cdr.span),
-                    )),
+                    ))),
                 };
                 
                 rename_map.insert(original, new_name);
@@ -274,7 +274,7 @@ fn parse_rename_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
             _ => return Err(Box::new(Error::syntax_error(
                 "Rename configuration must contain pairs of symbols".to_string(),
                 Some(element.span),
-            )),
+            ))),
         }
     }
     
@@ -287,7 +287,7 @@ fn parse_prefix_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
         return Err(Box::new(Error::syntax_error(
             "Prefix configuration must contain exactly one symbol".to_string(),
             None,
-        ));
+        )));
     }
     
     match &elements[0].inner {
@@ -295,7 +295,7 @@ fn parse_prefix_config(elements: &[Spanned<Expr>]) -> Result<ImportConfig> {
         _ => Err(Box::new(Error::syntax_error(
             "Prefix must be a symbol".to_string(),
             Some(elements[0].span),
-        )),
+        ))),
     }
 }
 
@@ -309,7 +309,7 @@ pub fn validate_import_spec(spec: &ImportSpec) -> Result<()> {
                 return Err(Box::new(Error::syntax_error(
                     "Import configuration cannot be empty".to_string(),
                     None,
-                ));
+                )));
             }
         }
         ImportConfig::Rename(rename_map) => {
@@ -317,7 +317,7 @@ pub fn validate_import_spec(spec: &ImportSpec) -> Result<()> {
                 return Err(Box::new(Error::syntax_error(
                     "Rename configuration cannot be empty".to_string(),
                     None,
-                ));
+                )));
             }
             
             // Check for duplicate target names
@@ -325,9 +325,9 @@ pub fn validate_import_spec(spec: &ImportSpec) -> Result<()> {
             for target in rename_map.values() {
                 if !target_names.insert(target) {
                     return Err(Box::new(Error::syntax_error(
-                        format!("Duplicate rename target: {}", target),
+                        format!("Duplicate rename target: {target}"),
                         None,
-                    ));
+                    )));
                 }
             }
         }
@@ -336,7 +336,7 @@ pub fn validate_import_spec(spec: &ImportSpec) -> Result<()> {
                 return Err(Box::new(Error::syntax_error(
                     "Prefix cannot be empty".to_string(),
                     None,
-                ));
+                )));
             }
         }
         ImportConfig::All => {
@@ -359,11 +359,11 @@ pub fn merge_import_bindings(
                 // Check if it's the same value (allowing re-import of same binding)
                 if !values_equivalent(existing_value, value) {
                     return Err(Box::new(Error::from(ModuleError::ImportConflict(
-                        format!("Symbol '{}' imported from multiple modules with different values", symbol)
-                    )));
+                        format!("Symbol '{symbol}' imported from multiple modules with different values")
+                    ))));
                 }
             } else {
-                result.insert(symbol.clone()), value.clone());
+                result.insert(symbol.clone(), value.clone());
             }
         }
     }

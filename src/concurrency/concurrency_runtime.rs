@@ -21,7 +21,7 @@ impl ConcurrencyRuntime {
             Arc::new(ConcurrencyRuntime {
                 handle: tokio::runtime::Handle::current(),
             })
-        }).clone())
+        }).clone()
     }
 
     /// Gets the tokio runtime handle.

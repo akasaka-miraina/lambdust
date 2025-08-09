@@ -97,7 +97,7 @@ impl TypeClass {
     
     /// Adds a superclass.
     pub fn with_superclass(mut self, superclass: impl Into<String>) -> Self {
-        self.superclasses.push(superclass.into())
+        self.superclasses.push(superclass.into());
         self
     }
     
@@ -137,8 +137,8 @@ impl TypeClass {
         
         for superclass_name in &self.superclasses {
             constraints.push(Constraint {
-                class: superclass_name.clone()),
-                type_: type_.clone()),
+                class: superclass_name.clone(),
+                type_: type_.clone(),
             });
             
             // Add transitive superclass constraints
@@ -208,13 +208,13 @@ impl TypeClassEnv {
     
     /// Adds a type class definition.
     pub fn add_class(&mut self, class: TypeClass) {
-        let name = class.name.clone());
+        let name = class.name.clone();
         self.classes.insert(name, class);
     }
     
     /// Adds a type class instance.
     pub fn add_instance(&mut self, instance: TypeClassInstance) {
-        let class_name = instance.class.clone());
+        let class_name = instance.class.clone();
         self.instances
             .entry(class_name)
             .or_default()
@@ -242,7 +242,7 @@ impl TypeClassEnv {
             return Err(Box::new(Error::type_error(
                 format!("Recursive constraint resolution for {}", constraint.class),
                 Span::new(0, 0),
-            ));
+            )));
         }
         
         context.resolving.push(constraint.clone());
@@ -273,7 +273,7 @@ impl TypeClassEnv {
         Err(Box::new(Error::type_error(
             format!("No instance of {} for type {}", constraint.class, constraint.type_),
             Span::new(0, 0),
-        ))
+        )))
     }
     
     /// Adds built-in type classes.

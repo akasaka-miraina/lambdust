@@ -41,8 +41,8 @@ impl BytecodeEngine {
         
         match execution_result {
             ExecutionResult::Value(value) => Ok(value),
-            ExecutionResult::Error(error) => Err(error),
-            ExecutionResult::Yield(_) => Err(Box::new(Error::runtime_error("Unexpected yield in top-level execution".to_string(), None)),
+            ExecutionResult::Error(error) => Err(error.boxed()),
+            ExecutionResult::Yield(_) => Err(Box::new(Error::runtime_error("Unexpected yield in top-level execution".to_string(), None))),
         }
     }
     

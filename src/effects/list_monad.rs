@@ -61,10 +61,10 @@ impl<T: fmt::Debug> fmt::Debug for ListImpl<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             ListImpl::Empty => write!(f, "Empty"),
-            ListImpl::Single(t) => write!(f, "Single({:?})", t),
-            ListImpl::Multiple(vec) => write!(f, "Multiple({:?})", vec),
+            ListImpl::Single(t) => write!(f, "Single({t:?})"),
+            ListImpl::Multiple(vec) => write!(f, "Multiple({vec:?})"),
             ListImpl::Lazy(_) => write!(f, "Lazy(<function>)"),
-            ListImpl::Concat(left, right) => write!(f, "Concat({:?}, {:?})", left, right),
+            ListImpl::Concat(left, right) => write!(f, "Concat({left:?}, {right:?})"),
         }
     }
 }
@@ -81,8 +81,8 @@ where
             (ListImpl::Concat(a1, a2), ListImpl::Concat(b1, b2)) => a1 == b1 && a2 == b2,
             // For lazy computations, we need to force evaluation to compare
             _ => {
-                let self_vec = List { inner: self.clone()) }.to_vec();
-                let other_vec = List { inner: other.clone()) }.to_vec();
+                let self_vec = List { inner: self.clone() }.to_vec();
+                let other_vec = List { inner: other.clone() }.to_vec();
                 self_vec == other_vec
             },
         }
@@ -153,7 +153,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
     }
     
     /// Create a list from an iterator (eager evaluation)
-    pub fn from_iter<I>(iter: I) -> Self
+    pub fn from_iterator<I>(iter: I) -> Self
     where
         I: IntoIterator<Item = T>,
     {
@@ -210,8 +210,8 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
                 List::concat_many(results)
             },
             ListImpl::Lazy(computation) => {
-                let f_clone = f.clone());
-                let comp_clone = computation.clone());
+                let f_clone = f.clone();
+                let comp_clone = computation.clone();
                 List { 
                     inner: ListImpl::Lazy(Arc::new(move || {
                         List { inner: comp_clone() }.bind(f_clone.clone()).inner
@@ -219,8 +219,8 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
                 }
             },
             ListImpl::Concat(left, right) => {
-                let left_result = left.as_ref().clone()).bind(f.clone());
-                let right_result = right.as_ref().clone()).bind(f);
+                let left_result = left.as_ref().clone().bind(f.clone());
+                let right_result = right.as_ref().clone().bind(f);
                 left_result.plus(right_result)
             },
         }
@@ -294,16 +294,16 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             ListImpl::Empty => List::empty(),
             ListImpl::Single(value) => if n > 0 { List::single(value) } else { List::empty() },
             ListImpl::Multiple(vec) => {
-                let taken: Vec<T> = vec.iter().take(n).clone())().collect();
+                let taken: Vec<T> = vec.iter().take(n).cloned().collect();
                 List::from_vec(taken)
             },
             ListImpl::Lazy(f) => List { inner: f() }.take(n),
             ListImpl::Concat(left, right) => {
                 let left_len = left.len();
                 if n <= left_len {
-                    left.as_ref().clone()).take(n)
+                    left.as_ref().clone().take(n)
                 } else {
-                    left.as_ref().clone()).plus(right.as_ref().clone()).take(n - left_len))
+                    left.as_ref().clone().plus(right.as_ref().clone().take(n - left_len))
                 }
             },
         }
@@ -322,16 +322,16 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
             ListImpl::Empty => List::empty(),
             ListImpl::Single(_) => if n > 0 { List::empty() } else { self },
             ListImpl::Multiple(vec) => {
-                let dropped: Vec<T> = vec.iter().skip(n).clone())().collect();
+                let dropped: Vec<T> = vec.iter().skip(n).cloned().collect();
                 List::from_vec(dropped)
             },
             ListImpl::Lazy(f) => List { inner: f() }.drop(n),
             ListImpl::Concat(left, right) => {
                 let left_len = left.len();
                 if n >= left_len {
-                    right.as_ref().clone()).drop(n - left_len)
+                    right.as_ref().clone().drop(n - left_len)
                 } else {
-                    left.as_ref().clone()).drop(n).plus(right.as_ref().clone())
+                    left.as_ref().clone().drop(n).plus(right.as_ref().clone())
                 }
             },
         }
@@ -345,11 +345,11 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
         match self.inner {
             ListImpl::Empty => Vec::new(),
             ListImpl::Single(value) => vec![value],
-            ListImpl::Multiple(vec) => (*vec).clone()),
+            ListImpl::Multiple(vec) => (*vec).clone(),
             ListImpl::Lazy(f) => List { inner: f() }.to_vec(),
             ListImpl::Concat(left, right) => {
-                let mut result = left.as_ref().clone()).to_vec();
-                result.extend(right.as_ref().clone()).to_vec());
+                let mut result = left.as_ref().clone().to_vec();
+                result.extend(right.as_ref().clone().to_vec());
                 result
             },
         }
@@ -362,7 +362,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
     {
         // For simplicity, we convert to vec and iterate
         // In a production implementation, we might use a more sophisticated iterator
-        self.clone()).to_vec().into_iter()
+        self.clone().to_vec().into_iter()
     }
 }
 
@@ -373,7 +373,7 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
         F: Fn(T) -> U + Clone + Send + Sync + 'static,
         U: Clone + Send + Sync + 'static,
     {
-        f_list.bind(move |f| self.clone()).map(f))
+        f_list.bind(move |f| self.clone().map(f))
     }
     
     /// Sequence a list of monadic computations
@@ -401,12 +401,12 @@ impl ValueList {
                 Value::Nil => break,
                 Value::Pair(head, tail) => {
                     elements.push((*head).clone());
-                    current = (*tail).clone());
+                    current = (*tail).clone();
                 }
                 _ => return Err(Box::new(Error::type_error(
-                    format!("Expected list, got: {}", current),
+                    format!("Expected list, got: {current}"),
                     crate::diagnostics::Span::new(0, 0)
-                )),
+                ))),
             }
         }
         
@@ -445,12 +445,12 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "List[")?;
-        let vec = self.clone()).to_vec();
+        let vec = self.clone().to_vec();
         for (i, item) in vec.iter().enumerate() {
             if i > 0 {
                 write!(f, ", ")?;
             }
-            write!(f, "{}", item)?;
+            write!(f, "{item}")?;
         }
         write!(f, "]")
     }
@@ -509,23 +509,20 @@ mod tests {
     fn test_list_monad_laws() {
         // Left identity: return(a) >>= f ≡ f(a)
         let a = 42;
-        let f = |x| List::from_vec(vec![x * 2, x * 3]);
-        let left = List::single(a).bind(|x| f(x));
-        let right = f(a);
+        let left = List::single(a).bind(|x| List::from_vec(vec![x * 2, x * 3]));
+        let right = List::from_vec(vec![a * 2, a * 3]);
         assert_eq!(left.to_vec(), right.to_vec());
 
         // Right identity: m >>= return ≡ m
         let m = List::from_vec(vec![1, 2, 3]);
-        let left = m.clone()).bind(List::single);
+        let left = m.clone().bind(List::single);
         assert_eq!(left.to_vec(), m.to_vec());
 
         // Associativity: (m >>= f) >>= g ≡ m >>= (\x -> f x >>= g)
         let m = List::from_vec(vec![1, 2]);
-        let f = |x| List::from_vec(vec![x * 2]);
-        let g = |x| List::from_vec(vec![x + 1, x + 2]);
         
-        let left = m.clone()).bind(|x| f(x)).bind(|x| g(x));
-        let right = m.bind(|x| f(x).bind(|y| g(y)));
+        let left = m.clone().bind(|x| List::from_vec(vec![x * 2])).bind(|x| List::from_vec(vec![x + 1, x + 2]));
+        let right = m.bind(|x| List::from_vec(vec![x * 2]).bind(|y| List::from_vec(vec![y + 1, y + 2])));
         assert_eq!(left.to_vec(), right.to_vec());
     }
 
@@ -548,7 +545,7 @@ mod tests {
 
         // Right identity: m `mplus` mzero ≡ m
         let m = List::from_vec(vec![1, 2, 3]);
-        let left = m.clone()).plus(List::empty());
+        let left = m.clone().plus(List::empty());
         assert_eq!(left.to_vec(), m.to_vec());
     }
 
@@ -558,23 +555,23 @@ mod tests {
         let list2 = List::from_vec(vec![4, 5, 6]);
         
         // Test concatenation
-        let concat = list1.clone()).plus(list2.clone());
+        let concat = list1.clone().plus(list2.clone());
         assert_eq!(concat.to_vec(), vec![1, 2, 3, 4, 5, 6]);
         
         // Test map
-        let mapped = list1.clone()).map(|x| x * 2);
+        let mapped = list1.clone().map(|x| x * 2);
         assert_eq!(mapped.to_vec(), vec![2, 4, 6]);
         
         // Test filter
-        let filtered = list1.clone()).filter(|&x| x % 2 == 0);
+        let filtered = list1.clone().filter(|&x| x % 2 == 0);
         assert_eq!(filtered.to_vec(), vec![2]);
         
         // Test take
-        let taken = list1.clone()).take(2);
+        let taken = list1.clone().take(2);
         assert_eq!(taken.to_vec(), vec![1, 2]);
         
         // Test drop
-        let dropped = list1.clone()).drop(1);
+        let dropped = list1.clone().drop(1);
         assert_eq!(dropped.to_vec(), vec![2, 3]);
     }
 
@@ -583,7 +580,7 @@ mod tests {
         let list = List::from_vec(vec![1, 2, 3, 4, 5]);
         
         // Test guard with condition
-        let result = list.clone()).bind(|x| {
+        let result = list.clone().bind(|x| {
             List::single(x).guard(x % 2 == 0).map(|y| y * 2)
         });
         
@@ -620,7 +617,7 @@ mod tests {
     #[test]
     fn test_lazy_evaluation() {
         let counter = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let counter_clone = counter.clone());
+        let counter_clone = counter.clone();
         
         let lazy_list = List::lazy(move || {
             counter_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);

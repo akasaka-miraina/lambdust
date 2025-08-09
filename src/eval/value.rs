@@ -797,7 +797,7 @@ impl Value {
 
     /// Creates a new string value.
     pub fn string(s: impl Into<String>) -> Self {
-        Value::Literal(Literal::String(s.into())
+        Value::Literal(Literal::String(s.into()))
     }
 
     /// Creates a new boolean value.
@@ -1188,10 +1188,10 @@ impl fmt::Display for Value {
             Value::Type(_) => write!(f, "#<type>"),
             Value::Foreign(obj) => write!(f, "#<foreign:{}>", obj.type_name),
             Value::ErrorObject(err) => write!(f, "#<error:{}>", err.message),
-            Value::CharSet(charset) => write!(f, "{}", charset),
+            Value::CharSet(charset) => write!(f, "{charset}"),
             Value::Parameter(param) => {
                 if let Some(name) = &param.name {
-                    write!(f, "#<parameter:{}>", name)
+                    write!(f, "#<parameter:{name}>")
                 } else {
                     write!(f, "#<parameter:{}>", param.id)
                 }
@@ -1309,41 +1309,35 @@ impl Environment {
 
     /// Gets all variable names in this environment (for debugging).
     pub fn variable_names(&self) -> Vec<String> {
-        self.bindings.borrow().keys().clone())().collect()
+        self.bindings.borrow().keys().cloned().collect()
     }
     
     /// Converts this Environment to a ThreadSafeEnvironment.
     /// This is a bridge method during the migration process.
     pub fn to_thread_safe(&self) -> Arc<ThreadSafeEnvironment> {
-        let parent = match &self.parent {
-            Some(p) => Some(p.to_thread_safe()),
-            None => None,
-        };
+        let parent = self.parent.as_ref().map(|p| p.to_thread_safe());
         
-        let bindings = self.bindings.borrow().clone());
+        let bindings = self.bindings.borrow().clone();
         
         Arc::new(ThreadSafeEnvironment {
             bindings: Arc::new(std::sync::RwLock::new(bindings)),
             parent,
             generation: self.generation,
-            name: self.name.clone()),
+            name: self.name.clone(),
         })
     }
     
     /// Converts this Environment to a ThreadSafeEnvironment that maintains live bindings.
     /// Used for recursive function definitions where the environment may be updated.
     pub fn to_thread_safe_live(&self) -> Arc<ThreadSafeEnvironment> {
-        let parent = match &self.parent {
-            Some(p) => Some(p.to_thread_safe_live()),
-            None => None,
-        };
+        let parent = self.parent.as_ref().map(|p| p.to_thread_safe_live());
         
         // Create a thread-safe environment that references the live bindings
         Arc::new(ThreadSafeEnvironment {
             bindings: Arc::new(std::sync::RwLock::new(self.bindings.borrow().clone())), // Still a snapshot for now
             parent,
             generation: self.generation,
-            name: self.name.clone()),
+            name: self.name.clone(),
         })
     }
 }
@@ -1398,14 +1392,14 @@ impl ThreadSafeEnvironment {
     /// Creates a new environment with an additional binding (COW semantics).
     /// This preserves immutability by creating a new environment.
     pub fn define_cow(&self, name: String, value: Value) -> Arc<ThreadSafeEnvironment> {
-        let mut new_bindings = self.bindings.read().unwrap().clone());
+        let mut new_bindings = self.bindings.read().unwrap().clone();
         new_bindings.insert(name, value);
 
         Arc::new(ThreadSafeEnvironment {
             bindings: Arc::new(std::sync::RwLock::new(new_bindings)),
-            parent: self.parent.clone()),
+            parent: self.parent.clone(),
             generation: self.generation,
-            name: self.name.clone()),
+            name: self.name.clone(),
         })
     }
 
@@ -1431,14 +1425,14 @@ impl ThreadSafeEnvironment {
     pub fn set_cow(&self, name: &str, value: Value) -> Option<Arc<ThreadSafeEnvironment>> {
         // Check if variable exists in local bindings
         if self.bindings.read().unwrap().contains_key(name) {
-            let mut new_bindings = self.bindings.read().unwrap().clone());
+            let mut new_bindings = self.bindings.read().unwrap().clone();
             new_bindings.insert(name.to_string(), value);
 
             return Some(Arc::new(ThreadSafeEnvironment {
                 bindings: Arc::new(std::sync::RwLock::new(new_bindings)),
-                parent: self.parent.clone()),
+                parent: self.parent.clone(),
                 generation: self.generation,
-                name: self.name.clone()),
+                name: self.name.clone(),
             }));
         }
 
@@ -1446,10 +1440,10 @@ impl ThreadSafeEnvironment {
         if let Some(parent) = &self.parent {
             if let Some(new_parent) = parent.set_cow(name, value) {
                 return Some(Arc::new(ThreadSafeEnvironment {
-                    bindings: self.bindings.clone()),
+                    bindings: self.bindings.clone(),
                     parent: Some(new_parent),
                     generation: self.generation,
-                    name: self.name.clone()),
+                    name: self.name.clone(),
                 }));
             }
         }
@@ -1467,7 +1461,7 @@ impl ThreadSafeEnvironment {
 
     /// Gets all variable names in this environment (for debugging).
     pub fn variable_names(&self) -> Vec<String> {
-        self.bindings.read().unwrap().keys().clone())().collect()
+        self.bindings.read().unwrap().keys().cloned().collect()
     }
 
     /// Gets all accessible variable names (including from parents).
@@ -1503,14 +1497,12 @@ impl ThreadSafeEnvironment {
     pub fn to_legacy(&self) -> Rc<Environment> {
         let legacy_parent = self.parent.as_ref().map(|p| p.to_legacy());
         
-        let env = Rc::new(Environment {
+        Rc::new(Environment {
             bindings: Rc::new(std::cell::RefCell::new(self.bindings.read().unwrap().clone())),
             parent: legacy_parent,
             generation: self.generation,
-            name: self.name.clone()),
-        });
-        
-        env
+            name: self.name.clone(),
+        })
     }
 
     /// Creates a ThreadSafeEnvironment from a legacy Environment.
@@ -1522,7 +1514,7 @@ impl ThreadSafeEnvironment {
             bindings: Arc::new(std::sync::RwLock::new(legacy.bindings.borrow().clone())),
             parent,
             generation: legacy.generation,
-            name: legacy.name.clone()),
+            name: legacy.name.clone(),
         })
     }
 }

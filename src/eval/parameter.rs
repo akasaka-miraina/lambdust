@@ -18,7 +18,7 @@ thread_local! {
     /// established by `parameterize` forms. When a parameter is accessed,
     /// the thread-local stack is consulted first, falling back to the
     /// global default value if no binding exists.
-    static PARAMETER_STACK: RefCell<Vec<ParameterFrame>> = RefCell::new(Vec::new());
+    static PARAMETER_STACK: RefCell<Vec<ParameterFrame>> = const { RefCell::new(Vec::new()) };
 }
 
 /// A frame in the parameter binding stack.
@@ -82,7 +82,7 @@ impl Parameter {
 
         // Return thread-local value if found, otherwise global default
         thread_local_value.unwrap_or_else(|| {
-            self.global_default.read().unwrap().clone())
+            self.global_default.read().unwrap().clone()
         })
     }
 
@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(ParameterBinding::stack_depth(), 0);
         
         let bindings = HashMap::new();
-        ParameterBinding::with_bindings(bindings.clone()), || {
+        ParameterBinding::with_bindings(bindings.clone(), || {
             assert_eq!(ParameterBinding::stack_depth(), 1);
             
             ParameterBinding::with_bindings(bindings, || {

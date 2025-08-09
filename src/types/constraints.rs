@@ -43,12 +43,12 @@ impl TypeConstraint {
                     left: subst.apply_to_type(left),
                     right: subst.apply_to_type(right),
                     span: *span,
-                    reason: reason.clone()),
+                    reason: reason.clone(),
                 }
             }
             TypeConstraint::Instance { class, type_, span } => {
                 TypeConstraint::Instance {
-                    class: class.clone()),
+                    class: class.clone(),
                     type_: subst.apply_to_type(type_),
                     span: *span,
                 }
@@ -65,13 +65,13 @@ impl TypeConstraint {
                 if subst.contains_var(var) {
                     // Variable is bound, constraint is resolved
                     TypeConstraint::Default {
-                        var: var.clone()),
-                        default_type: default_type.clone()),
+                        var: var.clone(),
+                        default_type: default_type.clone(),
                         span: *span,
                     }
                 } else {
                     TypeConstraint::Default {
-                        var: var.clone()),
+                        var: var.clone(),
                         default_type: subst.apply_to_type(default_type),
                         span: *span,
                     }
@@ -82,7 +82,7 @@ impl TypeConstraint {
                 let unbound_vars: Vec<_> = vars
                     .iter()
                     .filter(|var| !subst.contains_var(var))
-                    .clone())()
+                    .cloned()
                     .collect();
                 
                 TypeConstraint::Ambiguous {
@@ -113,7 +113,7 @@ impl TypeConstraint {
                 vars
             }
             TypeConstraint::Ambiguous { vars, .. } => {
-                vars.iter().clone())().collect()
+                vars.iter().cloned().collect()
             }
         }
     }
@@ -260,7 +260,7 @@ impl ConstraintSolver {
         
         match unify(left, right, span) {
             Ok(subst) => ConstraintResult::Solved(subst),
-            Err(error) => ConstraintResult::Error(error),
+            Err(error) => ConstraintResult::Error(*error),
         }
     }
     
@@ -319,7 +319,7 @@ impl ConstraintSolver {
                 // Pair is Eq if both components are Eq
                 ConstraintResult::Unresolved(TypeConstraint::Instance {
                     class: "Eq".to_string(),
-                    type_: (**a).clone()),
+                    type_: (**a).clone(),
                     span,
                 })
                 // TODO: Also add constraint for b
@@ -327,7 +327,7 @@ impl ConstraintSolver {
             Type::List(t) | Type::Vector(t) => {
                 ConstraintResult::Unresolved(TypeConstraint::Instance {
                     class: "Eq".to_string(),
-                    type_: (**t).clone()),
+                    type_: (**t).clone(),
                     span,
                 })
             }
@@ -382,7 +382,7 @@ impl ConstraintSolver {
         for constraint in &self.constraints {
             if let TypeConstraint::Default { var, default_type, .. } = constraint {
                 if !self.substitution.contains_var(var) {
-                    defaults_to_apply.push((var.clone()), default_type.clone()));
+                    defaults_to_apply.push((var.clone(), default_type.clone()));
                 }
             }
         }

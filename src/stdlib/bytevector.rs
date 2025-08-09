@@ -120,9 +120,9 @@ fn extract_bytevector(value: &Value, operation: &str) -> Result<Vec<u8>> {
     match value {
         Value::Literal(Literal::Bytevector(bv)) => Ok(bv.clone()),
         _ => Err(Box::new(Error::runtime_error(
-            format!("{} requires a bytevector argument", operation),
+            format!("{operation} requires a bytevector argument"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -132,9 +132,9 @@ fn extract_bytevector_mut(value: &Value, operation: &str) -> Result<Vec<u8>> {
     match value {
         Value::Literal(Literal::Bytevector(bv)) => Ok(bv.clone()),
         _ => Err(Box::new(Error::runtime_error(
-            format!("{} requires a bytevector argument", operation),
+            format!("{operation} requires a bytevector argument"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -144,9 +144,9 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
         Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => Ok(*n as i64),
         Value::Literal(Literal::Rational { numerator, denominator }) if *denominator == 1 => Ok(*numerator),
         _ => Err(Box::new(Error::runtime_error(
-            format!("{} requires an integer argument", operation),
+            format!("{operation} requires an integer argument"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -155,9 +155,9 @@ fn extract_non_negative_integer(value: &Value, operation: &str) -> Result<usize>
     let int = extract_integer(value, operation)?;
     if int < 0 {
         return Err(Box::new(Error::runtime_error(
-            format!("{} requires a non-negative integer", operation),
+            format!("{operation} requires a non-negative integer"),
             None,
-        ));
+        )));
     }
     Ok(int as usize)
 }
@@ -165,11 +165,11 @@ fn extract_non_negative_integer(value: &Value, operation: &str) -> Result<usize>
 /// Extracts a byte value (0-255) from a Value.
 fn extract_byte(value: &Value, operation: &str) -> Result<u8> {
     let int = extract_integer(value, operation)?;
-    if int < 0 || int > 255 {
+    if !(0..=255).contains(&int) {
         return Err(Box::new(Error::runtime_error(
-            format!("{} requires a byte value (0-255)", operation),
+            format!("{operation} requires a byte value (0-255)"),
             None,
-        ));
+        )));
     }
     Ok(int as u8)
 }
@@ -179,9 +179,9 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(Literal::String(s)) => Ok(s.clone()),
         _ => Err(Box::new(Error::runtime_error(
-            format!("{} requires a string argument", operation),
+            format!("{operation} requires a string argument"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -207,7 +207,7 @@ pub fn primitive_make_bytevector(args: &[Value]) -> Result<Value> {
         _ => Err(Box::new(Error::runtime_error(
             format!("make-bytevector expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ))
+        )))
     }
 }
 
@@ -240,7 +240,7 @@ pub fn primitive_bytevector_copy(args: &[Value]) -> Result<Value> {
                 return Err(Box::new(Error::runtime_error(
                     "bytevector-copy: start index out of bounds".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(Value::bytevector(bv[start..].to_vec()))
         }
@@ -252,14 +252,14 @@ pub fn primitive_bytevector_copy(args: &[Value]) -> Result<Value> {
                 return Err(Box::new(Error::runtime_error(
                     "bytevector-copy: invalid start/end indices".to_string(),
                     None,
-                ));
+                )));
             }
             Ok(Value::bytevector(bv[start..end].to_vec()))
         }
         _ => Err(Box::new(Error::runtime_error(
             format!("bytevector-copy expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ))
+        )))
     }
 }
 
@@ -271,7 +271,7 @@ pub fn primitive_bytevector_p(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("bytevector? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let result = matches!(args[0], Value::Literal(Literal::Bytevector(_)));
@@ -286,7 +286,7 @@ pub fn primitive_bytevector_length(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("bytevector-length expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let bv = extract_bytevector(&args[0], "bytevector-length")?;
@@ -301,7 +301,7 @@ pub fn primitive_bytevector_u8_ref(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("bytevector-u8-ref expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let bv = extract_bytevector(&args[0], "bytevector-u8-ref")?;
@@ -311,7 +311,7 @@ pub fn primitive_bytevector_u8_ref(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "bytevector-u8-ref: index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     Ok(Value::integer(bv[k] as i64))
@@ -326,7 +326,7 @@ pub fn primitive_bytevector_u8_set(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("bytevector-u8-set! expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let mut bv = extract_bytevector_mut(&args[0], "bytevector-u8-set!")?;
@@ -337,7 +337,7 @@ pub fn primitive_bytevector_u8_set(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "bytevector-u8-set!: index out of bounds".to_string(),
             None,
-        ));
+        )));
     }
     
     bv[k] = byte;
@@ -365,7 +365,7 @@ pub fn primitive_bytevector_to_list(args: &[Value]) -> Result<Value> {
                 return Err(Box::new(Error::runtime_error(
                     "bytevector->list: start index out of bounds".to_string(),
                     None,
-                ));
+                )));
             }
             let values: Vec<Value> = bv[start..].iter().map(|&b| Value::integer(b as i64)).collect();
             Ok(Value::list(values))
@@ -378,7 +378,7 @@ pub fn primitive_bytevector_to_list(args: &[Value]) -> Result<Value> {
                 return Err(Box::new(Error::runtime_error(
                     "bytevector->list: invalid start/end indices".to_string(),
                     None,
-                ));
+                )));
             }
             let values: Vec<Value> = bv[start..end].iter().map(|&b| Value::integer(b as i64)).collect();
             Ok(Value::list(values))
@@ -386,7 +386,7 @@ pub fn primitive_bytevector_to_list(args: &[Value]) -> Result<Value> {
         _ => Err(Box::new(Error::runtime_error(
             format!("bytevector->list expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ))
+        )))
     }
 }
 
@@ -399,7 +399,7 @@ pub fn primitive_list_to_bytevector(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("list->bytevector expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let list = args[0].as_list().ok_or_else(|| Error::runtime_error(
@@ -409,7 +409,7 @@ pub fn primitive_list_to_bytevector(args: &[Value]) -> Result<Value> {
     
     let mut bytes = Vec::new();
     for (i, value) in list.iter().enumerate() {
-        let byte = extract_byte(value, &format!("list->bytevector (element {})", i))?;
+        let byte = extract_byte(value, &format!("list->bytevector (element {i})"))?;
         bytes.push(byte);
     }
     
@@ -434,7 +434,7 @@ pub fn primitive_string_to_utf8(args: &[Value]) -> Result<Value> {
                 return Err(Box::new(Error::runtime_error(
                     "string->utf8: start index out of bounds".to_string(),
                     None,
-                ));
+                )));
             }
             let substring: String = chars[start..].iter().collect();
             Ok(Value::bytevector(substring.into_bytes()))
@@ -448,7 +448,7 @@ pub fn primitive_string_to_utf8(args: &[Value]) -> Result<Value> {
                 return Err(Box::new(Error::runtime_error(
                     "string->utf8: invalid start/end indices".to_string(),
                     None,
-                ));
+                )));
             }
             let substring: String = chars[start..end].iter().collect();
             Ok(Value::bytevector(substring.into_bytes()))
@@ -456,7 +456,7 @@ pub fn primitive_string_to_utf8(args: &[Value]) -> Result<Value> {
         _ => Err(Box::new(Error::runtime_error(
             format!("string->utf8 expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ))
+        )))
     }
 }
 
@@ -481,7 +481,7 @@ pub fn primitive_utf8_to_string(args: &[Value]) -> Result<Value> {
                 return Err(Box::new(Error::runtime_error(
                     "utf8->string: start index out of bounds".to_string(),
                     None,
-                ));
+                )));
             }
             let s = String::from_utf8(bv[start..].to_vec()).map_err(|_| Error::runtime_error(
                 "utf8->string: invalid UTF-8 sequence".to_string(),
@@ -497,7 +497,7 @@ pub fn primitive_utf8_to_string(args: &[Value]) -> Result<Value> {
                 return Err(Box::new(Error::runtime_error(
                     "utf8->string: invalid start/end indices".to_string(),
                     None,
-                ));
+                )));
             }
             let s = String::from_utf8(bv[start..end].to_vec()).map_err(|_| Error::runtime_error(
                 "utf8->string: invalid UTF-8 sequence".to_string(),
@@ -508,7 +508,7 @@ pub fn primitive_utf8_to_string(args: &[Value]) -> Result<Value> {
         _ => Err(Box::new(Error::runtime_error(
             format!("utf8->string expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ))
+        )))
     }
 }
 
@@ -629,7 +629,7 @@ mod tests {
         let bv3 = Value::bytevector(vec![1, 2, 4]);
         
         // Equal bytevectors
-        let result = primitive_bytevector_equal(&[bv1.clone()), bv2]).unwrap();
+        let result = primitive_bytevector_equal(&[bv1.clone(), bv2]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
         // Unequal bytevectors

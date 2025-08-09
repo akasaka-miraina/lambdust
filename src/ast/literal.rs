@@ -220,7 +220,7 @@ impl fmt::Display for Literal {
                     if i > 0 {
                         write!(f, " ")?;
                     }
-                    write!(f, "{}", byte)?;
+                    write!(f, "{byte}")?;
                 }
                 write!(f, ")")
             }

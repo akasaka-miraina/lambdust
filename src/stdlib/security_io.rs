@@ -16,11 +16,11 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
+use std::sync::LazyLock;
 
 #[cfg(unix)]
 use nix::unistd::{chroot, chdir};
 #[cfg(unix)]
-
 /// Security policy for I/O operations
 #[derive(Debug, Clone)]
 pub struct SecurityPolicy {
@@ -85,7 +85,7 @@ pub struct AuditEntry {
 }
 
 /// Security manager for I/O operations
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SecurityManager {
     pub policy: Arc<RwLock<SecurityPolicy>>,
     pub usage: Arc<Mutex<ResourceUsage>>,
@@ -118,10 +118,10 @@ impl SecurityManager {
             Ok(p) => p,
             Err(_) => {
                 if policy.strict_mode {
-                    return Err(DiagnosticError::runtime_error(
+                    return Err(Box::new(DiagnosticError::runtime_error(
                         format!("Cannot access non-existent path: {}", path.display()),
                         None,
-                    ));
+                    )));
                 } else {
                     path.to_path_buf()
                 }
@@ -140,10 +140,10 @@ impl SecurityManager {
                     error_message: Some("Path is forbidden".to_string()),
                 });
                 
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     format!("Access denied to forbidden path: {}", canonical_path.display()),
                     None,
-                ));
+                )));
             }
         }
         
@@ -167,10 +167,10 @@ impl SecurityManager {
                     error_message: Some("Path not in allowed list".to_string()),
                 });
                 
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     format!("Access denied to path not in allowed list: {}", canonical_path.display()),
                     None,
-                ));
+                )));
             }
         }
         
@@ -182,10 +182,10 @@ impl SecurityManager {
         
         if let Some(max_size) = policy.max_file_size {
             if size > max_size {
-                return Err(DiagnosticError::runtime_error(
-                    format!("File size {} exceeds limit {}", size, max_size),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("File size {size} exceeds limit {max_size}"),
                     None,
-                ));
+                )));
             }
         }
         
@@ -211,10 +211,10 @@ impl SecurityManager {
                 .sum();
             
             if current_usage + bytes > max_bandwidth {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Bandwidth limit exceeded: {} + {} > {}", current_usage, bytes, max_bandwidth),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Bandwidth limit exceeded: {current_usage} + {bytes} > {max_bandwidth}"),
                     None,
-                ));
+                )));
             }
             
             // Record this transfer
@@ -230,10 +230,10 @@ impl SecurityManager {
         
         if let Some(max_files) = policy.max_open_files {
             if usage.open_files >= max_files {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Open file limit exceeded: {} >= {}", usage.open_files, max_files),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Open file limit exceeded: {open_files} >= {max_files}", open_files = usage.open_files),
                     None,
-                ));
+                )));
             }
         }
         
@@ -285,7 +285,7 @@ impl SecurityManager {
                 // Change to chroot directory first
                 chdir(path).map_err(|e| {
                     DiagnosticError::runtime_error(
-                        format!("Cannot change to chroot directory '{}': {}", path.display(), e),
+                        format!("Cannot change to chroot directory '{}': {e}", path.display()),
                         None,
                     )
                 })?;
@@ -293,7 +293,7 @@ impl SecurityManager {
                 // Apply chroot
                 chroot(path).map_err(|e| {
                     DiagnosticError::runtime_error(
-                        format!("Cannot apply chroot to '{}': {}", path.display(), e),
+                        format!("Cannot apply chroot to '{}': {e}", path.display()),
                         None,
                     )
                 })?;
@@ -322,16 +322,10 @@ impl SecurityManager {
 }
 
 /// Global security manager instance
-static mut SECURITY_MANAGER: Option<Arc<Mutex<SecurityManager>>> = None;
-static SECURITY_INIT: std::sync::Once = std::sync::Once::new();
+static SECURITY_MANAGER: LazyLock<Mutex<SecurityManager>> = LazyLock::new(|| Mutex::new(SecurityManager::new()));
 
-pub fn get_security_manager() -> &'static Arc<Mutex<SecurityManager>> {
-    unsafe {
-        SECURITY_INIT.call_once(|| {
-            SECURITY_MANAGER = Some(Arc::new(Mutex::new(SecurityManager::new())));
-        });
-        SECURITY_MANAGER.as_ref().unwrap()
-    }
+pub fn get_security_manager() -> &'static Mutex<SecurityManager> {
+    &SECURITY_MANAGER
 }
 
 /// Creates security and sandboxing operation bindings.
@@ -523,10 +517,10 @@ fn bind_secure_file_operations(env: &Arc<ThreadSafeEnvironment>) {
 
 pub fn primitive_set_security_policy(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("set-security-policy expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("set-security-policy expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     // Extract policy from hashtable
@@ -571,10 +565,10 @@ pub fn primitive_set_security_policy(args: &[Value]) -> Result<Value> {
             
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "set-security-policy requires hashtable argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
@@ -583,6 +577,7 @@ pub fn primitive_get_security_policy(_args: &[Value]) -> Result<Value> {
     let manager = security_manager.lock().unwrap();
     let policy = manager.policy.read().unwrap();
     
+    #[allow(clippy::mutable_key_type)]
     let mut result = HashMap::new();
     
     result.insert(
@@ -641,10 +636,10 @@ pub fn primitive_get_security_policy(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_add_allowed_path(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("add-allowed-path expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("add-allowed-path expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "add-allowed-path")?;
@@ -660,10 +655,10 @@ pub fn primitive_add_allowed_path(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_add_forbidden_path(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("add-forbidden-path expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("add-forbidden-path expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "add-forbidden-path")?;
@@ -679,10 +674,10 @@ pub fn primitive_add_forbidden_path(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_check_path_access(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("check-path-access expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("check-path-access expects 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "check-path-access")?;
@@ -701,10 +696,10 @@ pub fn primitive_check_path_access(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_set_resource_limits(_args: &[Value]) -> Result<Value> {
     // TODO: Implement resource limit setting
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "set-resource-limits not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_get_resource_usage(_args: &[Value]) -> Result<Value> {
@@ -712,6 +707,7 @@ pub fn primitive_get_resource_usage(_args: &[Value]) -> Result<Value> {
     let manager = security_manager.lock().unwrap();
     let usage = manager.usage.lock().unwrap();
     
+    #[allow(clippy::mutable_key_type)]
     let mut result = HashMap::new();
     
     result.insert(
@@ -755,10 +751,10 @@ pub fn primitive_reset_resource_counters(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_enable_sandbox(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("enable-sandbox expects 0 or 1 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("enable-sandbox expects 0 or 1 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let chroot_path = if args.len() == 1 {
@@ -784,20 +780,20 @@ pub fn primitive_sandbox_active_p(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_create_secure_environment(_args: &[Value]) -> Result<Value> {
     // TODO: Implement secure environment creation
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "create-secure-environment not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Audit Operations ===
 
 pub fn primitive_enable_audit_logging(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
-            format!("enable-audit-logging expects 1 argument, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("enable-audit-logging expects 1 argument, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let enabled = extract_boolean(&args[0], "enable-audit-logging")?;
@@ -812,13 +808,13 @@ pub fn primitive_enable_audit_logging(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_get_audit_log(args: &[Value]) -> Result<Value> {
     if args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("get-audit-log expects 0 to 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("get-audit-log expects 0 to 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
-    let limit = if args.len() > 0 {
+    let limit = if !args.is_empty() {
         Some(extract_integer(&args[0], "get-audit-log")? as usize)
     } else {
         None
@@ -841,6 +837,7 @@ pub fn primitive_get_audit_log(args: &[Value]) -> Result<Value> {
     };
     
     let audit_entries: Vec<Value> = entries_to_return.into_iter().rev().map(|entry| {
+        #[allow(clippy::mutable_key_type)]
         let mut entry_map = HashMap::new();
         
         entry_map.insert(
@@ -886,10 +883,10 @@ pub fn primitive_clear_audit_log(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_secure_file_read(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("secure-file-read expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("secure-file-read expects 1 or 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "secure-file-read")?;
@@ -912,10 +909,10 @@ pub fn primitive_secure_file_read(args: &[Value]) -> Result<Value> {
             manager.check_bandwidth_limit(metadata.len())?;
         }
         Err(e) => {
-            return Err(DiagnosticError::runtime_error(
-                format!("Cannot access file '{}': {}", path, e),
+            return Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot access file '{path}': {e}"),
                 None,
-            ));
+            )));
         }
     }
     
@@ -926,10 +923,10 @@ pub fn primitive_secure_file_read(args: &[Value]) -> Result<Value> {
                 manager.track_bytes_read(data.len() as u64);
                 Ok(Value::bytevector(data))
             }
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Cannot read file '{}': {}", path, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot read file '{path}': {e}"),
                 None,
-            )),
+            ))),
         }
     } else {
         match std::fs::read_to_string(&path) {
@@ -937,10 +934,10 @@ pub fn primitive_secure_file_read(args: &[Value]) -> Result<Value> {
                 manager.track_bytes_read(content.len() as u64);
                 Ok(Value::string(content))
             }
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Cannot read file '{}': {}", path, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot read file '{path}': {e}"),
                 None,
-            )),
+            ))),
         }
     };
     
@@ -959,10 +956,10 @@ pub fn primitive_secure_file_read(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_secure_file_write(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
-            format!("secure-file-write expects 2 or 3 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("secure-file-write expects 2 or 3 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "secure-file-write")?;
@@ -974,12 +971,12 @@ pub fn primitive_secure_file_write(args: &[Value]) -> Result<Value> {
     
     let (data, data_len) = match &args[1] {
         Value::Literal(crate::ast::Literal::String(s)) => (s.as_bytes().to_vec(), s.len()),
-        Value::Literal(crate::ast::Literal::Bytevector(bv)) => (bv.clone()), bv.len()),
+        Value::Literal(crate::ast::Literal::Bytevector(bv)) => (bv.clone(), bv.len()),
         _ => {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "secure-file-write requires string or bytevector data".to_string(),
                 None,
-            ));
+            )));
         }
     };
     
@@ -1012,10 +1009,10 @@ pub fn primitive_secure_file_write(args: &[Value]) -> Result<Value> {
             manager.track_bytes_written(data_len as u64);
             Ok(Value::Unspecified)
         }
-        Err(e) => Err(DiagnosticError::runtime_error(
-            format!("Cannot write to file '{}': {}", path, e),
+        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+            format!("Cannot write to file '{path}': {e}"),
             None,
-        )),
+        ))),
     };
     
     // Log audit entry
@@ -1023,7 +1020,7 @@ pub fn primitive_secure_file_write(args: &[Value]) -> Result<Value> {
         timestamp: Instant::now(),
         operation: if append { "append" } else { "write" }.to_string(),
         path: Some(PathBuf::from(&path)),
-        user_data: Some(format!("{} bytes", data_len)),
+        user_data: Some(format!("{data_len} bytes")),
         success: result.is_ok(),
         error_message: result.as_ref().err().map(|e| e.to_string()),
     });
@@ -1033,10 +1030,10 @@ pub fn primitive_secure_file_write(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_validate_file_path(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("validate-file-path expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("validate-file-path expects 1 or 2 arguments, got {args_len}", args_len = args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "validate-file-path")?;
@@ -1093,10 +1090,10 @@ pub fn primitive_validate_file_path(args: &[Value]) -> Result<Value> {
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires string arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1104,10 +1101,10 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
 fn extract_boolean(value: &Value, operation: &str) -> Result<bool> {
     match value {
         Value::Literal(crate::ast::Literal::Boolean(b)) => Ok(*b),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires boolean arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires boolean arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -1118,16 +1115,16 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
             if let Some(i) = lit.to_i64() {
                 Ok(i)
             } else {
-                Err(DiagnosticError::runtime_error(
-                    format!("{} requires integer arguments", operation),
+                Err(Box::new(DiagnosticError::runtime_error(
+                    format!("{operation} requires integer arguments"),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires integer arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires integer arguments"),
             None,
-        )),
+        ))),
     }
 }
 

@@ -158,7 +158,7 @@ impl SourceRegistry {
     
     /// Gets a source map by file ID.
     pub fn get_source(&self, file_id: usize) -> Option<Arc<SourceMap>> {
-        self.sources.get(&file_id).clone())()
+        self.sources.get(&file_id).cloned()
     }
     
     /// Gets all registered sources.

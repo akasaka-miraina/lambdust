@@ -117,7 +117,7 @@ impl BootstrapIntegration {
             Ok(env) => env,
             Err(e) => {
                 if self.config.verbose {
-                    eprintln!("Bootstrap failed: {}. Falling back to Rust stdlib...", e);
+                    eprintln!("Bootstrap failed: {e}. Falling back to Rust stdlib...");
                 }
                 self.metrics.used_fallback = true;
                 self.fallback_to_rust_stdlib()?
@@ -201,17 +201,15 @@ impl BootstrapIntegration {
 
     /// Creates bootstrap configuration from integration settings.
     fn create_bootstrap_config(&self) -> BootstrapConfig {
-        let config = if self.config.lazy_loading {
-            BootstrapConfig::lazy_config()
-        } else {
-            BootstrapConfig::default()
-        };
-
         // Add custom search paths
         // Note: This would need to be implemented in BootstrapConfig
         // config.add_search_paths(&self.config.library_paths);
         
-        config
+        if self.config.lazy_loading {
+            BootstrapConfig::lazy_config()
+        } else {
+            BootstrapConfig::new_default()
+        }
     }
 
     /// Reports bootstrap performance metrics to the user.
@@ -241,7 +239,7 @@ impl BootstrapIntegration {
 
     /// Gets the global environment manager.
     pub fn global_environment(&self) -> Option<Arc<GlobalEnvironmentManager>> {
-        self.global_env.clone())
+        self.global_env.clone()
     }
 
     /// Gets the bootstrap system instance.
@@ -260,7 +258,7 @@ impl BootstrapIntegration {
                     Err(Box::new(Error::io_error(format!(
                         "Library setup validation failed. Issues found: {}",
                         validation.missing_critical_subdirs.join(", ")
-                    )))
+                    ))))
                 }
             }
             Err(e) => {
@@ -269,7 +267,7 @@ impl BootstrapIntegration {
                 
                 // Check relative path from current directory
                 let current_stdlib = std::env::current_dir()
-                    .map_err(|err| Error::io_error(format!("Failed to get current directory: {}", err)))?
+                    .map_err(|err| Error::io_error(format!("Failed to get current directory: {err}")))?
                     .join("stdlib");
                 if current_stdlib.exists() && current_stdlib.is_dir() {
                     found_paths.push(current_stdlib);
@@ -287,9 +285,8 @@ impl BootstrapIntegration {
 
                 if found_paths.is_empty() {
                     Err(Box::new(Error::io_error(format!(
-                        "No stdlib directory found and library resolver failed: {}. Scheme libraries unavailable.",
-                        e
-                    )))
+                        "No stdlib directory found and library resolver failed: {e}. Scheme libraries unavailable."
+                    ))))
                 } else {
                     Ok(found_paths)
                 }
@@ -368,7 +365,7 @@ impl Default for BootstrapIntegration {
 impl BootstrapConfig {
     /// Creates a configuration optimized for lazy loading.
     pub fn lazy_config() -> Self {
-        let mut config = Self::default();
+        let mut config = Self::new_default();
         config.lazy_loading = true;
         config
     }

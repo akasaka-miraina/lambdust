@@ -84,15 +84,15 @@ impl WorkStealingScheduler {
 
     /// Runs the scheduler until all tasks are completed.
     pub fn run_to_completion(self) -> Result<()> {
-        let stealers = self.stealers.clone());
-        let injector = self.injector.clone());
-        let active_tasks = self.active_tasks.clone());
+        let stealers = self.stealers.clone();
+        let injector = self.injector.clone();
+        let active_tasks = self.active_tasks.clone();
 
         thread::scope(|s| {
             for (i, worker) in self.workers.into_iter().enumerate() {
-                let stealers = stealers.clone());
-                let injector = injector.clone());
-                let active_tasks = active_tasks.clone());
+                let stealers = stealers.clone();
+                let injector = injector.clone();
+                let active_tasks = active_tasks.clone();
                 
                 s.spawn(move || {
                     loop {
@@ -104,27 +104,21 @@ impl WorkStealingScheduler {
                         }
 
                         // Try to steal from global injector
-                        match injector.steal() {
-                            crossbeam::deque::Steal::Success(task) => {
-                                let _ = task(); // Execute task
-                                active_tasks.fetch_sub(1, Ordering::SeqCst);
-                                continue;
-                            }
-                            _ => {} // Empty or Retry - continue to next iteration
+                        if let crossbeam::deque::Steal::Success(task) = injector.steal() {
+                            let _ = task(); // Execute task
+                            active_tasks.fetch_sub(1, Ordering::SeqCst);
+                            continue;
                         }
 
                         // Try to steal from other workers
                         let mut found_work = false;
                         for (j, stealer) in stealers.iter().enumerate() {
                             if i != j {
-                                match stealer.steal() {
-                                    crossbeam::deque::Steal::Success(task) => {
-                                        let _ = task(); // Execute task
-                                        active_tasks.fetch_sub(1, Ordering::SeqCst);
-                                        found_work = true;
-                                        break;
-                                    }
-                                    _ => {} // Empty or Retry - continue to next stealer
+                                if let crossbeam::deque::Steal::Success(task) = stealer.steal() {
+                                    let _ = task(); // Execute task
+                                    active_tasks.fetch_sub(1, Ordering::SeqCst);
+                                    found_work = true;
+                                    break;
                                 }
                             }
                         }
@@ -167,7 +161,6 @@ impl ParallelOps {
         F: Fn(Value) -> Result<Value> + Send + Sync + 'static,
     {
         let f = Arc::new(f);
-        let _results = Arc::new(Mutex::new(Vec::<Result<Value>>::with_capacity(values.len())));
         let chunk_size = self.config.chunk_size;
 
         Future::new(async move {
@@ -176,7 +169,7 @@ impl ParallelOps {
             }
 
             // Use rayon for simplicity and performance
-            let par_results: std::result::Result<Vec<_>, Error> = values
+            let par_results: std::result::Result<Vec<_>, Box<Error>> = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
                 .map(|value| f(value))
@@ -208,7 +201,7 @@ impl ParallelOps {
                 return Ok(Value::Nil);
             }
 
-            let filtered: std::result::Result<Vec<_>, Error> = values
+            let filtered: std::result::Result<Vec<_>, Box<Error>> = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
                 .filter_map(|value| {
@@ -250,7 +243,7 @@ impl ParallelOps {
             let results: Vec<Result<Value>> = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
-                .map(|v| Ok(v))
+                .map(Ok)
                 .collect();
 
             // Sequential reduce to handle errors properly
@@ -284,8 +277,8 @@ impl ParallelOps {
             let result = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
-                .try_fold(|| identity.clone()), |acc, value| f(acc, value))
-                .try_reduce(|| identity.clone()), |a, b| f(a, b))?;
+                .try_fold(|| identity.clone(), |acc, value| f(acc, value))
+                .try_reduce(|| identity.clone(), |a, b| f(a, b))?;
 
             Ok(result)
         })
@@ -300,7 +293,7 @@ impl ParallelOps {
         let chunk_size = self.config.chunk_size;
 
         Future::new(async move {
-            let result: std::result::Result<(), Error> = values
+            let result: std::result::Result<(), Box<Error>> = values
                 .into_par_iter()
                 .with_min_len(chunk_size)
                 .map(|value| f(value))
@@ -331,7 +324,7 @@ impl ParallelOps {
                     let matches = predicate(&value)?;
                     Ok((value, matches))
                 })
-                .collect::<std::result::Result<Vec<_>, Error>>()?
+                .collect::<std::result::Result<Vec<_>, Box<Error>>>()?
                 .into_iter()
                 .partition(|(_, matches)| *matches);
 
@@ -439,7 +432,7 @@ impl ThreadPool {
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()
-            .map_err(|e| Error::runtime_error(format!("Failed to create thread pool: {}", e), None))?;
+            .map_err(|e| Error::runtime_error(format!("Failed to create thread pool: {e}"), None))?;
 
         Ok(Self { pool })
     }
@@ -453,7 +446,7 @@ impl ThreadPool {
         let (sender, receiver) = tokio::sync::oneshot::channel();
         
         self.pool.spawn(move || {
-            let result = task().map(|r| r.into())
+            let result = task().map(|r| r.into());
             let _ = sender.send(result);
         });
 
@@ -476,12 +469,12 @@ impl ThreadPool {
         let sender = Arc::new(Mutex::new(Some(sender)));
 
         for (i, task) in tasks.into_iter().enumerate() {
-            let results = results.clone());
-            let counter = counter.clone());
-            let sender = sender.clone());
+            let results = results.clone();
+            let counter = counter.clone();
+            let sender = sender.clone();
 
             self.pool.spawn(move || {
-                let result = task().map(|r| r.into())
+                let result = task().map(|r| r.into());
                 
                 {
                     let mut results = results.lock().unwrap();
@@ -494,7 +487,7 @@ impl ThreadPool {
                 let completed = counter.fetch_add(1, Ordering::SeqCst) + 1;
                 if completed == num_tasks {
                     if let Some(sender) = sender.lock().unwrap().take() {
-                        let final_results = results.lock().unwrap().clone());
+                        let final_results = results.lock().unwrap().clone();
                         let _ = sender.send(Ok(Value::from_vec(final_results)));
                     }
                 }
@@ -530,7 +523,7 @@ impl CpuAffinity {
         };
         
         if result != 0 {
-            Err(Box::new(Error::runtime_error("Failed to set CPU affinity".to_string(), None))
+            Err(Error::runtime_error("Failed to set CPU affinity".to_string(), None).into())
         } else {
             Ok(())
         }

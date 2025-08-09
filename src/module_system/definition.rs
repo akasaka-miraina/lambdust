@@ -43,11 +43,11 @@ pub fn compile_module_definition(
         
         // Merge import bindings into module environment
         for (symbol, value) in import_bindings {
-            if module_env.insert(symbol.clone()), value).is_some() {
+            if module_env.insert(symbol.clone(), value).is_some() {
                 return Err(Box::new(Error::syntax_error(
-                    format!("Duplicate import binding: {}", symbol),
+                    format!("Duplicate import binding: {symbol}"),
                     definition.span,
-                ));
+                )));
             }
         }
     }
@@ -83,7 +83,7 @@ pub fn parse_module_definition(program: &Program) -> Result<ModuleDefinition> {
         return Err(Box::new(Error::syntax_error(
             "Empty module definition".to_string(),
             None,
-        ));
+        )));
     }
     
     // Look for define-module form
@@ -98,13 +98,13 @@ pub fn parse_module_definition(program: &Program) -> Result<ModuleDefinition> {
                 _ => Err(Box::new(Error::syntax_error(
                     "Module must start with define-module".to_string(),
                     Some(define_module_expr.span),
-                )),
+                ))),
             }
         }
         _ => Err(Box::new(Error::syntax_error(
             "Module definition must be a list".to_string(),
             Some(define_module_expr.span),
-        )),
+        ))),
     }
 }
 
@@ -117,7 +117,7 @@ fn parse_define_module_form(
         return Err(Box::new(Error::syntax_error(
             "define-module requires module name".to_string(),
             Some(span),
-        ));
+        )));
     }
     
     // Parse module name
@@ -144,7 +144,7 @@ fn parse_define_module_form(
                                     return Err(Box::new(Error::syntax_error(
                                         "Multiple export declarations not allowed".to_string(),
                                         Some(expr.span),
-                                    ));
+                                    )));
                                 }
                                 export = Some(super::export::parse_export_spec(&form_elements[1..])?);
                             }
@@ -197,7 +197,7 @@ fn parse_module_name_expr(expr: &Spanned<Expr>) -> Result<ModuleId> {
                     _ => return Err(Box::new(Error::syntax_error(
                         "Module name must contain only symbols".to_string(),
                         Some(element.span),
-                    )),
+                    ))),
                 }
             }
             
@@ -205,7 +205,7 @@ fn parse_module_name_expr(expr: &Spanned<Expr>) -> Result<ModuleId> {
                 return Err(Box::new(Error::syntax_error(
                     "Module name cannot be empty".to_string(),
                     Some(expr.span),
-                ));
+                )));
             }
             
             let module_name = format!("({})", parts.join(" "));
@@ -214,7 +214,7 @@ fn parse_module_name_expr(expr: &Spanned<Expr>) -> Result<ModuleId> {
         _ => Err(Box::new(Error::syntax_error(
             "Module name must be a list".to_string(),
             Some(expr.span),
-        )),
+        ))),
     }
 }
 
@@ -226,20 +226,20 @@ fn parse_metadata(elements: &[Spanned<Expr>], _span: Span) -> Result<ModuleMetad
         match &element.inner {
             Expr::List(pair) if pair.len() == 2 => {
                 let key = match &pair[0].inner {
-                    Expr::Symbol(symbol) => symbol.clone()),
+                    Expr::Symbol(symbol) => symbol.clone(),
                     _ => return Err(Box::new(Error::syntax_error(
                         "Metadata key must be a symbol".to_string(),
                         Some(pair[0].span),
-                    )),
+                    ))),
                 };
                 
                 let value = match &pair[1].inner {
-                    Expr::Literal(crate::ast::Literal::String(s)) => s.clone()),
-                    Expr::Symbol(s) => s.clone()),
+                    Expr::Literal(crate::ast::Literal::String(s)) => s.clone(),
+                    Expr::Symbol(s) => s.clone(),
                     _ => return Err(Box::new(Error::syntax_error(
                         "Metadata value must be a string or symbol".to_string(),
                         Some(pair[1].span),
-                    )),
+                    ))),
                 };
                 
                 match key.as_str() {
@@ -254,7 +254,7 @@ fn parse_metadata(elements: &[Spanned<Expr>], _span: Span) -> Result<ModuleMetad
             _ => return Err(Box::new(Error::syntax_error(
                 "Metadata must be key-value pairs".to_string(),
                 Some(element.span),
-            )),
+            ))),
         }
     }
     
@@ -302,7 +302,7 @@ fn extract_define_binding(
         return Err(Box::new(Error::syntax_error(
             "define requires at least 2 arguments".to_string(),
             Some(span),
-        ));
+        )));
     }
     
     match &elements[0].inner {
@@ -310,7 +310,7 @@ fn extract_define_binding(
             // Simple variable definition
             // For now, we'll use a placeholder value
             // In a full implementation, we'd evaluate the expression
-            bindings.insert(name.clone()), Value::Unspecified);
+            bindings.insert(name.clone(), Value::Unspecified);
             Ok(())
         }
         Expr::List(function_elements) if !function_elements.is_empty() => {
@@ -319,19 +319,19 @@ fn extract_define_binding(
                 Expr::Symbol(name) => {
                     // For now, we'll use a placeholder value
                     // In a full implementation, we'd create a lambda
-                    bindings.insert(name.clone()), Value::Unspecified);
+                    bindings.insert(name.clone(), Value::Unspecified);
                     Ok(())
                 }
                 _ => Err(Box::new(Error::syntax_error(
                     "Function name must be a symbol".to_string(),
                     Some(function_elements[0].span),
-                )),
+                ))),
             }
         }
         _ => Err(Box::new(Error::syntax_error(
             "define target must be a symbol or function definition".to_string(),
             Some(elements[0].span),
-        )),
+        ))),
     }
 }
 
@@ -358,7 +358,7 @@ pub fn validate_module_definition(definition: &ModuleDefinition) -> Result<()> {
             return Err(Box::new(Error::syntax_error(
                 "Module cannot import itself".to_string(),
                 definition.span,
-            ));
+            )));
         }
     }
     

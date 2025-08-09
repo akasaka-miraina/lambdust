@@ -210,7 +210,7 @@ impl SchemeBenchmarkSuite {
 
         ComparisonReport {
             timestamp: chrono::Utc::now().to_rfc3339(),
-            config: self.config.clone()),
+            config: self.config.clone(),
             results,
             summary,
         }
@@ -358,10 +358,10 @@ impl SchemeBenchmarkSuite {
         let start = Instant::now();
 
         // Create temporary file with the code
-        let temp_file = format!("/tmp/lambdust_bench_{}.scm", benchmark_name);
-        if let Err(_) = fs::write(&temp_file, code) {
+        let temp_file = format!("/tmp/lambdust_bench_{benchmark_name}.scm");
+        if fs::write(&temp_file, code).is_err() {
             return Some(BenchmarkResult {
-                implementation: impl_config.name.clone()),
+                implementation: impl_config.name.clone(),
                 benchmark: benchmark_name.to_string(),
                 execution_time_ns: 0,
                 memory_usage_bytes: None,
@@ -401,7 +401,7 @@ impl SchemeBenchmarkSuite {
                 };
 
                 Some(BenchmarkResult {
-                    implementation: impl_config.name.clone()),
+                    implementation: impl_config.name.clone(),
                     benchmark: benchmark_name.to_string(),
                     execution_time_ns: duration.as_nanos() as u64,
                     memory_usage_bytes: None, // TODO: Implement memory measurement
@@ -411,12 +411,12 @@ impl SchemeBenchmarkSuite {
             }
             Err(e) => {
                 Some(BenchmarkResult {
-                    implementation: impl_config.name.clone()),
+                    implementation: impl_config.name.clone(),
                     benchmark: benchmark_name.to_string(),
                     execution_time_ns: 0,
                     memory_usage_bytes: None,
                     success: false,
-                    error: Some(format!("Failed to execute: {}", e)),
+                    error: Some(format!("Failed to execute: {e}")),
                 })
             }
         }
@@ -432,7 +432,7 @@ impl SchemeBenchmarkSuite {
         
         for result in results.iter().filter(|r| r.success) {
             impl_stats.entry(result.implementation.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(result.execution_time_ns);
         }
 
@@ -523,7 +523,7 @@ impl SchemeBenchmarkSuite {
             .collect();
 
         for benchmark in unique_benchmarks {
-            output.push_str(&format!("### {}\n\n", benchmark));
+            output.push_str(&format!("### {benchmark}\n\n"));
             output.push_str("| Implementation | Time (ms) | Status |\n");
             output.push_str("|----------------|-----------|--------|\n");
 
@@ -557,7 +557,7 @@ pub fn run_scheme_comparison() -> Result<ComparisonReport, Box<dyn std::error::E
     suite.detect_implementations();
     
     // Update config with detected implementations
-    config = suite.config.clone());
+    config = suite.config.clone();
     
     println!("Running performance comparison...");
     let report = suite.run_comparison();
@@ -576,8 +576,8 @@ pub fn run_scheme_comparison() -> Result<ComparisonReport, Box<dyn std::error::E
     fs::write(&md_path, md_content)?;
     
     println!("Results saved to:");
-    println!("  - JSON: {}", json_path);
-    println!("  - Markdown: {}", md_path);
+    println!("  - JSON: {json_path}");
+    println!("  - Markdown: {md_path}");
     
     Ok(report)
 }

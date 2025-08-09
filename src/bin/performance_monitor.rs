@@ -4,7 +4,7 @@
 //! for Lambdust, including memory usage tracking, execution profiling, and
 //! performance regression detection.
 
-use lambdust::benchmarks::{PerformanceTester, SchemeBenchmarkSuite};
+use lambdust::benchmarks::{PerformanceTester, SchemeBenchmarkSuite, PerformanceTestConfig};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::path::PathBuf;
 use clap::{Arg, Command};
@@ -180,7 +180,7 @@ impl PerformanceMonitor {
     pub fn new(config: MonitoringConfig) -> Self {
         Self {
             snapshot_history: Vec::new(),
-            performance_tester: PerformanceTester::default(),
+            performance_tester: PerformanceTester::new(PerformanceTestConfig::default()),
             benchmark_suite: SchemeBenchmarkSuite::new(),
             monitoring_config: config,
         }

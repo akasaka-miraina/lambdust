@@ -59,9 +59,9 @@ fn main() {
 
 fn run_comparison(iterations: usize, timeout: u64, output_dir: String) {
     println!("🚀 Starting Lambdust Performance Comparison");
-    println!("   Iterations: {}", iterations);
-    println!("   Timeout: {}s", timeout);
-    println!("   Output: {}", output_dir);
+    println!("   Iterations: {iterations}");
+    println!("   Timeout: {timeout}s");
+    println!("   Output: {output_dir}");
     println!();
 
     let mut config = ComparisonConfig::default();
@@ -103,7 +103,7 @@ fn run_comparison(iterations: usize, timeout: u64, output_dir: String) {
             println!("📁 Detailed results saved to benchmark_results/");
         }
         Err(e) => {
-            eprintln!("❌ Comparison failed: {}", e);
+            eprintln!("❌ Comparison failed: {e}");
             process::exit(1);
         }
     }
@@ -116,17 +116,17 @@ fn detect_implementations() {
     let mut config = ComparisonConfig::default();
     let mut suite = SchemeBenchmarkSuite::new(config.clone());
     suite.detect_implementations();
-    config = suite.get_config().clone());
+    config = suite.get_config().clone();
 
     let available_count = config.implementations.iter().filter(|impl_config| impl_config.available).count();
     
-    println!("Found {} available implementations:", available_count);
+    println!("Found {available_count} available implementations:");
     println!();
 
     for impl_config in &config.implementations {
         let status_icon = if impl_config.available { "✅" } else { "❌" };
         let version = impl_config.version.as_ref()
-            .map(|v| format!(" ({})", v))
+            .map(|v| format!(" ({v})"))
             .unwrap_or_else(|| " (version unknown)".to_string());
         
         println!("   {} {} - {}{}", 
@@ -139,7 +139,7 @@ fn detect_implementations() {
     
     println!();
     if available_count > 1 {
-        println!("🎯 Ready to run comparisons with {} implementations!", available_count);
+        println!("🎯 Ready to run comparisons with {available_count} implementations!");
     } else if available_count == 1 {
         println!("⚠️  Only Lambdust is available. Install other Scheme implementations for comparison.");
         println!("   Recommended installations:");
@@ -160,14 +160,14 @@ fn show_config() {
     match serde_json::to_string_pretty(&config) {
         Ok(json) => {
             println!("```json");
-            println!("{}", json);
+            println!("{json}");
             println!("```");
             println!();
             println!("Save this as 'comparison_config.json' and use with:");
             println!("cargo run --bin scheme-comparison run --config comparison_config.json");
         }
         Err(e) => {
-            eprintln!("Error generating config: {}", e);
+            eprintln!("Error generating config: {e}");
             process::exit(1);
         }
     }

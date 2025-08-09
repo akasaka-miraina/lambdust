@@ -10,13 +10,13 @@ pub trait IntoLambdustError<T> {
 
 impl<T> IntoLambdustError<T> for std::io::Result<T> {
     fn into_lambdust_error(self) -> Result<T> {
-        self.map_err(|e| Error::io_error(e.to_string()))
+        self.map_err(|e| Box::new(Error::io_error(e.to_string())))
     }
 }
 
 impl<T> IntoLambdustError<T> for serde_json::Result<T> {
     fn into_lambdust_error(self) -> Result<T> {
-        self.map_err(|e| Error::runtime_error(format!("JSON error: {e}"), None))
+        self.map_err(|e| Box::new(Error::runtime_error(format!("JSON error: {e}"), None)))
     }
 }
 
@@ -35,7 +35,7 @@ impl ErrorContext {
 
     /// Adds context information.
     pub fn with_context(mut self, context: impl Into<String>) -> Self {
-        self.context.push(context.into())
+        self.context.push(context.into());
         self
     }
 

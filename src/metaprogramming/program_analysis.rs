@@ -201,18 +201,27 @@ pub struct TypeInformation {
 #[derive(Debug, Clone, PartialEq)]
 pub enum InferredType {
     /// Primitive types
+    /// Boolean type.
     Boolean,
+    /// Numeric type.
     Number,
+    /// String type.
     String,
+    /// Character type.
     Character,
+    /// Symbol type.
     Symbol,
     /// Compound types
     Pair(Box<InferredType>, Box<InferredType>),
+    /// List with element type.
     List(Box<InferredType>),
+    /// Vector with element type.
     Vector(Box<InferredType>),
     /// Function type
     Function {
+        /// Parameter types.
         parameters: Vec<InferredType>,
+        /// Return type.
         return_type: Box<InferredType>,
     },
     /// Unknown type
@@ -607,7 +616,7 @@ impl StaticAnalyzer {
         for unused in &analysis.variable_usage.unused {
             warnings.push(AnalysisWarning {
                 warning_type: WarningType::UnusedVariable,
-                message: format!("Variable '{}' is defined but never used", unused),
+                message: format!("Variable '{unused}' is defined but never used"),
                 location: None,
                 severity: WarningSeverity::Warning,
             });
@@ -618,7 +627,7 @@ impl StaticAnalyzer {
             if *complexity > 10 {
                 warnings.push(AnalysisWarning {
                     warning_type: WarningType::ComplexFunction,
-                    message: format!("Function '{}' has high complexity ({})", func_name, complexity),
+                    message: format!("Function '{func_name}' has high complexity ({complexity})"),
                     location: None,
                     severity: WarningSeverity::Warning,
                 });
@@ -645,12 +654,12 @@ impl InternalDependencyAnalyzer {
         match &expr.inner {
             Expr::Identifier(name) => {
                 if let Some(current) = self.current_scope.last() {
-                    graph.add_dependency(current.clone()), name.clone()), DependencyType::Reference, Some(expr.span));
+                    graph.add_dependency(current.clone(), name.clone(), DependencyType::Reference, Some(expr.span));
                 }
             }
             Expr::Define { name, value, .. } => {
                 self.current_scope.push(name.clone());
-                graph.add_node(name.clone()), DefinitionType::Variable, Some(expr.span));
+                graph.add_node(name.clone(), DefinitionType::Variable, Some(expr.span));
                 self.analyze_expression(value, graph)?;
                 self.current_scope.pop();
             }
@@ -686,6 +695,7 @@ impl InternalDependencyAnalyzer {
         cycles
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn dfs_cycles(
         &self,
         node: &str,
@@ -734,6 +744,7 @@ impl VariableAnalyzer {
         }
     }
 
+    #[allow(clippy::only_used_in_recursion)]
     fn analyze_expression(&mut self, expr: &Spanned<Expr>, usage: &mut VariableUsage) -> Result<()> {
         match &expr.inner {
             Expr::Identifier(name) => {
@@ -743,7 +754,7 @@ impl VariableAnalyzer {
                 }
             }
             Expr::Define { name, value, .. } => {
-                self.define_variable(name.clone()), Some(expr.span));
+                self.define_variable(name.clone(), Some(expr.span));
                 self.analyze_expression(value, usage)?;
             }
             _ => {}
@@ -753,9 +764,9 @@ impl VariableAnalyzer {
 
     fn define_variable(&mut self, name: String, location: Option<Span>) {
         let scope_level = self.scopes.len() - 1;
-        let scope_id = format!("scope-{}", scope_level);
+        let scope_id = format!("scope-{scope_level}");
         let scope = self.scopes.last_mut().unwrap();
-        scope.insert(name.clone()), VariableInfo {
+        scope.insert(name.clone(), VariableInfo {
             name,
             definition: location,
             uses: Vec::new(),
@@ -799,7 +810,7 @@ impl DependencyGraph {
 
     fn add_node(&mut self, name: String, def_type: DefinitionType, location: Option<Span>) {
         let node = DependencyNode {
-            name: name.clone()),
+            name: name.clone(),
             definition_type: def_type,
             location,
             dependencies: HashSet::new(),
@@ -811,8 +822,8 @@ impl DependencyGraph {
     fn add_dependency(&mut self, from: String, to: String, dep_type: DependencyType, location: Option<Span>) {
         // Add edge
         self.edges.push(DependencyEdge {
-            from: from.clone()),
-            to: to.clone()),
+            from: from.clone(),
+            to: to.clone(),
             dependency_type: dep_type,
             location,
         });

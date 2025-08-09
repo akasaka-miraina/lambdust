@@ -170,22 +170,22 @@ impl RedBlackTree {
                 match self.comparator.compare(&value, &n.value) {
                     Ordering::Equal => (Some((*n).clone()), false), // Already exists
                     Ordering::Less => {
-                        let (new_left, inserted) = self.insert_recursive(n.left.clone()), value);
+                        let (new_left, inserted) = self.insert_recursive(n.left.clone(), value);
                         let mut new_node = Node::new_with_children(
-                            n.value.clone()),
+                            n.value.clone(),
                             n.color,
                             new_left.map(Arc::new),
-                            n.right.clone()),
+                            n.right.clone(),
                         );
                         new_node = self.fix_up(new_node);
                         (Some(new_node), inserted)
                     }
                     Ordering::Greater => {
-                        let (new_right, inserted) = self.insert_recursive(n.right.clone()), value);
+                        let (new_right, inserted) = self.insert_recursive(n.right.clone(), value);
                         let mut new_node = Node::new_with_children(
-                            n.value.clone()),
+                            n.value.clone(),
                             n.color,
-                            n.left.clone()),
+                            n.left.clone(),
                             new_right.map(Arc::new),
                         );
                         new_node = self.fix_up(new_node);
@@ -205,7 +205,7 @@ impl RedBlackTree {
         // Make root red if both children are black
         if let Some(ref root) = self.root {
             if !is_red(&root.left) && !is_red(&root.right) {
-                let cloned_root = (**root).clone());
+                let cloned_root = (**root).clone();
                 self.root = Some(Arc::new(cloned_root.make_red()));
             }
         }
@@ -215,7 +215,7 @@ impl RedBlackTree {
         
         // Make root black
         if let Some(root) = self.root.take() {
-            self.root = Some(Arc::new((*root).clone()).make_black()));
+            self.root = Some(Arc::new((*root).clone().make_black()));
         }
         
         true
@@ -228,7 +228,7 @@ impl RedBlackTree {
             Some(n) => {
                 match self.comparator.compare(value, &n.value) {
                     Ordering::Less => {
-                        let mut new_node = (*n).clone());
+                        let mut new_node = (*n).clone();
                         
                         if !is_red(&n.left) && n.left.as_ref().map(|l| !is_red(&l.left)).unwrap_or(true) {
                             new_node = self.move_red_left(new_node);
@@ -249,7 +249,7 @@ impl RedBlackTree {
                                 return None;
                             }
                             
-                            let mut new_node = (*n).clone());
+                            let mut new_node = (*n).clone();
                             
                             if !is_red(&n.right) && n.right.as_ref().map(|r| !is_red(&r.left)).unwrap_or(true) {
                                 new_node = self.move_red_right(new_node);
@@ -257,7 +257,7 @@ impl RedBlackTree {
                             
                             if self.comparator.compare(value, &new_node.value) == Ordering::Equal {
                                 // Replace with minimum from right subtree
-                                if let Some(min_val) = self.find_min(&new_node.right) {
+                                if let Some(min_val) = Self::find_min(&new_node.right) {
                                     new_node.value = min_val;
                                     new_node.right = self.delete_min(new_node.right);
                                 } else {
@@ -277,14 +277,14 @@ impl RedBlackTree {
     }
     
     /// Finds the minimum value in a subtree
-    fn find_min(&self, node: &Option<Arc<Node>>) -> Option<Value> {
+    fn find_min(node: &Option<Arc<Node>>) -> Option<Value> {
         match node {
             None => None,
             Some(n) => {
                 if n.left.is_none() {
                     Some(n.value.clone())
                 } else {
-                    self.find_min(&n.left)
+                    Self::find_min(&n.left)
                 }
             }
         }
@@ -296,10 +296,10 @@ impl RedBlackTree {
             None => None,
             Some(n) => {
                 if n.left.is_none() {
-                    return n.right.clone());
+                    return n.right.clone();
                 }
                 
-                let mut new_node = (*n).clone());
+                let mut new_node = (*n).clone();
                 
                 if !is_red(&n.left) && n.left.as_ref().map(|l| !is_red(&l.left)).unwrap_or(true) {
                     new_node = self.move_red_left(new_node);
@@ -315,8 +315,8 @@ impl RedBlackTree {
     /// Rotates left
     fn rotate_left(&self, mut node: Node) -> Node {
         if let Some(right) = node.right.take() {
-            let new_right = right.left.clone());
-            let mut new_root = (*right).clone());
+            let new_right = right.left.clone();
+            let mut new_root = (*right).clone();
             new_root.left = Some(Arc::new(Node::new_with_children(
                 node.value,
                 Color::Red,
@@ -334,8 +334,8 @@ impl RedBlackTree {
     /// Rotates right
     fn rotate_right(&self, mut node: Node) -> Node {
         if let Some(left) = node.left.take() {
-            let new_left = left.right.clone());
-            let mut new_root = (*left).clone());
+            let new_left = left.right.clone();
+            let mut new_root = (*left).clone();
             new_root.right = Some(Arc::new(Node::new_with_children(
                 node.value,
                 Color::Red,
@@ -358,12 +358,12 @@ impl RedBlackTree {
         };
         
         if let Some(left) = &node.left {
-            let cloned_left = (**left).clone());
+            let cloned_left = (**left).clone();
             node.left = Some(Arc::new(cloned_left.make_red()));
         }
         
         if let Some(right) = &node.right {
-            let cloned_right = (**right).clone());
+            let cloned_right = (**right).clone();
             node.right = Some(Arc::new(cloned_right.make_red()));
         }
         
@@ -421,38 +421,38 @@ impl RedBlackTree {
     /// Converts the tree to a sorted vector
     fn to_vec(&self) -> Vec<Value> {
         let mut result = Vec::new();
-        self.inorder_traversal(&self.root, &mut result);
+        Self::inorder_traversal(&self.root, &mut result);
         result
     }
     
     /// In-order traversal helper
-    fn inorder_traversal(&self, node: &Option<Arc<Node>>, result: &mut Vec<Value>) {
+    fn inorder_traversal(node: &Option<Arc<Node>>, result: &mut Vec<Value>) {
         if let Some(n) = node {
-            self.inorder_traversal(&n.left, result);
+            Self::inorder_traversal(&n.left, result);
             result.push(n.value.clone());
-            self.inorder_traversal(&n.right, result);
+            Self::inorder_traversal(&n.right, result);
         }
     }
     
     /// Gets the minimum value
     fn min(&self) -> Option<Value> {
-        self.find_min(&self.root)
+        Self::find_min(&self.root)
     }
     
     /// Gets the maximum value
     fn max(&self) -> Option<Value> {
-        self.find_max(&self.root)
+        Self::find_max(&self.root)
     }
     
     /// Finds the maximum value in a subtree
-    fn find_max(&self, node: &Option<Arc<Node>>) -> Option<Value> {
+    fn find_max(node: &Option<Arc<Node>>) -> Option<Value> {
         match node {
             None => None,
             Some(n) => {
                 if n.right.is_none() {
                     Some(n.value.clone())
                 } else {
-                    self.find_max(&n.right)
+                    Self::find_max(&n.right)
                 }
             }
         }
@@ -497,7 +497,7 @@ impl OrderedSet {
     /// Creates a new ordered set with default comparator
     pub fn new() -> Self {
         Self {
-            tree: RedBlackTree::new(Comparator::default()),
+            tree: RedBlackTree::new(Comparator::with_default()),
             name: None,
         }
     }
@@ -513,7 +513,7 @@ impl OrderedSet {
     /// Creates a named ordered set for debugging
     pub fn with_name(name: impl Into<String>) -> Self {
         let mut set = Self::new();
-        set.name = Some(name.into())
+        set.name = Some(name.into());
         set
     }
     
@@ -568,7 +568,7 @@ impl OrderedSet {
     
     /// Union of two sets
     pub fn union(&self, other: &Self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         for value in other.iter() {
             result.insert(value);
         }
@@ -811,7 +811,7 @@ impl ThreadSafeOrderedSet {
     where
         F: FnOnce(&OrderedSet) -> R,
     {
-        f(&*self.inner.read().unwrap())
+        f(&self.inner.read().unwrap())
     }
     
     /// Executes a closure with write access to the inner set
@@ -819,7 +819,7 @@ impl ThreadSafeOrderedSet {
     where
         F: FnOnce(&mut OrderedSet) -> R,
     {
-        f(&mut *self.inner.write().unwrap())
+        f(&mut self.inner.write().unwrap())
     }
 }
 
@@ -985,7 +985,7 @@ mod tests {
             if let Some(n) = v.as_number() {
                 Value::number(n * 2.0)
             } else {
-                v.clone())
+                v.clone()
             }
         });
         assert_eq!(doubled.len(), 5);

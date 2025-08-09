@@ -186,7 +186,7 @@ impl EffectHandlerImplementation {
     
     /// Adds a handler function for a specific effect.
     pub fn add_handler(&mut self, effect: Effect, handler: HandlerFunction) {
-        self.handlers.insert(effect.clone()), handler);
+        self.handlers.insert(effect.clone(), handler);
         if !self.handled_effects.contains(&effect) {
             self.handled_effects.push(effect);
         }
@@ -206,7 +206,7 @@ impl EffectHandlerImplementation {
     ) -> Result<EffectResult> {
         // Check arity
         if let Err(e) = self.check_handler_arity(&handler.arity, args.len()) {
-            return Ok(EffectResult::Error(e));
+            return Ok(EffectResult::Error(*e));
         }
         
         // Prepare arguments for the handler procedure
@@ -255,20 +255,20 @@ impl EffectHandlerImplementation {
         match arity {
             HandlerArity::Fixed(expected) => {
                 if arg_count != *expected {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         format!("Handler expects {expected} arguments, got {arg_count}"),
                         None,
-                    ))
+                    )))
                 } else {
                     Ok(())
                 }
             },
             HandlerArity::Variable(min) => {
                 if arg_count < *min {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         format!("Handler expects at least {min} arguments, got {arg_count}"),
                         None,
-                    ))
+                    )))
                 } else {
                     Ok(())
                 }
@@ -276,11 +276,11 @@ impl EffectHandlerImplementation {
             HandlerArity::WithContinuation(expected) => {
                 // Continuation adds one extra argument
                 if arg_count != expected + 1 {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         format!("Handler with continuation expects {} arguments, got {}", 
                                 expected + 1, arg_count),
                         None,
-                    ))
+                    )))
                 } else {
                     Ok(())
                 }
@@ -519,10 +519,10 @@ impl IOEffectHandler {
             },
             IOAction::Return(value) => Ok(value.clone()),
             _ => {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "IO action not yet implemented".to_string(),
                     None,
-                ))
+                )))
             }
         }
     }
@@ -543,16 +543,16 @@ impl StateEffectHandler {
             StateAction::Return(value) => Ok(value.clone()),
             StateAction::GetVar(name) => {
                 // In a full implementation, this would access the state
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     format!("Variable {name} not found in state"),
                     None,
-                ))
+                )))
             },
             _ => {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "State action not yet implemented".to_string(),
                     None,
-                ))
+                )))
             }
         }
     }
@@ -576,14 +576,14 @@ impl ErrorEffectHandler {
                     // Attempt error recovery (simplified)
                     Ok(Value::string("Error recovered".to_string()))
                 } else {
-                    Err(error.clone())
+                    Err(Box::new(error.clone()))
                 }
             },
             _ => {
-                Err(DiagnosticError::runtime_error(
+                Err(Box::new(DiagnosticError::runtime_error(
                     "Error action not yet implemented".to_string(),
                     None,
-                ))
+                )))
             }
         }
     }

@@ -17,19 +17,46 @@ pub enum Permission {
     /// Allow compilation
     Compile,
     /// Allow file system access
-    FileSystem { path: String, read: bool, write: bool },
+    FileSystem { 
+        /// File path for access.
+        path: String, 
+        /// Allow read access.
+        read: bool, 
+        /// Allow write access.
+        write: bool 
+    },
     /// Allow network access
-    Network { host: String, port: Option<u16> },
+    Network { 
+        /// Host name or IP address.
+        host: String, 
+        /// Optional port number.
+        port: Option<u16> 
+    },
     /// Allow environment manipulation
-    Environment { read: bool, write: bool },
+    Environment { 
+        /// Allow reading environment.
+        read: bool, 
+        /// Allow writing environment.
+        write: bool 
+    },
     /// Allow reflection operations
     Reflection,
     /// Allow FFI calls
     Ffi,
     /// Allow module operations
-    Module { load: bool, unload: bool },
+    Module { 
+        /// Allow loading modules.
+        load: bool, 
+        /// Allow unloading modules.
+        unload: bool 
+    },
     /// Allow memory management
-    Memory { allocate: bool, gc: bool },
+    Memory { 
+        /// Allow memory allocation.
+        allocate: bool, 
+        /// Allow garbage collection.
+        gc: bool 
+    },
     /// Allow system calls
     System,
     /// Custom permission
@@ -57,6 +84,7 @@ pub struct SecurityPolicy {
 
 /// Resource limits for sandboxed execution.
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct ResourceLimits {
     /// Maximum number of allocations
     pub max_allocations: Option<usize>,
@@ -91,11 +119,26 @@ pub struct AccessControlEntry {
 #[derive(Debug, Clone)]
 pub enum AccessCondition {
     /// Time-based condition
-    TimeRange { start: Instant, end: Instant },
+    TimeRange { 
+        /// Start time of the valid range.
+        start: Instant, 
+        /// End time of the valid range.
+        end: Instant 
+    },
     /// Resource-based condition
-    ResourceLimit { resource: String, limit: usize },
+    ResourceLimit { 
+        /// The resource being limited.
+        resource: String, 
+        /// The limit value for the resource.
+        limit: usize 
+    },
     /// Context-based condition
-    Context { key: String, value: String },
+    Context { 
+        /// Context key.
+        key: String, 
+        /// Context value.
+        value: String 
+    },
     /// Custom condition
     Custom(String),
 }
@@ -133,8 +176,7 @@ pub struct ResourceUsage {
 }
 
 /// Security manager that enforces policies and access controls.
-#[derive(Debug)]
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct SecurityManager {
     /// Security policies
     policies: HashMap<String, SecurityPolicy>,
@@ -247,18 +289,18 @@ impl SecurityManager {
     pub fn create_context(&self, principal: String, policy_name: &str) -> Result<SecurityContext> {
         let policy = self.policies.get(policy_name)
             .unwrap_or(&self.default_policy)
-            .clone());
+            .clone();
 
         let context = SecurityContext {
-            principal: principal.clone()),
-            permissions: policy.allowed_permissions.clone()),
+            principal: principal.clone(),
+            permissions: policy.allowed_permissions.clone(),
             policy,
             resource_usage: ResourceUsage::default(),
             start_time: Instant::now(),
         };
 
         let mut contexts = self.contexts.write().unwrap();
-        contexts.insert(principal.clone()), context.clone());
+        contexts.insert(principal.clone(), context.clone());
 
         Ok(context)
     }
@@ -276,11 +318,10 @@ impl SecurityManager {
     /// Checks access control for a specific operation.
     pub fn check_access(&self, principal: &str, resource: &str, operation: &str) -> Result<bool> {
         for entry in &self.acl {
-            if entry.principal == principal && entry.resource == resource && entry.operation == operation {
-                if self.evaluate_conditions(&entry.conditions)? {
+            if entry.principal == principal && entry.resource == resource && entry.operation == operation
+                && self.evaluate_conditions(&entry.conditions)? {
                     return Ok(entry.allowed);
                 }
-            }
         }
         Ok(false) // Default deny
     }
@@ -308,7 +349,7 @@ impl SecurityManager {
                 return Err(Box::new(Error::runtime_error(
                     format!("Allocation limit exceeded: {} > {}", usage.allocations, max_allocations),
                     None,
-                ));
+                )));
             }
         }
 
@@ -317,7 +358,7 @@ impl SecurityManager {
                 return Err(Box::new(Error::runtime_error(
                     format!("Memory limit exceeded: {} > {}", usage.memory_used, max_memory),
                     None,
-                ));
+                )));
             }
         }
 
@@ -326,7 +367,7 @@ impl SecurityManager {
                 return Err(Box::new(Error::runtime_error(
                     format!("Execution time limit exceeded: {:?} > {:?}", usage.execution_time, max_time),
                     None,
-                ));
+                )));
             }
         }
 
@@ -335,7 +376,7 @@ impl SecurityManager {
                 return Err(Box::new(Error::runtime_error(
                     format!("Stack depth limit exceeded: {} > {}", usage.stack_depth, max_stack),
                     None,
-                ));
+                )));
             }
         }
 
@@ -373,13 +414,13 @@ impl SecurityManager {
 
     /// Adds a security policy.
     pub fn add_policy(&mut self, policy: SecurityPolicy) {
-        self.policies.insert(policy.name.clone()), policy);
+        self.policies.insert(policy.name.clone(), policy);
     }
 
     /// Gets a security context for a principal.
     pub fn get_context(&self, principal: &str) -> Option<SecurityContext> {
         let contexts = self.contexts.read().unwrap();
-        contexts.get(principal).clone())()
+        contexts.get(principal).cloned()
     }
 
     /// Removes a security context.
@@ -397,18 +438,6 @@ impl Default for SecurityManager {
     }
 }
 
-impl Default for ResourceLimits {
-    fn default() -> Self {
-        Self {
-            max_allocations: None,
-            max_memory: None,
-            max_execution_time: None,
-            max_stack_depth: None,
-            max_file_operations: None,
-            max_network_operations: None,
-        }
-    }
-}
 
 impl Default for ResourceUsage {
     fn default() -> Self {
@@ -445,7 +474,7 @@ impl PermissionSystem {
     pub fn grant_permission(&mut self, principal: String, permission: Permission) {
         self.granted_permissions
             .entry(principal)
-            .or_insert_with(HashSet::new)
+            .or_default()
             .insert(permission);
     }
 
@@ -486,7 +515,7 @@ impl PermissionSystem {
     pub fn add_permission_implication(&mut self, parent: Permission, child: Permission) {
         self.permission_hierarchy
             .entry(parent)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(child);
     }
 }

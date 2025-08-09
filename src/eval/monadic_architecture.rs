@@ -24,6 +24,12 @@ use std::sync::Arc;
 use std::collections::HashMap;
 use async_trait::async_trait;
 
+/// Type alias for complex monadic continuation functions
+type MonadicContinuation = Arc<dyn Fn(MonadicComputation<Value>, Arc<dyn Fn(Value) -> MonadicComputation<Value> + Send + Sync>) -> MonadicComputation<Value> + Send + Sync>;
+
+/// Type alias for complex monadic bind functions
+type MonadicBindFunction = Option<Arc<dyn Fn(MonadicComputation<Value>, Arc<dyn Fn(Value) -> Value + Send + Sync>) -> MonadicComputation<Value> + Send + Sync>>;
+
 // ================================
 // DOMAIN LAYER - Core Business Logic
 // ================================
@@ -70,24 +76,31 @@ pub enum MonadicComputation<T: Clone> {
 pub enum MonadicTransformation<T: Clone> {
     /// Map transformation (functor)
     Map {
+        /// The mapping function to apply.
         function: Arc<dyn Fn(Value) -> T + Send + Sync>,
+        /// Function name for debugging purposes.
         function_name: String, // for debugging
     },
     
     /// Bind transformation (monadic composition)
     Bind {
+        /// The monadic bind function to apply.
         function: Arc<dyn Fn(Value) -> MonadicComputation<T> + Send + Sync>,
+        /// Function name for debugging purposes.
         function_name: String,
     },
     
     /// Lift transformation (lift into another monad)
     Lift {
+        /// The target monad type to lift into.
         target_monad: MonadType,
     },
     
     /// Filter transformation (Maybe monad)
     Filter {
+        /// The predicate function for filtering.
         predicate: Arc<dyn Fn(&Value) -> bool + Send + Sync>,
+        /// Predicate name for debugging purposes.
         predicate_name: String,
     },
 }
@@ -96,16 +109,16 @@ impl<T: Clone> std::fmt::Debug for MonadicTransformation<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             MonadicTransformation::Map { function_name, .. } => {
-                write!(f, "Map {{ function: <{}> }}", function_name)
+                write!(f, "Map {{ function: <{function_name}> }}")
             }
             MonadicTransformation::Bind { function_name, .. } => {
-                write!(f, "Bind {{ function: <{}> }}", function_name)
+                write!(f, "Bind {{ function: <{function_name}> }}")
             }
             MonadicTransformation::Lift { target_monad } => {
-                write!(f, "Lift {{ target_monad: {:?} }}", target_monad)
+                write!(f, "Lift {{ target_monad: {target_monad:?} }}")
             }
             MonadicTransformation::Filter { predicate_name, .. } => {
-                write!(f, "Filter {{ predicate: <{}> }}", predicate_name)
+                write!(f, "Filter {{ predicate: <{predicate_name}> }}")
             }
         }
     }
@@ -137,7 +150,7 @@ pub enum MonadType {
 /// Domain service for monadic composition and transformation.
 ///
 /// This encapsulates the mathematical laws and operations of monads.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MonadService {
     /// Configuration for monadic operations
     config: MonadConfiguration,
@@ -169,10 +182,10 @@ pub struct CustomMonadDefinition {
     pub pure_impl: Arc<dyn Fn(Value) -> MonadicComputation<Value> + Send + Sync>,
     
     /// Implementation of bind/flatMap
-    pub bind_impl: Arc<dyn Fn(MonadicComputation<Value>, Arc<dyn Fn(Value) -> MonadicComputation<Value> + Send + Sync>) -> MonadicComputation<Value> + Send + Sync>,
+    pub bind_impl: MonadicContinuation,
     
     /// Optional implementation of map/fmap
-    pub map_impl: Option<Arc<dyn Fn(MonadicComputation<Value>, Arc<dyn Fn(Value) -> Value + Send + Sync>) -> MonadicComputation<Value> + Send + Sync>>,
+    pub map_impl: MonadicBindFunction,
 }
 
 impl std::fmt::Debug for CustomMonadDefinition {
@@ -706,7 +719,7 @@ impl ContinuationRepository for InMemoryContinuationRepository {
                 return Err(Box::new(Error::runtime_error(
                     "Continuation repository at capacity".to_string(),
                     None,
-                ));
+                )));
             }
         }
         
@@ -715,7 +728,7 @@ impl ContinuationRepository for InMemoryContinuationRepository {
     }
     
     fn find_by_id(&self, id: ContinuationId) -> Option<CapturedContinuation> {
-        self.continuations.get(&id).clone())()
+        self.continuations.get(&id).cloned()
     }
     
     fn remove(&mut self, id: ContinuationId) -> Result<()> {

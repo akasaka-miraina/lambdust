@@ -95,8 +95,8 @@ mod tests {
     #[test]
     fn test_memory_manager() {
         let manager = MemoryManager::new();
-        let usage = manager.current_usage();
-        assert!(usage >= 0); // Memory usage should be non-negative
+        let _usage = manager.current_usage();
+        // Memory usage is always non-negative for usize type
     }
 
     #[test]

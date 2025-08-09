@@ -48,7 +48,7 @@ impl Mutex {
     pub fn try_lock(&self) -> Result<MutexGuard<'_>> {
         match self.inner.try_lock() {
             Ok(guard) => Ok(MutexGuard { guard }),
-            Err(_) => Err(Box::new(Error::runtime_error("Mutex is locked".to_string(), None)),
+            Err(_) => Err(Box::new(Error::runtime_error("Mutex is locked".to_string(), None))),
         }
     }
 
@@ -74,12 +74,12 @@ pub struct MutexGuard<'a> {
 impl<'a> MutexGuard<'a> {
     /// Gets a reference to the protected value.
     pub fn get(&self) -> &Value {
-        &*self.guard
+        &self.guard
     }
 
     /// Gets a mutable reference to the protected value.
     pub fn get_mut(&mut self) -> &mut Value {
-        &mut *self.guard
+        &mut self.guard
     }
 
     /// Sets the protected value.
@@ -128,7 +128,7 @@ impl RwLock {
     pub fn try_read(&self) -> Result<ReadGuard<'_>> {
         match self.inner.try_read() {
             Ok(guard) => Ok(ReadGuard { guard }),
-            Err(_) => Err(Box::new(Error::runtime_error("RwLock is write-locked".to_string(), None)),
+            Err(_) => Err(Box::new(Error::runtime_error("RwLock is write-locked".to_string(), None))),
         }
     }
 
@@ -136,7 +136,7 @@ impl RwLock {
     pub fn try_write(&self) -> Result<WriteGuard<'_>> {
         match self.inner.try_write() {
             Ok(guard) => Ok(WriteGuard { guard }),
-            Err(_) => Err(Box::new(Error::runtime_error("RwLock is locked".to_string(), None)),
+            Err(_) => Err(Box::new(Error::runtime_error("RwLock is locked".to_string(), None))),
         }
     }
 
@@ -154,7 +154,7 @@ pub struct ReadGuard<'a> {
 impl<'a> ReadGuard<'a> {
     /// Gets a reference to the protected value.
     pub fn get(&self) -> &Value {
-        &*self.guard
+        &self.guard
     }
 }
 
@@ -166,12 +166,12 @@ pub struct WriteGuard<'a> {
 impl<'a> WriteGuard<'a> {
     /// Gets a reference to the protected value.
     pub fn get(&self) -> &Value {
-        &*self.guard
+        &self.guard
     }
 
     /// Gets a mutable reference to the protected value.
     pub fn get_mut(&mut self) -> &mut Value {
-        &mut *self.guard
+        &mut self.guard
     }
 
     /// Sets the protected value.
@@ -654,10 +654,10 @@ impl SyncRegistry {
     /// Gets a named mutex.
     pub fn get_mutex(&self, name: &str) -> Result<Mutex> {
         let mutexes = self.mutexes.lock()
-            .map_err(|_| Error::runtime_error("Failed to lock mutex registry".to_string(), None))?;
+            .map_err(|_| Box::new(Error::runtime_error("Failed to lock mutex registry".to_string(), None)))?;
         mutexes.get(name)
-            .clone())()
-            .ok_or_else(|| Error::runtime_error(format!("Mutex '{}' not found", name), None))
+            .cloned()
+            .ok_or_else(|| Box::new(Error::runtime_error(format!("Mutex '{name}' not found"), None)))
     }
 
     // Similar methods for other primitives...
@@ -675,5 +675,5 @@ static SYNC_REGISTRY: std::sync::OnceLock<Arc<SyncRegistry>> = std::sync::OnceLo
 
 /// Gets the global synchronization registry.
 pub fn global_sync_registry() -> Arc<SyncRegistry> {
-    SYNC_REGISTRY.get_or_init(|| Arc::new(SyncRegistry::new())).clone())
+    SYNC_REGISTRY.get_or_init(|| Arc::new(SyncRegistry::new())).clone()
 }

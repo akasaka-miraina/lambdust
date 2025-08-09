@@ -359,7 +359,7 @@ impl IntegrationExample {
         
         // Install each exported function
         for (name, value) in &library.module.exports {
-            root_env.define(name.clone()), value.clone());
+            root_env.define(name.clone(), value.clone());
         }
         
         Ok(())

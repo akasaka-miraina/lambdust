@@ -159,7 +159,7 @@ mod tests {
                     if args.is_empty() {
                         Ok(EffectResult::Value(Value::string("IO handled")))
                     } else {
-                        Ok(EffectResult::Value(args[0].clone()))
+                        Ok(EffectResult::Value(args[0].clone())
                     }
                 }
                 _ => Ok(EffectResult::Unhandled),

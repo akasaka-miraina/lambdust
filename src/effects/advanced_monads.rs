@@ -29,12 +29,12 @@ pub trait MonadicOps<A> {
     /// Monadic bind operation.
     fn bind<B, F>(self, f: F) -> Self::Output<B>
     where
-        F: FnOnce(A) -> Self::Output<B>;
+        F: Fn(A) -> Self::Output<B>;
     
     /// Map a function over the monadic value.
     fn map<B, F>(self, f: F) -> Self::Output<B>
     where
-        F: FnOnce(A) -> B;
+        F: Fn(A) -> B;
 }
 
 /// Maybe monad for optional values.
@@ -354,7 +354,7 @@ impl<S, A> State<S, A> {
     where
         St: Clone + Send + Sync + 'static,
     {
-        State::new(|s: St| Ok((s.clone()), s)))
+        State::new(|s: St| Ok((s.clone(), s)))
     }
     
     /// Sets the state.
@@ -443,7 +443,7 @@ impl<A> MonadicOps<A> for Maybe<A> {
     
     fn bind<B, F>(self, f: F) -> Self::Output<B>
     where
-        F: FnOnce(A) -> Self::Output<B>,
+        F: Fn(A) -> Self::Output<B>,
     {
         match self {
             Maybe::Just(a) => f(a),
@@ -453,7 +453,7 @@ impl<A> MonadicOps<A> for Maybe<A> {
     
     fn map<B, F>(self, f: F) -> Self::Output<B>
     where
-        F: FnOnce(A) -> B,
+        F: Fn(A) -> B,
     {
         match self {
             Maybe::Just(a) => Maybe::Just(f(a)),
@@ -471,7 +471,7 @@ impl<L, R> MonadicOps<R> for Either<L, R> {
     
     fn bind<B, F>(self, f: F) -> Self::Output<B>
     where
-        F: FnOnce(R) -> Self::Output<B>,
+        F: Fn(R) -> Self::Output<B>,
     {
         match self {
             Either::Right(r) => f(r),
@@ -481,7 +481,7 @@ impl<L, R> MonadicOps<R> for Either<L, R> {
     
     fn map<B, F>(self, f: F) -> Self::Output<B>
     where
-        F: FnOnce(R) -> B,
+        F: Fn(R) -> B,
     {
         match self {
             Either::Right(r) => Either::Right(f(r)),
@@ -499,28 +499,25 @@ impl<A> MonadicOps<A> for List<A> {
     
     fn bind<B, F>(self, f: F) -> Self::Output<B>
     where
-        F: FnOnce(A) -> Self::Output<B>,
+        F: Fn(A) -> Self::Output<B>,
     {
-        // Simplified: handle flat_map for all elements
         let mut result = Vec::new();
         for item in self.items {
             let mapped = f(item);
             result.extend(mapped.items);
-            break; // For simplicity, only handle first element
         }
         List::from_vec(result)
     }
     
     fn map<B, F>(self, f: F) -> Self::Output<B>
     where
-        F: FnOnce(A) -> B,
+        F: Fn(A) -> B,
     {
-        // Map over all elements
-        if let Some(first) = self.items.into_iter().next() {
-            List::singleton(f(first))
-        } else {
-            List::empty()
+        let mut result = Vec::new();
+        for item in self.items {
+            result.push(f(item));
         }
+        List::from_vec(result)
     }
 }
 
@@ -540,8 +537,12 @@ impl MonadOps {
     }
     
     /// Sequence two Maybe computations.
-    pub fn sequence_maybe<A, B>(ma: Maybe<A>, mb: Maybe<B>) -> Maybe<(A, B)> {
-        ma.bind(|a| mb.map(|b| (a, b)))
+    pub fn sequence_maybe<A, B>(ma: Maybe<A>, mb: Maybe<B>) -> Maybe<(A, B)>
+    where
+        A: Clone,
+        B: Clone,
+    {
+        ma.bind(|a| mb.clone().map(|b| (a.clone(), b)))
     }
     
     /// Map a function over Maybe values.
@@ -610,7 +611,7 @@ where
 {
     match either {
         Either::Right(r) => MonadicValue::pure(r.into()),
-        Either::Left(l) => MonadicValue::error(super::monad::ErrorAction::Return(l.into()),
+        Either::Left(l) => MonadicValue::error(super::monad::ErrorAction::Return(l.into())),
     }
 }
 

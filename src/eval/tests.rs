@@ -1,7 +1,5 @@
 //! Unit tests for the evaluation engine.
 
-#![cfg(test)]
-
 use super::*;
 use crate::ast::*;
 use crate::diagnostics::{Span, Spanned};
@@ -48,12 +46,12 @@ mod literal_evaluation {
         let mut evaluator = Evaluator::new();
         let env = test_env();
         
-        let expr = spanned(Expr::Literal(Literal::float(3.14)));
+        let expr = spanned(Expr::Literal(Literal::float(3.4)));
         let result = evaluator.eval(&expr, env).unwrap();
         
         match result {
-            Value::Literal(Literal::Number(f)) => assert!((f - 3.14).abs() < f64::EPSILON),
-            _ => panic!("Expected real literal, got: {:?}", result),
+            Value::Literal(Literal::Number(f)) => assert!((f - 3.4).abs() < f64::EPSILON),
+            _ => panic!("Expected real literal, got: {result:?}"),
         }
     }
 

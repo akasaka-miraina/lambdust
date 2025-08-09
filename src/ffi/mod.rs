@@ -180,8 +180,8 @@ pub trait FfiFunction: Send + Sync {
         // Check arity
         if !sig.arity.check(args.len()) {
             return Err(FfiError::ArityMismatch {
-                function: sig.name.clone()),
-                expected: sig.arity.clone()),
+                function: sig.name.clone(),
+                expected: sig.arity.clone(),
                 actual: args.len(),
             });
         }

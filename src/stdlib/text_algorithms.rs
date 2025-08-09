@@ -134,9 +134,9 @@ impl BoyerMoore {
         
         // Postprocessing
         j = border[0];
-        for i in 0..=m {
-            if table[i] == m {
-                table[i] = j;
+        for (i, table_entry) in table.iter_mut().enumerate().take(m + 1) {
+            if *table_entry == m {
+                *table_entry = j;
             }
             if i == j {
                 j = border[j];
@@ -305,8 +305,8 @@ impl StringSimilarity {
         let mut dp = vec![vec![0; n + 1]; m + 1];
         
         // Initialize base cases
-        for i in 0..=m {
-            dp[i][0] = i;
+        for (i, dp_row) in dp.iter_mut().enumerate().take(m + 1) {
+            dp_row[0] = i;
         }
         for j in 0..=n {
             dp[0][j] = j;
@@ -421,7 +421,7 @@ impl TextOperations {
         }
         
         if texts.len() == 1 {
-            return texts[0].clone());
+            return texts[0].clone();
         }
         
         let mut builder = TextBuilder::new();
@@ -439,7 +439,7 @@ impl TextOperations {
     /// Pads text to a specified length with a character.
     pub fn pad_left(text: &Text, length: usize, pad_char: char) -> Text {
         if text.char_length() >= length {
-            return text.clone());
+            return text.clone();
         }
         
         let pad_count = length - text.char_length();
@@ -456,7 +456,7 @@ impl TextOperations {
     /// Pads text to a specified length with a character on the right.
     pub fn pad_right(text: &Text, length: usize, pad_char: char) -> Text {
         if text.char_length() >= length {
-            return text.clone());
+            return text.clone();
         }
         
         let pad_count = length - text.char_length();
@@ -473,7 +473,7 @@ impl TextOperations {
     /// Centers text within a specified length.
     pub fn center(text: &Text, length: usize, pad_char: char) -> Text {
         if text.char_length() >= length {
-            return text.clone());
+            return text.clone();
         }
         
         let total_pad = length - text.char_length();
@@ -496,10 +496,10 @@ impl TextOperations {
     /// Wraps text to specified line length.
     pub fn wrap_lines(text: &Text, width: usize) -> Vec<Text> {
         if width == 0 {
-            return vec![text.clone())];
+            return vec![text.clone()];
         }
         
-        let words: Vec<Text> = text.split(&Text::from_str(" "));
+        let words: Vec<Text> = text.split(&Text::from_string_slice(" "));
         let mut lines = Vec::new();
         let mut current_line = TextBuilder::new();
         let mut current_length = 0;
@@ -579,7 +579,7 @@ impl TextOperations {
         }
         
         if texts.len() == 1 {
-            return texts[0].clone());
+            return texts[0].clone();
         }
         
         let char_vectors: Vec<Vec<char>> = texts.iter()
@@ -618,7 +618,7 @@ impl TextOperations {
         }
         
         if texts.len() == 1 {
-            return texts[0].clone());
+            return texts[0].clone();
         }
         
         let char_vectors: Vec<Vec<char>> = texts.iter()
@@ -744,10 +744,10 @@ fn bind_advanced_operations(env: &Arc<ThreadSafeEnvironment>) {
 /// Boyer-Moore search implementation
 fn primitive_text_search_boyer_moore(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-search-boyer-moore expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = Text::try_from(&args[0])?;
@@ -767,10 +767,10 @@ fn primitive_text_search_boyer_moore(args: &[Value]) -> Result<Value> {
 /// KMP search implementation
 fn primitive_text_search_kmp(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-search-kmp expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = Text::try_from(&args[0])?;
@@ -790,10 +790,10 @@ fn primitive_text_search_kmp(args: &[Value]) -> Result<Value> {
 /// Levenshtein distance implementation
 fn primitive_text_levenshtein_distance(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-levenshtein-distance expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text1 = Text::try_from(&args[0])?;
@@ -806,10 +806,10 @@ fn primitive_text_levenshtein_distance(args: &[Value]) -> Result<Value> {
 /// Jaccard similarity implementation
 fn primitive_text_jaccard_similarity(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-jaccard-similarity expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text1 = Text::try_from(&args[0])?;
@@ -822,17 +822,17 @@ fn primitive_text_jaccard_similarity(args: &[Value]) -> Result<Value> {
 /// Text join implementation
 fn primitive_text_join(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-join expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text_list = args[0].as_list().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "text-join first argument must be a list".to_string(),
             None,
-        )
+        ))
     })?;
     
     let separator = Text::try_from(&args[1])?;
@@ -845,55 +845,55 @@ fn primitive_text_join(args: &[Value]) -> Result<Value> {
     let texts = texts?;
     let result = TextOperations::join(&texts, &separator);
     
-    Ok(result)
+    Ok(result.into())
 }
 
 /// Text pad left implementation
 fn primitive_text_pad_left(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-pad-left expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let length = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "text-pad-left length must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let pad_char = match &args[2] {
         Value::Literal(crate::ast::Literal::Character(ch)) => *ch,
         _ => {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "text-pad-left pad character must be a character".to_string(),
                 None,
-            ));
+            )));
         }
     };
     
     let result = TextOperations::pad_left(&text, length, pad_char);
-    Ok(result)
+    Ok(result.into())
 }
 
 /// Text wrap lines implementation
 fn primitive_text_wrap_lines(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("text-wrap-lines expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let width = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "text-wrap-lines width must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let lines = TextOperations::wrap_lines(&text, width);
@@ -908,8 +908,8 @@ mod tests {
 
     #[test]
     fn test_boyer_moore_search() {
-        let pattern = Text::from_str("abc");
-        let text = Text::from_str("xyzabcdefabcghi");
+        let pattern = Text::from_string_slice("abc");
+        let text = Text::from_string_slice("xyzabcdefabcghi");
         
         let searcher = BoyerMoore::new(&pattern);
         let matches = searcher.search(&text);
@@ -919,8 +919,8 @@ mod tests {
 
     #[test]
     fn test_kmp_search() {
-        let pattern = Text::from_str("ABAB");
-        let text = Text::from_str("ABABCABABA");
+        let pattern = Text::from_string_slice("ABAB");
+        let text = Text::from_string_slice("ABABCABABA");
         
         let searcher = KnuthMorrisPratt::new(&pattern);
         let matches = searcher.search(&text);
@@ -930,8 +930,8 @@ mod tests {
 
     #[test]
     fn test_levenshtein_distance() {
-        let text1 = Text::from_str("kitten");
-        let text2 = Text::from_str("sitting");
+        let text1 = Text::from_string_slice("kitten");
+        let text2 = Text::from_string_slice("sitting");
         
         let distance = StringSimilarity::levenshtein_distance(&text1, &text2);
         assert_eq!(distance, 3);
@@ -940,11 +940,11 @@ mod tests {
     #[test]
     fn test_text_join() {
         let texts = vec![
-            Text::from_str("hello"),
-            Text::from_str("world"),
-            Text::from_str("test"),
+            Text::from_string_slice("hello"),
+            Text::from_string_slice("world"),
+            Text::from_string_slice("test"),
         ];
-        let separator = Text::from_str(", ");
+        let separator = Text::from_string_slice(", ");
         
         let result = TextOperations::join(&texts, &separator);
         assert_eq!(result.to_string(), "hello, world, test");
@@ -952,7 +952,7 @@ mod tests {
 
     #[test]
     fn test_text_padding() {
-        let text = Text::from_str("hello");
+        let text = Text::from_string_slice("hello");
         
         let left_padded = TextOperations::pad_left(&text, 10, ' ');
         assert_eq!(left_padded.to_string(), "     hello");
@@ -966,7 +966,7 @@ mod tests {
 
     #[test]
     fn test_text_wrapping() {
-        let text = Text::from_str("This is a long sentence that should be wrapped");
+        let text = Text::from_string_slice("This is a long sentence that should be wrapped");
         let lines = TextOperations::wrap_lines(&text, 20);
         
         assert!(lines.len() > 1);
@@ -976,9 +976,9 @@ mod tests {
     #[test]
     fn test_common_prefix_suffix() {
         let texts = vec![
-            Text::from_str("prefix_hello_suffix"),
-            Text::from_str("prefix_world_suffix"),
-            Text::from_str("prefix_test_suffix"),
+            Text::from_string_slice("prefix_hello_suffix"),
+            Text::from_string_slice("prefix_world_suffix"),
+            Text::from_string_slice("prefix_test_suffix"),
         ];
         
         let prefix = TextOperations::common_prefix(&texts);

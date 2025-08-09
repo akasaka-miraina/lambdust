@@ -16,7 +16,6 @@ use std::collections::HashMap;
 use std::time::Instant;
 use clap::{Arg, Command};
 use serde::{Serialize, Deserialize};
-use serde_json;
 use chrono::Utc;
 
 /// Performance benchmark category with aggregated results.
@@ -232,7 +231,7 @@ impl NativeBenchmarkRunner {
         // Generate comprehensive report
         let report = self.generate_comprehensive_report(total_execution_time);
         
-        println!("✅ Benchmarking complete! Total time: {:.2}s", total_execution_time);
+        println!("✅ Benchmarking complete! Total time: {total_execution_time:.2}s");
         
         report
     }
@@ -269,8 +268,8 @@ impl NativeBenchmarkRunner {
             "float_operations",
             "Mixed floating point operations",
             || {
-                let a = NumericValue::real(3.14159);
-                let b = NumericValue::real(2.71828);
+                let a = NumericValue::real(std::f64::consts::PI);
+                let b = NumericValue::real(std::f64::consts::E);
                 let sum = a.add(&b).unwrap();
                 let product = a.multiply(&b).unwrap();
                 sum.divide(&product).unwrap()
@@ -294,12 +293,12 @@ impl NativeBenchmarkRunner {
             "Number type promotions across numeric tower",
             || {
                 let int_val = NumericValue::integer(42);
-                let float_val = NumericValue::real(3.14);
+                let float_val = NumericValue::real(std::f64::consts::PI);
                 let complex_val = NumericValue::complex(1.0, 2.0);
                 
                 let result1 = int_val.add(&float_val).unwrap();
-                let result2 = result1.multiply(&complex_val).unwrap();
-                result2
+                
+                result1.multiply(&complex_val).unwrap()
             }
         ));
         
@@ -387,8 +386,8 @@ impl NativeBenchmarkRunner {
         
         for &n in &factorial_sizes {
             results.push(self.benchmark_operation(
-                &format!("factorial_{}", n),
-                &format!("Compute factorial of {}", n),
+                &format!("factorial_{n}"),
+                &format!("Compute factorial of {n}"),
                 || self.compute_factorial(n)
             ));
         }
@@ -398,8 +397,8 @@ impl NativeBenchmarkRunner {
         
         for &n in &fib_sizes {
             results.push(self.benchmark_operation(
-                &format!("fibonacci_{}", n),
-                &format!("Compute fibonacci number {}", n),
+                &format!("fibonacci_{n}"),
+                &format!("Compute fibonacci number {n}"),
                 || self.compute_fibonacci(n)
             ));
         }
@@ -472,8 +471,8 @@ impl NativeBenchmarkRunner {
                 for i in 0..500 {
                     match i % 4 {
                         0 => objects.push(Value::integer(i as i64)),
-                        1 => objects.push(Value::number(i as f64 * 3.14)),
-                        2 => objects.push(Value::string(format!("str_{}", i))),
+                        1 => objects.push(Value::number(i as f64 * std::f64::consts::PI)),
+                        2 => objects.push(Value::string(format!("str_{i}"))),
                         3 => objects.push(Value::pair(Value::integer(i as i64), Value::Nil)),
                         _ => unreachable!(),
                     }
@@ -492,7 +491,7 @@ impl NativeBenchmarkRunner {
                 for i in 0..100 {
                     let pair = Value::pair(
                         Value::integer(i),
-                        Value::pair(Value::string(format!("item_{}", i)), Value::Nil)
+                        Value::pair(Value::string(format!("item_{i}")), Value::Nil)
                     );
                     list = Value::pair(pair, list);
                 }
@@ -535,12 +534,12 @@ impl NativeBenchmarkRunner {
             || {
                 let env = Environment::new(None, 0);
                 for i in 0..10 {
-                    let var_name = format!("var_{}", i);
-                    env.define(var_name.clone()), Value::integer(i as i64));
+                    let var_name = format!("var_{i}");
+                    env.define(var_name.clone(), Value::integer(i as i64));
                 }
                 
                 for i in 0..10 {
-                    let var_name = format!("var_{}", i);
+                    let var_name = format!("var_{i}");
                     env.lookup(&var_name);
                 }
             }
@@ -615,7 +614,7 @@ impl NativeBenchmarkRunner {
             || {
                 let mut result = HashMap::new();
                 for i in 0..100 {
-                    let key = format!("key_{}", i);
+                    let key = format!("key_{i}");
                     let nested: HashMap<String, i32> = HashMap::new();
                     result.insert(key, nested);
                 }
@@ -667,7 +666,7 @@ impl NativeBenchmarkRunner {
         let ops_per_second = iterations as f64 / total_time.as_secs_f64();
         
         BenchmarkResult {
-            test_name: format!("{}: {}", name, description),
+            test_name: format!("{name}: {description}"),
             iterations,
             total_time_ms: total_time.as_millis() as f64,
             ops_per_second,
@@ -850,7 +849,7 @@ impl NativeBenchmarkRunner {
         let mut performance_characteristics = HashMap::new();
         for category in &self.results {
             performance_characteristics.insert(
-                category.name.clone()),
+                category.name.clone(),
                 category.summary.avg_ops_per_second
             );
         }
@@ -861,8 +860,8 @@ impl NativeBenchmarkRunner {
         ComprehensiveBenchmarkReport {
             timestamp: Utc::now().to_rfc3339(),
             system_info,
-            test_configuration: self.config.clone()),
-            categories: self.results.clone()),
+            test_configuration: self.config.clone(),
+            categories: self.results.clone(),
             overall_summary: OverallSummary {
                 total_categories: self.results.len(),
                 total_tests,
@@ -992,12 +991,12 @@ fn main() {
     
     println!("\n💪 Lambdust Strengths:");
     for strength in &report.overall_summary.lambdust_strengths {
-        println!("  • {}", strength);
+        println!("  • {strength}");
     }
     
     println!("\n🔧 Performance Recommendations:");
     for rec in &report.performance_recommendations[..3.min(report.performance_recommendations.len())] {
-        println!("  • {}", rec);
+        println!("  • {rec}");
     }
     
     // Save results
@@ -1008,12 +1007,12 @@ fn main() {
         std::fs::write(output_path, json_output)
             .expect("Failed to write benchmark results to file");
         
-        println!("\n💾 Results saved to: {}", output_path);
+        println!("\n💾 Results saved to: {output_path}");
         
         if csv_output {
             let csv_path = output_path.replace(".json", ".csv");
             save_csv_results(&report, &csv_path);
-            println!("📊 CSV results saved to: {}", csv_path);
+            println!("📊 CSV results saved to: {csv_path}");
         }
     } else {
         // Save to default location
@@ -1025,12 +1024,12 @@ fn main() {
         std::fs::write(&default_path, json_output)
             .expect("Failed to write benchmark results to file");
         
-        println!("\n💾 Results saved to: {}", default_path);
+        println!("\n💾 Results saved to: {default_path}");
         
         if csv_output {
             let csv_path = default_path.replace(".json", ".csv");
             save_csv_results(&report, &csv_path);
-            println!("📊 CSV results saved to: {}", csv_path);
+            println!("📊 CSV results saved to: {csv_path}");
         }
     }
     

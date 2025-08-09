@@ -105,7 +105,7 @@ fn main() -> Result<()> {
     
     if matches.get_flag("verbose") {
         let bootstrap_time = bootstrap_start.elapsed();
-        println!("Bootstrap completed in {:?}", bootstrap_time);
+        println!("Bootstrap completed in {bootstrap_time:?}");
     }
 
     // Handle different execution modes
@@ -152,7 +152,7 @@ fn eval_expression(lambdust: &mut Lambdust, expr: &str, type_check_only: bool) -
 fn execute_file(lambdust: &mut Lambdust, filename: &str, type_check_only: bool) -> Result<()> {
     let path = Path::new(filename);
     if !path.exists() {
-        return Err(Box::new(Error::io_error(format!("File not found: {filename}".into().boxed())));
+        return Err(Box::new(Error::io_error(format!("File not found: {filename}"))));
     }
 
     let source = fs::read_to_string(path)
@@ -346,13 +346,13 @@ fn validate_library_setup(matches: &clap::ArgMatches) -> Result<()> {
     // Check environment variables
     println!("Environment variables:");
     if let Ok(lib_dir) = std::env::var("LAMBDUST_LIB_DIR") {
-        println!("  LAMBDUST_LIB_DIR = {}", lib_dir);
+        println!("  LAMBDUST_LIB_DIR = {lib_dir}");
     } else {
         println!("  LAMBDUST_LIB_DIR = (not set)");
     }
 
     if let Some(override_dir) = matches.get_one::<String>("lib-dir") {
-        println!("  --lib-dir override = {}", override_dir);
+        println!("  --lib-dir override = {override_dir}");
     }
     println!();
 
@@ -392,13 +392,13 @@ fn validate_library_setup(matches: &clap::ArgMatches) -> Result<()> {
                     }
                 }
                 Err(e) => {
-                    println!("✗ Validation failed: {}", e);
+                    println!("✗ Validation failed: {e}");
                     return Err(e);
                 }
             }
         }
         Err(e) => {
-            println!("✗ Failed to create library path resolver: {}", e);
+            println!("✗ Failed to create library path resolver: {e}");
             println!("This indicates a fundamental configuration issue.");
             return Err(e);
         }
@@ -419,7 +419,7 @@ fn create_lambdust_with_bootstrap(config: BootstrapIntegrationConfig, verbose: b
         }
         Err(e) => {
             if verbose {
-                eprintln!("Bootstrap failed: {}. Using fallback...", e);
+                eprintln!("Bootstrap failed: {e}. Using fallback...");
             }
             
             // Try fallback mode
@@ -434,8 +434,8 @@ fn create_lambdust_with_bootstrap(config: BootstrapIntegrationConfig, verbose: b
                 Err(fallback_error) => {
                     // If even fallback fails, use the legacy constructor
                     eprintln!("Warning: Bootstrap system failed. Using legacy initialization.");
-                    eprintln!("Original error: {}", e);
-                    eprintln!("Fallback error: {}", fallback_error);
+                    eprintln!("Original error: {e}");
+                    eprintln!("Fallback error: {fallback_error}");
                     Ok(Lambdust::new())
                 }
             }

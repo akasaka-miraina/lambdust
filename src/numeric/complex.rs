@@ -13,7 +13,9 @@ use std::ops::{Add, Sub, Mul, Div, Neg};
 /// High-performance complex number with optimized operations
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Complex {
+    /// Real part of the complex number
     pub real: f64,
+    /// Imaginary part of the complex number
     pub imaginary: f64,
 }
 

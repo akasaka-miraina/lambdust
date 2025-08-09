@@ -164,20 +164,20 @@ fn bind_evaluation_control(env: &Arc<ThreadSafeEnvironment>) {
 /// apply procedure - R7RS compliant implementation
 fn primitive_apply(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "apply requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
     
     // Verify the first argument is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "apply first argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Collect arguments: all but the last are individual args, 
@@ -194,10 +194,10 @@ fn primitive_apply(args: &[Value]) -> Result<Value> {
     if let Some(list_values) = last_arg.as_list() {
         final_args.extend(list_values);
     } else {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "apply last argument must be a list".to_string(),
             None,
-        ));
+        )));
     }
     
     // Apply the procedure to the collected arguments
@@ -206,19 +206,19 @@ fn primitive_apply(args: &[Value]) -> Result<Value> {
             // Check arity
             let arg_count = final_args.len();
             if arg_count < prim.arity_min {
-                return Err(DiagnosticError::runtime_error(
+                return Err(Box::new(DiagnosticError::runtime_error(
                     format!("{} requires at least {} arguments, got {}", 
                             prim.name, prim.arity_min, arg_count),
                     None,
-                ));
+                )));
             }
             if let Some(max) = prim.arity_max {
                 if arg_count > max {
-                    return Err(DiagnosticError::runtime_error(
+                    return Err(Box::new(DiagnosticError::runtime_error(
                         format!("{} requires at most {} arguments, got {}", 
                                 prim.name, max, arg_count),
                         None,
-                    ));
+                    )));
                 }
             }
             
@@ -227,33 +227,33 @@ fn primitive_apply(args: &[Value]) -> Result<Value> {
                 PrimitiveImpl::RustFn(func) => func(&final_args),
                 PrimitiveImpl::Native(func) => func(&final_args),
                 PrimitiveImpl::ForeignFn { .. } => {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         "apply to foreign functions not yet implemented".to_string(),
                         None,
-                    ))
+                    )))
                 }
             }
         },
         Value::Procedure(_) => {
             // User-defined procedures require evaluator integration
             // For now, return an error but this is where we'd integrate with the evaluator
-            Err(DiagnosticError::runtime_error(
+            Err(Box::new(DiagnosticError::runtime_error(
                 "apply to user-defined procedures requires evaluator integration (not yet implemented)".to_string(),
                 None,
-            ))
+            )))
         },
         Value::Continuation(_) => {
             // Continuations also require evaluator integration
-            Err(DiagnosticError::runtime_error(
+            Err(Box::new(DiagnosticError::runtime_error(
                 "apply to continuations requires evaluator integration (not yet implemented)".to_string(),
                 None,
-            ))
+            )))
         },
         _ => {
-            Err(DiagnosticError::runtime_error(
+            Err(Box::new(DiagnosticError::runtime_error(
                 "apply first argument must be a procedure".to_string(),
                 None,
-            ))
+            )))
         }
     }
 }
@@ -274,47 +274,47 @@ fn primitive_values(args: &[Value]) -> Result<Value> {
 /// call-with-values procedure
 fn primitive_call_with_values(_args: &[Value]) -> Result<Value> {
     // Note: This requires evaluator integration for procedure calls
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "call-with-values requires evaluator integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// call/cc procedure
 fn primitive_call_cc(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("call/cc expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let procedure = &args[0];
     
     // Verify the argument is callable
     if !procedure.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "call/cc argument must be a procedure".to_string(),
             None,
-        ));
+        )));
     }
     
     // Note: The actual call/cc implementation is now handled in the evaluator
     // This primitive is mainly here for reference and should not be called directly
     // The real implementation is in evaluator.rs -> eval_call_cc
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "call/cc should be handled as a special form in the evaluator, not called as a primitive".to_string(),
         None,
-    ))
+    )))
 }
 
 /// continuation? predicate
 pub fn primitive_continuation_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("continuation? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let is_continuation = matches!(args[0], Value::Continuation(_));
@@ -324,19 +324,19 @@ pub fn primitive_continuation_p(args: &[Value]) -> Result<Value> {
 /// dynamic-wind procedure
 fn primitive_dynamic_wind(_args: &[Value]) -> Result<Value> {
     // Note: This requires complex control flow management
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "dynamic-wind requires complex control flow support (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// with-exception-handler procedure
 fn primitive_with_exception_handler(_args: &[Value]) -> Result<Value> {
     // Note: This requires exception handling infrastructure
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "with-exception-handler requires exception handling support (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 // Note: primitive_raise and primitive_raise_continuable are now in stdlib::exceptions
@@ -344,10 +344,10 @@ fn primitive_with_exception_handler(_args: &[Value]) -> Result<Value> {
 /// eval procedure
 fn primitive_eval(_args: &[Value]) -> Result<Value> {
     // Note: This requires evaluator integration
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "eval requires evaluator integration (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// environment? predicate
@@ -359,28 +359,28 @@ fn primitive_environment_p(_args: &[Value]) -> Result<Value> {
 /// null-environment procedure
 fn primitive_null_environment(_args: &[Value]) -> Result<Value> {
     // Note: This requires environment management
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "null-environment requires environment management (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// scheme-report-environment procedure
 fn primitive_scheme_report_environment(_args: &[Value]) -> Result<Value> {
     // Note: This requires environment management
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "scheme-report-environment requires environment management (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// interaction-environment procedure
 fn primitive_interaction_environment(_args: &[Value]) -> Result<Value> {
     // Note: This requires environment management
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "interaction-environment requires environment management (not yet implemented)".to_string(),
         None,
-    ))
+    )))
 }
 
 /// Binds promise/lazy evaluation operations needed for SRFI-41.
@@ -452,25 +452,25 @@ fn bind_promise_operations(env: &Arc<ThreadSafeEnvironment>) {
 /// make-promise procedure - R7RS compliant implementation
 fn primitive_make_promise(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("make-promise expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let thunk = &args[0];
     
     // Verify the argument is a procedure (thunk)
     if !thunk.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "make-promise argument must be a procedure (thunk)".to_string(),
             None,
-        ));
+        )));
     }
     
     // Create a proper Promise value with memoization support
     let promise = Promise::Delayed {
-        thunk: thunk.clone()),
+        thunk: thunk.clone(),
     };
     
     Ok(Value::Promise(Arc::new(RwLock::new(promise))))
@@ -479,13 +479,13 @@ fn primitive_make_promise(args: &[Value]) -> Result<Value> {
 /// force procedure - R7RS compliant implementation with trampoline to prevent stack overflow
 fn primitive_force(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("force expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
-    let initial_value = args[0].clone());
+    let initial_value = args[0].clone();
     
     // If not a promise, return immediately (R7RS behavior)
     if !matches!(initial_value, Value::Promise(_)) {
@@ -507,10 +507,10 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
     while let Some(current_value) = trampoline_stack.pop() {
         iteration_count += 1;
         if iteration_count > MAX_ITERATIONS {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "promise chain too deep (possible infinite recursion)".to_string(),
                 None,
-            ));
+            )));
         }
         
         match current_value {
@@ -519,10 +519,10 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
                 
                 // Check for circular references
                 if visited.contains(&promise_id) {
-                    return Err(DiagnosticError::runtime_error(
+                    return Err(Box::new(DiagnosticError::runtime_error(
                         "circular promise reference detected".to_string(),
                         None,
-                    ));
+                    )));
                 }
                 visited.insert(promise_id);
                 
@@ -574,10 +574,10 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
                         continue;
                     }
                     Promise::Expression { expression: _, environment: _ } => {
-                        return Err(DiagnosticError::runtime_error(
+                        return Err(Box::new(DiagnosticError::runtime_error(
                             "expression-based promises require evaluator integration".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
             }
@@ -589,10 +589,10 @@ fn force_with_trampoline(initial_value: Value) -> Result<Value> {
     }
     
     // Should never reach here if logic is correct
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "internal error: trampoline stack became empty unexpectedly".to_string(),
         None,
-    ))
+    )))
 }
 
 /// Simple thunk evaluation for promises.
@@ -609,10 +609,10 @@ fn evaluate_simple_thunk(thunk: &Value) -> Result<Value> {
                     func(&[])
                 }
                 _ => {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         "foreign functions not supported in promises yet".to_string(),
                         None,
-                    ))
+                    )))
                 }
             }
         }
@@ -639,10 +639,10 @@ fn evaluate_simple_thunk(thunk: &Value) -> Result<Value> {
 /// promise? predicate - R7RS compliant type predicate
 fn primitive_promise_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("promise? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let is_promise = matches!(args[0], Value::Promise(_));
@@ -652,25 +652,25 @@ fn primitive_promise_p(args: &[Value]) -> Result<Value> {
 /// delay-force procedure - R7RS tail-recursive optimization
 fn primitive_delay_force(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("delay-force expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let thunk = &args[0];
     
     // Verify the argument is a procedure (thunk)
     if !thunk.is_procedure() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "delay-force argument must be a procedure (thunk)".to_string(),
             None,
-        ));
+        )));
     }
     
     // Create a tail-recursive promise
     let promise = Promise::TailRecursive {
-        thunk: thunk.clone()),
+        thunk: thunk.clone(),
     };
     
     Ok(Value::Promise(Arc::new(RwLock::new(promise))))
@@ -679,10 +679,10 @@ fn primitive_delay_force(args: &[Value]) -> Result<Value> {
 /// make-promise-value procedure - Create promise from already computed value
 fn primitive_make_promise_value(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("make-promise-value expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let value = &args[0];
@@ -696,10 +696,10 @@ fn primitive_make_promise_value(args: &[Value]) -> Result<Value> {
 /// make-test-thunk procedure - Create a simple test thunk for debugging
 fn primitive_make_test_thunk(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("make-test-thunk expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let result_value = &args[0];

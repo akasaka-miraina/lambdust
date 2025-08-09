@@ -155,8 +155,8 @@ impl SuggestionGenerator {
         if let Some(correction) = self.typo_corrections.get(token) {
             suggestions.push(
                 Suggestion::with_replacement(
-                    format!("Did you mean '{}'?", correction),
-                    correction.clone()),
+                    format!("Did you mean '{correction}'?"),
+                    correction.clone(),
                     span,
                     SuggestionCategory::Syntax,
                 ).with_confidence(0.9)
@@ -168,7 +168,7 @@ impl SuggestionGenerator {
         for name in similar.into_iter().take(3) {
             suggestions.push(
                 Suggestion::new(
-                    format!("Did you mean '{}'?", name),
+                    format!("Did you mean '{name}'?"),
                     SuggestionCategory::Semantic,
                 ).with_confidence(0.7)
             );
@@ -246,7 +246,7 @@ impl SuggestionGenerator {
                 suggestions.push(
                     Suggestion::with_replacement(
                         format!("Add missing '{}'", expected_tokens[0]),
-                        expected_tokens[0].clone()),
+                        expected_tokens[0].clone(),
                         span,
                         SuggestionCategory::Syntax,
                     ).with_confidence(0.8)
@@ -255,7 +255,7 @@ impl SuggestionGenerator {
                 let options = expected_tokens.join("', '");
                 suggestions.push(
                     Suggestion::new(
-                        format!("Expected one of: '{}'", options),
+                        format!("Expected one of: '{options}'"),
                         SuggestionCategory::Syntax,
                     )
                 );
@@ -371,7 +371,7 @@ impl SuggestionGenerator {
                 _ => {
                     suggestions.push(
                         Suggestion::new(
-                            format!("Expected {}, but got {}. Check your types", expected, actual),
+                            format!("Expected {expected}, but got {actual}. Check your types"),
                             SuggestionCategory::Semantic,
                         ).with_confidence(0.7)
                     );
@@ -434,8 +434,8 @@ impl SuggestionGenerator {
         let mut dp = vec![vec![0; b_len + 1]; a_len + 1];
         
         // Initialize base cases
-        for i in 0..=a_len {
-            dp[i][0] = i;
+        for (i, row) in dp.iter_mut().enumerate() {
+            row[0] = i;
         }
         for j in 0..=b_len {
             dp[0][j] = j;

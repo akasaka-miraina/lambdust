@@ -615,7 +615,7 @@ impl FfiInterface {
 
         let mut registry = self.builtin_registry.write().unwrap();
         for sig in signatures {
-            registry.insert(sig.name.clone()), sig);
+            registry.insert(sig.name.clone(), sig);
         }
     }
 

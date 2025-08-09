@@ -68,12 +68,12 @@ Lambdust supports four levels of typing:
 
 ;; Static typing with annotations
 (define (typed-add x y)
-  #:type (→ Number Number Number)
+  #:type (-> Number Number Number)
   (+ x y))
 
 ;; Contract-based typing
 (define (safe-divide x y)
-  #:contract (→ Number (and Number (not zero?)) Number)
+  #:contract (-> Number (and Number (not zero?)) Number)
   (/ x y))
 ```
 

@@ -170,6 +170,12 @@ impl Ord for Task {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TaskId(u64);
 
+impl Default for TaskId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TaskId {
     /// Creates a new unique task ID.
     pub fn new() -> Self {
@@ -274,6 +280,20 @@ struct TaskMetrics {
     queue_time: Option<Duration>,
 }
 
+/// Worker thread context parameters.
+#[allow(dead_code)]
+struct WorkerContext {
+    global_queue: Arc<Injector<Task>>,
+    priority_queue: Arc<Mutex<BinaryHeap<Task>>>,
+    stealers: Vec<Stealer<Task>>,
+    running: Arc<AtomicBool>,
+    active_tasks: Arc<AtomicUsize>,
+    completed_tasks: Arc<AtomicUsize>,
+    failed_tasks: Arc<AtomicUsize>,
+    results: Arc<Mutex<std::collections::HashMap<TaskId, Result<Value>>>>,
+    profiler: Option<Arc<Mutex<std::collections::HashMap<TaskId, TaskMetrics>>>>,
+}
+
 impl WorkStealingScheduler {
     /// Creates a new work-stealing scheduler.
     pub fn new(config: SchedulerConfig) -> Result<Self> {
@@ -296,7 +316,7 @@ impl WorkStealingScheduler {
             .worker_threads(config.num_io_threads)
             .enable_all()
             .build()
-            .map_err(|e| Error::runtime_error(format!("Failed to create I/O runtime: {}", e), None))?;
+            .map_err(|e| Error::runtime_error(format!("Failed to create I/O runtime: {e}"), None))?;
 
         let profiler = if config.profiling_enabled {
             Some(TaskProfiler {
@@ -326,7 +346,7 @@ impl WorkStealingScheduler {
     /// Starts the scheduler.
     pub fn start(&mut self) -> Result<()> {
         if self.running.load(AtomicOrdering::SeqCst) {
-            return Err(Box::new(Error::runtime_error("Scheduler already running".to_string(), None));
+            return Err(Box::new(Error::runtime_error("Scheduler already running".to_string(), None)));
         }
 
         self.running.store(true, AtomicOrdering::SeqCst);
@@ -335,33 +355,35 @@ impl WorkStealingScheduler {
         let stealers: Vec<_> = self.workers.iter().map(|w| w.stealer.clone()).collect();
         
         for (i, worker) in self.workers.drain(..).enumerate() {
-            let global_queue = self.global_queue.clone());
-            let priority_queue = self.priority_queue.clone());
-            let stealers = stealers.clone());
-            let running = self.running.clone());
-            let active_tasks = self.active_tasks.clone());
-            let completed_tasks = self.completed_tasks.clone());
-            let failed_tasks = self.failed_tasks.clone());
-            let results = self.results.clone());
+            let global_queue = self.global_queue.clone();
+            let priority_queue = self.priority_queue.clone();
+            let stealers = stealers.clone();
+            let running = self.running.clone();
+            let active_tasks = self.active_tasks.clone();
+            let completed_tasks = self.completed_tasks.clone();
+            let failed_tasks = self.failed_tasks.clone();
+            let results = self.results.clone();
             let profiler = self.profiler.as_ref().map(|p| Arc::new(Mutex::new(p.task_metrics.lock().unwrap().clone())));
 
             let handle = thread::Builder::new()
-                .name(format!("worker-{}", i))
+                .name(format!("worker-{i}"))
                 .spawn(move || {
                     Self::worker_loop(
                         worker,
-                        global_queue,
-                        priority_queue,
-                        stealers,
-                        running,
-                        active_tasks,
-                        completed_tasks,
-                        failed_tasks,
-                        results,
-                        profiler,
+                        WorkerContext {
+                            global_queue,
+                            priority_queue,
+                            stealers,
+                            running,
+                            active_tasks,
+                            completed_tasks,
+                            failed_tasks,
+                            results,
+                            profiler,
+                        }
                     );
                 })
-                .map_err(|e| Error::runtime_error(format!("Failed to start worker thread: {}", e), None))?;
+                .map_err(|e| Error::runtime_error(format!("Failed to start worker thread: {e}"), None))?;
             
             self.worker_handles.push(handle);
         }
@@ -456,27 +478,16 @@ impl WorkStealingScheduler {
     }
 
     /// Worker thread main loop.
-    fn worker_loop(
-        worker: WorkerThread,
-        global_queue: Arc<Injector<Task>>,
-        priority_queue: Arc<Mutex<BinaryHeap<Task>>>,
-        stealers: Vec<Stealer<Task>>,
-        running: Arc<AtomicBool>,
-        active_tasks: Arc<AtomicUsize>,
-        completed_tasks: Arc<AtomicUsize>,
-        failed_tasks: Arc<AtomicUsize>,
-        results: Arc<Mutex<std::collections::HashMap<TaskId, Result<Value>>>>,
-        profiler: Option<Arc<Mutex<std::collections::HashMap<TaskId, TaskMetrics>>>>,
-    ) {
-        while running.load(AtomicOrdering::SeqCst) {
-            let task = Self::find_task(&worker, &global_queue, &priority_queue, &stealers);
+    fn worker_loop(worker: WorkerThread, ctx: WorkerContext) {
+        while ctx.running.load(AtomicOrdering::SeqCst) {
+            let task = Self::find_task(&worker, &ctx.global_queue, &ctx.priority_queue, &ctx.stealers);
             
             if let Some(task) = task {
                 let task_id = task.id();
                 let start_time = Instant::now();
                 
                 // Update profiling metrics
-                if let Some(ref profiler) = profiler {
+                if let Some(ref profiler) = ctx.profiler {
                     if let Ok(mut metrics) = profiler.lock() {
                         if let Some(task_metrics) = metrics.get_mut(&task_id) {
                             task_metrics.started_at = Some(start_time);
@@ -491,18 +502,18 @@ impl WorkStealingScheduler {
                 let execution_time = start_time.elapsed();
                 
                 // Store result
-                results.lock().unwrap().insert(task_id, result.clone());
+                ctx.results.lock().unwrap().insert(task_id, result.clone());
                 
                 // Update counters
-                active_tasks.fetch_sub(1, AtomicOrdering::SeqCst);
+                ctx.active_tasks.fetch_sub(1, AtomicOrdering::SeqCst);
                 if result.is_ok() {
-                    completed_tasks.fetch_add(1, AtomicOrdering::SeqCst);
+                    ctx.completed_tasks.fetch_add(1, AtomicOrdering::SeqCst);
                 } else {
-                    failed_tasks.fetch_add(1, AtomicOrdering::SeqCst);
+                    ctx.failed_tasks.fetch_add(1, AtomicOrdering::SeqCst);
                 }
                 
                 // Update profiling metrics
-                if let Some(ref profiler) = profiler {
+                if let Some(ref profiler) = ctx.profiler {
                     if let Ok(mut metrics) = profiler.lock() {
                         if let Some(task_metrics) = metrics.get_mut(&task_id) {
                             task_metrics.completed_at = Some(Instant::now());
@@ -555,11 +566,17 @@ impl WorkStealingScheduler {
 /// Scheduler statistics.
 #[derive(Debug, Clone)]
 pub struct SchedulerStats {
+    /// Number of currently executing tasks
     pub active_tasks: usize,
+    /// Total number of successfully completed tasks
     pub completed_tasks: usize,
+    /// Total number of tasks that failed during execution
     pub failed_tasks: usize,
+    /// Current length of the global task queue
     pub global_queue_len: usize,
+    /// Current length of the priority task queue
     pub priority_queue_len: usize,
+    /// Current length of the IO-bound task queue
     pub io_queue_len: usize,
 }
 
@@ -568,7 +585,7 @@ static GLOBAL_SCHEDULER: std::sync::OnceLock<Arc<Mutex<Option<WorkStealingSchedu
 
 /// Gets the global scheduler.
 pub fn global_scheduler() -> Arc<Mutex<Option<WorkStealingScheduler>>> {
-    GLOBAL_SCHEDULER.get_or_init(|| Arc::new(Mutex::new(None))).clone())
+    GLOBAL_SCHEDULER.get_or_init(|| Arc::new(Mutex::new(None))).clone()
 }
 
 /// Initializes the global scheduler.
@@ -609,7 +626,7 @@ where
         let task = Task::new(work);
         Ok(scheduler.submit(task))
     } else {
-        Err(Box::new(Error::runtime_error("Scheduler not initialized".to_string(), None))
+        Err(Box::new(Error::runtime_error("Scheduler not initialized".to_string(), None)))
     }
 }
 
@@ -625,6 +642,6 @@ where
         let task = Task::new(work).with_priority(priority);
         Ok(scheduler.submit(task))
     } else {
-        Err(Box::new(Error::runtime_error("Scheduler not initialized".to_string(), None))
+        Err(Box::new(Error::runtime_error("Scheduler not initialized".to_string(), None)))
     }
 }

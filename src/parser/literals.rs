@@ -48,7 +48,7 @@ impl Parser {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
                         "Integer too large", 
                         span
-                    ).into()))
+                    )))
                 }
                 Literal::Number(i as f64)
             }
@@ -58,13 +58,13 @@ impl Parser {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
                         "NaN is not a valid number literal", 
                         span
-                    ).into()))
+                    )))
                 }
                 if r.is_infinite() {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
                         "Infinity is not a valid number literal", 
                         span
-                    ).into()))
+                    )))
                 }
                 Literal::Number(r)
             }
@@ -74,7 +74,7 @@ impl Parser {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
                         "Division by zero in rational number", 
                         span
-                    ).into()))
+                    )))
                 }
                 Literal::rational(rat.numerator, rat.denominator as i64)
             }
@@ -84,13 +84,13 @@ impl Parser {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
                         "NaN components not allowed in complex numbers", 
                         span
-                    ).into()))
+                    )))
                 }
                 if complex.real.is_infinite() || complex.imag.is_infinite() {
                     return Err(Box::new(crate::diagnostics::Error::parse_error(
                         "Infinite components not allowed in complex numbers", 
                         span
-                    ).into()))
+                    )))
                 }
                 Literal::complex(complex.real, complex.imag)
             }
@@ -190,7 +190,7 @@ impl Parser {
                         "Invalid boolean literal '{text}'. Use #t/#true for true or #f/#false for false"
                     ), 
                     span
-                ).into()))
+                )))
             }
         };
         
@@ -217,7 +217,7 @@ impl Parser {
             _ => Err(Box::new(crate::diagnostics::Error::parse_error(
                 format!("Expected literal, found {}", self.current_token_text()),
                 self.current_span(),
-            ).into()))
+            )))
         }
     }
 }

@@ -69,7 +69,7 @@ impl Ideque {
     
     /// Converts to a vector
     pub fn to_vec(&self) -> Vec<Value> {
-        self.data.clone())
+        self.data.clone()
     }
     
     /// Creates an iterator over the elements
@@ -79,7 +79,7 @@ impl Ideque {
     
     /// Appends another ideque to this one
     pub fn append(&mut self, other: &Self) {
-        self.data.extend(other.data.iter().clone())());
+        self.data.extend(other.data.iter().cloned());
     }
 }
 
@@ -134,7 +134,7 @@ impl PersistentIdeque {
     /// Returns a new ideque with an element added to the front
     pub fn cons(&self, value: Value) -> Self {
         let mut new_data = vec![value];
-        new_data.extend(self.data.iter().clone())());
+        new_data.extend(self.data.iter().cloned());
         Self {
             data: Arc::new(new_data),
         }
@@ -142,7 +142,7 @@ impl PersistentIdeque {
     
     /// Returns a new ideque with an element added to the back
     pub fn snoc(&self, value: Value) -> Self {
-        let mut new_data = self.data.as_ref().clone());
+        let mut new_data = self.data.as_ref().clone();
         new_data.push(value);
         Self {
             data: Arc::new(new_data),
@@ -154,7 +154,7 @@ impl PersistentIdeque {
         if self.data.is_empty() {
             None
         } else {
-            let front = self.data[0].clone());
+            let front = self.data[0].clone();
             let rest = self.data[1..].to_vec();
             Some((front, Self {
                 data: Arc::new(rest),
@@ -167,7 +167,7 @@ impl PersistentIdeque {
         if self.data.is_empty() {
             None
         } else {
-            let back = self.data[self.data.len() - 1].clone());
+            let back = self.data[self.data.len() - 1].clone();
             let rest = self.data[..self.data.len() - 1].to_vec();
             Some((Self {
                 data: Arc::new(rest),
@@ -177,28 +177,28 @@ impl PersistentIdeque {
     
     /// Returns the front element without removing it
     pub fn front(&self) -> Option<Value> {
-        self.data.first().clone())()
+        self.data.first().cloned()
     }
     
     /// Returns the back element without removing it
     pub fn back(&self) -> Option<Value> {
-        self.data.last().clone())()
+        self.data.last().cloned()
     }
     
     /// Converts to a vector
     pub fn to_vec(&self) -> Vec<Value> {
-        self.data.as_ref().clone())
+        self.data.as_ref().clone()
     }
     
     /// Creates an iterator over the elements
     pub fn iter(&self) -> impl Iterator<Item = Value> + '_ {
-        self.data.iter().clone())()
+        self.data.iter().cloned()
     }
     
     /// Concatenates with another persistent ideque
     pub fn append(&self, other: &Self) -> Self {
-        let mut new_data = self.data.as_ref().clone());
-        new_data.extend(other.data.iter().clone())());
+        let mut new_data = self.data.as_ref().clone();
+        new_data.extend(other.data.iter().cloned());
         Self {
             data: Arc::new(new_data),
         }
@@ -206,7 +206,7 @@ impl PersistentIdeque {
     
     /// Reverses the ideque
     pub fn reverse(&self) -> Self {
-        let mut new_data = self.data.as_ref().clone());
+        let mut new_data = self.data.as_ref().clone();
         new_data.reverse();
         Self {
             data: Arc::new(new_data),
@@ -226,7 +226,7 @@ impl Persistent<Value> for PersistentIdeque {
     }
     
     fn remove(&self, element: &Value) -> Self {
-        let filtered: Vec<_> = self.data.iter().filter(|v| *v != element).clone())().collect();
+        let filtered: Vec<_> = self.data.iter().filter(|v| *v != element).cloned().collect();
         Self {
             data: Arc::new(filtered),
         }
@@ -237,13 +237,14 @@ impl Persistent<Value> for PersistentIdeque {
 impl Ideque {
     /// SRFI-134: ideque-front/back with error handling
     pub fn ideque_front(&self) -> ContainerResult<Value> {
-        self.front().clone())().ok_or(ContainerError::EmptyContainer {
+        self.front().cloned().ok_or(ContainerError::EmptyContainer {
             operation: "ideque-front".to_string(),
         })
     }
     
+    /// SRFI-134: ideque-back - get the back element
     pub fn ideque_back(&self) -> ContainerResult<Value> {
-        self.back().clone())().ok_or(ContainerError::EmptyContainer {
+        self.back().cloned().ok_or(ContainerError::EmptyContainer {
             operation: "ideque-back".to_string(),
         })
     }
@@ -255,6 +256,7 @@ impl Ideque {
         })
     }
     
+    /// SRFI-134: ideque-remove-back - remove and return the back element
     pub fn ideque_remove_back(&mut self) -> ContainerResult<Value> {
         self.pop_back().ok_or(ContainerError::EmptyContainer {
             operation: "ideque-remove-back".to_string(),
@@ -266,6 +268,7 @@ impl Ideque {
         self.push_front(value);
     }
     
+    /// SRFI-134: ideque-add-back - add element to the back
     pub fn ideque_add_back(&mut self, value: Value) {
         self.push_back(value);
     }
@@ -312,7 +315,7 @@ impl Ideque {
     where
         F: FnMut(&Value) -> Value,
     {
-        let mapped: Vec<_> = self.iter().map(|v| f(v)).collect();
+        let mapped: Vec<_> = self.iter().map(f).collect();
         Self::from_vec(mapped)
     }
     
@@ -321,20 +324,20 @@ impl Ideque {
     where
         F: FnMut(&Value) -> bool,
     {
-        let filtered: Vec<_> = self.iter().filter(|v| predicate(v)).clone())().collect();
+        let filtered: Vec<_> = self.iter().filter(|v| predicate(v)).cloned().collect();
         Self::from_vec(filtered)
     }
     
     /// SRFI-134: ideque-append
     pub fn ideque_append(&self, other: &Self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         result.append(other);
         result
     }
     
     /// SRFI-134: ideque-reverse
     pub fn ideque_reverse(&self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         result.data.reverse();
         result
     }
@@ -352,7 +355,7 @@ impl Ideque {
     where
         F: FnMut(&Value) -> bool,
     {
-        self.iter().any(|v| predicate(v))
+        self.iter().any(predicate)
     }
     
     /// SRFI-134: ideque-every
@@ -360,7 +363,7 @@ impl Ideque {
     where
         F: FnMut(&Value) -> bool,
     {
-        self.iter().all(|v| predicate(v))
+        self.iter().all(predicate)
     }
 }
 

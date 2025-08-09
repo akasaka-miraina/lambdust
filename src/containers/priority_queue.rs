@@ -41,7 +41,7 @@ impl PriorityQueue {
     pub fn new() -> Self {
         Self::with_capacity_and_comparator(
             capacities::DEFAULT_PRIORITY_QUEUE_CAPACITY,
-            Comparator::default(),
+            Comparator::with_default(),
             true,
         )
     }
@@ -50,14 +50,14 @@ impl PriorityQueue {
     pub fn new_min_heap() -> Self {
         Self::with_capacity_and_comparator(
             capacities::DEFAULT_PRIORITY_QUEUE_CAPACITY,
-            Comparator::default(),
+            Comparator::with_default(),
             false,
         )
     }
     
     /// Creates a priority queue with custom capacity
     pub fn with_capacity(capacity: usize) -> Self {
-        Self::with_capacity_and_comparator(capacity, Comparator::default(), true)
+        Self::with_capacity_and_comparator(capacity, Comparator::with_default(), true)
     }
     
     /// Creates a priority queue with custom comparator
@@ -86,7 +86,7 @@ impl PriorityQueue {
     /// Creates a named priority queue for debugging
     pub fn with_name(name: impl Into<String>) -> Self {
         let mut queue = Self::new();
-        queue.name = Some(name.into())
+        queue.name = Some(name.into());
         queue
     }
     
@@ -109,7 +109,7 @@ impl PriorityQueue {
         }
         
         // Move last element to root and heapify down
-        let root = self.heap[0].clone());
+        let root = self.heap[0].clone();
         let last = self.heap.pop().unwrap();
         self.heap[0] = last;
         self.heapify_down(0);
@@ -125,8 +125,8 @@ impl PriorityQueue {
     /// Changes the priority of the first occurrence of a value
     pub fn change_priority(&mut self, target: &Value, new_priority: Value) -> bool {
         if let Some(index) = self.find_value_index(target) {
-            let old_priority = self.heap[index].priority.clone());
-            self.heap[index].priority = new_priority.clone());
+            let old_priority = self.heap[index].priority.clone();
+            self.heap[index].priority = new_priority.clone();
             
             // Determine if we need to heapify up or down
             let cmp = self.compare_priorities(&new_priority, &old_priority);
@@ -149,7 +149,7 @@ impl PriorityQueue {
     /// Removes the first occurrence of a value
     pub fn remove(&mut self, target: &Value) -> Option<Value> {
         if let Some(index) = self.find_value_index(target) {
-            let removed = self.heap[index].value.clone());
+            let removed = self.heap[index].value.clone();
             
             if index == self.heap.len() - 1 {
                 // Last element, just pop
@@ -157,7 +157,7 @@ impl PriorityQueue {
             } else {
                 // Replace with last element and heapify
                 let last = self.heap.pop().unwrap();
-                let old_priority = self.heap[index].priority.clone());
+                let old_priority = self.heap[index].priority.clone();
                 self.heap[index] = last;
                 
                 // Heapify in the appropriate direction
@@ -197,7 +197,7 @@ impl PriorityQueue {
     pub fn entries(&self) -> Vec<(Value, Value)> {
         self.heap
             .iter()
-            .map(|entry| (entry.value.clone()), entry.priority.clone()))
+            .map(|entry| (entry.value.clone(), entry.priority.clone()))
             .collect()
     }
     
@@ -217,7 +217,7 @@ impl PriorityQueue {
     
     /// Converts to a sorted vector without modifying the queue
     pub fn to_sorted_vec(&self) -> Vec<(Value, Value)> {
-        let mut clone = self.clone());
+        let mut clone = self.clone();
         clone.drain_sorted()
     }
     
@@ -309,7 +309,7 @@ impl PriorityQueue {
     
     /// Builds a heap from an unsorted vector (heapify)
     pub fn from_vec(mut entries: Vec<(Value, Value)>) -> Self {
-        let comparator = Comparator::default();
+        let comparator = Comparator::with_default();
         let heap: Vec<HeapEntry> = entries
             .drain(..)
             .map(|(value, priority)| HeapEntry::new(value, priority))
@@ -335,13 +335,13 @@ impl PriorityQueue {
     /// Merges another priority queue into this one
     pub fn merge(&mut self, other: &Self) {
         for entry in &other.heap {
-            self.insert(entry.value.clone()), entry.priority.clone());
+            self.insert(entry.value.clone(), entry.priority.clone());
         }
     }
     
     /// Creates a new priority queue containing elements from both queues
     pub fn union(&self, other: &Self) -> Self {
-        let mut result = self.clone());
+        let mut result = self.clone();
         result.merge(other);
         result
     }
@@ -414,7 +414,7 @@ impl ThreadSafePriorityQueue {
             .read()
             .unwrap()
             .peek()
-            .map(|(v, p)| (v.clone()), p.clone()))
+            .map(|(v, p)| (v.clone(), p.clone()))
     }
     
     /// Changes the priority of a value
@@ -485,7 +485,7 @@ impl ThreadSafePriorityQueue {
     where
         F: FnOnce(&PriorityQueue) -> R,
     {
-        f(&*self.inner.read().unwrap())
+        f(&self.inner.read().unwrap())
     }
     
     /// Executes a closure with write access to the inner queue
@@ -493,7 +493,7 @@ impl ThreadSafePriorityQueue {
     where
         F: FnOnce(&mut PriorityQueue) -> R,
     {
-        f(&mut *self.inner.write().unwrap())
+        f(&mut self.inner.write().unwrap())
     }
 }
 
@@ -507,7 +507,7 @@ impl Default for ThreadSafePriorityQueue {
 impl PriorityQueue {
     /// Extracts the top k elements without removing them from the original queue
     pub fn top_k(&self, k: usize) -> Vec<(Value, Value)> {
-        let mut clone = self.clone());
+        let mut clone = self.clone();
         let mut result = Vec::with_capacity(k.min(self.len()));
         
         for _ in 0..k.min(self.len()) {
@@ -548,7 +548,7 @@ impl PriorityQueue {
             .heap
             .iter()
             .filter(|entry| predicate(&entry.value, &entry.priority))
-            .map(|entry| (entry.value.clone()), entry.priority.clone()))
+            .map(|entry| (entry.value.clone(), entry.priority.clone()))
             .collect();
         
         Self::from_vec(filtered_entries)
@@ -589,9 +589,9 @@ impl PriorityQueue {
         
         for entry in &self.heap {
             if predicate(&entry.value, &entry.priority) {
-                true_entries.push((entry.value.clone()), entry.priority.clone()));
+                true_entries.push((entry.value.clone(), entry.priority.clone()));
             } else {
-                false_entries.push((entry.value.clone()), entry.priority.clone()));
+                false_entries.push((entry.value.clone(), entry.priority.clone()));
             }
         }
         
@@ -620,8 +620,8 @@ impl PriorityQueue {
         }
         
         Some((
-            (min_entry.value.clone()), min_entry.priority.clone()),
-            (max_entry.value.clone()), max_entry.priority.clone()),
+            (min_entry.value.clone(), min_entry.priority.clone()),
+            (max_entry.value.clone(), max_entry.priority.clone()),
         ))
     }
     
@@ -657,10 +657,15 @@ impl PriorityQueue {
 /// Statistics about priority queue structure and performance
 #[derive(Debug, Clone)]
 pub struct PriorityQueueStats {
+    /// Current number of elements in the priority queue
     pub size: usize,
+    /// Total capacity of the priority queue
     pub capacity: usize,
+    /// Depth of the heap tree structure
     pub depth: usize,
+    /// Whether this is a max-heap (true) or min-heap (false)
     pub is_max_heap: bool,
+    /// Average priority value across all elements
     pub avg_priority: Option<f64>,
 }
 

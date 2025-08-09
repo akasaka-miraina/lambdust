@@ -160,7 +160,7 @@ impl TypeSystemBridge {
         let type_scheme = self.infer_primitive_type(&name, &primitive)?;
         
         // Add to type environment
-        self.type_checker.env_mut().bind(name.clone()), type_scheme.clone());
+        self.type_checker.env_mut().bind(name.clone(), type_scheme.clone());
         
         // Create optimized primitive
         let optimized = OptimizedPrimitive {
@@ -269,12 +269,12 @@ impl TypeSystemBridge {
             _ => {
                 // Try to infer from arity information
                 let param_types = (0..primitive.arity_min)
-                    .map(|i| Type::named_var(&format!("a{}", i)))
+                    .map(|i| Type::named_var(format!("a{i}")))
                     .collect();
                 let return_type = Type::named_var("result");
                 
                 Ok(TypeScheme::polymorphic(
-                    (0..=primitive.arity_min).map(|i| TypeVar::with_name(&format!("a{}", i))).collect(),
+                    (0..=primitive.arity_min).map(|i| TypeVar::with_name(format!("a{i}"))).collect(),
                     vec![],
                     Type::function(param_types, return_type),
                 ))
@@ -318,7 +318,7 @@ impl TypeSystemBridge {
                     if let (Some(n1), Some(n2)) = (args[0].as_number(), args[1].as_number()) {
                         Ok(Value::number(n1 + n2))
                     } else {
-                        Err(Box::new(Error::runtime_error("Type error in specialized +".to_string(), None))
+                        Err(Box::new(Error::runtime_error("Type error in specialized +".to_string(), None)))
                     }
                 })))
             }
@@ -328,7 +328,7 @@ impl TypeSystemBridge {
                     if let (Some(n1), Some(n2)) = (args[0].as_number(), args[1].as_number()) {
                         Ok(Value::number(n1 * n2))
                     } else {
-                        Err(Box::new(Error::runtime_error("Type error in specialized *".to_string(), None))
+                        Err(Box::new(Error::runtime_error("Type error in specialized *".to_string(), None)))
                     }
                 })))
             }
@@ -340,7 +340,7 @@ impl TypeSystemBridge {
                         if let Some(s) = arg.as_string() {
                             result.push_str(s);
                         } else {
-                            return Err(Box::new(Error::runtime_error("Type error in specialized string-append".to_string(), None));
+                            return Err(Box::new(Error::runtime_error("Type error in specialized string-append".to_string(), None)));
                         }
                     }
                     Ok(Value::string(result))
@@ -361,7 +361,7 @@ impl TypeSystemBridge {
         self.pattern_matcher.compile_match(&super::algebraic::MatchExpression {
             scrutinee: "value".to_string(), // Simplified
             clauses: vec![super::algebraic::MatchClause {
-                pattern: pattern.clone()),
+                pattern: pattern.clone(),
                 guard: None,
                 body: "true".to_string(),
                 span: None,
@@ -397,7 +397,7 @@ impl TypeSystemBridge {
         self.migration_state.static_functions.insert(name.clone());
         
         // Update type environment
-        self.type_checker.env_mut().bind(name.clone()), type_scheme);
+        self.type_checker.env_mut().bind(name.clone(), type_scheme);
         
         // Check for potential issues
         self.check_migration_issues(&name)?;
@@ -412,7 +412,7 @@ impl TypeSystemBridge {
         
         if name.starts_with("string-") && self.migration_state.inferred_functions.contains_key(name) {
             self.migration_state.migration_warnings.push(MigrationWarning {
-                message: format!("Function {} migrated to static typing - verify all call sites use strings", name),
+                message: format!("Function {name} migrated to static typing - verify all call sites use strings"),
                 span: None,
                 suggestion: Some("Add type annotations to caller functions".to_string()),
                 severity: WarningSeverity::Warning,
@@ -447,17 +447,17 @@ impl TypeSystemBridge {
         for (sig, count) in &optimized.stats.type_calls {
             if let Some((_, current_max)) = &most_common {
                 if count > current_max {
-                    most_common = Some((sig.clone()), *count));
+                    most_common = Some((sig.clone(), *count));
                 }
             } else {
-                most_common = Some((sig.clone()), *count));
+                most_common = Some((sig.clone(), *count));
             }
         }
         
         // Suggest specialization if beneficial
         if let Some((sig, count)) = most_common {
             if count > 100 && !optimized.specializations.contains_key(&sig) {
-                println!("Suggestion: Specialize {} for signature {:?} (used {} times)", name, sig, count);
+                println!("Suggestion: Specialize {name} for signature {sig:?} (used {count} times)");
             }
         }
         
@@ -471,7 +471,7 @@ impl TypeSystemBridge {
         
         for (name, optimized) in cache.iter() {
             let primitive_report = PrimitivePerformanceReport {
-                name: name.clone()),
+                name: name.clone(),
                 total_calls: optimized.stats.call_count,
                 specializations: optimized.specializations.len(),
                 avg_execution_time: optimized.stats.avg_execution_time,
@@ -622,7 +622,7 @@ impl fmt::Display for MigrationWarning {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}] {}", self.severity, self.message)?;
         if let Some(suggestion) = &self.suggestion {
-            write!(f, " (Suggestion: {})", suggestion)?;
+            write!(f, " (Suggestion: {suggestion})")?;
         }
         Ok(())
     }
@@ -713,8 +713,8 @@ mod tests {
             return_type: Type::Number,
         };
         
-        stats.record_call(sig.clone()), 100, 64);
-        stats.record_call(sig.clone()), 200, 128);
+        stats.record_call(sig.clone(), 100, 64);
+        stats.record_call(sig.clone(), 200, 128);
         
         assert_eq!(stats.call_count, 2);
         assert_eq!(stats.avg_execution_time, 150);

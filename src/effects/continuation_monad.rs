@@ -45,7 +45,7 @@ impl FromValue for i32 {
     fn from_value(value: Value) -> Result<Self> {
         match value {
             Value::Literal(Literal::Number(n)) => Ok(n as i32),
-            _ => Err(Box::new(Error::type_error("Expected number", Span::new(0, 0).boxed())),
+            _ => Err(Box::new(Error::type_error("Expected number", Span::new(0, 0)))),
         }
     }
 }
@@ -60,7 +60,7 @@ impl FromValue for String {
     fn from_value(value: Value) -> Result<Self> {
         match value {
             Value::Literal(Literal::String(s)) => Ok(s),
-            _ => Err(Box::new(Error::type_error("Expected string", Span::new(0, 0).boxed())),
+            _ => Err(Box::new(Error::type_error("Expected string", Span::new(0, 0)))),
         }
     }
 }
@@ -75,7 +75,7 @@ impl FromValue for bool {
     fn from_value(value: Value) -> Result<Self> {
         match value {
             Value::Literal(Literal::Boolean(b)) => Ok(b),
-            _ => Err(Box::new(Error::type_error("Expected boolean", Span::new(0, 0).boxed())),
+            _ => Err(Box::new(Error::type_error("Expected boolean", Span::new(0, 0)))),
         }
     }
 }
@@ -380,7 +380,7 @@ impl<A> ContinuationMonad<A> {
         ContinuationMonad {
             computation: ContComputation::Effect {
                 effect_computation: effect,
-                continuation: ContinuationFunc::new(id, |v| ContinuationMonad::pure(v)),
+                continuation: ContinuationFunc::new(id, ContinuationMonad::pure),
             },
         }
     }
@@ -407,7 +407,7 @@ impl ContinuationFunction {
             return Err(Box::new(Error::runtime_error(
                 "Continuation has already been invoked".to_string(),
                 None,
-            ));
+            )));
         }
         
         self.invoked = true;
@@ -416,7 +416,7 @@ impl ContinuationFunction {
             ContinuationComputation::EvaluationContext { stack, captured_env } => {
                 // Restore the evaluation context and continue with the value
                 // This implements the non-local jump semantics of call/cc
-                self.restore_evaluation_context(stack, captured_env.clone()), value)
+                self.restore_evaluation_context(stack, captured_env.clone(), value)
             }
             
             ContinuationComputation::FunctionCall { function, args, env } => {
@@ -430,8 +430,8 @@ impl ContinuationFunction {
             
             ContinuationComputation::Composed { first, second } => {
                 // Apply first continuation, then second
-                let intermediate = first.clone()).apply(value)?;
-                second.clone()).apply(intermediate)
+                let intermediate = first.clone().apply(value)?;
+                second.clone().apply(intermediate)
             }
         }
     }
@@ -491,7 +491,7 @@ where
                 // This is a simplified fallback - in practice we'd need proper conversion
                 match A::from_value(result) {
                     Ok(converted) => Ok(converted),
-                    Err(_) => Err(Box::new(Error::type_error("Type conversion failed in continuation application", Span::new(0, 0).boxed())),
+                    Err(_) => Err(Box::new(Error::type_error("Type conversion failed in continuation application", Span::new(0, 0)))),
                 }
             }
         }
@@ -528,11 +528,11 @@ fn execute_effect(effect: EffectfulComputation) -> Result<Value> {
                     Ok(Value::string("input".to_string()))
                 }
                 ContIOAction::Write(value) => {
-                    print!("{}", value);
+                    print!("{value}");
                     Ok(Value::Unspecified)
                 }
                 ContIOAction::Print(value) => {
-                    println!("{}", value);
+                    println!("{value}");
                     Ok(Value::Unspecified)
                 }
                 ContIOAction::Return(value) => Ok(value),
@@ -554,7 +554,7 @@ fn execute_effect(effect: EffectfulComputation) -> Result<Value> {
         }
         
         EffectfulComputation::Error { error } => {
-            Err(error)
+            Err(Box::new(error))
         }
     }
 }
@@ -586,10 +586,10 @@ impl fmt::Display for ContinuationFunction {
 impl<A: fmt::Display> fmt::Display for ContinuationMonad<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.computation {
-            ContComputation::Pure(value) => write!(f, "Pure({})", value),
+            ContComputation::Pure(value) => write!(f, "Pure({value})"),
             ContComputation::CallCC { .. } => write!(f, "CallCC(<procedure>)"),
             ContComputation::ApplyContinuation { continuation, .. } => {
-                write!(f, "ApplyContinuation({})", continuation)
+                write!(f, "ApplyContinuation({continuation})")
             }
             ContComputation::Bind { .. } => write!(f, "Bind(<computation>)"),
             ContComputation::Effect { .. } => write!(f, "Effect(<computation>)"),
@@ -617,16 +617,16 @@ mod tests {
     #[test]
     fn test_continuation_bind() {
         let cont = ContinuationMonad::pure(21)
-            .bind(|x| ContinuationMonad::pure(x * 2));
+            .bind(|x| ContinuationMonad::pure((x * 2).to_value()));
         let result = run_continuation(cont).unwrap();
-        assert_eq!(result, 42);
+        assert_eq!(result, 42.to_value());
     }
 
     #[test]
     fn test_escape_continuation() {
-        let cont = escape_continuation(42);
+        let cont = escape_continuation(42.to_value());
         let result = run_continuation(cont).unwrap();
-        assert_eq!(result, 42);
+        assert_eq!(result, 42.to_value());
     }
 
     #[test]

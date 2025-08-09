@@ -381,7 +381,7 @@ impl ErrorPropagationCoordinator {
 
         // Record error event
         if self.policies.track_error_history {
-            self.record_error_event(ErrorEventType::ErrorOccurred, thread_id, thread_error.clone()), None);
+            self.record_error_event(ErrorEventType::ErrorOccurred, thread_id, thread_error.clone(), None);
         }
 
         // Determine if error should be propagated
@@ -417,16 +417,16 @@ impl ErrorPropagationCoordinator {
         {
             let channels = self.error_channels.read().unwrap();
             let message = ErrorPropagationMessage::PropagateError {
-                error: error.clone()),
-                target_threads: target_threads.clone()),
-                propagation_strategy: self.policies.default_propagation_strategy.clone()),
+                error: error.clone(),
+                target_threads: target_threads.clone(),
+                propagation_strategy: self.policies.default_propagation_strategy.clone(),
             };
 
             for &target_thread in &target_threads {
                 if let Some(channel) = channels.get(&target_thread) {
-                    if let Err(_) = channel.sender.try_send(message.clone()) {
+                    if channel.sender.try_send(message.clone()).is_err() {
                         // Target thread is not responsive, continue with others
-                        eprintln!("Warning: Could not propagate error to thread {:?}", target_thread);
+                        eprintln!("Warning: Could not propagate error to thread {target_thread:?}");
                     }
                 }
             }
@@ -448,7 +448,7 @@ impl ErrorPropagationCoordinator {
     /// Handles a fatal error by initiating shutdown.
     fn initiate_fatal_error_shutdown(&self, error: ThreadError) -> Result<()> {
         let message = ErrorPropagationMessage::FatalErrorShutdown {
-            error: error.clone()),
+            error: error.clone(),
             message: format!("Fatal error in thread {:?}: {}", error.originating_thread, error.diagnostic_error),
         };
 
@@ -506,7 +506,7 @@ impl ErrorPropagationCoordinator {
                 let contexts = self.thread_error_contexts.read().unwrap();
                 contexts.keys().filter(|&&tid| tid != error.originating_thread).copied().collect()
             }
-            PropagationStrategy::Targeted(threads) => threads.clone()),
+            PropagationStrategy::Targeted(threads) => threads.clone(),
             PropagationStrategy::Parent => {
                 // For simplicity, assume no parent relationship
                 Vec::new()
@@ -638,13 +638,13 @@ impl ErrorPropagationCoordinator {
     /// Gets the error history.
     pub fn get_error_history(&self) -> Vec<ErrorEvent> {
         let history = self.error_history.lock().unwrap();
-        history.iter().clone())().collect()
+        history.iter().cloned().collect()
     }
 
     /// Gets the error context for a specific thread.
     pub fn get_thread_error_context(&self, thread_id: ThreadId) -> Option<ThreadErrorContext> {
         let contexts = self.thread_error_contexts.read().unwrap();
-        contexts.get(&thread_id).clone())()
+        contexts.get(&thread_id).cloned()
     }
 
     /// Clears error history.

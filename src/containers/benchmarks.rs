@@ -10,15 +10,22 @@ use std::time::{Duration, Instant};
 /// Benchmark result for a single operation
 #[derive(Debug, Clone)]
 pub struct BenchmarkResult {
+    /// Name of the operation being benchmarked
     pub operation: String,
+    /// Type of container being benchmarked
     pub container_type: String,
+    /// Size of the dataset used in the benchmark
     pub size: usize,
+    /// Time taken to complete the operation
     pub duration: Duration,
+    /// Number of operations completed per second
     pub operations_per_second: f64,
+    /// Optional memory usage measurement in bytes
     pub memory_usage: Option<usize>,
 }
 
 impl BenchmarkResult {
+    /// Creates a new benchmark result with calculated operations per second.
     pub fn new(
         operation: impl Into<String>,
         container_type: impl Into<String>,
@@ -41,6 +48,7 @@ impl BenchmarkResult {
         }
     }
 
+    /// Sets the memory usage for this benchmark result.
     pub fn with_memory_usage(mut self, memory_usage: usize) -> Self {
         self.memory_usage = Some(memory_usage);
         self
@@ -60,7 +68,7 @@ impl std::fmt::Display for BenchmarkResult {
         )?;
 
         if let Some(memory) = self.memory_usage {
-            write!(f, ", {} bytes", memory)?;
+            write!(f, ", {memory} bytes")?;
         }
 
         Ok(())
@@ -115,7 +123,7 @@ impl ContainerBenchmarks {
                 let start = Instant::now();
 
                 for i in 0..size {
-                    table.insert(Value::number(i as f64), Value::string(format!("value{}", i)));
+                    table.insert(Value::number(i as f64), Value::string(format!("value{i}")));
                 }
 
                 durations.push(start.elapsed());
@@ -127,7 +135,7 @@ impl ContainerBenchmarks {
             // Benchmark lookups
             let table = ThreadSafeHashTable::new();
             for i in 0..size {
-                table.insert(Value::number(i as f64), Value::string(format!("value{}", i)));
+                table.insert(Value::number(i as f64), Value::string(format!("value{i}")));
             }
 
             let mut durations = Vec::new();
@@ -153,7 +161,7 @@ impl ContainerBenchmarks {
                 let start = Instant::now();
 
                 for i in 0..size {
-                    table.insert(i, format!("value{}", i));
+                    table.insert(i, format!("value{i}"));
                 }
 
                 durations.push(start.elapsed());
@@ -237,7 +245,7 @@ impl ContainerBenchmarks {
                 let start = Instant::now();
 
                 for i in 0..size {
-                    queue.insert(Value::string(format!("item{}", i)), Value::number(i as f64));
+                    queue.insert(Value::string(format!("item{i}")), Value::number(i as f64));
                 }
 
                 durations.push(start.elapsed());
@@ -249,12 +257,12 @@ impl ContainerBenchmarks {
             // Benchmark extraction
             let queue = ThreadSafePriorityQueue::new();
             for i in 0..size {
-                queue.insert(Value::string(format!("item{}", i)), Value::number(i as f64));
+                queue.insert(Value::string(format!("item{i}")), Value::number(i as f64));
             }
 
             let mut durations = Vec::new();
             for _ in 0..self.iterations {
-                let queue_clone = queue.clone());
+                let queue_clone = queue.clone();
                 let start = Instant::now();
 
                 for _ in 0..size {
@@ -381,7 +389,7 @@ impl ContainerBenchmarks {
 
             let mut durations = Vec::new();
             for _ in 0..self.iterations {
-                let queue_clone = queue.clone());
+                let queue_clone = queue.clone();
                 let start = Instant::now();
 
                 for _ in 0..size {
@@ -488,7 +496,7 @@ impl ContainerBenchmarks {
         // Hash table memory usage
         let table = ThreadSafeHashTable::new();
         for i in 0..size {
-            table.insert(Value::number(i as f64), Value::string(format!("value{}", i)));
+            table.insert(Value::number(i as f64), Value::string(format!("value{i}")));
         }
         let estimated_memory = size * (std::mem::size_of::<Value>() * 2 + 64); // Key + Value + overhead
         results.push(
@@ -523,16 +531,16 @@ impl ContainerBenchmarks {
         for result in results {
             by_container
                 .entry(result.container_type.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(result);
         }
 
         for (container_type, container_results) in by_container {
-            println!("\n{}", container_type);
+            println!("\n{container_type}");
             println!("{:-<50}", "");
 
             for result in container_results {
-                println!("  {}", result);
+                println!("  {result}");
             }
         }
 
@@ -566,7 +574,7 @@ impl ContainerBenchmarks {
                     .filter(|r| r.operation == "contains"));
             }
             _ => {
-                eprintln!("Unknown operation: {}", operation);
+                eprintln!("Unknown operation: {operation}");
             }
         }
 

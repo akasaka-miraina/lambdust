@@ -15,24 +15,38 @@ use serde::{Serialize, Deserialize};
 /// A complete Scheme benchmark with source code and expected behavior
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemeBenchmark {
+    /// Name of the benchmark
     pub name: String,
+    /// Human-readable description of what the benchmark tests
     pub description: String,
+    /// Category this benchmark belongs to (e.g., "arithmetic", "list-processing")
     pub category: String,
+    /// The Scheme source code to execute
     pub source_code: String,
+    /// Expected algorithmic complexity (e.g., "O(n)", "O(n²)")
     pub expected_complexity: String,
+    /// Size of the input data used in the benchmark
     pub input_size: usize,
+    /// Baseline operations per second for comparison
     pub baseline_ops_per_sec: Option<f64>,
 }
 
 /// Results from running a Scheme benchmark
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SchemeBenchmarkResult {
+    /// Name of the benchmark that was executed
     pub benchmark_name: String,
+    /// Total execution time in milliseconds
     pub execution_time_ms: f64,
+    /// Operations completed per second
     pub ops_per_second: f64,
+    /// Memory allocated during execution in megabytes
     pub memory_allocated_mb: f64,
+    /// Whether the benchmark produced correct results
     pub correctness_verified: bool,
+    /// Performance grade (A, B, C, D, F)
     pub performance_grade: String,
+    /// Performance ratio compared to baseline (higher is better)
     pub comparison_to_baseline: Option<f64>,
 }
 
@@ -664,7 +678,7 @@ impl SchemeBenchmarkSuite {
             .map(|baseline| ops_per_second / baseline);
         
         SchemeBenchmarkResult {
-            benchmark_name: benchmark.name.clone()),
+            benchmark_name: benchmark.name.clone(),
             execution_time_ms,
             ops_per_second,
             memory_allocated_mb: avg_memory_mb,
@@ -688,7 +702,7 @@ impl SchemeBenchmarkSuite {
         println!("Running {} benchmarks in category: {}", benchmark_indices.len(), category);
         
         for index in benchmark_indices {
-            let benchmark = self.benchmarks[index].clone());
+            let benchmark = self.benchmarks[index].clone();
             let result = self.run_benchmark(&benchmark, iterations);
             results.push(result);
         }
@@ -728,12 +742,14 @@ impl SchemeBenchmarkSuite {
         }
     }
     
+    #[allow(clippy::only_used_in_recursion)]
     fn compute_fibonacci(&self, n: u64) -> i64 {
         if n <= 1 { n as i64 } else { 
             self.compute_fibonacci(n - 1) + self.compute_fibonacci(n - 2) 
         }
     }
     
+    #[allow(clippy::only_used_in_recursion)]
     fn compute_factorial(&self, n: u64) -> u64 {
         if n <= 1 { 1 } else { n * self.compute_factorial(n - 1) }
     }
@@ -760,14 +776,14 @@ impl SchemeBenchmarkSuite {
         report.push_str("=== Lambdust Scheme Benchmark Suite Results ===\n\n");
         
         for (category, results) in &all_results {
-            report.push_str(&format!("Category: {}\n", category));
+            report.push_str(&format!("Category: {category}\n"));
             report.push_str(&format!("Tests: {}\n", results.len()));
             
             let avg_ops_per_sec: f64 = results.iter()
                 .map(|r| r.ops_per_second)
                 .sum::<f64>() / results.len() as f64;
             
-            report.push_str(&format!("Average Performance: {:.0} ops/sec\n", avg_ops_per_sec));
+            report.push_str(&format!("Average Performance: {avg_ops_per_sec:.0} ops/sec\n"));
             
             let excellent_count = results.iter()
                 .filter(|r| r.performance_grade == "Excellent")
@@ -776,7 +792,7 @@ impl SchemeBenchmarkSuite {
             report.push_str(&format!("Excellent Results: {}/{}\n", excellent_count, results.len()));
             
             report.push_str("Top Results:\n");
-            let mut sorted_results = results.clone());
+            let mut sorted_results = results.clone();
             sorted_results.sort_by(|a, b| b.ops_per_second.partial_cmp(&a.ops_per_second).unwrap());
             
             for result in sorted_results.iter().take(3) {
@@ -824,7 +840,7 @@ mod tests {
     fn test_benchmark_execution() {
         let mut suite = SchemeBenchmarkSuite::new();
         // Clone the benchmark to avoid borrowing conflicts
-        let benchmark = suite.get_all_benchmarks()[0].clone());
+        let benchmark = suite.get_all_benchmarks()[0].clone();
         let result = suite.run_benchmark(&benchmark, 10);
         
         assert!(result.ops_per_second > 0.0);

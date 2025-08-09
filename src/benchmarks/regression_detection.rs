@@ -609,7 +609,7 @@ impl RegressionDetector {
         
         RegressionDetectionResult {
             timestamp,
-            config: self.config.clone()),
+            config: self.config.clone(),
             regressions,
             improvements,
             trends,
@@ -636,7 +636,7 @@ impl RegressionDetector {
             }
             
             // Get recent measurements for comparison
-            let recent_count = (baseline.measurements.len() / 4).max(5).min(10);
+            let recent_count = (baseline.measurements.len() / 4).clamp(5, 10);
             let recent_measurements: Vec<f64> = baseline.measurements
                 .iter()
                 .rev()
@@ -680,10 +680,10 @@ impl RegressionDetector {
             if percent_change < -self.config.regression_threshold {
                 if !self.config.require_statistical_significance || significance.is_significant {
                     let regression = PerformanceRegression {
-                        test_id: baseline.test_id.clone()),
-                        implementation: baseline.implementation_id.clone()),
+                        test_id: baseline.test_id.clone(),
+                        implementation: baseline.implementation_id.clone(),
                         degradation_percent: -percent_change,
-                        statistical_significance: significance.clone()),
+                        statistical_significance: significance.clone(),
                         severity: self.classify_regression_severity(-percent_change),
                         current_vs_baseline: self.create_performance_comparison(baseline, &recent_measurements),
                         suspected_causes: self.analyze_suspected_causes(baseline, &recent_measurements),
@@ -694,13 +694,13 @@ impl RegressionDetector {
                 }
             }
             // Check for improvement
-            else if percent_change > self.config.regression_threshold {
-                if !self.config.require_statistical_significance || significance.is_significant {
+            else if percent_change > self.config.regression_threshold
+                && (!self.config.require_statistical_significance || significance.is_significant) {
                     let improvement = PerformanceImprovement {
-                        test_id: baseline.test_id.clone()),
-                        implementation: baseline.implementation_id.clone()),
+                        test_id: baseline.test_id.clone(),
+                        implementation: baseline.implementation_id.clone(),
                         improvement_percent: percent_change,
-                        statistical_significance: significance.clone()),
+                        statistical_significance: significance.clone(),
                         current_vs_baseline: self.create_performance_comparison(baseline, &recent_measurements),
                         likely_causes: self.analyze_improvement_causes(baseline, &recent_measurements),
                         first_detected: SystemTime::now(),
@@ -708,7 +708,6 @@ impl RegressionDetector {
                     };
                     improvements.push(improvement);
                 }
-            }
         }
         
         (regressions, improvements)
@@ -742,11 +741,11 @@ impl RegressionDetector {
     fn create_performance_comparison(&self, baseline: &BaselineData, recent_values: &[f64]) -> PerformanceComparison {
         let baseline_values: Vec<f64> = baseline.measurements.iter().map(|m| m.value).collect();
         
-        let current_statistics = self.calculate_statistics(&recent_values);
+        let current_statistics = self.calculate_statistics(recent_values);
         let difference = self.calculate_difference_metrics(&baseline.statistics, &current_statistics);
         
         PerformanceComparison {
-            baseline: baseline.statistics.clone()),
+            baseline: baseline.statistics.clone(),
             current_values: recent_values.to_vec(),
             current_statistics,
             difference,
@@ -974,8 +973,8 @@ impl BaselineManager {
                          measurement.parameters.get("implementation").unwrap_or(&"unknown".to_string()));
         
         let baseline = self.baselines.entry(key.clone()).or_insert_with(|| BaselineData {
-            test_id: measurement.parameters.get("test_id").unwrap_or(&"unknown".to_string()).clone()),
-            implementation_id: measurement.parameters.get("implementation").unwrap_or(&"unknown".to_string()).clone()),
+            test_id: measurement.parameters.get("test_id").unwrap_or(&"unknown".to_string()).clone(),
+            implementation_id: measurement.parameters.get("implementation").unwrap_or(&"unknown".to_string()).clone(),
             measurements: Vec::new(),
             statistics: BaselineStatistics {
                 count: 0,
@@ -1180,7 +1179,7 @@ impl TrendAnalyzer {
             }
             
             let trend = self.analyze_single_trend(baseline);
-            trends.insert(key.clone()), trend);
+            trends.insert(key.clone(), trend);
         }
         
         trends
@@ -1249,8 +1248,8 @@ impl TrendAnalyzer {
         };
         
         TrendAnalysis {
-            test_id: baseline.test_id.clone()),
-            implementation: baseline.implementation_id.clone()),
+            test_id: baseline.test_id.clone(),
+            implementation: baseline.implementation_id.clone(),
             trend_direction,
             trend_strength,
             slope,
@@ -1303,11 +1302,11 @@ impl AnomalyDetector {
                 };
                 
                 anomalies.push(PerformanceAnomaly {
-                    test_id: baseline.test_id.clone()),
-                    implementation: baseline.implementation_id.clone()),
+                    test_id: baseline.test_id.clone(),
+                    implementation: baseline.implementation_id.clone(),
                     anomaly_type,
                     anomaly_score: z_score,
-                    anomalous_measurement: measurement.clone()),
+                    anomalous_measurement: measurement.clone(),
                     detection_method: AnomalyDetectionMethod::StatisticalOutlier,
                     detected_at: SystemTime::now(),
                 });
@@ -1325,15 +1324,15 @@ pub fn generate_regression_report(result: &RegressionDetectionResult) -> String 
     report.push_str("# Performance Regression Detection Report\n\n");
     
     // Overall assessment
-    report.push_str(&format!("## Overall Assessment\n\n"));
+    report.push_str("## Overall Assessment\n\n");
     report.push_str(&format!("- **Health Score:** {:.1}/100\n", result.overall_assessment.health_score));
     report.push_str(&format!("- **Status:** {:?}\n", result.overall_assessment.status));
     report.push_str(&format!("- **Risk Level:** {:?}\n", result.overall_assessment.risk_level));
     
     // Key findings
-    report.push_str(&format!("\n### Key Findings\n"));
+    report.push_str("\n### Key Findings\n");
     for finding in &result.overall_assessment.key_findings {
-        report.push_str(&format!("- {}\n", finding));
+        report.push_str(&format!("- {finding}\n"));
     }
     
     // Regressions
@@ -1363,9 +1362,9 @@ pub fn generate_regression_report(result: &RegressionDetectionResult) -> String 
     
     // Recommendations
     if !result.recommendations.is_empty() {
-        report.push_str(&format!("\n## Recommended Actions\n\n"));
+        report.push_str("\n## Recommended Actions\n\n");
         
-        let mut sorted_recommendations = result.recommendations.clone());
+        let mut sorted_recommendations = result.recommendations.clone();
         sorted_recommendations.sort_by_key(|r| std::cmp::Reverse(r.priority));
         
         for (i, rec) in sorted_recommendations.iter().enumerate() {
@@ -1400,7 +1399,7 @@ mod tests {
             parameters: [
                 ("test_id".to_string(), "test1".to_string()),
                 ("implementation".to_string(), "impl1".to_string()),
-            ].iter().clone())().collect(),
+            ].iter().cloned().collect(),
             context: SystemContext {
                 commit_hash: None,
                 compiler_version: "rustc 1.70".to_string(),

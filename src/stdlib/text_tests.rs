@@ -26,7 +26,7 @@ mod tests {
         assert_eq!(empty.byte_length(), 0);
         assert_eq!(empty.grapheme_length(), 0);
 
-        let hello = Text::from_str("Hello, 世界! 🌍");
+        let hello = Text::from_string_slice("Hello, 世界! 🌍");
         assert!(!hello.is_empty());
         assert_eq!(hello.char_length(), 11);
         assert!(hello.byte_length() > hello.char_length()); // UTF-8 encoding
@@ -35,7 +35,7 @@ mod tests {
 
     #[test]
     fn test_text_indexing_and_substring() {
-        let text = Text::from_str("Hello, World!");
+        let text = Text::from_string_slice("Hello, World!");
         
         assert_eq!(text.char_at(0), Some('H'));
         assert_eq!(text.char_at(7), Some('W'));
@@ -52,9 +52,9 @@ mod tests {
 
     #[test]
     fn test_text_concatenation() {
-        let hello = Text::from_str("Hello");
-        let world = Text::from_str("World");
-        let space = Text::from_str(" ");
+        let hello = Text::from_string_slice("Hello");
+        let world = Text::from_string_slice("World");
+        let space = Text::from_string_slice(" ");
         
         let greeting = hello.concat(&space).concat(&world);
         assert_eq!(greeting.to_string(), "Hello World");
@@ -68,23 +68,23 @@ mod tests {
 
     #[test]
     fn test_text_search_operations() {
-        let text = Text::from_str("The quick brown fox jumps over the lazy dog");
-        let pattern = Text::from_str("fox");
+        let text = Text::from_string_slice("The quick brown fox jumps over the lazy dog");
+        let pattern = Text::from_string_slice("fox");
         
         assert!(text.contains(&pattern));
         assert_eq!(text.find(&pattern), Some(16));
         assert_eq!(text.rfind(&pattern), Some(16));
         
-        let the = Text::from_str("the");
+        let the = Text::from_string_slice("the");
         assert_eq!(text.find(&the), Some(31)); // Case sensitive
         
-        assert!(text.starts_with(&Text::from_str("The")));
-        assert!(text.ends_with(&Text::from_str("dog")));
+        assert!(text.starts_with(&Text::from_string_slice("The")));
+        assert!(text.ends_with(&Text::from_string_slice("dog")));
     }
 
     #[test]
     fn test_text_case_operations() {
-        let mixed = Text::from_str("Hello, World!");
+        let mixed = Text::from_string_slice("Hello, World!");
         
         let upper = mixed.to_uppercase();
         assert_eq!(upper.to_string(), "HELLO, WORLD!");
@@ -92,7 +92,7 @@ mod tests {
         let lower = mixed.to_lowercase();
         assert_eq!(lower.to_string(), "hello, world!");
         
-        let title = Text::from_str("hello world").to_titlecase();
+        let title = Text::from_string_slice("hello world").to_titlecase();
         assert_eq!(title.to_string(), "Hello World");
         
         let folded = mixed.fold_case();
@@ -101,23 +101,23 @@ mod tests {
 
     #[test]
     fn test_text_splitting_and_joining() {
-        let csv = Text::from_str("apple,banana,cherry,date");
-        let comma = Text::from_str(",");
+        let csv = Text::from_string_slice("apple,banana,cherry,date");
+        let comma = Text::from_string_slice(",");
         
         let parts = csv.split(&comma);
         assert_eq!(parts.len(), 4);
         assert_eq!(parts[0].to_string(), "apple");
         assert_eq!(parts[3].to_string(), "date");
         
-        let joined = TextOperations::join(&parts, &Text::from_str("; "));
+        let joined = TextOperations::join(&parts, &Text::from_string_slice("; "));
         assert_eq!(joined.to_string(), "apple; banana; cherry; date");
     }
 
     #[test]
     fn test_text_replacement() {
-        let text = Text::from_str("Hello, World! Hello, Universe!");
-        let old = Text::from_str("Hello");
-        let new = Text::from_str("Hi");
+        let text = Text::from_string_slice("Hello, World! Hello, Universe!");
+        let old = Text::from_string_slice("Hello");
+        let new = Text::from_string_slice("Hi");
         
         let replaced = text.replace(&old, &new);
         assert_eq!(replaced.to_string(), "Hi, World! Hi, Universe!");
@@ -125,7 +125,7 @@ mod tests {
 
     #[test]
     fn test_text_trimming() {
-        let padded = Text::from_str("  \t  hello world  \n  ");
+        let padded = Text::from_string_slice("  \t  hello world  \n  ");
         
         let trimmed = padded.trim();
         assert_eq!(trimmed.to_string(), "hello world");
@@ -142,8 +142,8 @@ mod tests {
     #[test]
     fn test_unicode_normalization() {
         // Test with composed vs decomposed characters
-        let composed = Text::from_str("é"); // Single character
-        let decomposed = Text::from_str("e\u{0301}"); // e + combining acute accent
+        let composed = Text::from_string_slice("é"); // Single character
+        let decomposed = Text::from_string_slice("e\u{0301}"); // e + combining acute accent
         
         // They should not be equal as strings
         assert_ne!(composed.to_string(), decomposed.to_string());
@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_unicode_properties() {
-        let text = Text::from_str("Hello, 世界! 🌍");
+        let text = Text::from_string_slice("Hello, 世界! 🌍");
         
         // Test character properties
         assert_eq!(text.char_at(0), Some('H'));
@@ -175,7 +175,7 @@ mod tests {
     #[test]
     fn test_grapheme_clusters() {
         // Test with combining characters
-        let text = Text::from_str("a\u{0301}b\u{0308}c"); // a with acute, b with diaeresis, c
+        let text = Text::from_string_slice("a\u{0301}b\u{0308}c"); // a with acute, b with diaeresis, c
         
         // Should have 3 characters but 3 grapheme clusters
         assert_eq!(text.char_length(), 5); // a, acute, b, diaeresis, c
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_regex_compilation_and_matching() {
         let regex = TextRegex::new(r"\d+").unwrap();
-        let text = Text::from_str("Price: $123.45");
+        let text = Text::from_string_slice("Price: $123.45");
         
         assert!(regex.is_match(&text));
         
@@ -200,8 +200,8 @@ mod tests {
     #[test]
     fn test_regex_replacement() {
         let regex = TextRegex::new(r"\b\w+@\w+\.\w+\b").unwrap();
-        let text = Text::from_str("Contact us at john@example.com or mary@test.org");
-        let replacement = Text::from_str("[EMAIL]");
+        let text = Text::from_string_slice("Contact us at john@example.com or mary@test.org");
+        let replacement = Text::from_string_slice("[EMAIL]");
         
         let result = regex.replace_all(&text, &replacement);
         assert_eq!(result.to_string(), "Contact us at [EMAIL] or [EMAIL]");
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn test_regex_groups() {
         let regex = TextRegex::new(r"(\w+)\s+(\d+)").unwrap();
-        let text = Text::from_str("apple 123 banana 456");
+        let text = Text::from_string_slice("apple 123 banana 456");
         
         let matches = regex.find_all(&text);
         assert_eq!(matches.len(), 2);
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn test_regex_splitting() {
         let regex = TextRegex::new(r"\s*,\s*").unwrap();
-        let text = Text::from_str("apple, banana , cherry,  date");
+        let text = Text::from_string_slice("apple, banana , cherry,  date");
         
         let parts = regex.split(&text);
         assert_eq!(parts.len(), 4);
@@ -239,8 +239,8 @@ mod tests {
 
     #[test]
     fn test_boyer_moore_search() {
-        let pattern = Text::from_str("pattern");
-        let text = Text::from_str("This is a test pattern for pattern matching algorithm");
+        let pattern = Text::from_string_slice("pattern");
+        let text = Text::from_string_slice("This is a test pattern for pattern matching algorithm");
         
         let searcher = BoyerMoore::new(&pattern);
         let matches = searcher.search(&text);
@@ -252,8 +252,8 @@ mod tests {
 
     #[test]
     fn test_kmp_search() {
-        let pattern = Text::from_str("ABAB");
-        let text = Text::from_str("ABABCABABABAB");
+        let pattern = Text::from_string_slice("ABAB");
+        let text = Text::from_string_slice("ABABCABABABAB");
         
         let searcher = KnuthMorrisPratt::new(&pattern);
         let matches = searcher.search(&text);
@@ -266,8 +266,8 @@ mod tests {
 
     #[test]
     fn test_string_similarity() {
-        let text1 = Text::from_str("kitten");
-        let text2 = Text::from_str("sitting");
+        let text1 = Text::from_string_slice("kitten");
+        let text2 = Text::from_string_slice("sitting");
         
         let distance = StringSimilarity::levenshtein_distance(&text1, &text2);
         assert_eq!(distance, 3);
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_text_operations() {
-        let text = Text::from_str("hello");
+        let text = Text::from_string_slice("hello");
         
         // Test padding
         let left_padded = TextOperations::pad_left(&text, 10, '-');
@@ -294,7 +294,7 @@ mod tests {
         assert_eq!(centered.to_string(), "--hello--");
         
         // Test wrapping
-        let long_text = Text::from_str("This is a very long sentence that should be wrapped");
+        let long_text = Text::from_string_slice("This is a very long sentence that should be wrapped");
         let wrapped = TextOperations::wrap_lines(&long_text, 15);
         assert!(wrapped.len() > 1);
         assert!(wrapped.iter().all(|line| line.char_length() <= 15));
@@ -303,9 +303,9 @@ mod tests {
     #[test]
     fn test_common_prefix_suffix() {
         let texts = vec![
-            Text::from_str("prefix_hello_suffix"),
-            Text::from_str("prefix_world_suffix"),
-            Text::from_str("prefix_test_suffix"),
+            Text::from_string_slice("prefix_hello_suffix"),
+            Text::from_string_slice("prefix_world_suffix"),
+            Text::from_string_slice("prefix_test_suffix"),
         ];
         
         let prefix = TextOperations::common_prefix(&texts);
@@ -365,12 +365,12 @@ mod tests {
 
     #[test]
     fn test_simd_operations() {
-        let text = Text::from_str("hello world hello universe hello galaxy");
+        let text = Text::from_string_slice("hello world hello universe hello galaxy");
         
         let count = SimdTextOps::count_char(&text, 'l');
         assert_eq!(count, 6);
         
-        let needle = Text::from_str("universe");
+        let needle = Text::from_string_slice("universe");
         let pos = SimdTextOps::find_substring(&text, &needle);
         assert_eq!(pos, Some(18));
         
@@ -387,7 +387,7 @@ mod tests {
         builder.push_str("Hello");
         builder.push_char(',');
         builder.push_char(' ');
-        builder.push_text(&Text::from_str("World"));
+        builder.push_text(&Text::from_string_slice("World"));
         builder.push_char('!');
         
         let result = builder.build();
@@ -398,7 +398,7 @@ mod tests {
     #[test]
     fn test_complex_unicode_operations() {
         // Test with various Unicode scripts
-        let mixed = Text::from_str("Hello 世界 مرحبا Привет 🌍");
+        let mixed = Text::from_string_slice("Hello 世界 مرحبا Привет 🌍");
         
         assert!(mixed.char_length() > 10);
         assert!(mixed.byte_length() > mixed.char_length());
@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn test_regex_with_unicode() {
         let regex = TextRegex::new(r"\p{L}+").unwrap(); // Match any letter
-        let text = Text::from_str("Hello 世界 مرحبا Привет");
+        let text = Text::from_string_slice("Hello 世界 مرحبا Привет");
         
         let matches = regex.find_all(&text);
         assert_eq!(matches.len(), 4);
@@ -435,7 +435,7 @@ mod tests {
         
         assert_eq!(large_text.char_length(), 50000); // "word " * 10000
         
-        let word = Text::from_str("word");
+        let word = Text::from_string_slice("word");
         let count = TextOperations::count_occurrences(&large_text, &word);
         assert_eq!(count, 10000);
         
@@ -452,7 +452,7 @@ mod tests {
     #[test]
     fn test_srfi_135_basic_compliance() {
         // Test basic SRFI-135 operations
-        let text = Text::from_str("Hello, World!");
+        let text = Text::from_string_slice("Hello, World!");
         
         // Text properties
         assert!(!text.is_empty());
@@ -470,13 +470,13 @@ mod tests {
         assert_eq!(world.to_string(), "World");
         
         // Concatenation
-        let greeting = hello.concat(&Text::from_str(" ")).concat(&world);
+        let greeting = hello.concat(&Text::from_string_slice(" ")).concat(&world);
         assert_eq!(greeting.to_string(), "Hello World");
     }
 
     #[test]
     fn test_error_handling() {
-        let text = Text::from_str("test");
+        let text = Text::from_string_slice("test");
         
         // Out of bounds access
         assert_eq!(text.char_at(100), None);
@@ -508,7 +508,7 @@ mod tests {
 
     #[test]
     fn benchmark_text_concatenation() {
-        let base = Text::from_str("base");
+        let base = Text::from_string_slice("base");
         let mut result = Text::new();
         
         let start = Instant::now();
@@ -543,7 +543,7 @@ mod tests {
 
     #[test]
     fn benchmark_string_search_algorithms() {
-        let pattern = Text::from_str("needle");
+        let pattern = Text::from_string_slice("needle");
         let haystack = Text::from_string(format!("{}needle{}", "hay ".repeat(1000), " stack".repeat(1000)));
         
         // Boyer-Moore benchmark
@@ -621,7 +621,7 @@ mod tests {
 
     #[test]
     fn stress_test_deep_concatenation() {
-        let mut result = Text::from_str("start");
+        let mut result = Text::from_string_slice("start");
         
         // Deep concatenation chain
         for i in 0..1000 {
@@ -647,7 +647,7 @@ mod property_tests {
 
     #[quickcheck]
     fn prop_text_length_consistency(s: String) -> bool {
-        let text = Text::from_string(s.clone());
+        let text = Text::from_string_slice(s.clone());
         text.char_length() == s.chars().count() &&
         text.byte_length() == s.len()
     }
@@ -658,7 +658,7 @@ mod property_tests {
             return TestResult::discard();
         }
 
-        let text = Text::from_string(s);
+        let text = Text::from_string_slice(s);
         let end = std::cmp::min(start + len, text.char_length());
         
         if let Some(sub) = text.substring(start, end) {
@@ -670,8 +670,8 @@ mod property_tests {
 
     #[quickcheck]
     fn prop_concatenation_length(s1: String, s2: String) -> bool {
-        let t1 = Text::from_string(s1.clone());
-        let t2 = Text::from_string(s2.clone());
+        let t1 = Text::from_string_slice(s1.clone());
+        let t2 = Text::from_string_slice(s2.clone());
         let concat = t1.concat(&t2);
         
         concat.char_length() == t1.char_length() + t2.char_length() &&
@@ -680,7 +680,7 @@ mod property_tests {
 
     #[quickcheck]
     fn prop_case_conversion_roundtrip(s: String) -> bool {
-        let text = Text::from_string(s);
+        let text = Text::from_string_slice(s);
         let upper = text.to_uppercase();
         let lower = text.to_lowercase();
         
@@ -695,7 +695,7 @@ mod property_tests {
 
     #[quickcheck]
     fn prop_normalization_idempotent(s: String) -> bool {
-        let text = Text::from_string(s);
+        let text = Text::from_string_slice(s);
         let nfc1 = text.normalize(NormalizationForm::NFC);
         let nfc2 = nfc1.normalize(NormalizationForm::NFC);
         
@@ -705,7 +705,7 @@ mod property_tests {
     #[quickcheck]
     fn prop_split_join_roundtrip(s: String, delimiter: char) -> TestResult {
         if s.contains(delimiter) && !s.is_empty() {
-            let text = Text::from_string(s.clone());
+            let text = Text::from_string_sliceing(s.clone());
             let delim = Text::from_char(delimiter);
             
             let parts = text.split(&delim);
@@ -749,12 +749,12 @@ mod benchmarks {
 
         // Text creation benchmark
         benchmark("Text creation", 10000, || {
-            let _text = Text::from_str("benchmark string");
+            let _text = Text::from_string_slice("benchmark string");
         });
 
         // Concatenation benchmark
-        let text1 = Text::from_str("hello");
-        let text2 = Text::from_str(" world");
+        let text1 = Text::from_string_slice("hello");
+        let text2 = Text::from_string_slice(" world");
         benchmark("Text concatenation", 10000, || {
             let _result = text1.concat(&text2);
         });
@@ -767,19 +767,19 @@ mod benchmarks {
 
         // Search benchmark
         let haystack = Text::from_string(format!("{}needle{}", "hay ".repeat(100), " stack".repeat(100)));
-        let needle = Text::from_str("needle");
+        let needle = Text::from_string_slice("needle");
         benchmark("Text search", 1000, || {
             let _pos = haystack.find(&needle);
         });
 
         // Case conversion benchmark
-        let mixed_case = Text::from_str("Hello World This Is A Test String");
+        let mixed_case = Text::from_string_slice("Hello World This Is A Test String");
         benchmark("Case conversion", 10000, || {
             let _upper = mixed_case.to_uppercase();
         });
 
         // Unicode normalization benchmark
-        let unicode_text = Text::from_str("café naïve résumé");
+        let unicode_text = Text::from_string_slice("café naïve résumé");
         benchmark("Unicode normalization", 1000, || {
             let _normalized = unicode_text.normalize(NormalizationForm::NFC);
         });
@@ -792,7 +792,7 @@ mod benchmarks {
         });
 
         // String algorithms benchmark
-        let pattern = Text::from_str("pattern");
+        let pattern = Text::from_string_slice("pattern");
         let text_with_pattern = Text::from_string(format!("{}pattern{}", "text ".repeat(100), " more".repeat(100)));
         
         let boyer_moore = BoyerMoore::new(&pattern);

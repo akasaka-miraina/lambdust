@@ -57,19 +57,19 @@ impl fmt::Display for LibraryError {
                 write!(f, "Failed to load library '{}': {}", path.display(), reason)
             }
             LibraryError::SymbolNotFound { library, symbol } => {
-                write!(f, "Symbol '{}' not found in library '{}'", symbol, library)
+                write!(f, "Symbol '{symbol}' not found in library '{library}'")
             }
             LibraryError::AlreadyLoaded(name) => {
-                write!(f, "Library '{}' is already loaded", name)
+                write!(f, "Library '{name}' is already loaded")
             }
             LibraryError::HasActiveReferences(name) => {
-                write!(f, "Library '{}' has active references and cannot be unloaded", name)
+                write!(f, "Library '{name}' has active references and cannot be unloaded")
             }
             LibraryError::InvalidHandle(name) => {
-                write!(f, "Invalid library handle for '{}'", name)
+                write!(f, "Invalid library handle for '{name}'")
             }
             LibraryError::PlatformError(msg) => {
-                write!(f, "Platform-specific error: {}", msg)
+                write!(f, "Platform-specific error: {msg}")
             }
         }
     }
@@ -165,14 +165,14 @@ impl LibraryHandle {
         // Load symbol
         let c_name = CString::new(name)
             .map_err(|_| LibraryError::SymbolNotFound {
-                library: self.name.clone()),
+                library: self.name.clone(),
                 symbol: name.to_string(),
             })?;
 
         let symbol: Symbol<'_, T> = unsafe {
             self.library.get(c_name.as_bytes())
                 .map_err(|_e| LibraryError::SymbolNotFound {
-                    library: self.name.clone()),
+                    library: self.name.clone(),
                     symbol: name.to_string(),
                 })?
         };
@@ -225,8 +225,8 @@ impl Clone for LibraryHandle {
         self.add_ref();
         Self {
             library: Arc::clone(&self.library),
-            name: self.name.clone()),
-            path: self.path.clone()),
+            name: self.name.clone(),
+            path: self.path.clone(),
             loaded_at: self.loaded_at,
             ref_count: Arc::clone(&self.ref_count),
             symbol_cache: RwLock::new(HashMap::new()), // Fresh cache for clone
@@ -334,9 +334,9 @@ impl LibraryManager {
         for prefix in prefixes {
             for ext in &extensions {
                 let filename = if prefix.is_empty() {
-                    format!("{}.{}", name, ext)
+                    format!("{name}.{ext}")
                 } else {
-                    format!("{}{}.{}", prefix, name, ext)
+                    format!("{prefix}{name}.{ext}")
                 };
                 candidates.push(filename);
             }
@@ -352,7 +352,7 @@ impl LibraryManager {
             search_paths.push(PathBuf::from("."));
         }
         
-        search_paths.extend(config.search_paths.iter().clone())());
+        search_paths.extend(config.search_paths.iter().cloned());
         
         if config.use_system_paths {
             // Add platform-specific system paths
@@ -407,7 +407,7 @@ impl LibraryManager {
         let library = unsafe {
             Library::new(&library_path)
                 .map_err(|e| LibraryError::LoadFailed {
-                    path: library_path.clone()),
+                    path: library_path.clone(),
                     reason: e.to_string(),
                 })?
         };
@@ -456,25 +456,25 @@ impl LibraryManager {
     /// Get a library handle
     pub fn get_library(&self, name: &str) -> Option<LibraryHandle> {
         let libraries = self.libraries.read().unwrap();
-        libraries.get(name).clone())()
+        libraries.get(name).cloned()
     }
 
     /// List loaded libraries
     pub fn list_libraries(&self) -> Vec<String> {
         let libraries = self.libraries.read().unwrap();
-        libraries.keys().clone())().collect()
+        libraries.keys().cloned().collect()
     }
 
     /// Get library statistics
     pub fn stats(&self) -> LibraryStats {
-        self.stats.read().unwrap().clone())
+        self.stats.read().unwrap().clone()
     }
 
     /// Unload all libraries
     pub fn unload_all(&self) -> std::result::Result<(), Vec<LibraryError>> {
         let names: Vec<String> = {
             let libraries = self.libraries.read().unwrap();
-            libraries.keys().clone())().collect()
+            libraries.keys().cloned().collect()
         };
 
         let mut errors = Vec::new();
@@ -495,14 +495,14 @@ impl LibraryManager {
     pub fn add_dependency(&self, dependent: &str, dependency: &str) {
         let mut deps = self.dependencies.write().unwrap();
         deps.entry(dependent.to_string())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(dependency.to_string());
     }
 
     /// Get dependencies for a library
     pub fn get_dependencies(&self, library: &str) -> Vec<String> {
         let deps = self.dependencies.read().unwrap();
-        deps.get(library).clone())().unwrap_or_default()
+        deps.get(library).cloned().unwrap_or_default()
     }
 }
 
@@ -513,7 +513,7 @@ impl LibraryManager {
         -> std::result::Result<*const T, LibraryError> {
         let handle = self.load_library(library_name)?;
         let symbol = handle.get_symbol::<T>(symbol_name)?;
-        Ok(unsafe { std::mem::transmute(symbol.into_raw()) })
+        Ok(unsafe { std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(symbol.into_raw()) })
     }
 
     /// Load and get symbol in one call
@@ -532,7 +532,7 @@ impl LibraryManager {
             Ok(symbol) => {
                 let mut stats = self.stats.write().unwrap();
                 stats.successful_lookups += 1;
-                Ok(unsafe { std::mem::transmute(symbol.into_raw()) })
+                Ok(unsafe { std::mem::transmute::<libloading::os::unix::Symbol<T>, *const T>(symbol.into_raw()) })
             }
             Err(e) => {
                 let mut stats = self.stats.write().unwrap();

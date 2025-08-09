@@ -48,6 +48,6 @@ impl ParallelResult {
     
     /// Returns the first error, if any.
     pub fn first_error(&self) -> Option<&crate::diagnostics::Error> {
-        self.results.iter().find_map(|r| r.as_ref().err())
+        self.results.iter().find_map(|r| r.as_ref().err().map(|e| e.as_ref()))
     }
 }

@@ -9,13 +9,22 @@ use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
+/// Type alias for comparison functions
+type CompareFn = Arc<dyn Fn(&Value, &Value) -> Ordering + Send + Sync>;
+
+/// Type alias for hash functions  
+type HashFn = Arc<dyn Fn(&Value) -> u64 + Send + Sync>;
+
+/// Type alias for equality functions
+type EqualityFn = Arc<dyn Fn(&Value, &Value) -> bool + Send + Sync>;
+
 /// A comparator that can compare and hash values
 #[derive(Clone)]
 pub struct Comparator {
     /// Comparison function
-    compare_fn: Arc<dyn Fn(&Value, &Value) -> Ordering + Send + Sync>,
+    compare_fn: CompareFn,
     /// Hash function
-    hash_fn: Arc<dyn Fn(&Value) -> u64 + Send + Sync>,
+    hash_fn: HashFn,
     /// Name for debugging
     name: String,
 }
@@ -35,11 +44,11 @@ impl Comparator {
     }
     
     /// Creates the default comparator using built-in value comparison and hashing
-    pub fn default() -> Self {
+    pub fn with_default() -> Self {
         Self::new(
             "default",
-            |a, b| super::utils::compare_values(a, b),
-            |v| super::utils::hash_value(v),
+            super::utils::compare_values,
+            super::utils::hash_value,
         )
     }
     
@@ -136,9 +145,9 @@ impl std::fmt::Debug for Comparator {
 #[derive(Clone)]
 pub struct HashComparator {
     /// Hash function
-    hash_fn: Arc<dyn Fn(&Value) -> u64 + Send + Sync>,
+    hash_fn: HashFn,
     /// Equality function
-    eq_fn: Arc<dyn Fn(&Value, &Value) -> bool + Send + Sync>,
+    eq_fn: EqualityFn,
     /// Name for debugging
     name: String,
 }
@@ -158,10 +167,10 @@ impl HashComparator {
     }
     
     /// Creates the default hash comparator
-    pub fn default() -> Self {
+    pub fn with_default() -> Self {
         Self::new(
             "default-hash",
-            |v| super::utils::hash_value(v),
+            super::utils::hash_value,
             |a, b| a == b,
         )
     }
@@ -285,7 +294,7 @@ impl Eq for Comparable<Value> {}
 
 impl PartialOrd for Comparable<Value> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.compare(other))
+        Some(std::cmp::Ord::cmp(self, other))
     }
 }
 
@@ -304,8 +313,8 @@ impl Hash for Comparable<Value> {
 /// A builder for creating custom comparators
 pub struct ComparatorBuilder {
     name: String,
-    compare_fn: Option<Arc<dyn Fn(&Value, &Value) -> Ordering + Send + Sync>>,
-    hash_fn: Option<Arc<dyn Fn(&Value) -> u64 + Send + Sync>>,
+    compare_fn: Option<CompareFn>,
+    hash_fn: Option<HashFn>,
 }
 
 impl ComparatorBuilder {
@@ -339,11 +348,11 @@ impl ComparatorBuilder {
     /// Builds the comparator
     pub fn build(self) -> Comparator {
         let compare_fn = self.compare_fn.unwrap_or_else(|| {
-            Arc::new(|a, b| super::utils::compare_values(a, b))
+            Arc::new(super::utils::compare_values)
         });
         
         let hash_fn = self.hash_fn.unwrap_or_else(|| {
-            Arc::new(|v| super::utils::hash_value(v))
+            Arc::new(super::utils::hash_value)
         });
         
         Comparator {
@@ -360,7 +369,7 @@ mod tests {
     
     #[test]
     fn test_default_comparator() {
-        let comp = Comparator::default();
+        let comp = Comparator::with_default();
         let v1 = Value::number(1.0);
         let v2 = Value::number(2.0);
         
@@ -372,8 +381,8 @@ mod tests {
     #[test]
     fn test_numeric_comparator() {
         let comp = Comparator::numeric();
-        let v1 = Value::number(3.14);
-        let v2 = Value::number(2.71);
+        let v1 = Value::number(std::f64::consts::PI as f64);
+        let v2 = Value::number(2.71 as f64);
         let v3 = Value::string("not a number");
         
         assert_eq!(comp.compare(&v1, &v2), Ordering::Greater);
@@ -393,7 +402,7 @@ mod tests {
     
     #[test]
     fn test_hash_comparator() {
-        let comp = HashComparator::default();
+        let comp = HashComparator::with_default();
         let v1 = Value::string("hello");
         let v2 = Value::string("hello");
         let v3 = Value::string("world");

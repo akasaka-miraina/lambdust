@@ -87,7 +87,7 @@ impl ModuleLoader {
         if id.components.is_empty() {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
                 "Built-in module name cannot be empty".to_string()
-            )));
+            ))));
         }
 
         let module_name = &id.components[0];
@@ -106,7 +106,7 @@ impl ModuleLoader {
         if id.components.is_empty() {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
                 "R7RS module name cannot be empty".to_string()
-            )));
+            ))));
         }
 
         self.load_from_stdlib_path(id, "r7rs")
@@ -118,7 +118,7 @@ impl ModuleLoader {
         if id.components.is_empty() {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
                 "SRFI module name cannot be empty".to_string()
-            )));
+            ))));
         }
 
         if id.components.len() == 1 {
@@ -132,7 +132,7 @@ impl ModuleLoader {
 
     /// Loads a single SRFI module.
     fn load_single_srfi(&self, id: &ModuleId, srfi_number: &str) -> Result<Module> {
-        let srfi_filename = format!("{}.scm", srfi_number);
+        let srfi_filename = format!("{srfi_number}.scm");
         
         // Try using the library resolver first for modules/srfi/
         match self.library_resolver.resolve_library_file("modules/srfi", &srfi_filename) {
@@ -146,7 +146,7 @@ impl ModuleLoader {
                 let module_path = stdlib_path.join("modules").join("srfi").join(&srfi_filename);
 
                 if !module_path.exists() {
-                    return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()).boxed())));
+                    return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))));
                 }
 
                 self.load_from_file(id, &module_path)
@@ -165,7 +165,7 @@ impl ModuleLoader {
             let single_srfi_id = super::name::srfi_module(
                 srfi_number.parse::<u32>().map_err(|_| {
                     Error::from(ModuleError::InvalidDefinition(
-                        format!("Invalid SRFI number: {}", srfi_number)
+                        format!("Invalid SRFI number: {srfi_number}")
                     ))
                 })?
             );
@@ -183,7 +183,7 @@ impl ModuleLoader {
             // Update metadata (combine descriptions)
             if let Some(desc) = srfi_module.metadata.description {
                 if let Some(existing_desc) = &metadata.description {
-                    metadata.description = Some(format!("{}, {}", existing_desc, desc));
+                    metadata.description = Some(format!("{existing_desc}, {desc}"));
                 } else {
                     metadata.description = Some(desc);
                 }
@@ -196,7 +196,7 @@ impl ModuleLoader {
         
         // Create combined module
         Ok(Module {
-            id: id.clone()),
+            id: id.clone(),
             exports: combined_exports,
             dependencies: all_dependencies,
             source: Some(ModuleSource::Source(
@@ -226,7 +226,7 @@ impl ModuleLoader {
             }
         }
 
-        Err(Box::new(Error::from(ModuleError::NotFound(id.clone()).boxed())))
+        Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))))
     }
 
     /// Loads a file-based module.
@@ -234,12 +234,12 @@ impl ModuleLoader {
         if id.components.len() != 1 {
             return Err(Box::new(Error::from(ModuleError::InvalidDefinition(
                 "File module must specify exactly one path".to_string()
-            )));
+            ))));
         }
 
         let file_path = PathBuf::from(&id.components[0]);
         if !file_path.exists() {
-            return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()).boxed())));
+            return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))));
         }
 
         self.load_from_file(id, &file_path)
@@ -254,7 +254,7 @@ impl ModuleLoader {
         // TODO: Parse and compile the module source code
         // For now, return a placeholder module
         Ok(Module {
-            id: id.clone()),
+            id: id.clone(),
             exports: HashMap::new(),
             dependencies: Vec::new(),
             source: Some(ModuleSource::File(path.to_path_buf())),
@@ -278,7 +278,7 @@ impl ModuleLoader {
                 let module_path = stdlib_path.join(subdir).join(&module_filename);
 
                 if !module_path.exists() {
-                    return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()).boxed())));
+                    return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))));
                 }
 
                 self.load_from_file(id, &module_path)
@@ -332,7 +332,7 @@ impl ModuleLoader {
         // Discover built-in modules
         for provider_name in self.builtin_providers.keys() {
             modules.push(ModuleId {
-                components: vec![provider_name.clone())],
+                components: vec![provider_name.clone()],
                 namespace: ModuleNamespace::Builtin,
             });
         }
@@ -385,7 +385,7 @@ struct BuiltinStringModuleProvider;
 impl ModuleProvider for BuiltinStringModuleProvider {
     fn get_module(&self, id: &ModuleId) -> Result<Module> {
         if id.components.len() != 1 || id.components[0] != "string" {
-            return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()).boxed())));
+            return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))));
         }
 
         // Create string module with exports
@@ -400,7 +400,7 @@ impl ModuleProvider for BuiltinStringModuleProvider {
         // etc.
 
         Ok(Module {
-            id: id.clone()),
+            id: id.clone(),
             exports,
             dependencies: Vec::new(),
             source: Some(ModuleSource::Builtin),
@@ -431,7 +431,7 @@ struct BuiltinListModuleProvider;
 impl ModuleProvider for BuiltinListModuleProvider {
     fn get_module(&self, id: &ModuleId) -> Result<Module> {
         if id.components.len() != 1 || id.components[0] != "list" {
-            return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()).boxed())));
+            return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))));
         }
 
         let exports = HashMap::new();
@@ -442,7 +442,7 @@ impl ModuleProvider for BuiltinListModuleProvider {
         // etc.
 
         Ok(Module {
-            id: id.clone()),
+            id: id.clone(),
             exports,
             dependencies: Vec::new(),
             source: Some(ModuleSource::Builtin),

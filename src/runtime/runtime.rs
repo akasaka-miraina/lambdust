@@ -33,7 +33,7 @@ impl Runtime {
         // Create module system
         let module_system = ModuleSystem::new().map_err(|e| {
             crate::diagnostics::Error::runtime_error(
-                format!("Failed to create module system: {}", e),
+                format!("Failed to create module system: {e}"),
                 None,
             )
         })?;

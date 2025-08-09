@@ -17,6 +17,8 @@ use crate::stdlib::{
     advanced_io, async_io, network_io, streaming_io, platform_io, security_io
 };
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::LazyLock;
 use std::collections::HashMap;
 
 /// I/O system version
@@ -78,28 +80,23 @@ pub struct IoPerformanceMetrics {
 }
 
 /// Global I/O system state
-static mut IO_SYSTEM_CONFIG: Option<IoSystemConfig> = None;
-static mut IO_PERFORMANCE_METRICS: Option<IoPerformanceMetrics> = None;
-static IO_INIT: std::sync::Once = std::sync::Once::new();
+static IO_SYSTEM_CONFIG: LazyLock<Mutex<IoSystemConfig>> = LazyLock::new(|| Mutex::new(IoSystemConfig::default()));
+static IO_PERFORMANCE_METRICS: LazyLock<Mutex<IoPerformanceMetrics>> = LazyLock::new(|| Mutex::new(IoPerformanceMetrics::default()));
 
-pub fn get_io_system_config() -> &'static IoSystemConfig {
-    unsafe {
-        IO_INIT.call_once(|| {
-            IO_SYSTEM_CONFIG = Some(IoSystemConfig::default());
-            IO_PERFORMANCE_METRICS = Some(IoPerformanceMetrics::default());
-        });
-        IO_SYSTEM_CONFIG.as_ref().unwrap()
-    }
+pub fn get_io_system_config() -> IoSystemConfig {
+    IO_SYSTEM_CONFIG.lock().unwrap().clone()
 }
 
-pub fn get_io_performance_metrics() -> &'static mut IoPerformanceMetrics {
-    unsafe {
-        IO_INIT.call_once(|| {
-            IO_SYSTEM_CONFIG = Some(IoSystemConfig::default());
-            IO_PERFORMANCE_METRICS = Some(IoPerformanceMetrics::default());
-        });
-        IO_PERFORMANCE_METRICS.as_mut().unwrap()
-    }
+pub fn get_io_performance_metrics() -> IoPerformanceMetrics {
+    IO_PERFORMANCE_METRICS.lock().unwrap().clone()
+}
+
+pub fn set_io_system_config(config: IoSystemConfig) {
+    *IO_SYSTEM_CONFIG.lock().unwrap() = config;
+}
+
+pub fn set_io_performance_metrics(metrics: IoPerformanceMetrics) {
+    *IO_PERFORMANCE_METRICS.lock().unwrap() = metrics;
 }
 
 /// Creates unified I/O integration bindings.
@@ -314,10 +311,10 @@ fn bind_compatibility_operations(env: &Arc<ThreadSafeEnvironment>) {
 
 pub fn primitive_set_io_system_config(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("set-io-system-config expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     match &args[0] {
@@ -372,21 +369,20 @@ pub fn primitive_set_io_system_config(args: &[Value]) -> Result<Value> {
             }
             
             // Update global configuration
-            unsafe {
-                IO_SYSTEM_CONFIG = Some(config);
-            }
+            set_io_system_config(config);
             
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "set-io-system-config requires hashtable argument".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_get_io_system_config(_args: &[Value]) -> Result<Value> {
     let config = get_io_system_config();
+    #[allow(clippy::mutable_key_type)]
     let mut result = HashMap::new();
     
     let version_str = match config.version {
@@ -451,10 +447,10 @@ pub fn primitive_io_system_version(_args: &[Value]) -> Result<Value> {
 
 pub fn primitive_io_feature_available_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("io-feature-available? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let feature = extract_string(&args[0], "io-feature-available?")?;
@@ -479,10 +475,10 @@ pub fn primitive_io_feature_available_p(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_unified_open_file(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 4 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("unified-open-file expects 2 to 4 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "unified-open-file")?;
@@ -517,10 +513,10 @@ pub fn primitive_unified_open_file(args: &[Value]) -> Result<Value> {
                 let port = Port::new_file_output(path, false);
                 Ok(Value::Port(Arc::new(port)))
             }
-            _ => Err(DiagnosticError::runtime_error(
-                format!("Unsupported file mode: {}", mode),
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Unsupported file mode: {mode}"),
                 None,
-            )),
+            ))),
         }
     } else {
         // Use legacy Port system
@@ -537,20 +533,20 @@ pub fn primitive_unified_open_file(args: &[Value]) -> Result<Value> {
                 let port = Port::new_file_output(path, false);
                 Ok(Value::Port(Arc::new(port)))
             }
-            _ => Err(DiagnosticError::runtime_error(
-                format!("Unsupported file mode: {}", mode),
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Unsupported file mode: {mode}"),
                 None,
-            )),
+            ))),
         }
     }
 }
 
 pub fn primitive_unified_read(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("unified-read expects 1 to 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let _buffer_size = if args.len() > 1 {
@@ -571,19 +567,19 @@ pub fn primitive_unified_read(args: &[Value]) -> Result<Value> {
             // Would implement unified reading logic here
             Ok(Value::string("placeholder".to_string()))
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "unified-read requires port or handle".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_unified_write(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("unified-write expects 2 or 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let _async_mode = if args.len() > 2 {
@@ -598,19 +594,19 @@ pub fn primitive_unified_write(args: &[Value]) -> Result<Value> {
             // Would implement unified writing logic here
             Ok(Value::Unspecified)
         }
-        _ => Err(DiagnosticError::runtime_error(
+        _ => Err(Box::new(DiagnosticError::runtime_error(
             "unified-write requires port or handle".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 pub fn primitive_unified_close(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("unified-close expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     // For now, delegate to legacy port operations
@@ -630,32 +626,33 @@ pub fn primitive_unified_close(args: &[Value]) -> Result<Value> {
 
 pub fn primitive_port_to_advanced_handle(_args: &[Value]) -> Result<Value> {
     // TODO: Implement port to advanced handle conversion
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "port->advanced-handle not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_advanced_handle_to_port(_args: &[Value]) -> Result<Value> {
     // TODO: Implement advanced handle to port conversion
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "advanced-handle->port not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_migrate_io_operations(_args: &[Value]) -> Result<Value> {
     // TODO: Implement I/O operation migration
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "migrate-io-operations not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Performance Operations ===
 
 pub fn primitive_get_io_performance_metrics(_args: &[Value]) -> Result<Value> {
     let metrics = get_io_performance_metrics();
+    #[allow(clippy::mutable_key_type)]
     let mut result = HashMap::new();
     
     result.insert(
@@ -717,17 +714,16 @@ pub fn primitive_get_io_performance_metrics(_args: &[Value]) -> Result<Value> {
 }
 
 pub fn primitive_reset_io_performance_metrics(_args: &[Value]) -> Result<Value> {
-    let metrics = get_io_performance_metrics();
-    *metrics = IoPerformanceMetrics::default();
+    set_io_performance_metrics(IoPerformanceMetrics::default());
     Ok(Value::Unspecified)
 }
 
 pub fn primitive_benchmark_io_systems(_args: &[Value]) -> Result<Value> {
     // TODO: Implement I/O system benchmarking
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "benchmark-io-systems not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Compatibility Operations ===
@@ -759,10 +755,10 @@ pub fn primitive_ensure_backward_compatibility(_args: &[Value]) -> Result<Value>
 
 pub fn primitive_test_compatibility(_args: &[Value]) -> Result<Value> {
     // TODO: Implement comprehensive compatibility testing
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "test-compatibility not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= HELPER FUNCTIONS =============
@@ -771,10 +767,10 @@ pub fn primitive_test_compatibility(_args: &[Value]) -> Result<Value> {
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires string arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -782,10 +778,10 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
 fn extract_boolean(value: &Value, operation: &str) -> Result<bool> {
     match value {
         Value::Literal(crate::ast::Literal::Boolean(b)) => Ok(*b),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires boolean arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires boolean arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -796,16 +792,16 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
             if let Some(i) = lit.to_i64() {
                 Ok(i)
             } else {
-                Err(DiagnosticError::runtime_error(
-                    format!("{} requires integer arguments", operation),
+                Err(Box::new(DiagnosticError::runtime_error(
+                    format!("{operation} requires integer arguments"),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires integer arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires integer arguments"),
             None,
-        )),
+        ))),
     }
 }
 

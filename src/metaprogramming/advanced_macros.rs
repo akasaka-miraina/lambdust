@@ -36,34 +36,48 @@ pub enum AdvancedPattern {
     Basic(Pattern),
     /// Conditional pattern with guard
     Conditional {
+        /// The underlying pattern to match
         pattern: Box<AdvancedPattern>,
+        /// The guard condition that must be satisfied
         guard: GuardExpression,
     },
     /// Typed pattern with type constraint
     Typed {
+        /// The underlying pattern to match
         pattern: Box<AdvancedPattern>,
+        /// The type constraint that must be satisfied
         type_constraint: TypeConstraint,
     },
     /// Range pattern for numbers
     Range {
+        /// Minimum value (inclusive if specified)
         min: Option<f64>,
+        /// Maximum value (inclusive/exclusive based on inclusive flag)
         max: Option<f64>,
+        /// Whether the range bounds are inclusive
         inclusive: bool,
     },
     /// Regular expression pattern for strings
     Regex {
+        /// The regular expression pattern string
         pattern: String,
+        /// Regex flags (e.g., "i" for case-insensitive)
         flags: Vec<String>,
     },
     /// Destructuring pattern for complex data
     Destructure {
+        /// The type of structure being destructured
         structure_type: StructureType,
+        /// Patterns for each field of the structure
         field_patterns: Vec<(String, AdvancedPattern)>,
     },
     /// Sequence pattern with length constraints
     Sequence {
+        /// Pattern that each element must match
         element_pattern: Box<AdvancedPattern>,
+        /// Minimum number of elements required
         min_length: Option<usize>,
+        /// Maximum number of elements allowed
         max_length: Option<usize>,
     },
     /// Optional pattern (may or may not match)
@@ -81,13 +95,18 @@ pub enum GuardExpression {
     Predicate(String),
     /// Comparison operation
     Comparison {
+        /// The comparison operator to use
         operator: ComparisonOp,
-        left: String,  // variable name
+        /// Variable name for left side of comparison
+        left: String,
+        /// Value for right side of comparison
         right: GuardValue,
     },
     /// Boolean combination
     And(Vec<GuardExpression>),
+    /// Logical OR of multiple guard expressions
     Or(Vec<GuardExpression>),
+    /// Logical NOT of a guard expression
     Not(Box<GuardExpression>),
 }
 
@@ -224,10 +243,12 @@ pub enum HygienePolicy {
     Strict,
     /// Relaxed hygiene (allow some captures)
     Relaxed {
+        /// Identifiers that are allowed to be captured
         allowed_captures: Vec<String>,
     },
     /// Custom hygiene with user-defined rules
     Custom {
+        /// User-defined rules for identifier renaming
         rename_rules: Vec<RenameRule>,
     },
     /// No hygiene (dangerous but sometimes useful)
@@ -420,7 +441,7 @@ impl EnhancedHygiene {
         macro_name: &str,
         definition_env: &Environment,
     ) -> Result<Spanned<Expr>> {
-        let policy = self.policies.get(macro_name).clone())()
+        let policy = self.policies.get(macro_name).cloned()
             .unwrap_or(HygienePolicy::Strict);
 
         match policy {
@@ -519,11 +540,11 @@ impl ProceduralMacro {
             return Err(Box::new(Error::runtime_error(
                 "Procedural macro transformer must be a procedure".to_string(),
                 None,
-            ));
+            )));
         }
 
         let proc_macro = ProceduralMacroDefinition {
-            name: name.clone()),
+            name: name.clone(),
             transformer,
             definition_env,
             metadata: HashMap::new(),
@@ -543,7 +564,7 @@ impl ProceduralMacro {
     ) -> Result<Spanned<Expr>> {
         let proc_macro = self.proc_macros.get(name)
             .ok_or_else(|| Error::runtime_error(
-                format!("Unknown procedural macro: {}", name),
+                format!("Unknown procedural macro: {name}"),
                 Some(input.span),
             ))?;
 
@@ -582,10 +603,10 @@ impl ProceduralMacro {
         // Record debug information
         let debug_info = MacroDebugInfo {
             macro_name: name.to_string(),
-            input: input.clone()),
+            input: input.clone(),
             matched_pattern: "procedural".to_string(),
             bindings: HashMap::new(),
-            output: hygienic_result.clone()),
+            output: hygienic_result.clone(),
             timestamp: std::time::SystemTime::now(),
             depth: 0, // Would track actual depth
         };
@@ -650,8 +671,8 @@ impl ProceduralMacro {
             AdvancedPattern::Range { min, max, inclusive: _ } => {
                 if let Expr::Literal(crate::ast::Literal::Number(n)) = &expr.inner {
                     let n = *n;
-                    let min_ok = min.map_or(true, |min| n >= min);
-                    let max_ok = max.map_or(true, |max| n <= max);
+                    let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
+                    let max_ok = n <= max.unwrap_or(f64::INFINITY);
                     Ok(min_ok && max_ok)
                 } else {
                     Ok(false)
@@ -686,7 +707,7 @@ impl ProceduralMacro {
             GuardExpression::Comparison { operator, left, right } => {
                 let left_value = bindings.get(left)
                     .ok_or_else(|| Error::runtime_error(
-                        format!("Unbound variable in guard: {}", left),
+                        format!("Unbound variable in guard: {left}"),
                         None,
                     ))?;
 
@@ -694,7 +715,7 @@ impl ProceduralMacro {
                     GuardValue::Literal(val) => val,
                     GuardValue::Variable(var) => bindings.get(var)
                         .ok_or_else(|| Error::runtime_error(
-                            format!("Unbound variable in guard: {}", var),
+                            format!("Unbound variable in guard: {var}"),
                             None,
                         ))?,
                     GuardValue::Expression(_) => {

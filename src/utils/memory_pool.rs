@@ -35,7 +35,7 @@ impl<T> MemoryPool<T> {
 
         PooledObject {
             object: Some(obj),
-            pool: self.pool.clone()),
+            pool: self.pool.clone(),
             max_size: self.max_size,
         }
     }
@@ -128,7 +128,7 @@ impl<T> VecPool<T> {
 
         PooledVec {
             vec: Some(vec),
-            pool: self.pool.clone()),
+            pool: self.pool.clone(),
             max_size: self.max_size,
         }
     }
@@ -233,7 +233,7 @@ impl<T> AstNodePool<T> {
         
         PooledBox {
             boxed: Some(boxed_node),
-            pool: self.pool.clone()),
+            pool: self.pool.clone(),
             max_size: self.max_size,
         }
     }
@@ -344,6 +344,12 @@ pub struct EnvironmentPool {
     size_distribution: Arc<Mutex<HashMap<usize, usize>>>,
 }
 
+impl Default for EnvironmentPool {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl EnvironmentPool {
     /// Creates a new environment pool with size-based sub-pools.
     pub fn new() -> Self {
@@ -395,7 +401,7 @@ impl EnvironmentPool {
         let mut total_allocations = 0;
         let mut total_reuses = 0;
         let size_dist = if let Ok(dist) = self.size_distribution.lock() {
-            dist.clone())
+            dist.clone()
         } else {
             HashMap::new()
         };

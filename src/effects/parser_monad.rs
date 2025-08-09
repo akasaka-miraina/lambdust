@@ -212,7 +212,7 @@ impl fmt::Display for ParseError {
             write!(f, " (expected: {})", self.expected.join(", "))?;
         }
         if let Some(ref found) = self.found {
-            write!(f, " (found: {})", found)?;
+            write!(f, " (found: {found})")?;
         }
         Ok(())
     }
@@ -236,9 +236,9 @@ pub struct Parser<T> {
 impl<T> Clone for Parser<T> {
     fn clone(&self) -> Self {
         Parser {
-            parser: self.parser.clone()),
+            parser: self.parser.clone(),
             id: self.id,
-            name: self.name.clone()),
+            name: self.name.clone(),
         }
     }
 }
@@ -296,7 +296,7 @@ impl<T> Parser<T> {
                 if remaining.is_empty() {
                     Ok(result)
                 } else {
-                    let pos = remaining.position.clone());
+                    let pos = remaining.position.clone();
                     let found_char = remaining.remaining().chars().next().unwrap_or('\0');
                     Err(ParseError::new(
                         pos,
@@ -322,7 +322,7 @@ impl<T> Parser<T> {
     where
         T: Clone + Send + Sync + 'static,
     {
-        Parser::new(move |input| Ok((value.clone()), input)))
+        Parser::new(move |input| Ok((value.clone(), input)))
     }
     
     /// Fail - always fails with the given error message
@@ -381,7 +381,7 @@ impl<T> Parser<T> {
         T: Send + Sync + 'static,
     {
         Parser::new(move |input| {
-            let original_position = input.position.clone());
+            let original_position = input.position.clone();
             match self.parse(input.clone()) {
                 Ok(result) => Ok(result),
                 Err(mut error) => {
@@ -406,7 +406,7 @@ impl<T> Parser<T> {
     where
         T: Send + Sync + 'static + Clone,
     {
-        self.clone()).some().choice(Parser::pure(Vec::new()))
+        self.clone().some().choice(Parser::pure(Vec::new()))
     }
     
     /// Some - parse one or more occurrences
@@ -414,10 +414,10 @@ impl<T> Parser<T> {
     where
         T: Send + Sync + 'static + Clone,
     {
-        let parser_for_many = self.clone());
+        let parser_for_many = self.clone();
         self.bind(move |first| {
-            parser_for_many.clone()).many().map(move |mut rest| {
-                let mut result = vec![first.clone())];
+            parser_for_many.clone().many().map(move |mut rest| {
+                let mut result = vec![first.clone()];
                 result.append(&mut rest);
                 result
             })
@@ -430,16 +430,16 @@ impl<T> Parser<T> {
         T: Send + Sync + 'static + Clone,
         F: Fn(T, T) -> T + Send + Sync + 'static + Clone,
     {
-        let self_clone = self.clone());
+        let self_clone = self.clone();
         self.bind(move |first| {
-            let op_clone = op.clone());
-            let self_clone2 = self_clone.clone());
+            let op_clone = op.clone();
+            let self_clone2 = self_clone.clone();
             let op_and_operand = op_clone.bind(move |f| {
-                self_clone2.clone()).map(move |second| (f.clone()), second))
+                self_clone2.clone().map(move |second| (f.clone(), second))
             });
             
             op_and_operand.many().map(move |ops| {
-                ops.into_iter().fold(first.clone()), |acc, (op_func, operand)| op_func(acc, operand))
+                ops.into_iter().fold(first.clone(), |acc, (op_func, operand)| op_func(acc, operand))
             })
         })
     }
@@ -450,12 +450,12 @@ impl<T> Parser<T> {
         T: Send + Sync + 'static + Clone,
         S: Send + Sync + 'static,
     {
-        let parser_clone = self.clone());
+        let parser_clone = self.clone();
         self.bind(move |first| {
-            let sep_clone = sep.clone());
-            let parser_clone2 = parser_clone.clone());
+            let sep_clone = sep.clone();
+            let parser_clone2 = parser_clone.clone();
             sep_clone.then(parser_clone2).many().map(move |rest| {
-                let mut result = vec![first.clone())];
+                let mut result = vec![first.clone()];
                 result.extend(rest);
                 result
             })
@@ -478,8 +478,8 @@ impl<T> Parser<T> {
         U: Send + Sync + 'static,
     {
         self.bind(move |value| {
-            let value_clone = value.clone());
-            other.clone()).map(move |_| value_clone.clone())
+            let value_clone = value.clone();
+            other.clone().map(move |_| value_clone.clone())
         })
     }
     
@@ -499,7 +499,7 @@ impl Parser<char> {
     /// Parse any character
     pub fn any_char() -> Self {
         Parser::named("any_char".to_string(), |input| {
-            let pos = input.position.clone());
+            let pos = input.position.clone();
             match input.advance_char() {
                 Some((ch, remaining)) => Ok((ch, remaining)),
                 None => Err(ParseError::new(
@@ -512,13 +512,13 @@ impl Parser<char> {
     
     /// Parse a specific character
     pub fn char(expected: char) -> Self {
-        Parser::named(format!("char('{}')", expected), move |input| {
-            let pos = input.position.clone());
+        Parser::named(format!("char('{expected}')"), move |input| {
+            let pos = input.position.clone();
             match input.advance_char() {
                 Some((ch, remaining)) if ch == expected => Ok((ch, remaining)),
                 Some((ch, _)) => Err(ParseError::new(
                     pos,
-                    format!("Expected '{}', found '{}'", expected, ch),
+                    format!("Expected '{expected}', found '{ch}'"),
                 ).expect(expected.to_string()).found(ch.to_string())),
                 None => Err(ParseError::new(
                     pos,
@@ -534,12 +534,12 @@ impl Parser<char> {
         P: Fn(char) -> bool + Send + Sync + 'static,
     {
         Parser::named("satisfy".to_string(), move |input| {
-            let pos = input.position.clone());
+            let pos = input.position.clone();
             match input.advance_char() {
                 Some((ch, remaining)) if predicate(ch) => Ok((ch, remaining)),
                 Some((ch, _)) => Err(ParseError::new(
                     pos,
-                    format!("Character '{}' does not satisfy predicate", ch),
+                    format!("Character '{ch}' does not satisfy predicate"),
                 ).found(ch.to_string())),
                 None => Err(ParseError::new(
                     pos,
@@ -577,16 +577,16 @@ impl Parser<char> {
 impl Parser<String> {
     /// Parse a specific string
     pub fn string(expected: String) -> Self {
-        Parser::named(format!("string(\"{}\")", expected), move |mut input| {
-            let pos = input.position.clone());
+        Parser::named(format!("string(\"{expected}\")"), move |mut input| {
+            let pos = input.position.clone();
             let input_remaining = input.remaining().to_string();
-            match input.clone()).advance_str(&expected) {
-                Some(remaining) => Ok((expected.clone()), remaining)),
+            match input.clone().advance_str(&expected) {
+                Some(remaining) => Ok((expected.clone(), remaining)),
                 None => {
                     let found = input_remaining.chars().take(expected.len()).collect::<String>();
                     Err(ParseError::new(
                         pos,
-                        format!("Expected \"{}\", found \"{}\"", expected, found),
+                        format!("Expected \"{expected}\", found \"{found}\""),
                     ).expect(expected.clone()).found(found))
                 }
             }
@@ -633,8 +633,8 @@ impl Parser<f64> {
         
         integer_part
             .bind(move |int_part| {
-                fractional_part.clone()).map(move |frac_part| {
-                    let mut number_str = int_part.clone());
+                fractional_part.clone().map(move |frac_part| {
+                    let mut number_str = int_part.clone();
                     if let Some(frac) = frac_part {
                         number_str.push('.');
                         number_str.push_str(&frac);
@@ -725,7 +725,7 @@ impl ParserCache {
     
     pub fn lookup(&self, parser_id: u64, position: Position) -> Option<ParseResult<Value>> {
         if let Ok(cache) = self.cache.read() {
-            cache.get(&(parser_id, position)).clone())()
+            cache.get(&(parser_id, position)).cloned()
         } else {
             None
         }
@@ -749,7 +749,7 @@ mod tests {
         let f = |x: i32| Parser::pure(x * 2);
         let input = Input::new("test");
         
-        let left = Parser::pure(a).bind(|x| f(x));
+        let left = Parser::pure(a).bind(f);
         let right = f(a);
         
         let left_result = left.parse(input.clone()).unwrap();
@@ -759,7 +759,7 @@ mod tests {
 
         // Right identity: m >>= return ≡ m
         let m = Parser::pure(42);
-        let left = m.clone()).bind(Parser::pure);
+        let left = m.clone().bind(Parser::pure);
         let input = Input::new("test");
         
         assert_eq!(

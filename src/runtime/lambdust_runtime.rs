@@ -46,14 +46,15 @@ impl LambdustRuntime {
         let effect_coordinator = Arc::new(EffectCoordinator::new());
         let io_coordinator = Arc::new(IOCoordinator::new());
         let error_propagation = Arc::new(ErrorPropagationCoordinator::new());
+        #[allow(clippy::arc_with_non_send_sync)]
         let module_system = Arc::new(std::sync::RwLock::new(ModuleSystem::new()?));
         let handle_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
         
         // Create the thread pool with the required dependencies
         let thread_pool = Arc::new(ThreadPool::new(
             thread_count, 
-            global_env.clone()), 
-            effect_coordinator.clone())
+            global_env.clone(), 
+            effect_coordinator.clone()
         )?);
         
         Ok(Self {
@@ -113,13 +114,14 @@ impl LambdustRuntime {
         let effect_coordinator = Arc::new(EffectCoordinator::new());
         let io_coordinator = Arc::new(IOCoordinator::new());
         let error_propagation = Arc::new(ErrorPropagationCoordinator::new());
+        #[allow(clippy::arc_with_non_send_sync)]
         let module_system = Arc::new(std::sync::RwLock::new(
             ModuleSystem::new().map_err(|e| crate::diagnostics::Error::runtime_error(
-                format!("Failed to create module system: {}", e),
+                format!("Failed to create module system: {e}"),
                 None,
             ))?
         ));
-        let thread_pool = Arc::new(ThreadPool::new(num_threads, global_env.clone()), effect_coordinator.clone())?);
+        let thread_pool = Arc::new(ThreadPool::new(num_threads, global_env.clone(), effect_coordinator.clone())?);
         
         Ok(Self {
             thread_pool,
@@ -156,7 +158,7 @@ impl LambdustRuntime {
         
         receiver.recv().map_err(|e| {
             crate::diagnostics::Error::runtime_error(
-                format!("Failed to receive evaluation result: {}", e),
+                format!("Failed to receive evaluation result: {e}"),
                 span,
             )
         })?
@@ -187,9 +189,9 @@ impl LambdustRuntime {
                 receivers.push({
                     let (error_sender, error_receiver) = channel::bounded(1);
                     let _ = error_sender.send(Err(crate::diagnostics::Error::runtime_error(
-                        format!("Failed to submit work: {}", e),
+                        format!("Failed to submit work: {e}"),
                         span,
-                    ).into())
+                    ).into()));
                     error_receiver
                 });
             }
@@ -201,9 +203,9 @@ impl LambdustRuntime {
             match receiver.recv() {
                 Ok(result) => results.push(result),
                 Err(e) => results.push(Err(crate::diagnostics::Error::runtime_error(
-                    format!("Failed to receive result: {}", e),
+                    format!("Failed to receive result: {e}"),
                     None,
-                ).into()),
+                ).into()))
             }
         }
         
@@ -228,7 +230,7 @@ impl LambdustRuntime {
         let mut result = Value::Unspecified;
         
         for expr in &program.expressions {
-            result = self.eval_expr(expr.inner.clone()), Some(expr.span)).await?;
+            result = self.eval_expr(expr.inner.clone(), Some(expr.span)).await?;
         }
         
         Ok(result)

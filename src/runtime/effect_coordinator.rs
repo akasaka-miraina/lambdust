@@ -340,7 +340,7 @@ impl EffectCoordinator {
             let new_context = state.context.with_effects(effects.clone());
             
             // Update thread state
-            state.context = new_context.clone());
+            state.context = new_context.clone();
             state.active_effects.extend(effects.clone());
             state.generation += 1;
             state.last_updated = SystemTime::now();
@@ -352,7 +352,7 @@ impl EffectCoordinator {
             
             Ok(new_context)
         } else {
-            Err(format!("Thread {:?} not registered with effect coordinator", thread_id))
+            Err(format!("Thread {thread_id:?} not registered with effect coordinator"))
         }
     }
 
@@ -366,7 +366,7 @@ impl EffectCoordinator {
             
             // Create new context without the effects
             let new_context = state.context.without_effects(effects.clone());
-            state.context = new_context.clone());
+            state.context = new_context.clone();
             state.generation += 1;
             state.last_updated = SystemTime::now();
             
@@ -377,7 +377,7 @@ impl EffectCoordinator {
             
             Ok(new_context)
         } else {
-            Err(format!("Thread {:?} not registered with effect coordinator", thread_id))
+            Err(format!("Thread {thread_id:?} not registered with effect coordinator"))
         }
     }
 
@@ -434,7 +434,7 @@ impl EffectCoordinator {
         let transaction_id = self.coordination_system.start_transaction(
             source_thread,
             vec![target_thread],
-            vec![effect.clone())],
+            vec![effect.clone()],
         )?;
         
         // Get the next sequence number for ordering
@@ -446,18 +446,18 @@ impl EffectCoordinator {
         // Send coordination message to target thread
         if let Some(channel) = self.get_coordination_channel(target_thread) {
             let message = EffectCoordinationMessage::CoordinateEffect {
-                effect: effect.clone()),
+                effect: effect.clone(),
                 sequence,
                 dependencies,
             };
             
-            if let Err(_) = channel.sender.try_send(message) {
+            if channel.sender.try_send(message).is_err() {
                 // Target thread is not responsive, abort transaction
                 self.coordination_system.abort_transaction(transaction_id)?;
-                return Err(format!("Target thread {:?} is not responsive", target_thread));
+                return Err(format!("Target thread {target_thread:?} is not responsive"));
             }
         } else {
-            return Err(format!("No coordination channel for thread {:?}", target_thread));
+            return Err(format!("No coordination channel for thread {target_thread:?}"));
         }
         
         // Wait for coordination response with timeout
@@ -473,7 +473,7 @@ impl EffectCoordinator {
             }
             Err(e) => {
                 self.coordination_system.abort_transaction(transaction_id)?;
-                Err(format!("Coordination timeout or error: {}", e))
+                Err(format!("Coordination timeout or error: {e}"))
             }
         }
     }
@@ -510,7 +510,7 @@ impl EffectCoordinator {
         let pending_effect = PendingEffect {
             sequence,
             thread_id,
-            effect: effect.clone()),
+            effect: effect.clone(),
             dependencies,
             submitted_at: SystemTime::now(),
         };
@@ -523,7 +523,7 @@ impl EffectCoordinator {
                 thread_id,
                 effect,
                 EffectEventType::Activated,
-                Some(format!("Sequence: {}", sequence)),
+                Some(format!("Sequence: {sequence}")),
             );
         }
         
@@ -550,7 +550,7 @@ impl EffectCoordinator {
                     pending.thread_id,
                     pending.effect,
                     event_type,
-                    Some(format!("Sequence: {}", sequence)),
+                    Some(format!("Sequence: {sequence}")),
                 );
             }
         }
@@ -561,7 +561,7 @@ impl EffectCoordinator {
     /// Gets the coordination channel for a thread.
     fn get_coordination_channel(&self, thread_id: ThreadId) -> Option<EffectChannel> {
         let channels = self.coordination_channels.read().unwrap();
-        channels.get(&thread_id).clone())()
+        channels.get(&thread_id).cloned()
     }
     
     /// Enables effect isolation for a thread.
@@ -584,13 +584,13 @@ impl EffectCoordinator {
                     thread_id,
                     Effect::Custom("isolation".to_string()),
                     EffectEventType::Activated,
-                    Some(format!("Isolation level: {:?}", isolation_level)),
+                    Some(format!("Isolation level: {isolation_level:?}")),
                 );
             }
             
             Ok(())
         } else {
-            Err(format!("Thread {:?} not registered", thread_id))
+            Err(format!("Thread {thread_id:?} not registered"))
         }
     }
     
@@ -615,7 +615,7 @@ impl EffectCoordinator {
             
             Ok(())
         } else {
-            Err(format!("Thread {:?} not registered", thread_id))
+            Err(format!("Thread {thread_id:?} not registered"))
         }
     }
     
@@ -696,7 +696,7 @@ impl EffectCoordinator {
                 thread_id,
                 Effect::Custom("sandbox".to_string()),
                 EffectEventType::Activated,
-                Some(format!("Sandbox created with ID: {}", sandbox_id)),
+                Some(format!("Sandbox created with ID: {sandbox_id}")),
             );
         }
         
@@ -774,7 +774,7 @@ impl EffectCoordinator {
     /// Gets the effect history.
     pub fn get_effect_history(&self) -> Vec<EffectEvent> {
         let history = self.effect_history.lock().unwrap();
-        history.clone())
+        history.clone()
     }
 
     /// Clears the effect history.
@@ -786,7 +786,7 @@ impl EffectCoordinator {
     /// Helper method to record multiple effect events.
     fn record_effect_events(&self, thread_id: ThreadId, effects: &[Effect], event_type: EffectEventType) {
         for effect in effects {
-            self.record_effect_event(thread_id, effect.clone()), event_type.clone()), None);
+            self.record_effect_event(thread_id, effect.clone(), event_type.clone(), None);
         }
     }
 
@@ -902,12 +902,12 @@ impl Default for EffectCoordinator {
 impl Clone for EffectCoordinator {
     fn clone(&self) -> Self {
         Self {
-            thread_contexts: self.thread_contexts.clone()),
-            effect_history: self.effect_history.clone()),
-            policies: self.policies.clone()),
-            coordination_system: self.coordination_system.clone()),
-            ordering_manager: self.ordering_manager.clone()),
-            coordination_channels: self.coordination_channels.clone()),
+            thread_contexts: self.thread_contexts.clone(),
+            effect_history: self.effect_history.clone(),
+            policies: self.policies.clone(),
+            coordination_system: self.coordination_system.clone(),
+            ordering_manager: self.ordering_manager.clone(),
+            coordination_channels: self.coordination_channels.clone(),
         }
     }
 }
@@ -957,7 +957,7 @@ impl ConcurrentEffectSystem {
             transaction.state = TransactionState::Committed;
             Ok(())
         } else {
-            Err(format!("Transaction {} not found", transaction_id))
+            Err(format!("Transaction {transaction_id} not found"))
         }
     }
     
@@ -969,7 +969,7 @@ impl ConcurrentEffectSystem {
             transaction.state = TransactionState::Aborted;
             Ok(())
         } else {
-            Err(format!("Transaction {} not found", transaction_id))
+            Err(format!("Transaction {transaction_id} not found"))
         }
     }
     
@@ -993,7 +993,7 @@ impl ConcurrentEffectSystem {
                         }
                     }
                 } else {
-                    return Err(format!("Transaction {} not found", transaction_id));
+                    return Err(format!("Transaction {transaction_id} not found"));
                 }
             }
             
@@ -1082,7 +1082,7 @@ impl EffectOrderingManager {
                 }
                 
                 if start_time.elapsed().unwrap_or(Duration::from_secs(0)) > timeout {
-                    return Err(format!("Timeout waiting for dependency {}", dep_sequence));
+                    return Err(format!("Timeout waiting for dependency {dep_sequence}"));
                 }
                 
                 std::thread::sleep(Duration::from_millis(1));
@@ -1115,7 +1115,7 @@ impl EffectOrderingManager {
     /// Gets a pending effect.
     pub fn get_pending_effect(&self, sequence: u64) -> Option<PendingEffect> {
         let pending = self.pending_effects.read().unwrap();
-        pending.get(&sequence).clone())()
+        pending.get(&sequence).cloned()
     }
     
     /// Adds an ordering constraint.
@@ -1264,8 +1264,8 @@ impl Effect {
 impl EffectContext {
     /// Adds isolation to this context.
     pub fn with_isolation(&self, level: EffectIsolationLevel) -> Self {
-        let mut new_context = self.clone());
-        new_context.add_effect(Effect::Custom(format!("isolation:{:?}", level)));
+        let mut new_context = self.clone();
+        new_context.add_effect(Effect::Custom(format!("isolation:{level:?}")));
         new_context
     }
     

@@ -27,7 +27,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 ///
 /// This follows the Registry pattern to provide a centralized way
 /// to register, lookup, and execute effect handlers.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct UnifiedEffectRegistry {
     /// Registered effect handlers by effect type
     handlers: HashMap<String, Arc<dyn UnifiedEffectHandler + Send + Sync>>,
@@ -174,7 +174,7 @@ pub struct IOHandlerConfiguration {
 }
 
 /// State effect handler for monadic state operations
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MonadicStateHandler {
     /// Current state (thread-safe)
     state: Arc<Mutex<HashMap<String, Value>>>,
@@ -197,7 +197,7 @@ pub struct StateHandlerConfiguration {
 }
 
 /// Error effect handler for monadic error operations
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MonadicErrorHandler {
     /// Error handling configuration
     config: ErrorHandlerConfiguration,
@@ -217,7 +217,7 @@ pub struct ErrorHandlerConfiguration {
 }
 
 /// Maybe effect handler for optional value operations
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct MonadicMaybeHandler {
     /// Configuration
     config: MaybeHandlerConfiguration,
@@ -231,9 +231,10 @@ pub struct MaybeHandlerConfiguration {
 }
 
 /// Behavior when encountering Nothing values
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub enum NothingBehavior {
     /// Return Nothing
+    #[default]
     ReturnNothing,
     
     /// Throw an error
@@ -348,9 +349,9 @@ impl UnifiedEffectRegistry {
         } else {
             // No handler found - return an error
             Err(Box::new(Error::runtime_error(
-                format!("No handler found for effect: {:?}", effect),
+                format!("No handler found for effect: {effect:?}"),
                 None,
-            ).into())
+            )))
         }
     }
     
@@ -387,6 +388,12 @@ impl MonadicIOHandler {
     }
 }
 
+impl Default for MonadicIOHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[async_trait]
 impl UnifiedEffectHandler for MonadicIOHandler {
     async fn handle_effect(
@@ -398,8 +405,8 @@ impl UnifiedEffectHandler for MonadicIOHandler {
         match effect {
             Effect::IO => {
                 // Determine the specific IO operation from args
-                if let Some(Value::Symbol(op_symbol)) = args.get(0) {
-                    match format!("symbol_{}", op_symbol.id()).as_str() {
+                if let Some(Value::Symbol(op_symbol)) = args.first() {
+                    match format!("symbol_{id}", id = op_symbol.id()).as_str() {
                         "write" | "display" => {
                             if let Some(value) = args.get(1) {
                                 let value_cloned = value.clone();
@@ -411,21 +418,21 @@ impl UnifiedEffectHandler for MonadicIOHandler {
                         }
                         
                         "read-line" => {
-                            let io_comp: IO<Value> = IO::<String>::read_line().map(|s| Value::string(s));
+                            let io_comp: IO<Value> = IO::<String>::read_line().map(Value::string);
                             Ok(MonadicComputation::IO(io_comp))
                         }
                         
                         "open-input-file" => {
                             if let Some(Value::Literal(crate::ast::Literal::String(filename))) = args.get(1) {
                                 // For now, create a mock IO operation since open_file doesn't exist
-                                let io_comp: IO<Value> = IO::<String>::pure(format!("opened: {}", filename))
+                                let io_comp: IO<Value> = IO::<String>::pure(format!("opened: {filename}"))
                                     .map(|_| Value::Unspecified); // Simplified - would need proper Port implementation
                                 Ok(MonadicComputation::IO(io_comp))
                             } else {
                                 Err(Box::new(Error::runtime_error(
                                     "open-input-file requires filename argument".to_string(),
                                     None,
-                                ).into())
+                                )))
                             }
                         }
                         
@@ -437,9 +444,9 @@ impl UnifiedEffectHandler for MonadicIOHandler {
             }
             
             _ => Err(Box::new(Error::runtime_error(
-                format!("IO handler cannot handle effect: {:?}", effect),
+                format!("IO handler cannot handle effect: {effect:?}"),
                 None,
-            ).into())
+            )))
         }
     }
     
@@ -489,8 +496,8 @@ impl UnifiedEffectHandler for MonadicStateHandler {
     ) -> Result<MonadicComputation<Value>> {
         match effect {
             Effect::State => {
-                if let Some(Value::Symbol(op_symbol)) = args.get(0) {
-                    match format!("symbol_{}", op_symbol.id()).as_str() {
+                if let Some(Value::Symbol(op_symbol)) = args.first() {
+                    match format!("symbol_{id}", id = op_symbol.id()).as_str() {
                         "get" => {
                             // Return current state
                             let state = self.state.lock().unwrap();
@@ -511,7 +518,7 @@ impl UnifiedEffectHandler for MonadicStateHandler {
                                 Err(Box::new(Error::runtime_error(
                                     "put requires state argument".to_string(),
                                     None,
-                                ).into())
+                                )))
                             }
                         }
                         
@@ -523,9 +530,9 @@ impl UnifiedEffectHandler for MonadicStateHandler {
             }
             
             _ => Err(Box::new(Error::runtime_error(
-                format!("State handler cannot handle effect: {:?}", effect),
+                format!("State handler cannot handle effect: {effect:?}"),
                 None,
-            ).into())
+            )))
         }
     }
     
@@ -561,11 +568,11 @@ impl UnifiedEffectHandler for MonadicErrorHandler {
     ) -> Result<MonadicComputation<Value>> {
         match effect {
             Effect::Error => {
-                if let Some(Value::Symbol(op_symbol)) = args.get(0) {
-                    match format!("symbol_{}", op_symbol.id()).as_str() {
+                if let Some(Value::Symbol(op_symbol)) = args.first() {
+                    match format!("symbol_{id}", id = op_symbol.id()).as_str() {
                         "throw" | "error" => {
                             if let Some(error_value) = args.get(1) {
-                                let error_msg = format!("{}", error_value);
+                                let error_msg = format!("{error_value}");
                                 let error = Error::runtime_error(error_msg, None);
                                 Ok(MonadicComputation::Either(Either::left(error)))
                             } else {
@@ -578,7 +585,7 @@ impl UnifiedEffectHandler for MonadicErrorHandler {
                             // Wrap computation in error handling
                             if let Some(computation_value) = args.get(1) {
                                 // In practice, we'd evaluate the computation and catch errors
-                                Ok(MonadicComputation::Either(Either::right(computation_value.clone()))
+                                Ok(MonadicComputation::Either(Either::right(computation_value.clone())))
                             } else {
                                 Ok(MonadicComputation::Either(Either::right(Value::Unspecified)))
                             }
@@ -592,9 +599,9 @@ impl UnifiedEffectHandler for MonadicErrorHandler {
             }
             
             _ => Err(Box::new(Error::runtime_error(
-                format!("Error handler cannot handle effect: {:?}", effect),
+                format!("Error handler cannot handle effect: {effect:?}"),
                 None,
-            ).into())
+            )))
         }
     }
     
@@ -629,11 +636,11 @@ impl UnifiedEffectHandler for MonadicMaybeHandler {
         _context: &EffectContext,
     ) -> Result<MonadicComputation<Value>> {
         // Handle Maybe-related operations
-        if let Some(Value::Symbol(op_symbol)) = args.get(0) {
-            match format!("symbol_{}", op_symbol.id()).as_str() {
+        if let Some(Value::Symbol(op_symbol)) = args.first() {
+            match format!("symbol_{id}", id = op_symbol.id()).as_str() {
                 "just" | "some" => {
                     if let Some(value) = args.get(1) {
-                        Ok(MonadicComputation::Maybe(Maybe::just(value.clone()))
+                        Ok(MonadicComputation::Maybe(Maybe::just(value.clone())))
                     } else {
                         Ok(MonadicComputation::Maybe(Maybe::nothing()))
                     }
@@ -661,7 +668,7 @@ impl UnifiedEffectHandler for MonadicMaybeHandler {
                         Err(Box::new(Error::runtime_error(
                             "maybe-bind requires maybe and function arguments".to_string(),
                             None,
-                        ).into())
+                        )))
                     }
                 }
                 

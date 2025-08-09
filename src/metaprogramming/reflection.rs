@@ -172,7 +172,12 @@ pub enum ArityInfo {
     /// Fixed arity (exact number of arguments)
     Fixed(usize),
     /// Variable arity (minimum arguments + rest)
-    Variable { min: usize, rest: bool },
+    Variable { 
+        /// Minimum number of required arguments.
+        min: usize, 
+        /// Whether there is a rest parameter.
+        rest: bool 
+    },
     /// Case-lambda style (multiple possible arities)
     Multiple(Vec<ArityInfo>),
 }
@@ -249,7 +254,7 @@ pub struct FrameInfo {
 /// 
 /// Provides caching and efficient inspection of runtime values,
 /// including type analysis and metadata extraction.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ObjectInspector {
     /// Cache for type information
     type_cache: HashMap<*const Value, TypeInfo>,
@@ -271,7 +276,7 @@ impl ObjectInspector {
         // Check cache first
         let ptr = value as *const Value;
         if let Some(cached) = self.type_cache.get(&ptr) {
-            return cached.clone());
+            return cached.clone();
         }
 
         let type_info = match value {
@@ -302,7 +307,7 @@ impl ObjectInspector {
                 let arity = self.analyze_formals(&proc.formals);
                 TypeInfo::Procedure {
                     arity,
-                    name: proc.name.clone()),
+                    name: proc.name.clone(),
                 }
             }
             
@@ -316,7 +321,7 @@ impl ObjectInspector {
             Value::Primitive(prim) => {
                 let arity = self.analyze_primitive_arity(&prim.name);
                 TypeInfo::Primitive {
-                    name: prim.name.clone()),
+                    name: prim.name.clone(),
                     arity,
                 }
             }
@@ -430,14 +435,14 @@ impl ObjectInspector {
     pub fn get_metadata_info(&mut self, value: &Value) -> MetadataInfo {
         let ptr = value as *const Value;
         if let Some(cached) = self.metadata_cache.get(&ptr) {
-            return cached.clone());
+            return cached.clone();
         }
 
         let metadata = match value {
             Value::Procedure(proc) => MetadataInfo {
                 source: proc.source,
                 documentation: proc.metadata.get("doc").and_then(|v| v.as_string().map(|s| s.to_string())),
-                fields: proc.metadata.clone()),
+                fields: proc.metadata.clone(),
                 created_at: std::time::SystemTime::now(), // Would be better to track actual creation time
                 type_annotations: vec!["procedure".to_string()],
             },
@@ -445,7 +450,7 @@ impl ObjectInspector {
             Value::CaseLambda(case_lambda) => MetadataInfo {
                 source: case_lambda.source,
                 documentation: case_lambda.metadata.get("doc").and_then(|v| v.as_string().map(|s| s.to_string())),
-                fields: case_lambda.metadata.clone()),
+                fields: case_lambda.metadata.clone(),
                 created_at: std::time::SystemTime::now(),
                 type_annotations: vec!["case-lambda".to_string()],
             },
@@ -505,7 +510,7 @@ impl ObjectInspector {
 /// 
 /// Provides runtime type checking, subtype relationships, and
 /// type coercion capabilities for the reflection system.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct TypeInspector {
     /// Type hierarchy cache
     type_hierarchy: HashMap<String, Vec<String>>,
@@ -586,9 +591,9 @@ impl TypeInspector {
                     Ok(Value::number(n))
                 } else {
                     Err(Box::new(Error::runtime_error(
-                        format!("Cannot cast string '{}' to number", s),
+                        format!("Cannot cast string '{s}' to number"),
                         None,
-                    ))
+                    )))
                 }
             }
             (Value::Symbol(sym), "string") => {
@@ -600,7 +605,7 @@ impl TypeInspector {
             _ => Err(Box::new(Error::runtime_error(
                 format!("Cannot cast {} to {}", self.get_type_name(value), target_type),
                 None,
-            )),
+            ))),
         }
     }
 }
@@ -613,6 +618,12 @@ impl TypeInspector {
 pub struct MetadataAccess {
     /// Global metadata store
     metadata_store: HashMap<String, HashMap<String, Value>>,
+}
+
+impl Default for MetadataAccess {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MetadataAccess {
@@ -632,7 +643,7 @@ impl MetadataAccess {
     pub fn set_metadata(&mut self, object_id: String, key: String, value: Value) {
         self.metadata_store
             .entry(object_id)
-            .or_insert_with(HashMap::new)
+            .or_default()
             .insert(key, value);
     }
 
@@ -691,8 +702,8 @@ impl ReflectionSystem {
     /// Inspects an environment.
     pub fn inspect_environment(&self, env: &Environment) -> EnvironmentInfo {
         EnvironmentInfo {
-            bindings: env.bindings.borrow().clone()),
-            parent: env.parent.clone()),
+            bindings: env.bindings.borrow().clone(),
+            parent: env.parent.clone(),
             generation: env.generation,
             env_type: self.classify_environment(env),
             creation_context: None, // Would need to track this during environment creation
@@ -709,7 +720,7 @@ impl ReflectionSystem {
     /// Inspects a single stack frame.
     pub fn inspect_frame(&self, frame: &StackFrame) -> FrameInfo {
         FrameInfo {
-            procedure_name: frame.name.clone()),
+            procedure_name: frame.name.clone(),
             location: frame.location,
             local_bindings: HashMap::new(), // Would need access to frame's environment
             frame_type: format!("{:?}", frame.frame_type),
@@ -807,7 +818,7 @@ fn primitive_type_of(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("type-of expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let mut inspector = ObjectInspector::new();
@@ -837,7 +848,7 @@ fn primitive_type_name(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             format!("type-name expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let inspector = TypeInspector::new();

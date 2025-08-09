@@ -1,7 +1,7 @@
 [package]
 name = "lambdust"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["Mitsuki Akasaka <m.akasaka@miraina-step.co.jp>"]
 description = "A Scheme dialect with gradual typing and effect systems"
 license = "MIT OR Apache-2.0"

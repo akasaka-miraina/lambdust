@@ -519,7 +519,7 @@ impl StatisticalAnalyzer {
     }
     
     /// Create analyzer with default configuration
-    pub fn default() -> Self {
+    pub fn with_defaults() -> Self {
         Self::new(StatisticalAnalysisConfig::default())
     }
     
@@ -527,7 +527,7 @@ impl StatisticalAnalyzer {
     pub fn analyze(&self, datasets: HashMap<String, Vec<f64>>) -> StatisticalAnalysisResult {
         // Calculate descriptive statistics for each dataset
         let descriptive_stats = datasets.iter()
-            .map(|(name, data)| (name.clone()), self.calculate_descriptive_stats(name, data)))
+            .map(|(name, data)| (name.clone(), self.calculate_descriptive_stats(name, data)))
             .collect();
         
         // Perform pairwise comparisons between all implementations
@@ -545,7 +545,7 @@ impl StatisticalAnalyzer {
         
         // Test for normality
         let normality_tests = datasets.iter()
-            .map(|(name, data)| (name.clone()), self.test_normality(name, data)))
+            .map(|(name, data)| (name.clone(), self.test_normality(name, data)))
             .collect();
         
         // Calculate correlation matrix
@@ -612,10 +612,10 @@ impl StatisticalAnalyzer {
         
         // Skewness
         let skewness = if std_dev > 0.0 {
-            let moment3 = data.iter()
+            
+            data.iter()
                 .map(|x| ((x - mean) / std_dev).powi(3))
-                .sum::<f64>() / n as f64;
-            moment3
+                .sum::<f64>() / n as f64
         } else {
             0.0
         };
@@ -675,14 +675,14 @@ impl StatisticalAnalyzer {
     /// Perform pairwise comparisons between all implementations
     fn perform_pairwise_comparisons(&self, datasets: &HashMap<String, Vec<f64>>) -> Vec<PairwiseComparison> {
         let mut comparisons = Vec::new();
-        let names: Vec<_> = datasets.keys().clone())().collect();
+        let names: Vec<_> = datasets.keys().clone().collect();
         
         for i in 0..names.len() {
             for j in (i + 1)..names.len() {
                 let group_a = &names[i];
                 let group_b = &names[j];
-                let data_a = &datasets[group_a];
-                let data_b = &datasets[group_b];
+                let data_a = &datasets[group_a.as_str()];
+                let data_b = &datasets[group_b.as_str()];
                 
                 let comparison = self.compare_two_groups(group_a, data_a, group_b, data_b);
                 comparisons.push(comparison);
@@ -1152,14 +1152,14 @@ pub fn generate_statistical_report(analysis: &StatisticalAnalysisResult) -> Stri
     
     // ANOVA results
     if let Some(anova) = &analysis.anova_result {
-        report.push_str(&format!("\n## ANOVA Results\n\n"));
+        report.push_str("\n## ANOVA Results\n\n");
         report.push_str(&format!("- F-statistic: {:.3}\n", anova.f_statistic));
         report.push_str(&format!("- p-value: {:.4}\n", anova.p_value));
         report.push_str(&format!("- Significant: {}\n", if anova.significant { "Yes" } else { "No" }));
     }
     
     // Outlier analysis
-    report.push_str(&format!("\n## Outlier Analysis\n\n"));
+    report.push_str("\n## Outlier Analysis\n\n");
     report.push_str(&format!("- Total outliers detected: {}\n", analysis.outlier_analysis.summary.total_outliers));
     report.push_str(&format!("- Percentage of data: {:.1}%\n", analysis.outlier_analysis.summary.outlier_percentage));
     report.push_str(&format!("- Recommendation: {:?}\n", analysis.outlier_analysis.summary.recommendation));
@@ -1173,7 +1173,7 @@ mod tests {
     
     #[test]
     fn test_descriptive_statistics() {
-        let analyzer = StatisticalAnalyzer::default();
+        let analyzer = StatisticalAnalyzer::new(StatisticalAnalysisConfig::default());
         let data = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let stats = analyzer.calculate_descriptive_stats("test", &data);
         
@@ -1185,7 +1185,7 @@ mod tests {
     
     #[test]
     fn test_t_test() {
-        let analyzer = StatisticalAnalyzer::default();
+        let analyzer = StatisticalAnalyzer::new(StatisticalAnalysisConfig::default());
         let data_a = vec![1.0, 2.0, 3.0, 4.0, 5.0];
         let data_b = vec![2.0, 3.0, 4.0, 5.0, 6.0];
         let result = analyzer.perform_t_test(&data_a, &data_b);
@@ -1196,7 +1196,7 @@ mod tests {
     
     #[test]
     fn test_effect_size_calculation() {
-        let analyzer = StatisticalAnalyzer::default();
+        let analyzer = StatisticalAnalyzer::new(StatisticalAnalysisConfig::default());
         let data_a = vec![1.0, 2.0, 3.0];
         let data_b = vec![4.0, 5.0, 6.0];
         let effect_size = analyzer.calculate_effect_size_between(&data_a, &data_b);

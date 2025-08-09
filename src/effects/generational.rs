@@ -166,10 +166,10 @@ impl GenerationalEnvManager {
         
         let env = Arc::new(ThreadSafeEnvironment::new(parent, generation));
         let gen_env = Arc::new(GenerationalEnvironment {
-            inner: env.clone()),
+            inner: env.clone(),
             generation,
             parent: None, // TODO: Set up parent chain
-            manager: self.clone()),
+            manager: self.clone(),
         });
         
         // Register the environment for cleanup tracking
@@ -205,7 +205,7 @@ impl GenerationalEnvManager {
             inner: new_env,
             generation: new_generation,
             parent: Some(base_env),
-            manager: self.clone()),
+            manager: self.clone(),
         });
         
         // Register the new environment
@@ -279,7 +279,7 @@ impl GenerationalEnvManager {
         // Update generation history to remove GC'd generations
         let live_generations: std::collections::HashSet<Generation> = {
             if let Ok(registry) = self.environment_registry.read() {
-                registry.keys().clone())().collect()
+                registry.keys().cloned().collect()
             } else {
                 std::collections::HashSet::new()
             }
@@ -346,22 +346,22 @@ impl GenerationalEnvironment {
         Arc::new(GenerationalEnvironment {
             inner: new_inner,
             generation: self.generation,
-            parent: self.parent.clone()),
-            manager: self.manager.clone()),
+            parent: self.parent.clone(),
+            manager: self.manager.clone(),
         })
     }
     
     /// Creates a mutation of this environment (creates new generation).
     pub fn mutate(&self, name: String, value: Value) -> Arc<GenerationalEnvironment> {
-        let mut manager = self.manager.clone());
+        let mut manager = self.manager.clone();
         manager.create_mutation_environment(
             // We need to clone self into an Arc, which requires some restructuring
             // For now, create a new environment
             Arc::new(GenerationalEnvironment {
-                inner: self.inner.clone()),
+                inner: self.inner.clone(),
                 generation: self.generation,
-                parent: self.parent.clone()),
-                manager: self.manager.clone()),
+                parent: self.parent.clone(),
+                manager: self.manager.clone(),
             }),
             name,
             value
@@ -458,10 +458,10 @@ unsafe impl Sync for GenerationStats {}
 impl Clone for GenerationalEnvironment {
     fn clone(&self) -> Self {
         Self {
-            inner: self.inner.clone()),
+            inner: self.inner.clone(),
             generation: self.generation,
-            parent: self.parent.clone()),
-            manager: self.manager.clone()),
+            parent: self.parent.clone(),
+            manager: self.manager.clone(),
         }
     }
 }

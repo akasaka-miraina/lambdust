@@ -30,20 +30,20 @@ use std::collections::HashMap;
 pub fn make_parameter(args: &[Value]) -> Result<Value> {
     match args.len() {
         1 => {
-            let initial_value = args[0].clone());
+            let initial_value = args[0].clone();
             let param = Parameter::new(initial_value, None);
             Ok(Value::parameter(param))
         }
         2 => {
-            let initial_value = args[0].clone());
-            let converter = args[1].clone());
+            let initial_value = args[0].clone();
+            let converter = args[1].clone();
             let param = Parameter::new(initial_value, Some(converter));
             Ok(Value::parameter(param))
         }
-        _ => Err(crate::diagnostics::Error::runtime_error(
+        _ => Err(Box::new(crate::diagnostics::Error::runtime_error(
             format!("make-parameter expects 1 or 2 arguments, got {}", args.len()),
             None,
-        )),
+        ))),
     }
 }
 
@@ -52,10 +52,10 @@ pub fn make_parameter(args: &[Value]) -> Result<Value> {
 /// Scheme signature: `(parameter? obj) -> boolean`
 pub fn is_parameter(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(crate::diagnostics::Error::runtime_error(
+        return Err(Box::new(crate::diagnostics::Error::runtime_error(
             format!("parameter? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     Ok(Value::boolean(args[0].is_parameter()))
@@ -75,14 +75,14 @@ pub fn call_parameter(parameter: &Parameter, args: &[Value]) -> Result<Value> {
         }
         1 => {
             // Set global default value
-            let new_value = args[0].clone());
+            let new_value = args[0].clone();
             parameter.set_global(new_value)?;
             Ok(Value::Unspecified)
         }
-        _ => Err(crate::diagnostics::Error::runtime_error(
+        _ => Err(Box::new(crate::diagnostics::Error::runtime_error(
             format!("parameter expects 0 or 1 arguments, got {}", args.len()),
             None,
-        )),
+        ))),
     }
 }
 
@@ -110,10 +110,10 @@ pub fn process_parameter_bindings(
             // Add to runtime bindings
             runtime_bindings.insert(param.id, processed_value);
         } else {
-            return Err(crate::diagnostics::Error::runtime_error(
+            return Err(Box::new(crate::diagnostics::Error::runtime_error(
                 "Expected parameter object in parameterize binding".to_string(),
                 None,
-            ));
+            )));
         }
     }
     

@@ -85,7 +85,7 @@ impl MacroExpander {
             return Err(Box::new(Error::macro_error(
                 "Macro expansion depth exceeded".to_string(),
                 expr.span,
-            ));
+            )));
         }
 
         match &expr.inner {
@@ -98,7 +98,7 @@ impl MacroExpander {
                             return Err(Box::new(Error::macro_error(
                                 format!("Recursive macro expansion detected: {name}"),
                                 expr.span,
-                            ));
+                            )));
                         }
 
                         expansion_trail.push(name.clone());
@@ -129,7 +129,7 @@ impl MacroExpander {
                 let expanded_metadata = self.expand_metadata(metadata)?;
                 Ok(Spanned::new(
                     Expr::Lambda {
-                        formals: formals.clone()),
+                        formals: formals.clone(),
                         metadata: expanded_metadata,
                         body: expanded_body,
                     },
@@ -158,7 +158,7 @@ impl MacroExpander {
                 let expanded_metadata = self.expand_metadata(metadata)?;
                 Ok(Spanned::new(
                     Expr::Define {
-                        name: name.clone()),
+                        name: name.clone(),
                         value: Box::new(expanded_value),
                         metadata: expanded_metadata,
                     },
@@ -168,7 +168,7 @@ impl MacroExpander {
             Expr::DefineSyntax { name, transformer } => {
                 // Define-syntax creates a new macro
                 let transformer_value = self.evaluate_transformer(transformer, expansion_trail.clone())?;
-                self.macro_env.define(name.clone()), transformer_value);
+                self.macro_env.define(name.clone(), transformer_value);
                 Ok(Spanned::new(Expr::Begin(vec![]), expr.span)) // Expand to empty begin
             }
             Expr::SyntaxRules { literals, rules } => {
@@ -198,7 +198,7 @@ impl MacroExpander {
         let input_expr = Spanned::new(
             Expr::Application {
                 operator: Box::new(Spanned::new(
-                    Expr::Identifier(transformer.name.clone()).unwrap_or_default()),
+                    Expr::Identifier(transformer.name.clone().unwrap_or_else(|| "anonymous-macro".to_string())),
                     span,
                 )),
                 operands: operands.to_vec(),
@@ -253,7 +253,7 @@ impl MacroExpander {
     ) -> Result<HashMap<String, Spanned<Expr>>> {
         let mut expanded = HashMap::new();
         for (key, value) in metadata {
-            expanded.insert(key.clone()), self.expand_inner(value, &mut Vec::new())?);
+            expanded.insert(key.clone(), self.expand_inner(value, &mut Vec::new())?);
         }
         Ok(expanded)
     }
@@ -261,29 +261,26 @@ impl MacroExpander {
     /// Evaluates a macro transformer expression.
     fn evaluate_transformer(&self, transformer_expr: &Spanned<Expr>, _expansion_trail: Vec<String>) -> Result<MacroTransformer> {
         // Check if this is a syntax-rules form
-        match &transformer_expr.inner {
-            Expr::Application { operator, .. } => {
-                if let Expr::Identifier(name) = &operator.inner {
-                    if name == "syntax-rules" {
-                        // Parse syntax-rules and convert to MacroTransformer
-                        // For now, create a basic environment - this will be improved when
-                        // macro/evaluator integration is complete
-                        let empty_env = Rc::new(Environment::new(None, 0));
-                        let syntax_rules = parse_syntax_rules(
-                            transformer_expr,
-                            empty_env,
-                        )?;
-                        return Ok(syntax_rules_to_macro_transformer(syntax_rules));
-                    }
+        if let Expr::Application { operator, .. } = &transformer_expr.inner {
+            if let Expr::Identifier(name) = &operator.inner {
+                if name == "syntax-rules" {
+                    // Parse syntax-rules and convert to MacroTransformer
+                    // For now, create a basic environment - this will be improved when
+                    // macro/evaluator integration is complete
+                    let empty_env = Rc::new(Environment::new(None, 0));
+                    let syntax_rules = parse_syntax_rules(
+                        transformer_expr,
+                        empty_env,
+                    )?;
+                    return Ok(syntax_rules_to_macro_transformer(syntax_rules));
                 }
             }
-            _ => {}
         }
         
         Err(Box::new(Error::macro_error(
             "Expected syntax-rules transformer".to_string(),
             transformer_expr.span,
-        ))
+        )))
     }
 
     /// Matches a pattern against an expression.

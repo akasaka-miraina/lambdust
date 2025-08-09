@@ -46,7 +46,7 @@ fn expand_define_record_type(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error(
             "define-record-type requires at least 3 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     // Extract type name
@@ -81,14 +81,14 @@ fn extract_type_name(value: &Value) -> Result<String> {
                 Err(Box::new(Error::runtime_error(
                     "Invalid symbol for record type name".to_string(),
                     None,
-                ))
+                )))
             }
         }
         Value::Literal(Literal::String(name)) => Ok(name.clone()),
         _ => Err(Box::new(Error::runtime_error(
             "Record type name must be a symbol or string".to_string(),
             None,
-        )),
+        )))
     }
 }
 
@@ -105,7 +105,7 @@ fn extract_constructor_spec(value: &Value) -> Result<(String, Vec<String>)> {
         return Err(Box::new(Error::runtime_error(
             "Constructor specification cannot be empty".to_string(),
             None,
-        ));
+        )));
     }
     
     // First element is constructor name
@@ -117,13 +117,13 @@ fn extract_constructor_spec(value: &Value) -> Result<(String, Vec<String>)> {
                 return Err(Box::new(Error::runtime_error(
                     "Invalid symbol for constructor name".to_string(),
                     None,
-                ));
+                )));
             }
         }
         _ => return Err(Box::new(Error::runtime_error(
             "Constructor name must be a symbol".to_string(),
             None,
-        )),
+        )))
     };
     
     // Remaining elements are field names
@@ -137,13 +137,13 @@ fn extract_constructor_spec(value: &Value) -> Result<(String, Vec<String>)> {
                     return Err(Box::new(Error::runtime_error(
                         "Invalid symbol for field name".to_string(),
                         None,
-                    ));
+                    )));
                 }
             }
             _ => return Err(Box::new(Error::runtime_error(
                 "Field names must be symbols".to_string(),
                 None,
-            )),
+            )))
         }
     }
     
@@ -160,13 +160,13 @@ fn extract_predicate_name(value: &Value) -> Result<String> {
                 Err(Box::new(Error::runtime_error(
                     "Invalid symbol for predicate name".to_string(),
                     None,
-                ))
+                )))
             }
         }
         _ => Err(Box::new(Error::runtime_error(
             "Predicate name must be a symbol".to_string(),
             None,
-        )),
+        )))
     }
 }
 
@@ -194,7 +194,7 @@ fn extract_field_specs(values: &[Value]) -> Result<Vec<FieldSpec>> {
             return Err(Box::new(Error::runtime_error(
                 "Field specification must have 2 or 3 elements: (field accessor [mutator])".to_string(),
                 None,
-            ));
+            )));
         }
         
         // Extract field name
@@ -206,13 +206,13 @@ fn extract_field_specs(values: &[Value]) -> Result<Vec<FieldSpec>> {
                     return Err(Box::new(Error::runtime_error(
                         "Invalid symbol for field name".to_string(),
                         None,
-                    ));
+                    )));
                 }
             }
             _ => return Err(Box::new(Error::runtime_error(
                 "Field name must be a symbol".to_string(),
                 None,
-            )),
+            )))
         };
         
         // Extract accessor name
@@ -224,13 +224,13 @@ fn extract_field_specs(values: &[Value]) -> Result<Vec<FieldSpec>> {
                     return Err(Box::new(Error::runtime_error(
                         "Invalid symbol for accessor name".to_string(),
                         None,
-                    ));
+                    )));
                 }
             }
             _ => return Err(Box::new(Error::runtime_error(
                 "Accessor name must be a symbol".to_string(),
                 None,
-            )),
+            )))
         };
         
         // Extract optional mutator name
@@ -243,13 +243,13 @@ fn extract_field_specs(values: &[Value]) -> Result<Vec<FieldSpec>> {
                         return Err(Box::new(Error::runtime_error(
                             "Invalid symbol for mutator name".to_string(),
                             None,
-                        ));
+                        )));
                     }
                 }
                 _ => return Err(Box::new(Error::runtime_error(
                     "Mutator name must be a symbol".to_string(),
                     None,
-                )),
+                )))
             }
         } else {
             None
@@ -287,12 +287,12 @@ fn generate_record_type_expansion(
         // Create the record type
         Value::list(vec![
             Value::symbol(intern_symbol("define".to_string())),
-            Value::symbol(intern_symbol(format!("%{}-type", type_name))),
+            Value::symbol(intern_symbol(format!("%{type_name}-type"))),
             Value::list(vec![
                 Value::symbol(intern_symbol("make-record-type".to_string())),
                 Value::string(&type_name),
                 Value::list(constructor_fields.iter()
-                    .map(|name| Value::string(name))
+                    .map(Value::string)
                     .collect()),
             ]),
         ]),
@@ -303,7 +303,7 @@ fn generate_record_type_expansion(
             Value::symbol(intern_symbol(constructor_name)),
             Value::list(vec![
                 Value::symbol(intern_symbol("record-constructor".to_string())),
-                Value::symbol(intern_symbol(format!("%{}-type", type_name))),
+                Value::symbol(intern_symbol(format!("%{type_name}-type"))),
             ]),
         ]),
         
@@ -313,7 +313,7 @@ fn generate_record_type_expansion(
             Value::symbol(intern_symbol(predicate_name)),
             Value::list(vec![
                 Value::symbol(intern_symbol("record-predicate".to_string())),
-                Value::symbol(intern_symbol(format!("%{}-type", type_name))),
+                Value::symbol(intern_symbol(format!("%{type_name}-type"))),
             ]),
         ]),
     ]);
@@ -328,7 +328,7 @@ fn generate_record_type_expansion(
             Value::symbol(intern_symbol(field_spec.accessor)),
             Value::list(vec![
                 Value::symbol(intern_symbol("record-accessor".to_string())),
-                Value::symbol(intern_symbol(format!("%{}-type", type_name))),
+                Value::symbol(intern_symbol(format!("%{type_name}-type"))),
                 Value::string(&field_spec.name),
             ]),
         ]));
@@ -340,7 +340,7 @@ fn generate_record_type_expansion(
                 Value::symbol(intern_symbol(mutator_name)),
                 Value::list(vec![
                     Value::symbol(intern_symbol("record-mutator".to_string())),
-                    Value::symbol(intern_symbol(format!("%{}-type", type_name))),
+                    Value::symbol(intern_symbol(format!("%{type_name}-type"))),
                     Value::string(&field_spec.name),
                 ]),
             ]));

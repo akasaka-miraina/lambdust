@@ -102,7 +102,7 @@ impl TextLocale {
         
         let collator = Collator::new(&collator_options)
             .map_err(|e| DiagnosticError::runtime_error(
-                format!("Failed to create collator: {}", e),
+                format!("Failed to create collator: {e}"),
                 None,
             ))?;
         
@@ -241,7 +241,7 @@ impl TextCursor {
     }
     
     /// Moves to the next boundary.
-    pub fn next(&mut self) -> bool {
+    pub fn advance(&mut self) -> bool {
         match self.boundary_type {
             BoundaryType::Character => {
                 if self.position < self.text.char_length() {
@@ -354,10 +354,10 @@ impl TextCursor {
     
     /// Gets text from current position to next boundary.
     pub fn current_segment(&self) -> Option<Text> {
-        let mut temp_cursor = self.clone());
+        let mut temp_cursor = self.clone();
         let start = self.position;
         
-        if temp_cursor.next() {
+        if temp_cursor.advance() {
             self.text.substring(start, temp_cursor.position)
         } else if start < self.text.char_length() {
             self.text.substring(start, self.text.char_length())
@@ -821,10 +821,10 @@ fn bind_srfi135_cursor_range(env: &Arc<ThreadSafeEnvironment>) {
 /// textual-empty? predicate
 fn primitive_textual_empty_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual-empty? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
@@ -834,10 +834,10 @@ fn primitive_textual_empty_p(args: &[Value]) -> Result<Value> {
 /// textual-length accessor
 fn primitive_textual_length(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual-length expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
@@ -847,36 +847,36 @@ fn primitive_textual_length(args: &[Value]) -> Result<Value> {
 /// textual-ref accessor
 fn primitive_textual_ref(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual-ref expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let index = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "textual-ref index must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     match text.char_at(index) {
         Some(ch) => Ok(Value::Literal(crate::ast::Literal::Character(ch))),
-        None => Err(DiagnosticError::runtime_error(
+        None => Err(Box::new(DiagnosticError::runtime_error(
             "textual-ref index out of bounds".to_string(),
             None,
-        )),
+        ))),
     }
 }
 
 /// textual? predicate
 fn primitive_textual_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual? expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let is_textual = matches!(args[0], Value::Literal(crate::ast::Literal::String(_)));
@@ -887,10 +887,10 @@ fn primitive_textual_p(args: &[Value]) -> Result<Value> {
 /// (Full implementations would require more sophisticated argument parsing)
 fn primitive_textual_every(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "textual-every requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     // Simplified implementation
@@ -899,10 +899,10 @@ fn primitive_textual_every(args: &[Value]) -> Result<Value> {
 
 fn primitive_textual_any(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "textual-any requires at least 2 arguments".to_string(),
             None,
-        ));
+        )));
     }
     
     // Simplified implementation
@@ -911,96 +911,96 @@ fn primitive_textual_any(args: &[Value]) -> Result<Value> {
 
 fn primitive_textual_take(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual-take expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let n = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "textual-take count must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     match text.substring(0, n.min(text.char_length())) {
         Some(result) => Ok(result.into()),
-        None => Ok(Text::new),
+        None => Ok(Text::new().into()),
     }
 }
 
 fn primitive_textual_drop(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual-drop expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let n = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "textual-drop count must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let start = n.min(text.char_length());
     match text.substring(start, text.char_length()) {
         Some(result) => Ok(result.into()),
-        None => Ok(Text::new),
+        None => Ok(Text::new().into()),
     }
 }
 
 fn primitive_textual_take_right(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual-take-right expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let n = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "textual-take-right count must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let len = text.char_length();
-    let start = if n >= len { 0 } else { len - n };
+    let start = len.saturating_sub(n);
     
     match text.substring(start, len) {
         Some(result) => Ok(result.into()),
-        None => Ok(Text::new),
+        None => Ok(Text::new().into()),
     }
 }
 
 fn primitive_textual_drop_right(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual-drop-right expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
     let n = args[1].as_integer().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "textual-drop-right count must be an integer".to_string(),
             None,
-        )
+        ))
     })? as usize;
     
     let len = text.char_length();
-    let end = if n >= len { 0 } else { len - n };
+    let end = len.saturating_sub(n);
     
     match text.substring(0, end) {
         Some(result) => Ok(result.into()),
-        None => Ok(Text::new),
+        None => Ok(Text::new().into()),
     }
 }
 
@@ -1055,67 +1055,67 @@ fn primitive_textual_contains(_args: &[Value]) -> Result<Value> {
 
 fn primitive_textual_upcase(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "textual-upcase requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.to_uppercase)
+    Ok(text.to_uppercase().into())
 }
 
 fn primitive_textual_downcase(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "textual-downcase requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.to_lowercase)
+    Ok(text.to_lowercase().into())
 }
 
 fn primitive_textual_foldcase(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "textual-foldcase requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.fold_case)
+    Ok(text.fold_case().into())
 }
 
 fn primitive_textual_titlecase(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "textual-titlecase requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.to_titlecase)
+    Ok(text.to_titlecase().into())
 }
 
 fn primitive_textual_reverse(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             "textual-reverse requires at least 1 argument".to_string(),
             None,
-        ));
+        )));
     }
     
     let text = Text::try_from(&args[0])?;
-    Ok(text.reverse)
+    Ok(text.reverse().into())
 }
 
 fn primitive_textual_replace(_args: &[Value]) -> Result<Value> {
     // Complex replace procedure - simplified
-    Ok(Text::new)
+    Ok(Text::new().into())
 }
 
 fn primitive_textual_split(_args: &[Value]) -> Result<Value> {
@@ -1125,17 +1125,17 @@ fn primitive_textual_split(_args: &[Value]) -> Result<Value> {
 
 fn primitive_textual_concatenate(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("textual-concatenate expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let text_list = args[0].as_list().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "textual-concatenate argument must be a list".to_string(),
             None,
-        )
+        ))
     })?;
     
     let mut builder = TextBuilder::new();
@@ -1145,12 +1145,12 @@ fn primitive_textual_concatenate(args: &[Value]) -> Result<Value> {
         builder.push_text(&text);
     }
     
-    Ok(builder.build)
+    Ok(builder.build().into())
 }
 
 fn primitive_textual_concatenate_reverse(_args: &[Value]) -> Result<Value> {
     // Complex concatenate-reverse procedure - simplified
-    Ok(Text::new)
+    Ok(Text::new().into())
 }
 
 fn primitive_textual_locale_compare(_args: &[Value]) -> Result<Value> {
@@ -1160,17 +1160,17 @@ fn primitive_textual_locale_compare(_args: &[Value]) -> Result<Value> {
 
 fn primitive_textual_locale_upcase(_args: &[Value]) -> Result<Value> {
     // Locale-aware upcase - simplified
-    Ok(Text::new)
+    Ok(Text::new().into())
 }
 
 fn primitive_textual_locale_downcase(_args: &[Value]) -> Result<Value> {
     // Locale-aware downcase - simplified
-    Ok(Text::new)
+    Ok(Text::new().into())
 }
 
 fn primitive_textual_locale_titlecase(_args: &[Value]) -> Result<Value> {
     // Locale-aware titlecase - simplified
-    Ok(Text::new)
+    Ok(Text::new().into())
 }
 
 fn primitive_textual_cursor_start(_args: &[Value]) -> Result<Value> {
@@ -1206,11 +1206,11 @@ mod tests {
 
     #[test]
     fn test_text_cursor() {
-        let text = Text::from_str("hello world");
+        let text = Text::from_string_slice("hello world");
         let mut cursor = TextCursor::new(text, BoundaryType::Character);
         
         assert_eq!(cursor.position(), 0);
-        assert!(cursor.next());
+        assert!(cursor.advance());
         assert_eq!(cursor.position(), 1);
         assert!(cursor.previous());
         assert_eq!(cursor.position(), 0);
@@ -1227,10 +1227,10 @@ mod tests {
 
     #[test]
     fn test_textual_take_drop() {
-        let hello = Text::from_str("hello");
+        let hello = Text::from_string_slice("hello");
         
         // Simulate the primitive calls
-        let take_args = vec![hello.clone()).into(), Value::integer(3)];
+        let take_args = vec![hello.clone().into(), Value::integer(3)];
         let result = primitive_textual_take(&take_args).unwrap();
         let result_text = Text::try_from(&result).unwrap();
         assert_eq!(result_text.to_string(), "hel");

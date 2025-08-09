@@ -44,10 +44,10 @@ impl FfiBridge {
     /// processing `primitive` special forms.
     pub fn call_rust_function(&self, name: &str, args: &[Value]) -> Result<Value> {
         self.registry.call(name, args)
-            .map_err(|ffi_err| Error::runtime_error(
+            .map_err(|ffi_err| Box::new(Error::runtime_error(
                 ffi_err.to_string(),
                 None, // Span will be provided by the evaluator
-            ))
+            )))
     }
     
     /// Registers a new FFI function.
@@ -56,10 +56,10 @@ impl FfiBridge {
         F: FfiFunction + 'static,
     {
         self.registry.register(function)
-            .map_err(|ffi_err| Error::runtime_error(
+            .map_err(|ffi_err| Box::new(Error::runtime_error(
                 format!("Failed to register FFI function: {ffi_err}"),
                 None,
-            ))
+            )))
     }
     
     /// Gets information about a registered function.

@@ -54,17 +54,23 @@ pub enum AstPattern {
     Identifier(IdentifierPattern),
     /// Match applications
     Application {
+        /// The operator pattern to match.
         operator: Box<AstPattern>,
+        /// The operand patterns to match.
         operands: Vec<AstPattern>,
     },
     /// Match special forms
     SpecialForm {
+        /// The type of special form to match.
         form_type: String,
+        /// Patterns for the special form arguments.
         patterns: Vec<AstPattern>,
     },
     /// Match with variable binding
     Variable {
+        /// The variable name for binding.
         name: String,
+        /// The pattern to match and bind to the variable.
         pattern: Box<AstPattern>,
     },
     /// Match alternatives (OR pattern)
@@ -81,7 +87,12 @@ pub enum LiteralPattern {
     /// Match specific boolean
     Boolean(bool),
     /// Match number range
-    NumberRange { min: Option<f64>, max: Option<f64> },
+    NumberRange { 
+        /// Minimum value (inclusive, None means no minimum).
+        min: Option<f64>, 
+        /// Maximum value (inclusive, None means no maximum).
+        max: Option<f64> 
+    },
     /// Match string pattern
     StringPattern(String), // Could be regex
     /// Match specific character
@@ -110,12 +121,16 @@ pub enum AstTemplate {
     Identifier(String),
     /// Generate application
     Application {
+        /// Template for the operator.
         operator: Box<AstTemplate>,
+        /// Templates for the operands.
         operands: Vec<AstTemplate>,
     },
     /// Generate special form
     SpecialForm {
+        /// The type of special form to generate.
         form_type: String,
+        /// Templates for the special form arguments.
         templates: Vec<AstTemplate>,
     },
     /// Substitute variable
@@ -124,8 +139,11 @@ pub enum AstTemplate {
     Sequence(Vec<AstTemplate>),
     /// Conditional generation
     Conditional {
+        /// The condition to test.
         condition: TransformCondition,
+        /// Template to use if condition is true.
         then_template: Box<AstTemplate>,
+        /// Template to use if condition is false.
         else_template: Option<Box<AstTemplate>>,
     },
 }
@@ -141,7 +159,9 @@ pub enum TransformCondition {
     Predicate(String), // Name of predicate function
     /// Combine conditions
     And(Vec<TransformCondition>),
+    /// Logical OR of multiple conditions.
     Or(Vec<TransformCondition>),
+    /// Logical NOT of a condition.
     Not(Box<TransformCondition>),
 }
 
@@ -221,7 +241,7 @@ impl DynamicDefinition {
             formals,
             body: vec![parsed_body],
             environment: self.context.to_thread_safe(),
-            name: name.clone()),
+            name: name.clone(),
             metadata: HashMap::new(),
             source: None,
         };
@@ -260,7 +280,7 @@ impl DynamicDefinition {
             return Err(Box::new(Error::runtime_error(
                 "Expected procedure".to_string(),
                 None,
-            ));
+            )));
         }
 
         self.context.define(name.to_string(), procedure);
@@ -312,7 +332,7 @@ impl AstTransformer {
             return Err(Box::new(Error::runtime_error(
                 "Maximum transformation depth exceeded".to_string(),
                 Some(expr.span),
-            ));
+            )));
         }
 
         self.context.depth += 1;
@@ -324,7 +344,7 @@ impl AstTransformer {
     /// Internal transformation method.
     fn transform_inner(&mut self, expr: &Spanned<Expr>) -> Result<Spanned<Expr>> {
         // Try each rule in order
-        for rule in &self.rules.clone()) {
+        for rule in &self.rules.clone() {
             if let Some(result) = self.try_apply_rule(rule, expr)? {
                 // Rule applied, recursively transform the result
                 return self.transform(&result);
@@ -356,8 +376,8 @@ impl AstTransformer {
                 // Note: metadata transformation would need similar recursive handling
                 Ok(Spanned::new(
                     Expr::Lambda {
-                        formals: formals.clone()),
-                        metadata: metadata.clone()), // Simplified
+                        formals: formals.clone(),
+                        metadata: metadata.clone(), // Simplified
                         body: new_body,
                     },
                     expr.span,
@@ -434,7 +454,7 @@ impl AstTransformer {
             
             AstPattern::Variable { name, pattern } => {
                 if self.pattern_matches(pattern, expr)? {
-                    self.context.bindings.insert(name.clone()), expr.clone());
+                    self.context.bindings.insert(name.clone(), expr.clone());
                     Ok(true)
                 } else {
                     Ok(false)
@@ -462,8 +482,8 @@ impl AstTransformer {
             (LiteralPattern::Character(expected), Literal::Character(actual)) => Ok(expected == actual),
             (LiteralPattern::NumberRange { min, max }, Literal::Number(n)) => {
                 let n = *n;
-                let min_ok = min.map_or(true, |min| n >= min);
-                let max_ok = max.map_or(true, |max| n <= max);
+                let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
+                let max_ok = n <= max.unwrap_or(f64::INFINITY);
                 Ok(min_ok && max_ok)
             }
             _ => Ok(false),
@@ -524,9 +544,9 @@ impl AstTransformer {
                     Ok(expr.clone())
                 } else {
                     Err(Box::new(Error::runtime_error(
-                        format!("Unbound template variable: {}", name),
+                        format!("Unbound template variable: {name}"),
                         None,
-                    ))
+                    )))
                 }
             }
             
@@ -548,7 +568,7 @@ impl AstTransformer {
             _ => Err(Box::new(Error::runtime_error(
                 "Template type not implemented".to_string(),
                 None,
-            )),
+            )))
         }
     }
 }
@@ -564,7 +584,7 @@ impl TemplateSystem {
 
     /// Defines a new template.
     pub fn define_template(&mut self, template: CodeTemplate) {
-        self.templates.insert(template.name.clone()), template);
+        self.templates.insert(template.name.clone(), template);
     }
 
     /// Sets a template variable.
@@ -576,7 +596,7 @@ impl TemplateSystem {
     pub fn expand_template(&self, name: &str, args: &[Value]) -> Result<String> {
         let template = self.templates.get(name)
             .ok_or_else(|| Error::runtime_error(
-                format!("Unknown template: {}", name),
+                format!("Unknown template: {name}"),
                 None,
             ))?;
 
@@ -585,16 +605,16 @@ impl TemplateSystem {
                 format!("Template {} expects {} arguments, got {}",
                     name, template.parameters.len(), args.len()),
                 None,
-            ));
+            )));
         }
 
         match &template.body {
             TemplateBody::String(s) => {
-                let mut result = s.clone());
+                let mut result = s.clone();
                 
                 // Simple string substitution
                 for (param, arg) in template.parameters.iter().zip(args.iter()) {
-                    let placeholder = format!("{{{}}}", param);
+                    let placeholder = format!("{{{param}}}");
                     let replacement = self.value_to_string(arg);
                     result = result.replace(&placeholder, &replacement);
                 }
@@ -604,18 +624,18 @@ impl TemplateSystem {
             _ => Err(Box::new(Error::runtime_error(
                 "Template body type not implemented".to_string(),
                 None,
-            )),
+            ))),
         }
     }
 
     /// Converts a value to its string representation for templates.
     fn value_to_string(&self, value: &Value) -> String {
         match value {
-            Value::Literal(Literal::String(s)) => s.clone()),
+            Value::Literal(Literal::String(s)) => s.clone(),
             Value::Literal(Literal::Number(n)) => n.to_string(),
             Value::Literal(Literal::Boolean(b)) => if *b { "#t".to_string() } else { "#f".to_string() },
             Value::Symbol(sym) => crate::utils::symbol_name(*sym).unwrap_or_else(|| format!("symbol-{}", sym.0)),
-            _ => format!("{}", value),
+            _ => format!("{value}"),
         }
     }
 }
@@ -677,7 +697,7 @@ impl CodeGenerator {
             Err(Box::new(Error::runtime_error(
                 "No context set for dynamic definition".to_string(),
                 None,
-            ))
+            )))
         }
     }
 

@@ -17,9 +17,9 @@ pub fn parse_module_name(input: &str) -> Result<ModuleId> {
     // Must start and end with parentheses
     if !trimmed.starts_with('(') || !trimmed.ends_with(')') {
         return Err(Box::new(Error::syntax_error(
-            format!("Module name must be parenthesized: {}", input),
+            format!("Module name must be parenthesized: {input}"),
             None,
-        ));
+        )));
     }
     
     // Remove outer parentheses
@@ -30,7 +30,7 @@ pub fn parse_module_name(input: &str) -> Result<ModuleId> {
         return Err(Box::new(Error::syntax_error(
             "Empty module name".to_string(),
             None,
-        ));
+        )));
     }
     
     match parts[0] {
@@ -62,7 +62,7 @@ fn parse_builtin_module(parts: &[&str]) -> Result<ModuleId> {
         return Err(Box::new(Error::syntax_error(
             "Built-in module name cannot be empty".to_string(),
             None,
-        ));
+        )));
     }
     
     let components = parts.iter().map(|s| s.to_string()).collect();
@@ -78,7 +78,7 @@ fn parse_r7rs_module(parts: &[&str]) -> Result<ModuleId> {
         return Err(Box::new(Error::syntax_error(
             "R7RS module name cannot be empty".to_string(),
             None,
-        ));
+        )));
     }
     
     let components = parts.iter().map(|s| s.to_string()).collect();
@@ -97,7 +97,7 @@ fn parse_srfi_module(parts: &[&str]) -> Result<ModuleId> {
         return Err(Box::new(Error::syntax_error(
             "SRFI module name cannot be empty".to_string(),
             None,
-        ));
+        )));
     }
     
     // Handle different SRFI syntaxes
@@ -118,7 +118,7 @@ fn parse_srfi_module(parts: &[&str]) -> Result<ModuleId> {
             return Err(Box::new(Error::syntax_error(
                 "SRFI list must be parenthesized".to_string(),
                 None,
-            ));
+            )));
         }
         
         let inner = &list_str[1..list_str.len()-1];
@@ -128,7 +128,7 @@ fn parse_srfi_module(parts: &[&str]) -> Result<ModuleId> {
             return Err(Box::new(Error::syntax_error(
                 "SRFI list cannot be empty".to_string(),
                 None,
-            ));
+            )));
         }
         
         // Validate all SRFI numbers
@@ -146,7 +146,7 @@ fn parse_srfi_module(parts: &[&str]) -> Result<ModuleId> {
         return Err(Box::new(Error::syntax_error(
             "Invalid SRFI module syntax. Use (srfi <number>) or (srfi (<number> ...))".to_string(),
             None,
-        ));
+        )));
     }
 }
 
@@ -155,9 +155,9 @@ fn validate_srfi_number(srfi_str: &str) -> Result<()> {
     match srfi_str.parse::<u32>() {
         Ok(num) if num > 0 => Ok(()),
         _ => Err(Box::new(Error::syntax_error(
-            format!("Invalid SRFI number: {}", srfi_str),
+            format!("Invalid SRFI number: {srfi_str}"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -167,7 +167,7 @@ fn parse_user_module(parts: &[&str]) -> Result<ModuleId> {
         return Err(Box::new(Error::syntax_error(
             "User module name cannot be empty".to_string(),
             None,
-        ));
+        )));
     }
     
     let components = parts.iter().map(|s| s.to_string()).collect();
@@ -183,7 +183,7 @@ fn parse_file_module(parts: &[&str]) -> Result<ModuleId> {
         return Err(Box::new(Error::syntax_error(
             "File module must specify exactly one path".to_string(),
             None,
-        ));
+        )));
     }
     
     let path_str = parts[0];
@@ -208,7 +208,7 @@ pub fn validate_module_id(id: &ModuleId) -> Result<()> {
         return Err(Box::new(Error::syntax_error(
             "Module ID cannot have empty components".to_string(),
             None,
-        ));
+        )));
     }
     
     // Check for invalid characters in components
@@ -217,7 +217,7 @@ pub fn validate_module_id(id: &ModuleId) -> Result<()> {
             return Err(Box::new(Error::syntax_error(
                 "Module component cannot be empty".to_string(),
                 None,
-            ));
+            )));
         }
         
         // Additional validation rules can be added here

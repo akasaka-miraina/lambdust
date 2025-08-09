@@ -126,7 +126,7 @@ impl ModuleCache {
     /// Lists all cached module IDs.
     pub fn list_modules(&self) -> Vec<ModuleId> {
         let cache = self.cache.read().expect("Cache read lock poisoned");
-        cache.keys().clone())().collect()
+        cache.keys().cloned().collect()
     }
 
     /// Gets cache statistics.
@@ -175,7 +175,7 @@ impl ModuleCache {
     fn evict_lru(&self, cache: &mut HashMap<ModuleId, CacheEntry>) {
         if let Some((lru_id, _)) = cache.iter()
             .min_by_key(|(_, entry)| entry.last_accessed)
-            .map(|(id, entry)| (id.clone()), entry.clone()))
+            .map(|(id, entry)| (id.clone(), entry.clone()))
         {
             cache.remove(&lru_id);
         }
@@ -191,8 +191,8 @@ impl ModuleCache {
             for dep_id in &entry.module.dependencies {
                 if !cache.contains_key(dep_id) {
                     errors.push(CacheValidationError::MissingDependency {
-                        module: id.clone()),
-                        dependency: dep_id.clone()),
+                        module: id.clone(),
+                        dependency: dep_id.clone(),
                     });
                 }
             }
@@ -298,7 +298,7 @@ mod tests {
         assert_eq!(cache.len(), 0);
 
         // Insert and retrieve
-        cache.insert(module_id.clone()), module.clone());
+        cache.insert(module_id.clone(), module.clone());
         assert_eq!(cache.len(), 1);
         
         let retrieved = cache.get(&module_id);
@@ -329,15 +329,15 @@ mod tests {
             namespace: ModuleNamespace::Builtin,
         };
 
-        cache.insert(id1.clone()), create_test_module("mod1"));
-        cache.insert(id2.clone()), create_test_module("mod2"));
+        cache.insert(id1.clone(), create_test_module("mod1"));
+        cache.insert(id2.clone(), create_test_module("mod2"));
         assert_eq!(cache.len(), 2);
 
         // Access first module to make it more recently used
         cache.get(&id1);
 
         // Insert third module - should evict mod2 (least recently used)
-        cache.insert(id3.clone()), create_test_module("mod3"));
+        cache.insert(id3.clone(), create_test_module("mod3"));
         assert_eq!(cache.len(), 2);
         
         assert!(cache.get(&id1).is_some());
@@ -369,7 +369,7 @@ mod tests {
             namespace: ModuleNamespace::Builtin,
         };
 
-        cache.insert(module_id.clone()), create_test_module("test"));
+        cache.insert(module_id.clone(), create_test_module("test"));
         
         // Access the module a few times
         cache.get(&module_id);

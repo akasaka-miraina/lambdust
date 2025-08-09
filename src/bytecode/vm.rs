@@ -172,9 +172,9 @@ impl VirtualMachine {
                     }
                 }
                 Err(error) => {
-                    self.state = VmState::Error(error.clone());
+                    self.state = VmState::Error((*error).clone());
                     self.stats.execution_time_us += start_time.elapsed().as_micros() as u64;
-                    return Ok(ExecutionResult::Error(error));
+                    return Ok(ExecutionResult::Error(*error));
                 }
             }
             
@@ -204,10 +204,10 @@ impl VirtualMachine {
                         self.stack.push(value);
                         Ok(ControlFlow::Continue)
                     } else {
-                        Err(Box::new(Error::runtime_error(format!("Invalid constant index: {}", index), None))
+                        Err(Box::new(Error::runtime_error(format!("Invalid constant index: {index}"), None)))
                     }
                 } else {
-                    Err(Box::new(Error::runtime_error("LoadConst requires constant index operand".to_string(), None))
+                    Err(Box::new(Error::runtime_error("LoadConst requires constant index operand".to_string(), None)))
                 }
             }
             
@@ -218,13 +218,13 @@ impl VirtualMachine {
                             self.stack.push(value.clone());
                             Ok(ControlFlow::Continue)
                         } else {
-                            Err(Box::new(Error::runtime_error(format!("Invalid local index: {}", index), None))
+                            Err(Box::new(Error::runtime_error(format!("Invalid local index: {index}"), None)))
                         }
                     } else {
-                        Err(Box::new(Error::runtime_error("No call frame for local access".to_string(), None))
+                        Err(Box::new(Error::runtime_error("No call frame for local access".to_string(), None)))
                     }
                 } else {
-                    Err(Box::new(Error::runtime_error("LoadLocal requires local index operand".to_string(), None))
+                    Err(Box::new(Error::runtime_error("LoadLocal requires local index operand".to_string(), None)))
                 }
             }
             
@@ -236,10 +236,10 @@ impl VirtualMachine {
                         self.stack.push(value.clone());
                         Ok(ControlFlow::Continue)
                     } else {
-                        Err(Box::new(Error::runtime_error(format!("Undefined global variable: {}", name), None))
+                        Err(Box::new(Error::runtime_error(format!("Undefined global variable: {name}"), None)))
                     }
                 } else {
-                    Err(Box::new(Error::runtime_error("LoadGlobal requires symbol operand".to_string(), None))
+                    Err(Box::new(Error::runtime_error("LoadGlobal requires symbol operand".to_string(), None)))
                 }
             }
             
@@ -248,7 +248,7 @@ impl VirtualMachine {
                     self.stack.pop();
                     Ok(ControlFlow::Continue)
                 } else {
-                    Err(Box::new(Error::runtime_error("Cannot pop from empty stack".to_string(), None))
+                    Err(Box::new(Error::runtime_error("Cannot pop from empty stack".to_string(), None)))
                 }
             }
             
@@ -263,10 +263,10 @@ impl VirtualMachine {
                             self.stats.optimized_operations += 1;
                             Ok(ControlFlow::Continue)
                         }
-                        _ => Err(Box::new(Error::runtime_error("Addition requires numeric operands".to_string(), None))
+                        _ => Err(Box::new(Error::runtime_error("Addition requires numeric operands".to_string(), None)))
                     }
                 } else {
-                    Err(Box::new(Error::runtime_error("Addition requires 2 operands on stack".to_string(), None))
+                    Err(Box::new(Error::runtime_error("Addition requires 2 operands on stack".to_string(), None)))
                 }
             }
             
@@ -281,10 +281,10 @@ impl VirtualMachine {
                             self.stats.optimized_operations += 1;
                             Ok(ControlFlow::Continue)
                         }
-                        _ => Err(Box::new(Error::runtime_error("Subtraction requires numeric operands".to_string(), None))
+                        _ => Err(Box::new(Error::runtime_error("Subtraction requires numeric operands".to_string(), None)))
                     }
                 } else {
-                    Err(Box::new(Error::runtime_error("Subtraction requires 2 operands on stack".to_string(), None))
+                    Err(Box::new(Error::runtime_error("Subtraction requires 2 operands on stack".to_string(), None)))
                 }
             }
             
@@ -299,10 +299,10 @@ impl VirtualMachine {
                             self.stats.optimized_operations += 1;
                             Ok(ControlFlow::Continue)
                         }
-                        _ => Err(Box::new(Error::runtime_error("Multiplication requires numeric operands".to_string(), None))
+                        _ => Err(Box::new(Error::runtime_error("Multiplication requires numeric operands".to_string(), None)))
                     }
                 } else {
-                    Err(Box::new(Error::runtime_error("Multiplication requires 2 operands on stack".to_string(), None))
+                    Err(Box::new(Error::runtime_error("Multiplication requires 2 operands on stack".to_string(), None)))
                 }
             }
             
@@ -314,7 +314,7 @@ impl VirtualMachine {
                     self.stats.optimized_operations += 1;
                     Ok(ControlFlow::Continue)
                 } else {
-                    Err(Box::new(Error::runtime_error("Cons requires 2 operands on stack".to_string(), None))
+                    Err(Box::new(Error::runtime_error("Cons requires 2 operands on stack".to_string(), None)))
                 }
             }
             
@@ -326,10 +326,10 @@ impl VirtualMachine {
                             self.stats.optimized_operations += 1;
                             Ok(ControlFlow::Continue)
                         }
-                        _ => Err(Box::new(Error::runtime_error("Car requires pair operand".to_string(), None))
+                        _ => Err(Box::new(Error::runtime_error("Car requires pair operand".to_string(), None)))
                     }
                 } else {
-                    Err(Box::new(Error::runtime_error("Car requires 1 operand on stack".to_string(), None))
+                    Err(Box::new(Error::runtime_error("Car requires 1 operand on stack".to_string(), None)))
                 }
             }
             
@@ -341,10 +341,10 @@ impl VirtualMachine {
                             self.stats.optimized_operations += 1;
                             Ok(ControlFlow::Continue)
                         }
-                        _ => Err(Box::new(Error::runtime_error("Cdr requires pair operand".to_string(), None))
+                        _ => Err(Box::new(Error::runtime_error("Cdr requires pair operand".to_string(), None)))
                     }
                 } else {
-                    Err(Box::new(Error::runtime_error("Cdr requires 1 operand on stack".to_string(), None))
+                    Err(Box::new(Error::runtime_error("Cdr requires 1 operand on stack".to_string(), None)))
                 }
             }
             
@@ -359,7 +359,7 @@ impl VirtualMachine {
             
             _ => {
                 // For now, return error for unimplemented instructions
-                Err(Box::new(Error::runtime_error(format!("Unimplemented opcode: {:?}", instruction.opcode), None))
+                Err(Box::new(Error::runtime_error(format!("Unimplemented opcode: {:?}", instruction.opcode), None)))
             }
         }
     }
@@ -371,7 +371,7 @@ impl VirtualMachine {
             ConstantValue::String(s) => Ok(Value::string(s.clone())),
             ConstantValue::Boolean(b) => Ok(Value::boolean(*b)),
             ConstantValue::Symbol(symbol) => Ok(Value::symbol(*symbol)),
-            _ => Err(Box::new(Error::runtime_error("Unsupported constant type".to_string(), None))
+            _ => Err(Box::new(Error::runtime_error("Unsupported constant type".to_string(), None)))
         }
     }
     
@@ -451,7 +451,7 @@ mod tests {
         let mut bytecode = Bytecode::new();
         bytecode.add_instruction(Instruction::with_operand(OpCode::LoadConst, Operand::ConstIndex(const_index)));
         bytecode.add_instruction(Instruction::new(OpCode::Halt));
-        bytecode.constants = constant_pool.clone());
+        bytecode.constants = constant_pool.clone();
         
         let result = vm.execute(&bytecode, &constant_pool).unwrap();
         
@@ -474,7 +474,7 @@ mod tests {
         bytecode.add_instruction(Instruction::with_operand(OpCode::LoadConst, Operand::ConstIndex(const2)));
         bytecode.add_instruction(Instruction::new(OpCode::Add));
         bytecode.add_instruction(Instruction::new(OpCode::Halt));
-        bytecode.constants = constant_pool.clone());
+        bytecode.constants = constant_pool.clone();
         
         let result = vm.execute(&bytecode, &constant_pool).unwrap();
         
@@ -503,7 +503,7 @@ mod tests {
         // Get car
         bytecode.add_instruction(Instruction::new(OpCode::Car));
         bytecode.add_instruction(Instruction::new(OpCode::Halt));
-        bytecode.constants = constant_pool.clone());
+        bytecode.constants = constant_pool.clone();
         
         let result = vm.execute(&bytecode, &constant_pool).unwrap();
         

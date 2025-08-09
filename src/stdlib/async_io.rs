@@ -14,6 +14,7 @@ use crate::eval::value::{
 };
 use crate::effects::Effect;
 use std::sync::Arc;
+use std::sync::OnceLock;
 
 #[cfg(feature = "async")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncBufReadExt};
@@ -72,16 +73,12 @@ impl AsyncIoRuntime {
 }
 
 /// Global async runtime instance
-static mut ASYNC_RUNTIME: Option<AsyncIoRuntime> = None;
-static RUNTIME_INIT: std::sync::Once = std::sync::Once::new();
+static ASYNC_RUNTIME: OnceLock<AsyncIoRuntime> = OnceLock::new();
 
 pub fn get_async_runtime() -> &'static AsyncIoRuntime {
-    unsafe {
-        RUNTIME_INIT.call_once(|| {
-            ASYNC_RUNTIME = Some(AsyncIoRuntime::new().expect("Failed to create async runtime"));
-        });
-        ASYNC_RUNTIME.as_ref().unwrap()
-    }
+    ASYNC_RUNTIME.get_or_init(|| {
+        AsyncIoRuntime::new().expect("Failed to create async runtime")
+    })
 }
 
 /// Creates async I/O operation bindings.
@@ -233,10 +230,10 @@ fn bind_future_operations(env: &Arc<ThreadSafeEnvironment>) {
 #[cfg(feature = "async")]
 pub fn primitive_async_read_file(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("async-read-file expects 1 or 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "async-read-file")?;
@@ -248,53 +245,54 @@ pub fn primitive_async_read_file(args: &[Value]) -> Result<Value> {
     
     let runtime = get_async_runtime();
     
-    let result = runtime.block_on(async move {
+    runtime.block_on(async move {
         if as_binary {
             match AsyncFile::open(&path).await {
                 Ok(mut file) => {
                     let mut contents = Vec::new();
                     match file.read_to_end(&mut contents).await {
                         Ok(_) => Ok(Value::bytevector(contents)),
-                        Err(e) => Err(DiagnosticError::runtime_error(
-                            format!("Error reading file '{}': {}", path, e),
+                        Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                            format!("Error reading file '{path}': {e}"),
                             None,
-                        )),
+                        ))),
                     }
                 }
-                Err(e) => Err(DiagnosticError::runtime_error(
-                    format!("Cannot open file '{}': {}", path, e),
+                Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot open file '{path}': {e}"),
                     None,
-                )),
+                ))),
             }
         } else {
             match tokio::fs::read_to_string(&path).await {
                 Ok(contents) => Ok(Value::string(contents)),
-                Err(e) => Err(DiagnosticError::runtime_error(
-                    format!("Error reading file '{}': {}", path, e),
+                Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Error reading file '{path}': {e}"),
                     None,
-                )),
+                ))),
             }
         }
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_async_read_file(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "async-read-file requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_async_write_file(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
-            format!("async-write-file expects 2 or 3 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            {
+                let arg_count = args.len();
+                format!("async-write-file expects 2 or 3 arguments, got {arg_count}")
+            },
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "async-write-file")?;
@@ -306,14 +304,14 @@ pub fn primitive_async_write_file(args: &[Value]) -> Result<Value> {
     
     let runtime = get_async_runtime();
     
-    let result = runtime.block_on(async move {
+    runtime.block_on(async move {
         if create_dirs {
             if let Some(parent) = std::path::Path::new(&path).parent() {
                 if let Err(e) = tokio::fs::create_dir_all(parent).await {
-                    return Err(DiagnosticError::runtime_error(
-                        format!("Cannot create parent directories for '{}': {}", path, e),
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Cannot create parent directories for '{path}': {e}"),
                         None,
-                    ));
+                    )));
                 }
             }
         }
@@ -322,53 +320,56 @@ pub fn primitive_async_write_file(args: &[Value]) -> Result<Value> {
             Value::Literal(crate::ast::Literal::String(content)) => {
                 match tokio::fs::write(&path, content).await {
                     Ok(()) => Ok(Value::Unspecified),
-                    Err(e) => Err(DiagnosticError::runtime_error(
-                        format!("Error writing to file '{}': {}", path, e),
+                    Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Error writing to file '{path}': {e}"),
                         None,
-                    )),
+                    ))),
                 }
             }
             Value::Literal(crate::ast::Literal::Bytevector(content)) => {
                 match tokio::fs::write(&path, content).await {
                     Ok(()) => Ok(Value::Unspecified),
-                    Err(e) => Err(DiagnosticError::runtime_error(
-                        format!("Error writing to file '{}': {}", path, e),
+                    Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Error writing to file '{path}': {e}"),
                         None,
-                    )),
+                    ))),
                 }
             }
-            _ => Err(DiagnosticError::runtime_error(
+            _ => Err(Box::new(DiagnosticError::runtime_error(
                 "async-write-file requires string or bytevector content".to_string(),
                 None,
-            )),
+            ))),
         }
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_async_write_file(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "async-write-file requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_async_append_file(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("async-append-file expects 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            {
+                let arg_count = args.len();
+                format!("async-append-file expects 2 arguments, got {arg_count}")
+            },
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "async-append-file")?;
     
     let runtime = get_async_runtime();
     
-    let result = runtime.block_on(async move {
+    
+    
+    runtime.block_on(async move {
         let mut file = match tokio::fs::OpenOptions::new()
             .create(true)
             .append(true)
@@ -377,10 +378,10 @@ pub fn primitive_async_append_file(args: &[Value]) -> Result<Value> {
         {
             Ok(file) => file,
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot open file '{}' for appending: {}", path, e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot open file '{path}' for appending: {e}"),
                     None,
-                ));
+                )));
             }
         };
         
@@ -390,16 +391,16 @@ pub fn primitive_async_append_file(args: &[Value]) -> Result<Value> {
                     Ok(()) => {
                         match file.flush().await {
                             Ok(()) => Ok(Value::Unspecified),
-                            Err(e) => Err(DiagnosticError::runtime_error(
-                                format!("Error flushing file '{}': {}", path, e),
+                            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                                format!("Error flushing file '{path}': {e}"),
                                 None,
-                            )),
+                            ))),
                         }
                     }
-                    Err(e) => Err(DiagnosticError::runtime_error(
-                        format!("Error appending to file '{}': {}", path, e),
+                    Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Error appending to file '{path}': {e}"),
                         None,
-                    )),
+                    ))),
                 }
             }
             Value::Literal(crate::ast::Literal::Bytevector(content)) => {
@@ -407,43 +408,44 @@ pub fn primitive_async_append_file(args: &[Value]) -> Result<Value> {
                     Ok(()) => {
                         match file.flush().await {
                             Ok(()) => Ok(Value::Unspecified),
-                            Err(e) => Err(DiagnosticError::runtime_error(
-                                format!("Error flushing file '{}': {}", path, e),
+                            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                                format!("Error flushing file '{path}': {e}"),
                                 None,
-                            )),
+                            ))),
                         }
                     }
-                    Err(e) => Err(DiagnosticError::runtime_error(
-                        format!("Error appending to file '{}': {}", path, e),
+                    Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Error appending to file '{path}': {e}"),
                         None,
-                    )),
+                    ))),
                 }
             }
-            _ => Err(DiagnosticError::runtime_error(
+            _ => Err(Box::new(DiagnosticError::runtime_error(
                 "async-append-file requires string or bytevector content".to_string(),
                 None,
-            )),
+            ))),
         }
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_async_append_file(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "async-append-file requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_async_copy_file(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
-            format!("async-copy-file expects 2 or 3 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            {
+                let arg_count = args.len();
+                format!("async-copy-file expects 2 or 3 arguments, got {arg_count}")
+            },
             None,
-        ));
+        )));
     }
     
     let src = extract_string(&args[0], "async-copy-file")?;
@@ -456,32 +458,32 @@ pub fn primitive_async_copy_file(args: &[Value]) -> Result<Value> {
     
     let runtime = get_async_runtime();
     
-    let result = runtime.block_on(async move {
+    
+    
+    runtime.block_on(async move {
         if !overwrite && tokio::fs::try_exists(&dst).await.unwrap_or(true) {
-            return Err(DiagnosticError::runtime_error(
-                format!("Destination file '{}' already exists", dst),
+            return Err(Box::new(DiagnosticError::runtime_error(
+                format!("Destination file '{dst}' already exists"),
                 None,
-            ));
+            )));
         }
         
         match tokio::fs::copy(&src, &dst).await {
             Ok(bytes_copied) => Ok(Value::integer(bytes_copied as i64)),
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Cannot copy file '{}' to '{}': {}", src, dst, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Cannot copy file '{src}' to '{dst}': {e}"),
                 None,
-            )),
+            ))),
         }
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_async_copy_file(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "async-copy-file requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Async Buffered Operations ===
@@ -489,10 +491,13 @@ pub fn primitive_async_copy_file(_args: &[Value]) -> Result<Value> {
 #[cfg(feature = "async")]
 pub fn primitive_async_read_lines(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
-            format!("async-read-lines expects 1 or 2 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            {
+                let arg_count = args.len();
+                format!("async-read-lines expects 1 or 2 arguments, got {arg_count}")
+            },
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "async-read-lines")?;
@@ -504,14 +509,16 @@ pub fn primitive_async_read_lines(args: &[Value]) -> Result<Value> {
     
     let runtime = get_async_runtime();
     
-    let result = runtime.block_on(async move {
+    
+    
+    runtime.block_on(async move {
         let file = match AsyncFile::open(&path).await {
             Ok(file) => file,
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot open file '{}': {}", path, e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot open file '{path}': {e}"),
                     None,
-                ));
+                )));
             }
         };
         
@@ -521,10 +528,10 @@ pub fn primitive_async_read_lines(args: &[Value]) -> Result<Value> {
         let mut count = 0;
         
         while let Some(line) = lines.next_line().await.map_err(|e| {
-            DiagnosticError::runtime_error(
-                format!("Error reading line from file '{}': {}", path, e),
+            Box::new(DiagnosticError::runtime_error(
+                format!("Error reading line from file '{path}': {e}"),
                 None,
-            )
+            ))
         })? {
             result.push(Value::string(line));
             count += 1;
@@ -537,26 +544,27 @@ pub fn primitive_async_read_lines(args: &[Value]) -> Result<Value> {
         }
         
         Ok(list_to_value(result))
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_async_read_lines(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "async-read-lines requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_async_read_chunks(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
-            format!("async-read-chunks expects 2 or 3 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            {
+                let arg_count = args.len();
+                format!("async-read-chunks expects 2 or 3 arguments, got {arg_count}")
+            },
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "async-read-chunks")?;
@@ -569,14 +577,16 @@ pub fn primitive_async_read_chunks(args: &[Value]) -> Result<Value> {
     
     let runtime = get_async_runtime();
     
-    let result = runtime.block_on(async move {
+    
+    
+    runtime.block_on(async move {
         let mut file = match AsyncFile::open(&path).await {
             Ok(file) => file,
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot open file '{}': {}", path, e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot open file '{path}': {e}"),
                     None,
-                ));
+                )));
             }
         };
         
@@ -599,35 +609,36 @@ pub fn primitive_async_read_chunks(args: &[Value]) -> Result<Value> {
                     }
                 }
                 Err(e) => {
-                    return Err(DiagnosticError::runtime_error(
-                        format!("Error reading chunk from file '{}': {}", path, e),
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        format!("Error reading chunk from file '{path}': {e}"),
                         None,
-                    ));
+                    )));
                 }
             }
         }
         
         Ok(list_to_value(result))
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_async_read_chunks(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "async-read-chunks requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 #[cfg(feature = "async")]
 pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
-            format!("async-write-chunks expects 2 or 3 arguments, got {}", args.len()),
+        return Err(Box::new(DiagnosticError::runtime_error(
+            {
+                let arg_count = args.len();
+                format!("async-write-chunks expects 2 or 3 arguments, got {arg_count}")
+            },
             None,
-        ));
+        )));
     }
     
     let path = extract_string(&args[0], "async-write-chunks")?;
@@ -640,7 +651,9 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
     
     let runtime = get_async_runtime();
     
-    let result = runtime.block_on(async move {
+    
+    
+    runtime.block_on(async move {
         let file = if append {
             tokio::fs::OpenOptions::new()
                 .create(true)
@@ -659,10 +672,10 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
         let mut file = match file {
             Ok(file) => file,
             Err(e) => {
-                return Err(DiagnosticError::runtime_error(
-                    format!("Cannot open file '{}': {}", path, e),
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Cannot open file '{path}': {e}"),
                     None,
-                ));
+                )));
             }
         };
         
@@ -674,10 +687,10 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
                     match file.write_all(&bytes).await {
                         Ok(()) => total_written += bytes.len() as u64,
                         Err(e) => {
-                            return Err(DiagnosticError::runtime_error(
-                                format!("Error writing chunk to file '{}': {}", path, e),
+                            return Err(Box::new(DiagnosticError::runtime_error(
+                                format!("Error writing chunk to file '{path}': {e}"),
                                 None,
-                            ));
+                            )));
                         }
                     }
                 }
@@ -685,40 +698,38 @@ pub fn primitive_async_write_chunks(args: &[Value]) -> Result<Value> {
                     match file.write_all(text.as_bytes()).await {
                         Ok(()) => total_written += text.len() as u64,
                         Err(e) => {
-                            return Err(DiagnosticError::runtime_error(
-                                format!("Error writing chunk to file '{}': {}", path, e),
+                            return Err(Box::new(DiagnosticError::runtime_error(
+                                format!("Error writing chunk to file '{path}': {e}"),
                                 None,
-                            ));
+                            )));
                         }
                     }
                 }
                 _ => {
-                    return Err(DiagnosticError::runtime_error(
+                    return Err(Box::new(DiagnosticError::runtime_error(
                         "async-write-chunks requires bytevector or string chunks".to_string(),
                         None,
-                    ));
+                    )));
                 }
             }
         }
         
         match file.flush().await {
             Ok(()) => Ok(Value::integer(total_written as i64)),
-            Err(e) => Err(DiagnosticError::runtime_error(
-                format!("Error flushing file '{}': {}", path, e),
+            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                format!("Error flushing file '{path}': {e}"),
                 None,
-            )),
+            ))),
         }
-    });
-    
-    result
+    })
 }
 
 #[cfg(not(feature = "async"))]
 pub fn primitive_async_write_chunks(_args: &[Value]) -> Result<Value> {
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "async-write-chunks requires async feature".to_string(),
         None,
-    ))
+    )))
 }
 
 // === High-performance Operations ===
@@ -727,18 +738,18 @@ pub fn primitive_io_uring_read(_args: &[Value]) -> Result<Value> {
     // TODO: Implement io_uring-based reading for Linux
     #[cfg(target_os = "linux")]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "io-uring-read not yet implemented".to_string(),
             None,
-        ))
+        )))
     }
     
     #[cfg(not(target_os = "linux"))]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "io-uring-read is only available on Linux".to_string(),
             None,
-        ))
+        )))
     }
 }
 
@@ -746,53 +757,53 @@ pub fn primitive_io_uring_write(_args: &[Value]) -> Result<Value> {
     // TODO: Implement io_uring-based writing for Linux
     #[cfg(target_os = "linux")]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "io-uring-write not yet implemented".to_string(),
             None,
-        ))
+        )))
     }
     
     #[cfg(not(target_os = "linux"))]
     {
-        Err(DiagnosticError::runtime_error(
+        Err(Box::new(DiagnosticError::runtime_error(
             "io-uring-write is only available on Linux".to_string(),
             None,
-        ))
+        )))
     }
 }
 
 pub fn primitive_batch_io_operations(_args: &[Value]) -> Result<Value> {
     // TODO: Implement batched I/O operations
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "batch-io-operations not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // === Future Operations ===
 
 pub fn primitive_await_future(_args: &[Value]) -> Result<Value> {
     // TODO: Implement future awaiting
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "await-future not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_spawn_task(_args: &[Value]) -> Result<Value> {
     // TODO: Implement task spawning
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "spawn-task not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 pub fn primitive_join_tasks(_args: &[Value]) -> Result<Value> {
     // TODO: Implement task joining
-    Err(DiagnosticError::runtime_error(
+    Err(Box::new(DiagnosticError::runtime_error(
         "join-tasks not yet implemented".to_string(),
         None,
-    ))
+    )))
 }
 
 // ============= HELPER FUNCTIONS =============
@@ -801,10 +812,10 @@ pub fn primitive_join_tasks(_args: &[Value]) -> Result<Value> {
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
         Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires string arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -812,10 +823,10 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
 fn extract_boolean(value: &Value, operation: &str) -> Result<bool> {
     match value {
         Value::Literal(crate::ast::Literal::Boolean(b)) => Ok(*b),
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires boolean arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires boolean arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -826,16 +837,16 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
             if let Some(i) = lit.to_i64() {
                 Ok(i)
             } else {
-                Err(DiagnosticError::runtime_error(
-                    format!("{} requires integer arguments", operation),
+                Err(Box::new(DiagnosticError::runtime_error(
+                    format!("{operation} requires integer arguments"),
                     None,
-                ))
+                )))
             }
         }
-        _ => Err(DiagnosticError::runtime_error(
-            format!("{} requires integer arguments", operation),
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires integer arguments"),
             None,
-        )),
+        ))),
     }
 }
 
@@ -848,10 +859,10 @@ fn extract_list(value: &Value, operation: &str) -> Result<Vec<Value>> {
                 acc.push((**car).clone());
                 list_to_vec(cdr, acc)
             }
-            _ => Err(DiagnosticError::runtime_error(
+            _ => Err(Box::new(DiagnosticError::runtime_error(
                 "Invalid list structure".to_string(),
                 None,
-            )),
+            ))),
         }
     }
     

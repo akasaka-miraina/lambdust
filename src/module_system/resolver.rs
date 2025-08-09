@@ -34,7 +34,7 @@ impl DependencyResolver {
         self.detect_circular_dependencies(&module.id, &module.dependencies)?;
         
         // Cache the resolved order
-        self.dependency_cache.insert(module.id.clone()), dependency_order);
+        self.dependency_cache.insert(module.id.clone(), dependency_order);
         
         // Return the module (dependencies would be loaded by the module loader)
         Ok(module)
@@ -71,6 +71,7 @@ impl DependencyResolver {
     }
 
     /// Performs depth-first search for cycle detection.
+    #[allow(clippy::only_used_in_recursion)]
     fn dfs_cycle_detection(
         &self,
         current_id: &ModuleId,
@@ -95,11 +96,11 @@ impl DependencyResolver {
             } else if recursion_stack.contains(dep_id) {
                 // Found a cycle - create error with cycle path
                 let cycle_start = path.iter().position(|id| id == dep_id).unwrap_or(0);
-                let cycle: Vec<ModuleId> = path[cycle_start..].iter().clone())()
+                let cycle: Vec<ModuleId> = path[cycle_start..].iter().cloned()
                     .chain(std::iter::once(dep_id.clone()))
                     .collect();
                 
-                return Err(Box::new(Error::from(ModuleError::CircularDependency(cycle).boxed()));
+                return Err(Box::new(Error::from(ModuleError::CircularDependency(cycle))));
             }
         }
 
@@ -128,8 +129,8 @@ impl DependencyResolver {
             for dep_id in &module.dependencies {
                 if !modules.contains_key(dep_id) {
                     errors.push(DependencyValidationError::MissingDependency {
-                        module: module_id.clone()),
-                        dependency: dep_id.clone()),
+                        module: module_id.clone(),
+                        dependency: dep_id.clone(),
                     });
                 }
             }
@@ -171,6 +172,7 @@ impl DependencyResolver {
     }
 
     /// DFS cycle detection for complete module graph.
+    #[allow(clippy::only_used_in_recursion)]
     fn dfs_cycle_detection_graph(
         &self,
         current_id: &ModuleId,
@@ -190,11 +192,11 @@ impl DependencyResolver {
                 } else if recursion_stack.contains(dep_id) {
                     // Found cycle
                     let cycle_start = path.iter().position(|id| id == dep_id).unwrap_or(0);
-                    let cycle: Vec<ModuleId> = path[cycle_start..].iter().clone())()
+                    let cycle: Vec<ModuleId> = path[cycle_start..].iter().cloned()
                         .chain(std::iter::once(dep_id.clone()))
                         .collect();
                     
-                    return Err(Box::new(Error::from(ModuleError::CircularDependency(cycle).boxed()));
+                    return Err(Box::new(Error::from(ModuleError::CircularDependency(cycle))));
                 }
             }
         }
@@ -266,7 +268,7 @@ impl std::fmt::Display for DependencyValidationError {
                     .map(super::format_module_id)
                     .collect::<Vec<_>>()
                     .join(" -> ");
-                write!(f, "Circular dependency: {}", cycle_str)
+                write!(f, "Circular dependency: {cycle_str}")
             }
         }
     }

@@ -86,7 +86,7 @@ impl TextRegex {
         builder.swap_greed(flags.swap_greed);
         
         let regex = builder.build().map_err(|e| DiagnosticError::runtime_error(
-            format!("Invalid regex pattern: {}", e),
+            format!("Invalid regex pattern: {e}"),
             None
         ))?;
         
@@ -122,7 +122,7 @@ impl TextRegex {
             let end_char = start_char + self.pattern.chars().count();
             
             Some(TextMatchResult {
-                matched_text: Text::from_str(&self.pattern),
+                matched_text: Text::from_string_slice(&self.pattern),
                 start: start_char,
                 end: end_char,
                 groups: vec![],
@@ -436,17 +436,17 @@ fn bind_regex_splitting(env: &Arc<ThreadSafeEnvironment>) {
 /// regex-compile operation
 fn primitive_regex_compile(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("regex-compile expects 1-2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "regex-compile pattern must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let flags = if args.len() > 1 {
@@ -460,44 +460,44 @@ fn primitive_regex_compile(args: &[Value]) -> Result<Value> {
     
     // For now, we'll store the regex as a foreign object
     // In a complete implementation, we'd have a proper regex value type
-    Ok(Value::string(format!("regex:{}", pattern)))
+    Ok(Value::string(format!("regex:{pattern}")))
 }
 
 /// regex-compile-ci operation
 fn primitive_regex_compile_ci(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("regex-compile-ci expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "regex-compile-ci pattern must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let regex = TextRegex::with_flags(pattern, RegexFlags::case_insensitive())?;
     
-    Ok(Value::string(format!("regex-ci:{}", pattern)))
+    Ok(Value::string(format!("regex-ci:{pattern}")))
 }
 
 /// regex-match? predicate
 fn primitive_regex_match_p(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("regex-match? expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "regex-match? pattern must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let text = Text::try_from(&args[1])?;
@@ -509,17 +509,17 @@ fn primitive_regex_match_p(args: &[Value]) -> Result<Value> {
 /// regex-search operation
 fn primitive_regex_search(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("regex-search expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "regex-search pattern must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let text = Text::try_from(&args[1])?;
@@ -528,7 +528,7 @@ fn primitive_regex_search(args: &[Value]) -> Result<Value> {
     match regex.find(&text) {
         Some(match_result) => {
             // Return a match object - for now, return the matched text
-            Ok(match_result.matched_text)
+            Ok(match_result.matched_text.into())
         }
         None => Ok(Value::boolean(false)),
     }
@@ -537,17 +537,17 @@ fn primitive_regex_search(args: &[Value]) -> Result<Value> {
 /// regex-search-all operation
 fn primitive_regex_search_all(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("regex-search-all expects 2 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "regex-search-all pattern must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let text = Text::try_from(&args[1])?;
@@ -556,7 +556,7 @@ fn primitive_regex_search_all(args: &[Value]) -> Result<Value> {
     let matches = regex.find_all(&text);
     let match_values: Vec<Value> = matches
         .into_iter()
-        .map(|m| m.matched_text)
+        .map(|m| m.matched_text.into())
         .collect();
     
     Ok(Value::list(match_values))
@@ -565,17 +565,17 @@ fn primitive_regex_search_all(args: &[Value]) -> Result<Value> {
 /// regex-replace operation
 fn primitive_regex_replace(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("regex-replace expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "regex-replace pattern must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let text = Text::try_from(&args[1])?;
@@ -584,23 +584,23 @@ fn primitive_regex_replace(args: &[Value]) -> Result<Value> {
     let regex = TextRegex::new(pattern)?;
     let result = regex.replace(&text, &replacement);
     
-    Ok(result)
+    Ok(result.into())
 }
 
 /// regex-replace-all operation
 fn primitive_regex_replace_all(args: &[Value]) -> Result<Value> {
     if args.len() != 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("regex-replace-all expects 3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "regex-replace-all pattern must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let text = Text::try_from(&args[1])?;
@@ -609,23 +609,23 @@ fn primitive_regex_replace_all(args: &[Value]) -> Result<Value> {
     let regex = TextRegex::new(pattern)?;
     let result = regex.replace_all(&text, &replacement);
     
-    Ok(result)
+    Ok(result.into())
 }
 
 /// regex-split operation
 fn primitive_regex_split(args: &[Value]) -> Result<Value> {
     if args.len() < 2 || args.len() > 3 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("regex-split expects 2-3 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
     
     let pattern = args[0].as_string().ok_or_else(|| {
-        DiagnosticError::runtime_error(
+        Box::new(DiagnosticError::runtime_error(
             "regex-split pattern must be a string".to_string(),
             None,
-        )
+        ))
     })?;
     
     let text = Text::try_from(&args[1])?;
@@ -633,10 +633,10 @@ fn primitive_regex_split(args: &[Value]) -> Result<Value> {
     
     let parts = if args.len() > 2 {
         let limit = args[2].as_integer().ok_or_else(|| {
-            DiagnosticError::runtime_error(
+            Box::new(DiagnosticError::runtime_error(
                 "regex-split limit must be an integer".to_string(),
                 None,
-            )
+            ))
         })? as usize;
         regex.splitn(&text, limit)
     } else {
@@ -660,7 +660,7 @@ mod tests {
     #[test]
     fn test_regex_matching() {
         let regex = TextRegex::new(r"\d+").unwrap();
-        let text = Text::from_str("abc123def");
+        let text = Text::from_string_slice("abc123def");
         
         assert!(regex.is_match(&text));
         
@@ -673,8 +673,8 @@ mod tests {
     #[test]
     fn test_regex_replacement() {
         let regex = TextRegex::new(r"\d+").unwrap();
-        let text = Text::from_str("abc123def456");
-        let replacement = Text::from_str("XXX");
+        let text = Text::from_string_slice("abc123def456");
+        let replacement = Text::from_string_slice("XXX");
         
         let result = regex.replace(&text, &replacement);
         assert_eq!(result.to_string(), "abcXXXdef456");
@@ -686,7 +686,7 @@ mod tests {
     #[test]
     fn test_regex_splitting() {
         let regex = TextRegex::new(r",\s*").unwrap();
-        let text = Text::from_str("a, b, c, d");
+        let text = Text::from_string_slice("a, b, c, d");
         
         let parts = regex.split(&text);
         assert_eq!(parts.len(), 4);
@@ -699,7 +699,7 @@ mod tests {
     #[test]
     fn test_case_insensitive_regex() {
         let regex = TextRegex::with_flags(r"hello", RegexFlags::case_insensitive()).unwrap();
-        let text = Text::from_str("Hello World");
+        let text = Text::from_string_slice("Hello World");
         
         assert!(regex.is_match(&text));
         
@@ -710,7 +710,7 @@ mod tests {
     #[test]
     fn test_named_groups() {
         let regex = TextRegex::new(r"(?P<word>\w+)\s+(?P<number>\d+)").unwrap();
-        let text = Text::from_str("hello 123");
+        let text = Text::from_string_slice("hello 123");
         
         let match_result = regex.find(&text).unwrap();
         

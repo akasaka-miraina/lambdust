@@ -218,7 +218,7 @@ impl GlobalEnvironmentManager {
     /// Gets the thread-local environment for the given thread.
     pub fn get_thread_local_env(&self, thread_id: ThreadId) -> Option<Arc<ThreadSafeEnvironment>> {
         let thread_envs = self.thread_local_envs.read().unwrap();
-        thread_envs.get(&thread_id).clone())()
+        thread_envs.get(&thread_id).cloned()
     }
 
     /// Defines a global variable that is accessible to all threads.
@@ -246,13 +246,13 @@ impl GlobalEnvironmentManager {
         // Record the old value for potential rollback
         let old_value = {
             let globals = self.global_definitions.read().unwrap();
-            globals.get(&name).clone())()
+            globals.get(&name).cloned()
         };
         
         // Make the change
         {
             let mut globals = self.global_definitions.write().unwrap();
-            globals.insert(name.clone()), value.clone());
+            globals.insert(name.clone(), value.clone());
         }
         
         // Record the change in the transaction
@@ -286,7 +286,7 @@ impl GlobalEnvironmentManager {
 
     /// Gets the root environment.
     pub fn root_environment(&self) -> Arc<ThreadSafeEnvironment> {
-        self.root_environment.clone())
+        self.root_environment.clone()
     }
 
     /// Gets the current global generation.
@@ -321,13 +321,13 @@ impl GlobalEnvironmentManager {
     /// Lists all global variable names.
     pub fn global_variable_names(&self) -> Vec<String> {
         let globals = self.global_definitions.read().unwrap();
-        globals.keys().clone())().collect()
+        globals.keys().cloned().collect()
     }
 
     /// Gets a snapshot of all global variables.
     pub fn global_variables_snapshot(&self) -> HashMap<String, Value> {
         let globals = self.global_definitions.read().unwrap();
-        globals.clone())
+        globals.clone()
     }
 
     /// Clears all global variable definitions (but not root environment).
@@ -373,7 +373,7 @@ impl GlobalEnvironmentManager {
         
         let global_definitions = {
             let globals = self.global_definitions.read().unwrap();
-            globals.clone())
+            globals.clone()
         };
         
         let thread_local_envs = {
@@ -413,7 +413,7 @@ impl GlobalEnvironmentManager {
                 // Restore the old value
                 if let Some(ref old_value) = change.old_value {
                     let mut globals = self.global_definitions.write().unwrap();
-                    globals.insert(change.variable_name.clone()), old_value.clone());
+                    globals.insert(change.variable_name.clone(), old_value.clone());
                 } else {
                     // Old value was None, so remove the variable
                     let mut globals = self.global_definitions.write().unwrap();
@@ -424,7 +424,7 @@ impl GlobalEnvironmentManager {
                 // Restore the deleted value
                 if let Some(ref old_value) = change.old_value {
                     let mut globals = self.global_definitions.write().unwrap();
-                    globals.insert(change.variable_name.clone()), old_value.clone());
+                    globals.insert(change.variable_name.clone(), old_value.clone());
                 }
             }
         }
@@ -442,12 +442,12 @@ impl Default for GlobalEnvironmentManager {
 impl Clone for GlobalEnvironmentManager {
     fn clone(&self) -> Self {
         Self {
-            root_environment: self.root_environment.clone()),
-            thread_local_envs: self.thread_local_envs.clone()),
-            global_definitions: self.global_definitions.clone()),
-            global_generation: self.global_generation.clone()),
-            transaction_manager: self.transaction_manager.clone()),
-            snapshot_manager: self.snapshot_manager.clone()),
+            root_environment: self.root_environment.clone(),
+            thread_local_envs: self.thread_local_envs.clone(),
+            global_definitions: self.global_definitions.clone(),
+            global_generation: self.global_generation.clone(),
+            transaction_manager: self.transaction_manager.clone(),
+            snapshot_manager: self.snapshot_manager.clone(),
         }
     }
 }
@@ -510,11 +510,11 @@ impl TransactionManager {
     pub fn get_transaction(&self, transaction_id: u64) -> Result<StateTransaction> {
         let transactions = self.active_transactions.read().unwrap();
         transactions.get(&transaction_id)
-            .clone())()
+            .cloned()
             .ok_or_else(|| crate::diagnostics::Error::runtime_error(
-                format!("Transaction {} not found", transaction_id),
+                format!("Transaction {transaction_id} not found"),
                 None
-            ))
+            ).boxed())
     }
     
     /// Adds a change to a transaction.
@@ -530,9 +530,9 @@ impl TransactionManager {
             Ok(())
         } else {
             Err(crate::diagnostics::Error::runtime_error(
-                format!("Transaction {} not found", transaction_id),
+                format!("Transaction {transaction_id} not found"),
                 None
-            ))
+            ).boxed())
         }
     }
     
@@ -545,9 +545,9 @@ impl TransactionManager {
             Ok(())
         } else {
             Err(crate::diagnostics::Error::runtime_error(
-                format!("Transaction {} not found", transaction_id),
+                format!("Transaction {transaction_id} not found"),
                 None
-            ))
+            ).boxed())
         }
     }
     
@@ -560,9 +560,9 @@ impl TransactionManager {
             Ok(())
         } else {
             Err(crate::diagnostics::Error::runtime_error(
-                format!("Transaction {} not found", transaction_id),
+                format!("Transaction {transaction_id} not found"),
                 None
-            ))
+            ).boxed())
         }
     }
     
@@ -636,7 +636,7 @@ impl StateSnapshotManager {
     #[allow(dead_code)] // Part of Stage 3 snapshot infrastructure
     pub fn get_snapshot(&self, generation: Generation) -> Option<EnvironmentSnapshot> {
         let snapshots = self.environment_snapshots.read().unwrap();
-        snapshots.get(&generation).clone())()
+        snapshots.get(&generation).cloned()
     }
     
     /// Finds the latest snapshot at or before the given generation.
@@ -645,14 +645,12 @@ impl StateSnapshotManager {
         let mut best_generation = None;
         
         for &snap_generation in snapshots.keys() {
-            if snap_generation <= generation {
-                if best_generation.is_none() || snap_generation > best_generation.unwrap() {
-                    best_generation = Some(snap_generation);
-                }
+            if snap_generation <= generation && (best_generation.is_none() || snap_generation > best_generation.unwrap()) {
+                best_generation = Some(snap_generation);
             }
         }
         
-        best_generation.and_then(|generation| snapshots.get(&generation).clone())())
+        best_generation.and_then(|generation| snapshots.get(&generation).cloned())
     }
     
     /// Rolls back to a specific generation.
@@ -664,7 +662,7 @@ impl StateSnapshotManager {
         // Find the appropriate snapshot
         let snapshot = self.find_snapshot_before(target_generation)
             .ok_or_else(|| crate::diagnostics::Error::runtime_error(
-                format!("No snapshot found for generation {}", target_generation),
+                format!("No snapshot found for generation {target_generation}"),
                 None
             ))?;
         

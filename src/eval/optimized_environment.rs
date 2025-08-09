@@ -193,8 +193,8 @@ impl OptimizedEnvironment {
     /// Sets a variable (updates existing binding or creates new one)
     pub fn set(&mut self, symbol: SymbolId, value: Value) -> Result<(), String> {
         // Try to update local binding first
-        if self.bindings.contains_key(&symbol) {
-            self.bindings.insert(symbol, value.clone());
+        if let std::collections::hash_map::Entry::Occupied(mut entry) = self.bindings.entry(symbol) {
+            entry.insert(value.clone());
             
             // Update cache
             if let Ok(mut cache) = self.cache.write() {
@@ -206,10 +206,10 @@ impl OptimizedEnvironment {
         
         // Try to update in parent environments
         if let Some(ref parent) = self.parent {
-            return self.set_in_parent(symbol, value, parent.clone()), 1);
+            return self.set_in_parent(symbol, value, parent.clone(), 1);
         }
         
-        Err(format!("Undefined variable: {:?}", symbol))
+        Err(format!("Undefined variable: {symbol:?}"))
     }
     
     /// Looks up a variable value with optimized caching
@@ -225,7 +225,7 @@ impl OptimizedEnvironment {
         if let Some(value) = self.bindings.get(&symbol) {
             // Cache the result
             if let Ok(mut cache) = self.cache.write() {
-                cache.insert(symbol, value.clone()), self.generation, 0);
+                cache.insert(symbol, value.clone(), self.generation, 0);
             }
             return Some(value.clone());
         }
@@ -235,7 +235,7 @@ impl OptimizedEnvironment {
             if let Some(value) = parent.lookup_with_depth(symbol, 1) {
                 // Cache the result with appropriate depth
                 if let Ok(mut cache) = self.cache.write() {
-                    cache.insert(symbol, value.clone()), self.generation, 1);
+                    cache.insert(symbol, value.clone(), self.generation, 1);
                 }
                 return Some(value);
             }
@@ -245,7 +245,7 @@ impl OptimizedEnvironment {
     }
     
     /// Internal lookup with depth tracking for cache optimization
-    fn lookup_with_depth(&self, symbol: SymbolId, current_depth: usize) -> Option<Value> {
+    fn lookup_with_depth(&self, symbol: SymbolId, _current_depth: usize) -> Option<Value> {
         // Check local bindings
         if let Some(value) = self.bindings.get(&symbol) {
             return Some(value.clone());
@@ -253,7 +253,7 @@ impl OptimizedEnvironment {
         
         // Check parent environments
         if let Some(ref parent) = self.parent {
-            parent.lookup_with_depth(symbol, current_depth + 1)
+            parent.lookup_with_depth(symbol, _current_depth + 1)
         } else {
             None
         }
@@ -340,7 +340,7 @@ impl OptimizedEnvironment {
             for &(symbol, access_count) in hot_variables.iter().take(20) {
                 if let Some(value) = self.bindings.get(&symbol) {
                     let entry = CacheEntry {
-                        value: value.clone()),
+                        value: value.clone(),
                         generation: self.generation,
                         depth: 0,
                         access_count,
@@ -378,7 +378,7 @@ impl OptimizedEnvironment {
         
         if let Ok(cache) = self.cache.read() {
             let (hits, misses, hit_rate) = cache.stats();
-            info.push_str(&format!("Cache: {} hits, {} misses, {:.1}% hit rate\n", hits, misses, hit_rate));
+            info.push_str(&format!("Cache: {hits} hits, {misses} misses, {hit_rate:.1}% hit rate\n"));
             info.push_str(&format!("Cache entries: {}/{}\n", cache.entries.len(), cache.max_size));
         }
         
@@ -406,6 +406,7 @@ pub struct OptimizedEnvironmentBuilder {
 }
 
 impl OptimizedEnvironmentBuilder {
+    /// Creates a new builder with default settings.
     pub fn new() -> Self {
         Self {
             cache_size: 100,
@@ -414,21 +415,25 @@ impl OptimizedEnvironmentBuilder {
         }
     }
     
+    /// Sets the cache size for the optimized environment.
     pub fn cache_size(mut self, size: usize) -> Self {
         self.cache_size = size;
         self
     }
     
+    /// Enables or disables caching for the environment.
     pub fn enable_caching(mut self, enable: bool) -> Self {
         self.enable_caching = enable;
         self
     }
     
+    /// Sets whether to pre-populate the cache on build.
     pub fn pre_populate_cache(mut self, pre_populate: bool) -> Self {
         self.pre_populate_cache = pre_populate;
         self
     }
     
+    /// Builds the optimized environment with the configured settings.
     pub fn build(self) -> OptimizedEnvironment {
         let mut env = OptimizedEnvironment::new();
         

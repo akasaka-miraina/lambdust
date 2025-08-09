@@ -207,8 +207,9 @@ impl AdvancedTypeClass {
         true
     }
 
-    fn types_potentially_unifiable(&self, t1: &Type, t2: &Type) -> bool {
-        match (t1, t2) {
+    #[allow(clippy::only_used_in_recursion)]
+    fn types_potentially_unifiable(&self, _t1: &Type, _t2: &Type) -> bool {
+        match (_t1, _t2) {
             (Type::Variable(_), _) | (_, Type::Variable(_)) => true,
             (Type::Constructor { name: n1, .. }, Type::Constructor { name: n2, .. }) => n1 == n2,
             (Type::Application { constructor: c1, argument: a1 }, 
@@ -216,7 +217,7 @@ impl AdvancedTypeClass {
                 self.types_potentially_unifiable(c1, c2) && 
                 self.types_potentially_unifiable(a1, a2)
             }
-            _ => t1 == t2,
+            _ => _t1 == _t2,
         }
     }
 
@@ -231,7 +232,7 @@ impl AdvancedTypeClass {
                 return Err(Box::new(Error::type_error(
                     "Invalid functional dependency".to_string(),
                     Span::default(),
-                ));
+                )));
             }
         }
         Ok(())
@@ -246,7 +247,7 @@ impl AdvancedTypeClassInstance {
         span: Option<Span>,
     ) -> Self {
         Self {
-            base: TypeClassInstance::new(class, type_args[0].clone()), span),
+            base: TypeClassInstance::new(class, type_args[0].clone(), span),
             type_args,
             associated_impls: HashMap::new(),
             family_impls: HashMap::new(),
@@ -360,13 +361,13 @@ impl AdvancedTypeClassEnv {
 
     /// Adds an advanced type class.
     pub fn add_advanced_class(&mut self, class: AdvancedTypeClass) {
-        let name = class.base.name.clone());
+        let name = class.base.name.clone();
         self.advanced_classes.insert(name, class);
     }
 
     /// Adds an advanced instance.
     pub fn add_advanced_instance(&mut self, instance: AdvancedTypeClassInstance) {
-        let class_name = instance.base.class.clone());
+        let class_name = instance.base.class.clone();
         self.advanced_instances
             .entry(class_name)
             .or_default()
@@ -381,12 +382,12 @@ impl AdvancedTypeClassEnv {
 
     /// Adds a type class alias.
     pub fn add_alias(&mut self, alias: TypeClassAlias) {
-        self.aliases.insert(alias.name.clone()), alias);
+        self.aliases.insert(alias.name.clone(), alias);
     }
 
     /// Registers a higher-kinded type.
     pub fn add_hkt_type(&mut self, hkt: HigherKindedType) {
-        self.hkt_types.insert(hkt.constructor.clone()), hkt);
+        self.hkt_types.insert(hkt.constructor.clone(), hkt);
     }
 
     /// Checks for coherence violations.
@@ -417,7 +418,7 @@ impl AdvancedTypeClassEnv {
                     return Err(Box::new(Error::type_error(
                         "Overlapping instances detected".to_string(),
                         Span::default(),
-                    ));
+                    )));
                 }
             }
         }
@@ -562,7 +563,7 @@ impl fmt::Display for AdvancedTypeClass {
             write!(f, " (")?;
             for (i, param) in self.type_params.iter().enumerate() {
                 if i > 0 { write!(f, " ")?; }
-                write!(f, "{}", param)?;
+                write!(f, "{param}")?;
             }
             write!(f, ")")?;
         }
@@ -573,7 +574,7 @@ impl fmt::Display for AdvancedTypeClass {
             write!(f, " |")?;
             for (i, fundep) in self.fundeps.iter().enumerate() {
                 if i > 0 { write!(f, ",")?; }
-                write!(f, " {}", fundep)?;
+                write!(f, " {fundep}")?;
             }
         }
         
@@ -595,11 +596,11 @@ impl fmt::Display for FunctionalDependency {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, &det) in self.determiners.iter().enumerate() {
             if i > 0 { write!(f, " ")?; }
-            write!(f, "{}", det)?;
+            write!(f, "{det}")?;
         }
         write!(f, " ->")?;
         for &det in &self.determined {
-            write!(f, " {}", det)?;
+            write!(f, " {det}")?;
         }
         Ok(())
     }
@@ -609,17 +610,17 @@ impl fmt::Display for TypeFamily {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TypeFamily::Open { name, kind, .. } => {
-                write!(f, "type family {} : {}", name, kind)
+                write!(f, "type family {name} : {kind}")
             }
             TypeFamily::Closed { name, kind, equations } => {
-                write!(f, "type family {} : {} where", name, kind)?;
+                write!(f, "type family {name} : {kind} where")?;
                 for equation in equations {
-                    write!(f, "\n  {}", equation)?;
+                    write!(f, "\n  {equation}")?;
                 }
                 Ok(())
             }
             TypeFamily::Associated { class, name, kind } => {
-                write!(f, "type {} : {} (associated with {})", name, kind, class)
+                write!(f, "type {name} : {kind} (associated with {class})")
             }
         }
     }
@@ -629,7 +630,7 @@ impl fmt::Display for TypeFamilyEquation {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         for (i, lhs_type) in self.lhs.iter().enumerate() {
             if i > 0 { write!(f, " ")?; }
-            write!(f, "{}", lhs_type)?;
+            write!(f, "{lhs_type}")?;
         }
         write!(f, " = {}", self.rhs)?;
         

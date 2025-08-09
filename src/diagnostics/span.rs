@@ -105,12 +105,12 @@ impl<T> Spanned<T> {
     }
 
     /// Returns a reference to the inner value.
-    pub fn as_ref(&self) -> &T {
+    pub fn get_ref(&self) -> &T {
         &self.inner
     }
 
     /// Returns a mutable reference to the inner value.
-    pub fn as_mut(&mut self) -> &mut T {
+    pub fn get_mut(&mut self) -> &mut T {
         &mut self.inner
     }
 
@@ -179,5 +179,5 @@ impl From<std::ops::Range<usize>> for Span {
 
 /// Convenience function to convert range to span
 pub fn range_to_span(range: std::ops::Range<usize>) -> Span {
-    range.into())
+    range.into()
 }

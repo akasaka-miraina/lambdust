@@ -54,20 +54,20 @@ pub fn parse_syntax_rules(
                     return Err(Box::new(Error::macro_error(
                         format!("Expected syntax-rules, got {name}"),
                         operator.span,
-                    ).boxed());
+                    )));
                 }
             } else {
                 return Err(Box::new(Error::macro_error(
                     "syntax-rules must be called as a function".to_string(),
                     operator.span,
-                ).boxed());
+                )));
             }
             
             if operands.len() < 2 {
                 return Err(Box::new(Error::macro_error(
                     "syntax-rules requires at least literals list and one rule".to_string(),
                     expr.span,
-                ).boxed());
+                )));
             }
             
             // Parse literals list
@@ -84,7 +84,7 @@ pub fn parse_syntax_rules(
                 return Err(Box::new(Error::macro_error(
                     "syntax-rules must have at least one rule".to_string(),
                     expr.span,
-                ).boxed());
+                )));
             }
             
             Ok(SyntaxRulesTransformer {
@@ -97,7 +97,7 @@ pub fn parse_syntax_rules(
         _ => Err(Box::new(Error::macro_error(
             "syntax-rules must be a function application".to_string(),
             expr.span,
-        ).boxed()),
+        ))),
     }
 }
 
@@ -116,7 +116,7 @@ fn parse_literals_list(expr: &Spanned<Expr>) -> Result<Vec<String>> {
                     _ => return Err(Box::new(Error::macro_error(
                         "Literals must be identifiers".to_string(),
                         element.span,
-                    ).boxed()),
+                    ))),
                 }
             }
             Ok(literals)
@@ -131,7 +131,7 @@ fn parse_literals_list(expr: &Spanned<Expr>) -> Result<Vec<String>> {
                     _ => return Err(Box::new(Error::macro_error(
                         "Literals must be identifiers".to_string(),
                         operand.span,
-                    ).boxed()),
+                    ))),
                 }
             }
             Ok(literals)
@@ -140,7 +140,7 @@ fn parse_literals_list(expr: &Spanned<Expr>) -> Result<Vec<String>> {
         _ => Err(Box::new(Error::macro_error(
             "Expected list of literal identifiers".to_string(),
             expr.span,
-        ).boxed()),
+        ))),
     }
 }
 
@@ -163,7 +163,7 @@ fn parse_syntax_rule(
         _ => Err(Box::new(Error::macro_error(
             "Syntax rule must be (pattern template)".to_string(),
             expr.span,
-        ).boxed()),
+        ))),
     }
 }
 
@@ -190,8 +190,8 @@ fn parse_pattern(expr: &Spanned<Expr>, literals: &[String]) -> Result<Pattern> {
         
         // Applications are treated as lists
         Expr::Application { operator, operands } => {
-            let mut all_elements = vec![(**operator).clone())];
-            all_elements.extend(operands.iter().clone())());
+            let mut all_elements = vec![(**operator).clone()];
+            all_elements.extend(operands.iter().cloned());
             parse_list_pattern(&all_elements, literals)
         }
         
@@ -208,7 +208,7 @@ fn parse_pattern(expr: &Spanned<Expr>, literals: &[String]) -> Result<Pattern> {
         _ => Err(Box::new(Error::macro_error(
             format!("Unsupported pattern type: {:?}", expr.inner),
             expr.span,
-        ).boxed()),
+        ))),
     }
 }
 
@@ -281,8 +281,8 @@ fn parse_template(expr: &Spanned<Expr>) -> Result<Template> {
         
         // Applications are treated as lists
         Expr::Application { operator, operands } => {
-            let mut all_elements = vec![(**operator).clone())];
-            all_elements.extend(operands.iter().clone())());
+            let mut all_elements = vec![(**operator).clone()];
+            all_elements.extend(operands.iter().cloned());
             parse_list_template(&all_elements)
         }
         
@@ -299,7 +299,7 @@ fn parse_template(expr: &Spanned<Expr>) -> Result<Template> {
         _ => Err(Box::new(Error::macro_error(
             format!("Unsupported template type: {:?}", expr.inner),
             expr.span,
-        ).boxed()),
+        ))),
     }
 }
 
@@ -360,7 +360,7 @@ fn parse_list_template(elements: &[Spanned<Expr>]) -> Result<Template> {
 pub fn syntax_rules_to_macro_transformer(
     syntax_rules: SyntaxRulesTransformer,
 ) -> MacroTransformer {
-    let primary_rule = syntax_rules.rules.first().clone())().unwrap_or_else(|| SyntaxRule {
+    let primary_rule = syntax_rules.rules.first().cloned().unwrap_or(SyntaxRule {
         pattern: Pattern::Wildcard,
         template: Template::Nil,
     });
@@ -391,7 +391,7 @@ pub fn expand_syntax_rules(
     Err(Box::new(Error::macro_error(
         "No pattern matched in syntax-rules".to_string(),
         input.span,
-    ).boxed())
+    )))
 }
 
 /// Validates that a pattern is well-formed for syntax-rules.
@@ -412,13 +412,13 @@ fn validate_pattern_inner(
                 return Err(Box::new(Error::macro_error(
                     format!("Variable {name} conflicts with literal"),
                     crate::diagnostics::Span::new(0, 0),
-                ).boxed());
+                )));
             }
             if bound_vars.contains(name) {
                 return Err(Box::new(Error::macro_error(
                     format!("Variable {name} bound multiple times"),
                     crate::diagnostics::Span::new(0, 0),
-                ).boxed());
+                )));
             }
             bound_vars.insert(name.clone());
             Ok(())
@@ -445,7 +445,7 @@ fn validate_pattern_inner(
                     return Err(Box::new(Error::macro_error(
                         format!("Ellipsis variable {var} conflicts with outer variable"),
                         crate::diagnostics::Span::new(0, 0),
-                    ).boxed());
+                    )));
                 }
             }
             
@@ -472,7 +472,7 @@ fn validate_pattern_inner(
                         return Err(Box::new(Error::macro_error(
                             "Alternative patterns must bind same variables".to_string(),
                             crate::diagnostics::Span::new(0, 0),
-                        ).boxed());
+                        )));
                     }
                 } else {
                     first_vars = Some(alt_vars.clone());
@@ -497,7 +497,7 @@ fn validate_pattern_inner(
                 return Err(Box::new(Error::macro_error(
                     "Negative patterns cannot bind variables".to_string(),
                     crate::diagnostics::Span::new(0, 0),
-                ).boxed());
+                )));
             }
             Ok(())
         }
@@ -517,7 +517,7 @@ pub fn validate_template(
                 return Err(Box::new(Error::macro_error(
                     format!("Template variable {name} not bound by pattern"),
                     crate::diagnostics::Span::new(0, 0),
-                ).boxed());
+                )));
             }
             Ok(())
         }
@@ -547,10 +547,10 @@ pub fn validate_template(
             validate_template(car, pattern_vars, ellipsis_vars)?;
             validate_template(cdr, pattern_vars, ellipsis_vars)
         }
-        Template::Conditional { condition, then_template, else_template } => {
+        Template::Conditional { condition, then_branch, else_branch } => {
             validate_template(condition, pattern_vars, ellipsis_vars)?;
-            validate_template(then_template, pattern_vars, ellipsis_vars)?;
-            if let Some(else_tmpl) = else_template {
+            validate_template(then_branch, pattern_vars, ellipsis_vars)?;
+            if let Some(else_tmpl) = else_branch {
                 validate_template(else_tmpl, pattern_vars, ellipsis_vars)?;
             }
             Ok(())
@@ -563,7 +563,7 @@ pub fn validate_template(
                 return Err(Box::new(Error::macro_error(
                     format!("Splice variable {name} not bound as ellipsis variable"),
                     crate::diagnostics::Span::new(0, 0),
-                ).boxed());
+                )));
             }
             Ok(())
         }

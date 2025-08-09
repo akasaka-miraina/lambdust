@@ -320,6 +320,13 @@ pub mod simd {
     use std::arch::x86_64::*;
 
     /// SIMD-accelerated addition of f64 arrays
+    /// 
+    /// # Safety
+    /// 
+    /// This function requires AVX2 instruction set support. The caller must ensure:
+    /// - The target CPU supports AVX2 instructions
+    /// - All input slices have the same length
+    /// - The result slice has sufficient capacity for all elements
     #[target_feature(enable = "avx2")]
     pub unsafe fn simd_add_f64(a: &[f64], b: &[f64], result: &mut [f64]) {
         assert_eq!(a.len(), b.len());
@@ -343,6 +350,13 @@ pub mod simd {
     }
 
     /// SIMD-accelerated multiplication of f64 arrays
+    /// 
+    /// # Safety
+    /// 
+    /// This function requires AVX2 instruction set support. The caller must ensure:
+    /// - The target CPU supports AVX2 instructions
+    /// - All input slices have the same length
+    /// - The result slice has sufficient capacity for all elements
     #[target_feature(enable = "avx2")]
     pub unsafe fn simd_mul_f64(a: &[f64], b: &[f64], result: &mut [f64]) {
         assert_eq!(a.len(), b.len());
@@ -364,6 +378,12 @@ pub mod simd {
     }
 
     /// SIMD-accelerated dot product
+    /// 
+    /// # Safety
+    /// 
+    /// This function requires AVX2 instruction set support. The caller must ensure:
+    /// - The target CPU supports AVX2 instructions
+    /// - Both input slices have the same length
     #[target_feature(enable = "avx2")]
     pub unsafe fn simd_dot_product_f64(a: &[f64], b: &[f64]) -> f64 {
         assert_eq!(a.len(), b.len());
@@ -401,14 +421,20 @@ pub mod benchmark {
 
     /// Benchmark result
     pub struct BenchmarkResult {
+        /// The name of the benchmarked operation.
         pub operation: String,
+        /// Number of iterations performed.
         pub iterations: usize,
+        /// Total time taken for all iterations.
         pub total_time: Duration,
+        /// Average time per iteration.
         pub avg_time: Duration,
+        /// Operations performed per second.
         pub operations_per_second: f64,
     }
 
     impl BenchmarkResult {
+        /// Creates a new benchmark result from basic timing data.
         pub fn new(operation: String, iterations: usize, total_time: Duration) -> Self {
             let avg_time = total_time / iterations as u32;
             let operations_per_second = iterations as f64 / total_time.as_secs_f64();
@@ -456,10 +482,10 @@ pub mod benchmark {
 
     /// Benchmark trigonometric functions
     pub fn benchmark_trig_functions(iterations: usize) -> Vec<BenchmarkResult> {
-        let x = 1.5;
+        let x: f64 = 1.5;
         
         vec![
-            benchmark("Sin (std)", iterations, || (x as f64).sin()),
+            benchmark("Sin (std)", iterations, || x.sin()),
             benchmark("Sin (fast)", iterations, || LookupTables::fast_sin(x)),
             benchmark("Cos (std)", iterations, || x.cos()),
             benchmark("Cos (fast)", iterations, || LookupTables::fast_cos(x)),

@@ -48,7 +48,7 @@ impl<'a> Lexer<'a> {
                     return Err(Box::new(Error::lex_error(
                         format!("Unexpected character: '{text}'"),
                         span,
-                    ).into()))
+                    )))
                 }
             }
         }
@@ -115,7 +115,7 @@ impl<'a> Lexer<'a> {
         if open_parens > 0 {
             let span = Span::new(position, 0);
             errors.push(Error::lex_error(
-                format!("{} unmatched opening parenthesis(es)", open_parens),
+                format!("{open_parens} unmatched opening parenthesis(es)"),
                 span,
             ));
         }

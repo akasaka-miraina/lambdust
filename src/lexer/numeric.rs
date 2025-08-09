@@ -15,7 +15,7 @@ use crate::diagnostics::{Error, Result, Span};
 /// Validates an integer literal according to R7RS syntax.
 pub fn validate_integer(text: &str, span: Span) -> Result<()> {
     if text.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty integer literal", span).into()))
+        return Err(Box::new(Error::lex_error("Empty integer literal", span)))
     }
 
     let text = text.trim();
@@ -27,7 +27,7 @@ pub fn validate_integer(text: &str, span: Span) -> Result<()> {
     };
 
     if unsigned.is_empty() {
-        return Err(Box::new(Error::lex_error("Integer literal cannot be just a sign", span).into()))
+        return Err(Box::new(Error::lex_error("Integer literal cannot be just a sign", span)))
     }
 
     // Check for different number bases
@@ -35,42 +35,42 @@ pub fn validate_integer(text: &str, span: Span) -> Result<()> {
         // Hexadecimal
         let hex_digits = &unsigned[2..];
         if hex_digits.is_empty() {
-            return Err(Box::new(Error::lex_error("Hexadecimal literal must have digits after 0x", span).into()))
+            return Err(Box::new(Error::lex_error("Hexadecimal literal must have digits after 0x", span)))
         }
         for ch in hex_digits.chars() {
             if !ch.is_ascii_hexdigit() {
                 return Err(Box::new(Error::lex_error(
                     format!("Invalid hexadecimal digit: '{ch}'"), 
                     span
-                ).into()))
+                )))
             }
         }
     } else if unsigned.starts_with("0b") || unsigned.starts_with("0B") {
         // Binary
         let bin_digits = &unsigned[2..];
         if bin_digits.is_empty() {
-            return Err(Box::new(Error::lex_error("Binary literal must have digits after 0b", span).into()))
+            return Err(Box::new(Error::lex_error("Binary literal must have digits after 0b", span)))
         }
         for ch in bin_digits.chars() {
             if !matches!(ch, '0' | '1') {
                 return Err(Box::new(Error::lex_error(
                     format!("Invalid binary digit: '{ch}'"), 
                     span
-                ).into()))
+                )))
             }
         }
     } else if unsigned.starts_with("0o") || unsigned.starts_with("0O") {
         // Octal
         let oct_digits = &unsigned[2..];
         if oct_digits.is_empty() {
-            return Err(Box::new(Error::lex_error("Octal literal must have digits after 0o", span).into()))
+            return Err(Box::new(Error::lex_error("Octal literal must have digits after 0o", span)))
         }
         for ch in oct_digits.chars() {
             if !('0'..='7').contains(&ch) {
                 return Err(Box::new(Error::lex_error(
                     format!("Invalid octal digit: '{ch}'"), 
                     span
-                ).into()))
+                )))
             }
         }
     } else {
@@ -80,7 +80,7 @@ pub fn validate_integer(text: &str, span: Span) -> Result<()> {
                 return Err(Box::new(Error::lex_error(
                     format!("Invalid decimal digit: '{ch}'"), 
                     span
-                ).into()))
+                )))
             }
         }
     }
@@ -91,7 +91,7 @@ pub fn validate_integer(text: &str, span: Span) -> Result<()> {
 /// Validates a real (floating-point) number literal according to R7RS syntax.
 pub fn validate_real(text: &str, span: Span) -> Result<()> {
     if text.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty real number literal", span).into()))
+        return Err(Box::new(Error::lex_error("Empty real number literal", span)))
     }
 
     let text = text.trim();
@@ -103,7 +103,7 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
     };
 
     if unsigned.is_empty() {
-        return Err(Box::new(Error::lex_error("Real number literal cannot be just a sign", span).into()))
+        return Err(Box::new(Error::lex_error("Real number literal cannot be just a sign", span)))
     }
 
     // Check for scientific notation
@@ -112,7 +112,7 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
         let exponent = &unsigned[e_pos + 1..];
         
         if exponent.is_empty() {
-            return Err(Box::new(Error::lex_error("Exponent cannot be empty", span).into()))
+            return Err(Box::new(Error::lex_error("Exponent cannot be empty", span)))
         }
         
         // Validate exponent (must be integer)
@@ -122,7 +122,7 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
         };
         
         if exp_unsigned.is_empty() {
-            return Err(Box::new(Error::lex_error("Exponent cannot be just a sign", span).into()))
+            return Err(Box::new(Error::lex_error("Exponent cannot be just a sign", span)))
         }
         
         for ch in exp_unsigned.chars() {
@@ -130,7 +130,7 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
                 return Err(Box::new(Error::lex_error(
                     format!("Invalid digit in exponent: '{ch}'"), 
                     span
-                ).into()))
+                )))
             }
         }
         
@@ -141,16 +141,16 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
 
     // Validate mantissa
     if mantissa.is_empty() {
-        return Err(Box::new(Error::lex_error("Mantissa cannot be empty", span).into()))
+        return Err(Box::new(Error::lex_error("Mantissa cannot be empty", span)))
     }
 
     let dot_count = mantissa.matches('.').count();
     if dot_count > 1 {
-        return Err(Box::new(Error::lex_error("Real number cannot have multiple decimal points", span).into()))
+        return Err(Box::new(Error::lex_error("Real number cannot have multiple decimal points", span)))
     }
 
     if dot_count == 0 && exponent.is_none() {
-        return Err(Box::new(Error::lex_error("Real number must have decimal point or exponent", span).into()))
+        return Err(Box::new(Error::lex_error("Real number must have decimal point or exponent", span)))
     }
 
     // Check that all characters are digits or decimal point
@@ -159,13 +159,13 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
             return Err(Box::new(Error::lex_error(
                 format!("Invalid character in real number: '{ch}'"), 
                 span
-            ).into()))
+            )))
         }
     }
 
     // Ensure there's at least one digit
     if !mantissa.chars().any(|c| c.is_ascii_digit()) {
-        return Err(Box::new(Error::lex_error("Real number must contain at least one digit", span).into()))
+        return Err(Box::new(Error::lex_error("Real number must contain at least one digit", span)))
     }
 
     Ok(())
@@ -174,7 +174,7 @@ pub fn validate_real(text: &str, span: Span) -> Result<()> {
 /// Validates a rational number literal according to R7RS syntax.
 pub fn validate_rational(text: &str, span: Span) -> Result<()> {
     if text.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty rational number literal", span).into()))
+        return Err(Box::new(Error::lex_error("Empty rational number literal", span)))
     }
 
     let text = text.trim();
@@ -186,13 +186,13 @@ pub fn validate_rational(text: &str, span: Span) -> Result<()> {
     };
 
     if unsigned.is_empty() {
-        return Err(Box::new(Error::lex_error("Rational number literal cannot be just a sign", span).into()))
+        return Err(Box::new(Error::lex_error("Rational number literal cannot be just a sign", span)))
     }
 
     // Split on '/'
     let parts: Vec<&str> = unsigned.split('/').collect();
     if parts.len() != 2 {
-        return Err(Box::new(Error::lex_error("Rational number must have exactly one '/' character", span).into()))
+        return Err(Box::new(Error::lex_error("Rational number must have exactly one '/' character", span)))
     }
 
     let numerator = parts[0];
@@ -200,7 +200,7 @@ pub fn validate_rational(text: &str, span: Span) -> Result<()> {
 
     // Validate numerator
     if numerator.is_empty() {
-        return Err(Box::new(Error::lex_error("Rational number numerator cannot be empty", span).into()))
+        return Err(Box::new(Error::lex_error("Rational number numerator cannot be empty", span)))
     }
     
     for ch in numerator.chars() {
@@ -208,17 +208,17 @@ pub fn validate_rational(text: &str, span: Span) -> Result<()> {
             return Err(Box::new(Error::lex_error(
                 format!("Invalid digit in numerator: '{ch}'"), 
                 span
-            ).into()))
+            )))
         }
     }
 
     // Validate denominator
     if denominator.is_empty() {
-        return Err(Box::new(Error::lex_error("Rational number denominator cannot be empty", span).into()))
+        return Err(Box::new(Error::lex_error("Rational number denominator cannot be empty", span)))
     }
     
     if denominator == "0" {
-        return Err(Box::new(Error::lex_error("Rational number denominator cannot be zero", span).into()))
+        return Err(Box::new(Error::lex_error("Rational number denominator cannot be zero", span)))
     }
     
     for ch in denominator.chars() {
@@ -226,7 +226,7 @@ pub fn validate_rational(text: &str, span: Span) -> Result<()> {
             return Err(Box::new(Error::lex_error(
                 format!("Invalid digit in denominator: '{ch}'"), 
                 span
-            ).into()))
+            )))
         }
     }
 
@@ -236,7 +236,7 @@ pub fn validate_rational(text: &str, span: Span) -> Result<()> {
 /// Validates a complex number literal according to R7RS syntax.
 pub fn validate_complex(text: &str, span: Span) -> Result<()> {
     if text.is_empty() {
-        return Err(Box::new(Error::lex_error("Empty complex number literal", span).into()))
+        return Err(Box::new(Error::lex_error("Empty complex number literal", span)))
     }
 
     let text = text.trim();
@@ -247,7 +247,7 @@ pub fn validate_complex(text: &str, span: Span) -> Result<()> {
     }
 
     if !text.ends_with('i') {
-        return Err(Box::new(Error::lex_error("Complex number must end with 'i'", span).into()))
+        return Err(Box::new(Error::lex_error("Complex number must end with 'i'", span)))
     }
 
     let without_i = &text[..text.len() - 1];
@@ -318,7 +318,7 @@ pub fn validate_complex(text: &str, span: Span) -> Result<()> {
     } else {
         // Only imaginary part
         if without_i.is_empty() {
-            return Err(Box::new(Error::lex_error("Complex number 'i' must have a coefficient", span).into()))
+            return Err(Box::new(Error::lex_error("Complex number 'i' must have a coefficient", span)))
         }
         
         // Validate the coefficient

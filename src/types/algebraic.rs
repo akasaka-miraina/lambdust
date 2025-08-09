@@ -215,17 +215,17 @@ impl AlgebraicDataType {
                     args.len()
                 ),
                 self.span.unwrap_or_default(),
-            ));
+            )));
         }
 
         // Substitute type parameters with arguments
         let mut substitution = HashMap::new();
         for (param, arg) in self.type_params.iter().zip(args.iter()) {
-            substitution.insert(param.clone()), arg.clone());
+            substitution.insert(param.clone(), arg.clone());
         }
 
         Ok(Type::Constructor {
-            name: self.name.clone()),
+            name: self.name.clone(),
             kind: self.compute_kind(),
         })
     }
@@ -307,7 +307,7 @@ impl DataConstructor {
             TypeScheme::monomorphic(result_type.clone())
         } else {
             // Constructor function: params -> result
-            let func_type = Type::function(self.param_types.clone()), result_type.clone());
+            let func_type = Type::function(self.param_types.clone(), result_type.clone());
             TypeScheme::monomorphic(func_type)
         }
     }
@@ -383,7 +383,7 @@ impl Pattern {
         match self {
             Pattern::Wildcard => Ok(()),
             Pattern::Variable(name) => {
-                bindings.insert(name.clone()), expected_type.clone());
+                bindings.insert(name.clone(), expected_type.clone());
                 Ok(())
             }
             Pattern::Literal(lit) => {
@@ -393,11 +393,10 @@ impl Pattern {
                 } else {
                     Err(Box::new(Error::type_error(
                         format!(
-                            "Pattern literal type {} doesn't match expected type {}",
-                            lit_type, expected_type
+                            "Pattern literal type {lit_type} doesn't match expected type {expected_type}"
                         ),
                         Span::default(),
-                    ))
+                    )))
                 }
             }
             Pattern::Constructor { name: _, patterns } => {
@@ -439,7 +438,7 @@ impl Pattern {
                         return Err(Box::new(Error::type_error(
                             "All branches in or-pattern must bind the same variables with the same types".to_string(),
                             Span::default(),
-                        ));
+                        )));
                     }
                 }
 
@@ -464,12 +463,12 @@ impl PatternMatcher {
 
     /// Registers an algebraic data type.
     pub fn register_type(&mut self, adt: AlgebraicDataType) {
-        self.types.insert(adt.name.clone()), adt);
+        self.types.insert(adt.name.clone(), adt);
     }
 
     /// Compiles a match expression into a decision tree.
     pub fn compile_match(&mut self, match_expr: &MatchExpression) -> Result<CompiledPattern> {
-        let cache_key = format!("{:?}", match_expr);
+        let cache_key = format!("{match_expr:?}");
         
         if let Some(cached) = self.cache.get(&cache_key) {
             return Ok(cached.clone());
@@ -497,13 +496,13 @@ impl PatternMatcher {
         if first_clause.pattern.is_irrefutable() {
             Ok(DecisionTree::Success {
                 bindings: HashMap::new(), // Would extract from pattern
-                action: first_clause.body.clone()),
+                action: first_clause.body.clone(),
             })
         } else {
             let test = self.pattern_to_test(&first_clause.pattern)?;
             let success = Box::new(DecisionTree::Success {
                 bindings: HashMap::new(),
-                action: first_clause.body.clone()),
+                action: first_clause.body.clone(),
             });
             let failure = Box::new(self.compile_clauses(&clauses[1..])?);
             
@@ -519,14 +518,14 @@ impl PatternMatcher {
         match pattern {
             Pattern::Literal(lit) => Ok(PatternTest::Literal(lit.clone())),
             Pattern::Constructor { name, patterns } => Ok(PatternTest::Constructor {
-                name: name.clone()),
+                name: name.clone(),
                 arity: patterns.len(),
             }),
             Pattern::Guard { guard, .. } => Ok(PatternTest::Guard(guard.clone())),
             _ => Err(Box::new(Error::type_error(
                 "Cannot convert pattern to test".to_string(),
                 Span::default(),
-            )),
+            )))
         }
     }
 
@@ -553,12 +552,9 @@ impl PatternMatcher {
 
     /// Performs redundancy analysis on patterns.
     pub fn check_redundancy(&self, _patterns: &[Pattern]) -> Vec<usize> {
-        let redundant = Vec::new();
-        
         // Simplified redundancy checking
         // A full implementation would use decision tree analysis
-        
-        redundant
+        Vec::new()
     }
 }
 
@@ -594,7 +590,7 @@ impl fmt::Display for AlgebraicDataType {
             write!(f, " (")?;
             for (i, param) in self.type_params.iter().enumerate() {
                 if i > 0 { write!(f, " ")?; }
-                write!(f, "{}", param)?;
+                write!(f, "{param}")?;
             }
             write!(f, ")")?;
         }
@@ -607,21 +603,21 @@ impl fmt::Display for AlgebraicDataType {
                     } else {
                         write!(f, " | ")?;
                     }
-                    write!(f, "{}", constructor)?;
+                    write!(f, "{constructor}")?;
                 }
             }
             AlgebraicVariant::Product => {
                 write!(f, " {{")?;
                 for (i, constructor) in self.constructors.iter().enumerate() {
                     if i > 0 { write!(f, ", ")?; }
-                    write!(f, "{}", constructor)?;
+                    write!(f, "{constructor}")?;
                 }
                 write!(f, "}}")?;
             }
             AlgebraicVariant::GADT => {
                 write!(f, " where")?;
                 for constructor in &self.constructors {
-                    write!(f, "\n  {}", constructor)?;
+                    write!(f, "\n  {constructor}")?;
                 }
             }
         }
@@ -638,13 +634,13 @@ impl fmt::Display for DataConstructor {
             write!(f, " (")?;
             for (i, param_type) in self.param_types.iter().enumerate() {
                 if i > 0 { write!(f, " ")?; }
-                write!(f, "{}", param_type)?;
+                write!(f, "{param_type}")?;
             }
             write!(f, ")")?;
         }
         
         if let Some(return_type) = &self.return_type {
-            write!(f, " : {}", return_type)?;
+            write!(f, " : {return_type}")?;
         }
         
         Ok(())
@@ -655,15 +651,15 @@ impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Pattern::Wildcard => write!(f, "_"),
-            Pattern::Variable(name) => write!(f, "{}", name),
-            Pattern::Literal(lit) => write!(f, "{}", lit),
+            Pattern::Variable(name) => write!(f, "{name}"),
+            Pattern::Literal(lit) => write!(f, "{lit}"),
             Pattern::Constructor { name, patterns } => {
-                write!(f, "{}", name)?;
+                write!(f, "{name}")?;
                 if !patterns.is_empty() {
                     write!(f, " (")?;
                     for (i, pattern) in patterns.iter().enumerate() {
                         if i > 0 { write!(f, " ")?; }
-                        write!(f, "{}", pattern)?;
+                        write!(f, "{pattern}")?;
                     }
                     write!(f, ")")?;
                 }
@@ -673,7 +669,7 @@ impl fmt::Display for Pattern {
                 write!(f, "(")?;
                 for (i, pattern) in patterns.iter().enumerate() {
                     if i > 0 { write!(f, ", ")?; }
-                    write!(f, "{}", pattern)?;
+                    write!(f, "{pattern}")?;
                 }
                 write!(f, ")")
             }
@@ -681,23 +677,23 @@ impl fmt::Display for Pattern {
                 write!(f, "{{")?;
                 for (i, (name, pattern)) in fields.iter().enumerate() {
                     if i > 0 { write!(f, ", ")?; }
-                    write!(f, "{} = {}", name, pattern)?;
+                    write!(f, "{name} = {pattern}")?;
                 }
                 if let Some(rest_pattern) = rest {
                     if !fields.is_empty() { write!(f, ", ")?; }
-                    write!(f, "..{}", rest_pattern)?;
+                    write!(f, "..{rest_pattern}")?;
                 }
                 write!(f, "}}")
             }
             Pattern::Or(patterns) => {
                 for (i, pattern) in patterns.iter().enumerate() {
                     if i > 0 { write!(f, " | ")?; }
-                    write!(f, "{}", pattern)?;
+                    write!(f, "{pattern}")?;
                 }
                 Ok(())
             }
             Pattern::Guard { pattern, guard } => {
-                write!(f, "{} if {}", pattern, guard)
+                write!(f, "{pattern} if {guard}")
             }
         }
     }

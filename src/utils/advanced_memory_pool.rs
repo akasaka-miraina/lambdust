@@ -254,7 +254,7 @@ impl MemoryPool {
         }
         
         let layout = Layout::from_size_align(self.object_size * count, self.object_align)
-            .map_err(|e| format!("Invalid layout: {:?}", e))?;
+            .map_err(|e| format!("Invalid layout: {e:?}"))?;
         
         // Allocate chunk from system
         let chunk_ptr = unsafe { System.alloc(layout) };
@@ -312,7 +312,7 @@ impl MemoryPool {
     /// Gets pool statistics
     pub fn get_stats(&self) -> PoolStats {
         if let Ok(stats) = self.stats.lock() {
-            stats.clone())
+            stats.clone()
         } else {
             PoolStats::new()
         }
@@ -445,7 +445,7 @@ impl GlobalPoolStats {
     pub fn format_report(&self) -> String {
         let mut report = String::new();
         
-        report.push_str(&format!("=== Memory Pool Statistics ===\n"));
+        report.push_str("=== Memory Pool Statistics ===\n");
         report.push_str(&format!("Active Pools: {}\n", self.pool_count));
         report.push_str(&format!("Total Allocations: {}\n", self.total_allocations));
         report.push_str(&format!("Total Deallocations: {}\n", self.total_deallocations));
@@ -456,7 +456,7 @@ impl GlobalPoolStats {
         let mut pools: Vec<_> = self.pool_stats.iter().collect();
         pools.sort_by_key(|(_, stats)| std::cmp::Reverse(stats.total_allocations));
         
-        for (&(size, align), ref stats) in pools.iter().take(10) {
+        for ((size, align), stats) in pools.iter().take(10) {
             report.push_str(&format!(
                 "Pool {}B/{}: {} allocs, {:.1}% efficiency\n",
                 size, align, stats.total_allocations, stats.efficiency
@@ -480,6 +480,7 @@ pub struct ConsPool {
 }
 
 impl ConsPool {
+    /// Creates a new cons cell memory pool.
     pub fn new() -> Result<Self, String> {
         let config = PoolConfig {
             initial_size: 1000,
@@ -497,10 +498,12 @@ impl ConsPool {
         Ok(Self { pool: Arc::new(pool) })
     }
     
+    /// Allocates memory for a cons cell.
     pub fn allocate_cons(&self) -> Option<NonNull<ConsCellRepr>> {
         self.pool.allocate().map(|ptr| ptr.cast())
     }
     
+    /// Deallocates memory for a cons cell.
     pub fn deallocate_cons(&self, ptr: NonNull<ConsCellRepr>) {
         self.pool.deallocate(ptr.cast());
     }
@@ -512,6 +515,7 @@ pub struct SmallObjectPool {
 }
 
 impl SmallObjectPool {
+    /// Creates a new small object memory pool.
     pub fn new() -> Result<Self, String> {
         let config = PoolConfig {
             initial_size: 500,
@@ -525,10 +529,12 @@ impl SmallObjectPool {
         Ok(Self { pool: Arc::new(pool) })
     }
     
+    /// Allocates memory for a small object.
     pub fn allocate(&self) -> Option<NonNull<u8>> {
         self.pool.allocate()
     }
     
+    /// Deallocates memory for a small object.
     pub fn deallocate(&self, ptr: NonNull<u8>) {
         self.pool.deallocate(ptr);
     }
@@ -633,7 +639,7 @@ mod tests {
         let pool = Arc::new(MemoryPool::new(64, 8, PoolConfig::default()).unwrap());
         
         let handles: Vec<_> = (0..4).map(|_| {
-            let pool_clone = pool.clone());
+            let pool_clone = pool.clone();
             thread::spawn(move || {
                 let mut ptrs = Vec::new();
                 

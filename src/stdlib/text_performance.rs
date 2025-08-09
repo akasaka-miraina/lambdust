@@ -50,7 +50,7 @@ impl StringInterningPool {
 
     /// Gets the global interning pool.
     pub fn global() -> &'static StringInterningPool {
-        GLOBAL_INTERNING_POOL.get_or_init(|| StringInterningPool::new())
+        GLOBAL_INTERNING_POOL.get_or_init(StringInterningPool::new)
     }
 
     /// Interns a string, returning a shared reference.
@@ -66,7 +66,7 @@ impl StringInterningPool {
                 stats.total_requests += 1;
                 stats.cache_hits += 1;
                 stats.memory_saved += s.len();
-                return interned.clone());
+                return interned.clone();
             }
         }
 
@@ -79,7 +79,7 @@ impl StringInterningPool {
                 stats.total_requests += 1;
                 stats.cache_hits += 1;
                 stats.memory_saved += s.len();
-                return interned.clone());
+                return interned.clone();
             }
 
             // Insert new string
@@ -102,7 +102,7 @@ impl StringInterningPool {
 
     /// Gets statistics for the pool.
     pub fn stats(&self) -> InterningStats {
-        self.stats.lock().unwrap().clone())
+        self.stats.lock().unwrap().clone()
     }
 
     /// Clears the interning pool.
@@ -182,7 +182,7 @@ impl TextMemoryPool {
 
     /// Gets the global memory pool.
     pub fn global() -> &'static TextMemoryPool {
-        GLOBAL_MEMORY_POOL.get_or_init(|| TextMemoryPool::new())
+        GLOBAL_MEMORY_POOL.get_or_init(TextMemoryPool::new)
     }
 
     /// Allocates a byte vector with the given capacity.
@@ -249,7 +249,7 @@ impl TextMemoryPool {
 
     /// Gets pool statistics.
     pub fn stats(&self) -> PoolStats {
-        self.stats.lock().unwrap().clone())
+        self.stats.lock().unwrap().clone()
     }
 
     /// Clears all pools.
@@ -376,7 +376,7 @@ impl TextPerformanceMonitor {
     /// Records timing information.
     pub fn record_timing(&self, name: &str, duration_nanos: u64) {
         let mut timings = self.timings.write().unwrap();
-        timings.entry(name.to_string()).or_insert_with(Vec::new).push(duration_nanos);
+        timings.entry(name.to_string()).or_default().push(duration_nanos);
     }
 
     /// Gets counter value.
@@ -403,13 +403,13 @@ impl TextPerformanceMonitor {
     /// Gets all counter names.
     pub fn counter_names(&self) -> Vec<String> {
         let counters = self.counters.read().unwrap();
-        counters.keys().clone())().collect()
+        counters.keys().cloned().collect()
     }
 
     /// Gets all timing names.
     pub fn timing_names(&self) -> Vec<String> {
         let timings = self.timings.read().unwrap();
-        timings.keys().clone())().collect()
+        timings.keys().cloned().collect()
     }
 
     /// Clears all metrics.
@@ -458,7 +458,7 @@ impl<T: Clone> TextCache<T> {
     /// Gets a value from the cache.
     pub fn get(&self, key: &str) -> Option<T> {
         let mut cache = self.cache.write().unwrap();
-        let result = cache.get(key).clone())();
+        let result = cache.get(key).cloned();
         
         let mut stats = self.stats.lock().unwrap();
         if result.is_some() {
@@ -484,7 +484,7 @@ impl<T: Clone> TextCache<T> {
 
     /// Gets cache statistics.
     pub fn stats(&self) -> CacheStats {
-        self.stats.lock().unwrap().clone())
+        self.stats.lock().unwrap().clone()
     }
 
     /// Clears the cache.
@@ -683,12 +683,12 @@ mod tests {
 
     #[test]
     fn test_simd_operations() {
-        let text = Text::from_str("hello world hello");
+        let text = Text::from_string_slice("hello world hello");
         
         let count = SimdTextOps::count_char(&text, 'l');
         assert_eq!(count, 5);
         
-        let needle = Text::from_str("world");
+        let needle = Text::from_string_slice("world");
         let pos = SimdTextOps::find_substring(&text, &needle);
         assert_eq!(pos, Some(6));
     }

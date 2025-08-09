@@ -49,7 +49,7 @@ pub fn initialize_system_state(args: Vec<String>) {
 fn get_system_state() -> Arc<Mutex<SystemState>> {
     SYSTEM_STATE.get_or_init(|| {
         Arc::new(Mutex::new(SystemState::new()))
-    }).clone())
+    }).clone()
 }
 
 /// Bind all system interface procedures to the environment
@@ -206,10 +206,10 @@ pub fn bind_system_procedures_cow(env: &Arc<ThreadSafeEnvironment>) -> Arc<Threa
 /// - Otherwise exit with code 1
 pub fn primitive_exit(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("exit expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let exit_code = if args.is_empty() {
@@ -237,20 +237,20 @@ pub fn primitive_exit(args: &[Value]) -> Result<Value> {
 
     // In a real implementation, this would perform cleanup and then exit
     // For now, we'll simulate by returning an error that can be caught
-    Err(DiagnosticError::runtime_error(
-        format!("Program exit requested with code {}", exit_code),
+    Err(Box::new(DiagnosticError::runtime_error(
+        format!("Program exit requested with code {exit_code}"),
         None,
-    ))
+    )))
 }
 
 /// (emergency-exit [obj]) - Exit immediately without cleanup
 /// Same semantics as exit but without running cleanup handlers
 pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("emergency-exit expects 0 or 1 arguments, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     let exit_code = if args.is_empty() {
@@ -271,10 +271,10 @@ pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
     };
 
     // Emergency exit - immediate termination without cleanup
-    Err(DiagnosticError::runtime_error(
-        format!("Emergency exit requested with code {}", exit_code),
+    Err(Box::new(DiagnosticError::runtime_error(
+        format!("Emergency exit requested with code {exit_code}"),
         None,
-    ))
+    )))
 }
 
 // ============= COMMAND LINE ACCESS =============
@@ -283,7 +283,7 @@ pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
 pub fn primitive_command_line(_args: &[Value]) -> Result<Value> {
     let state = get_system_state();
     let state_guard = state.lock().map_err(|_| {
-        DiagnosticError::runtime_error("Failed to access system state".to_string(), None)
+        Box::new(DiagnosticError::runtime_error("Failed to access system state".to_string(), None))
     })?;
 
     // Convert command line arguments to a Scheme list
@@ -303,20 +303,20 @@ pub fn primitive_command_line(_args: &[Value]) -> Result<Value> {
 /// (get-environment-variable name) - Get environment variable value
 pub fn primitive_get_environment_variable(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(DiagnosticError::runtime_error(
+        return Err(Box::new(DiagnosticError::runtime_error(
             format!("get-environment-variable expects 1 argument, got {}", args.len()),
             None,
-        ));
+        )));
     }
 
     // Extract the variable name
     let var_name = match &args[0] {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone()),
+        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
         _ => {
-            return Err(DiagnosticError::runtime_error(
+            return Err(Box::new(DiagnosticError::runtime_error(
                 "get-environment-variable requires a string argument".to_string(),
                 None,
-            ));
+            )));
         }
     };
 
@@ -359,10 +359,10 @@ pub fn primitive_current_second(_args: &[Value]) -> Result<Value> {
             Ok(Value::number(fractional))
         }
         Err(_) => {
-            Err(DiagnosticError::runtime_error(
+            Err(Box::new(DiagnosticError::runtime_error(
                 "Failed to get current time".to_string(),
                 None,
-            ))
+            )))
         }
     }
 }
@@ -372,7 +372,7 @@ pub fn primitive_current_second(_args: &[Value]) -> Result<Value> {
 pub fn primitive_current_jiffy(_args: &[Value]) -> Result<Value> {
     let state = get_system_state();
     let state_guard = state.lock().map_err(|_| {
-        DiagnosticError::runtime_error("Failed to access system state".to_string(), None)
+        Box::new(DiagnosticError::runtime_error("Failed to access system state".to_string(), None))
     })?;
 
     // Calculate jiffies since program start

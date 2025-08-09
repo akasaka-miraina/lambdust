@@ -61,7 +61,7 @@ impl BigInt {
 
     /// Creates a BigInt from a string in the given radix (2-36)
     pub fn from_str_radix(s: &str, radix: u32) -> Result<Self, String> {
-        if radix < 2 || radix > 36 {
+        if !(2..=36).contains(&radix) {
             return Err("Radix must be between 2 and 36".to_string());
         }
 
@@ -70,10 +70,10 @@ impl BigInt {
             return Err("Empty string".to_string());
         }
 
-        let (positive, digits_str) = if s.starts_with('-') {
-            (false, &s[1..])
-        } else if s.starts_with('+') {
-            (true, &s[1..])
+        let (positive, digits_str) = if let Some(stripped) = s.strip_prefix('-') {
+            (false, stripped)
+        } else if let Some(stripped) = s.strip_prefix('+') {
+            (true, stripped)
         } else {
             (true, s)
         };
@@ -88,10 +88,10 @@ impl BigInt {
         for ch in digits_str.chars() {
             let digit_value = match ch.to_digit(radix) {
                 Some(d) => d,
-                None => return Err(format!("Invalid digit '{}' for radix {}", ch, radix)),
+                None => return Err(format!("Invalid digit '{ch}' for radix {radix}")),
             };
 
-            result = result * radix_bigint.clone()) + Self::from_u64(digit_value as u64);
+            result = result * radix_bigint.clone() + Self::from_u64(digit_value as u64);
         }
 
         result.positive = positive || result.is_zero();
@@ -132,7 +132,7 @@ impl BigInt {
     /// Returns the absolute value
     pub fn abs(&self) -> Self {
         Self {
-            digits: self.digits.clone()),
+            digits: self.digits.clone(),
             positive: true,
         }
     }
@@ -158,12 +158,10 @@ impl BigInt {
             } else {
                 None
             }
+        } else if value <= (i64::MAX as u64) + 1 {
+            Some(-(value as i64))
         } else {
-            if value <= (i64::MAX as u64) + 1 {
-                Some(-(value as i64))
-            } else {
-                None
-            }
+            None
         }
     }
 
@@ -372,18 +370,18 @@ impl BigInt {
         }
 
         if exponent.is_zero() {
-            return Self::one() % modulus.clone());
+            return Self::one() % modulus.clone();
         }
 
         let mut result = Self::one();
-        let mut base = self % &modulus;
+        let mut base = self % modulus;
         let mut exp = exponent.abs();
 
         while !exp.is_zero() {
-            if exp.digits.get(0).unwrap_or(&0) & 1 == 1 {
-                result = (result * base.clone()) % modulus.clone());
+            if exp.digits.first().unwrap_or(&0) & 1 == 1 {
+                result = (result * base.clone()) % modulus.clone();
             }
-            base = (base.clone()) * base.clone()) % modulus.clone());
+            base = (base.clone()) * base.clone() % modulus.clone();
             exp = exp >> 1;
         }
 
@@ -396,7 +394,7 @@ impl BigInt {
         let mut b = other.abs();
 
         while !b.is_zero() {
-            let temp = b.clone());
+            let temp = b.clone();
             b = &a % &b;
             a = temp;
         }
@@ -427,7 +425,7 @@ impl BigInt {
         while &divisor * &divisor <= n {
             while &n % &divisor == Self::zero() {
                 factors.push(divisor.clone());
-                n = n / divisor.clone());
+                n = n / divisor.clone();
             }
             divisor = divisor + Self::one();
         }
@@ -447,15 +445,15 @@ impl BigInt {
         if self == &Self::from_i64(2) || self == &Self::from_i64(3) {
             return true;
         }
-        if self.digits.get(0).unwrap_or(&0) & 1 == 0 {
+        if self.digits.first().unwrap_or(&0) & 1 == 0 {
             return false; // Even number
         }
 
         // Write n-1 as d * 2^r
         let n_minus_1 = self - &Self::one();
-        let mut d = n_minus_1.clone());
+        let mut d = n_minus_1.clone();
         let mut r = 0;
-        while d.digits.get(0).unwrap_or(&0) & 1 == 0 {
+        while d.digits.first().unwrap_or(&0) & 1 == 0 {
             d = d >> 1;
             r += 1;
         }
@@ -783,7 +781,7 @@ mod tests {
     #[test]
     fn test_bigint_bit_operations() {
         let num = BigInt::from_i64(5); // 101 in binary
-        let shifted_left = num.clone()) << 2; // Should be 20 (10100)
+        let shifted_left = num.clone() << 2; // Should be 20 (10100)
         let shifted_right = num >> 1; // Should be 2 (10)
 
         assert_eq!(shifted_left.to_i64(), Some(20));

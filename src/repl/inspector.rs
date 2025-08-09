@@ -164,41 +164,45 @@ impl CodeInspector {
             // Try to introspect from the runtime
             match self.introspect_from_runtime(lambdust, item) {
                 Ok(Some(info)) => self.print_symbol_info(&info),
-                Ok(None) => println!("No information found for: {}", item),
-                Err(e) => println!("Error inspecting {}: {}", item, e),
+                Ok(None) => println!("No information found for: {item}"),
+                Err(e) => println!("Error inspecting {item}: {e}"),
             }
         }
         Ok(())
     }
 
     fn print_symbol_info(&self, info: &SymbolInfo) {
-        println!("🔍 {}", info.name);
+        let name = &info.name;
+        println!("🔍 {name}");
         println!("   Type: {:?}", info.symbol_type);
         
         if let Some(ref doc) = info.documentation {
-            println!("   Documentation: {}", doc);
+            println!("   Documentation: {doc}");
         }
         
         if let Some(ref sig) = info.signature {
-            println!("   Signature: {}", sig);
+            println!("   Signature: {sig}");
         }
         
         if let Some(ref module) = info.module {
-            println!("   Module: {}", module);
+            println!("   Module: {module}");
         }
         
         if let Some(ref value) = info.value {
-            println!("   Value: {}", value);
+            println!("   Value: {value}");
         }
         
         if let Some(ref location) = info.source_location {
-            println!("   Source: {}:{}:{}", location.file, location.line, location.column);
+            let file = &location.file;
+            let line = location.line;
+            let column = location.column;
+            println!("   Source: {file}:{line}:{column}");
         }
         
         if !info.examples.is_empty() {
             println!("   Examples:");
             for example in &info.examples {
-                println!("     {}", example);
+                println!("     {example}");
             }
         }
     }
@@ -206,7 +210,7 @@ impl CodeInspector {
     fn introspect_from_runtime(&self, _lambdust: &mut Lambdust, item: &str) -> Result<Option<SymbolInfo>> {
         // TODO: Implement runtime introspection
         // This would involve querying the runtime environment for information about the symbol
-        println!("Runtime introspection not yet implemented for: {}", item);
+        println!("Runtime introspection not yet implemented for: {item}");
         Ok(None)
     }
 
@@ -227,18 +231,18 @@ impl CodeInspector {
         }
 
         if matches.is_empty() {
-            println!("No matches found for: {}", pattern);
+            println!("No matches found for: {pattern}");
         } else {
-            println!("Matches for '{}' ({} found):", pattern, matches.len());
+            let count = matches.len(); println!("Matches for '{pattern}' ({count} found):");
             for (name, info) in matches {
-                println!("  {} - {:?}", name, info.symbol_type);
+                let sym_type = &info.symbol_type; println!("  {name} - {sym_type:?}");
                 if let Some(ref doc) = info.documentation {
                     let truncated_doc = if doc.len() > 60 {
-                        format!("{}...", &doc[..57])
+                        doc[..57].to_string() + "..."
                     } else {
-                        doc.clone())
+                        doc.clone()
                     };
-                    println!("    {}", truncated_doc);
+                    println!("    {truncated_doc}");
                 }
             }
         }
@@ -250,35 +254,35 @@ impl CodeInspector {
         if let Some(symbol_info) = self.symbol_database.get(item) {
             self.print_detailed_description(symbol_info);
         } else {
-            println!("No description available for: {}", item);
+            println!("No description available for: {item}");
         }
         Ok(())
     }
 
     fn print_detailed_description(&self, info: &SymbolInfo) {
-        println!("📖 Detailed Description: {}", info.name);
+        let name = &info.name; println!("📖 Detailed Description: {name}");
         println!("{}", "=".repeat(50));
         
         println!("Type: {:?}", info.symbol_type);
         
         if let Some(ref sig) = info.signature {
             println!("\nSignature:");
-            println!("  {}", sig);
+            println!("  {sig}");
         }
         
         if let Some(ref doc) = info.documentation {
             println!("\nDescription:");
-            println!("  {}", doc);
+            println!("  {doc}");
         }
         
         if let Some(ref module) = info.module {
-            println!("\nDefined in module: {}", module);
+            println!("\nDefined in module: {module}");
         }
         
         if !info.examples.is_empty() {
             println!("\nExamples:");
             for (i, example) in info.examples.iter().enumerate() {
-                println!("  {}. {}", i + 1, example);
+                let index = i + 1; println!("  {index}. {example}");
             }
         }
         
@@ -290,7 +294,7 @@ impl CodeInspector {
         let mut related = Vec::new();
         
         // Find functions with similar names or in the same category
-        for (other_name, _) in &self.symbol_database {
+        for other_name in self.symbol_database.keys() {
             if other_name != name {
                 // Simple heuristic: same prefix or contains same keywords
                 if self.are_related(name, other_name) {
@@ -302,10 +306,10 @@ impl CodeInspector {
         if !related.is_empty() {
             println!("\nRelated functions:");
             for related_name in related.iter().take(5) {
-                println!("  {}", related_name);
+                println!("  {related_name}");
             }
             if related.len() > 5 {
-                println!("  ... and {} more", related.len() - 5);
+                let more_count = related.len() - 5; println!("  ... and {more_count} more");
             }
         }
     }
@@ -371,13 +375,13 @@ impl CodeInspector {
                 };
                 
                 if current_category != Some(category) {
-                    println!("\n{}:", category);
+                    println!("\n{category}:");
                     current_category = Some(category);
                 }
                 
-                print!("  {}", name);
+                print!("  {name}");
                 if let Some(ref sig) = info.signature {
-                    println!(" - {}", sig);
+                    println!(" - {sig}");
                 } else {
                     println!();
                 }
@@ -398,7 +402,7 @@ impl CodeInspector {
             max_time: std::time::Duration::from_secs(0),
         });
         
-        println!("Started profiling: {}", function_name);
+        println!("Started profiling: {function_name}");
         Ok(())
     }
 
@@ -406,14 +410,14 @@ impl CodeInspector {
         if let Some(profile_info) = self.profile_data.remove(function_name) {
             self.print_profile_results(&profile_info);
         } else {
-            println!("No profiling data found for: {}", function_name);
+            println!("No profiling data found for: {function_name}");
         }
         Ok(())
     }
 
     fn print_profile_results(&self, profile: &ProfileInfo) {
-        println!("📊 Profile Results for: {}", profile.function_name);
-        println!("   Calls: {}", profile.call_count);
+        let fn_name = &profile.function_name; println!("📊 Profile Results for: {fn_name}");
+        let call_count = profile.call_count; println!("   Calls: {call_count}");
         println!("   Total time: {:?}", profile.total_time);
         println!("   Average time: {:?}", profile.average_time);
         println!("   Min time: {:?}", profile.min_time);
@@ -422,15 +426,15 @@ impl CodeInspector {
 
     pub fn start_tracing(&mut self, function_name: &str) -> Result<()> {
         self.traced_functions.insert(function_name.to_string());
-        println!("Started tracing: {}", function_name);
+        println!("Started tracing: {function_name}");
         Ok(())
     }
 
     pub fn stop_tracing(&mut self, function_name: &str) -> Result<()> {
         if self.traced_functions.remove(function_name) {
-            println!("Stopped tracing: {}", function_name);
+            println!("Stopped tracing: {function_name}");
         } else {
-            println!("Function was not being traced: {}", function_name);
+            println!("Function was not being traced: {function_name}");
         }
         Ok(())
     }
@@ -441,7 +445,7 @@ impl CodeInspector {
         } else {
             println!("Currently traced functions:");
             for function in &self.traced_functions {
-                println!("  {}", function);
+                println!("  {function}");
             }
         }
         Ok(())

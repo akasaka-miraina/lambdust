@@ -149,7 +149,7 @@ impl PerformanceTester {
     }
     
     /// Creates a performance tester with default configuration
-    pub fn default() -> Self {
+    pub fn with_defaults() -> Self {
         Self::new(PerformanceTestConfig::default())
     }
     
@@ -237,14 +237,14 @@ impl PerformanceTester {
             let _session = profile(ProfileCategory::Evaluation, "warmup");
             
             // Arithmetic operations
-            let a = NumericValue::real(3.14159);
-            let b = NumericValue::real(2.71828);
+            let a = NumericValue::real(std::f64::consts::PI);
+            let b = NumericValue::real(std::f64::consts::E);
             let _ = tower::add(&a, &b);
             let _ = tower::multiply(&a, &b);
             
             // List operations
             let list = Value::pair(Value::integer(1), Value::pair(Value::integer(2), Value::Nil));
-            let _ = list.clone());
+            let _ = list.clone();
             
             // Symbol interning
             let _ = intern_symbol("warmup-symbol");
@@ -296,8 +296,8 @@ impl PerformanceTester {
     fn benchmark_arithmetic_operations(&self, iterations: usize) -> f64 {
         let _session = profile(ProfileCategory::Evaluation, "arithmetic_benchmark");
         
-        let a = NumericValue::real(3.14159);
-        let b = NumericValue::real(2.71828);
+        let a = NumericValue::real(std::f64::consts::PI);
+        let b = NumericValue::real(std::f64::consts::E);
         
         let start = Instant::now();
         
@@ -327,7 +327,7 @@ impl PerformanceTester {
         let start = Instant::now();
         
         for _ in 0..iterations {
-            let _ = list.clone()); // cons operation
+            let _ = list.clone(); // cons operation
             // Access list elements instead of using car/cdr methods
             if let Value::Pair(car, _cdr) = &list {
                 let _ = car.as_ref();
@@ -343,6 +343,7 @@ impl PerformanceTester {
     fn benchmark_hash_operations(&self, iterations: usize) -> f64 {
         let _session = profile(ProfileCategory::Evaluation, "hash_benchmark");
         
+        #[allow(clippy::mutable_key_type)] // Benchmark context - Value used as key for testing
         let mut table = HashMap::new();
         let key = Value::integer(42);
         let value = Value::string("test".to_string());
@@ -366,8 +367,8 @@ impl PerformanceTester {
         
         let env = Environment::new(None, 0);
         let symbols: Vec<_> = (0..10).map(|i| {
-            let var_name = format!("var_{}", i);
-            env.define(var_name.clone()), Value::integer(i));
+            let var_name = format!("var_{i}");
+            env.define(var_name.clone(), Value::integer(i));
             var_name
         }).collect();
         
@@ -500,7 +501,7 @@ impl PerformanceTester {
                 match i % 4 {
                     0 => Value::integer(i),
                     1 => Value::number(i as f64),
-                    2 => Value::string(format!("str_{}", i)),
+                    2 => Value::string(format!("str_{i}")),
                     3 => Value::pair(Value::integer(i), Value::Nil),
                     _ => unreachable!(),
                 }
@@ -516,7 +517,7 @@ impl PerformanceTester {
     
     /// Tests SIMD optimization effectiveness
     fn test_simd_optimizations(&self) -> SimdOptimizationResults {
-        let simd_ops = SimdNumericOps::default();
+        let simd_ops = SimdNumericOps::with_default();
         let mut optimal_sizes = Vec::new();
         let mut total_speedup = 0.0;
         let mut test_count = 0;
@@ -742,7 +743,7 @@ fn score_percentage(actual: f64, target: f64) -> f64 {
 }
 
 fn score_speedup(speedup: f64) -> f64 {
-    ((speedup - 1.0) * 50.0 + 50.0).min(100.0).max(0.0)
+    ((speedup - 1.0) * 50.0 + 50.0).clamp(0.0, 100.0)
 }
 
 impl PerformanceTestResults {
@@ -822,7 +823,7 @@ mod tests {
     
     #[test]
     fn test_performance_tester_creation() {
-        let tester = PerformanceTester::default();
+        let tester = PerformanceTester::new(PerformanceTestConfig::default());
         assert!(tester.config.test_duration > Duration::ZERO);
     }
     

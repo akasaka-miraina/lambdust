@@ -49,13 +49,13 @@ impl HashTable {
     pub fn new() -> Self {
         Self::with_capacity_and_comparator(
             capacities::DEFAULT_HASH_TABLE_CAPACITY,
-            HashComparator::default(),
+            HashComparator::with_default(),
         )
     }
     
     /// Creates a new hash table with the specified capacity
     pub fn with_capacity(capacity: usize) -> Self {
-        Self::with_capacity_and_comparator(capacity, HashComparator::default())
+        Self::with_capacity_and_comparator(capacity, HashComparator::with_default())
     }
     
     /// Creates a new hash table with custom comparator
@@ -81,7 +81,7 @@ impl HashTable {
     /// Creates a named hash table for debugging
     pub fn with_name(name: impl Into<String>) -> Self {
         let mut table = Self::new();
-        table.name = Some(name.into())
+        table.name = Some(name.into());
         table
     }
     
@@ -108,7 +108,7 @@ impl HashTable {
         let hash = self.comparator.hash(&key);
         let ideal_pos = (hash as usize) & (self.buckets.len() - 1);
         let mut distance = 0;
-        let new_entry = Entry::new(key.clone()), value, hash, distance);
+        let new_entry = Entry::new(key.clone(), value, hash, distance);
         
         loop {
             let pos = (ideal_pos + distance) & (self.buckets.len() - 1);
@@ -124,7 +124,7 @@ impl HashTable {
                     // Check if key already exists
                     if existing_entry.hash == hash && self.comparator.eq(&existing_entry.key, &key) {
                         // Replace existing value
-                        let old_value = existing_entry.value.clone());
+                        let old_value = existing_entry.value.clone();
                         existing_entry.value = new_entry.value;
                         return Some(old_value);
                     }
@@ -132,7 +132,7 @@ impl HashTable {
                     // Robin Hood hashing: if our distance is greater than the existing entry's,
                     // swap them and continue with the displaced entry
                     if distance > existing_entry.distance {
-                        let displaced = existing_entry.clone());
+                        let displaced = existing_entry.clone();
                         *existing_entry = Entry::new(key, new_entry.value, hash, distance);
                         
                         // Continue inserting the displaced entry
@@ -206,7 +206,7 @@ impl HashTable {
                 None => return None,
                 Some(entry) => {
                     if entry.hash == hash && self.comparator.eq(&entry.key, key) {
-                        let removed_value = entry.value.clone());
+                        let removed_value = entry.value.clone();
                         
                         // Shift back entries to fill the gap
                         self.shift_back(pos);
@@ -280,7 +280,7 @@ impl HashTable {
         self.buckets
             .iter()
             .filter_map(|bucket| bucket.as_ref())
-            .map(|entry| (entry.key.clone()), entry.value.clone()))
+            .map(|entry| (entry.key.clone(), entry.value.clone()))
             .collect()
     }
     
@@ -303,10 +303,8 @@ impl HashTable {
         let old_buckets = std::mem::replace(&mut self.buckets, vec![None; old_capacity * 2]);
         self.size = 0;
         
-        for bucket in old_buckets {
-            if let Some(entry) = bucket {
-                self.insert(entry.key, entry.value);
-            }
+        for entry in old_buckets.into_iter().flatten() {
+            self.insert(entry.key, entry.value);
         }
     }
     
@@ -417,7 +415,7 @@ impl ThreadSafeHashTable {
     
     /// Gets a value by key
     pub fn get(&self, key: &Value) -> Option<Value> {
-        self.inner.read().unwrap().get(key).clone())()
+        self.inner.read().unwrap().get(key).cloned()
     }
     
     /// Removes a key-value pair
@@ -470,7 +468,7 @@ impl ThreadSafeHashTable {
     where
         F: FnOnce(&HashTable) -> R,
     {
-        f(&*self.inner.read().unwrap())
+        f(&self.inner.read().unwrap())
     }
     
     /// Executes a closure with write access to the inner hash table
@@ -478,7 +476,7 @@ impl ThreadSafeHashTable {
     where
         F: FnOnce(&mut HashTable) -> R,
     {
-        f(&mut *self.inner.write().unwrap())
+        f(&mut self.inner.write().unwrap())
     }
 }
 
@@ -491,12 +489,19 @@ impl Default for ThreadSafeHashTable {
 /// Statistics about hash table performance
 #[derive(Debug, Clone)]
 pub struct HashTableStats {
+    /// Current number of elements in the hash table
     pub size: usize,
+    /// Total capacity of the hash table
     pub capacity: usize,
+    /// Current load factor (size / capacity)
     pub load_factor: f64,
+    /// Maximum probe distance for any element
     pub max_distance: usize,
+    /// Average probe distance across all elements
     pub avg_distance: f64,
+    /// Number of collision chains
     pub chain_count: usize,
+    /// Length of the longest collision chain
     pub max_chain_length: usize,
 }
 
@@ -525,7 +530,7 @@ impl HashTable {
             None => match default {
                 Some(default_value) => Ok(default_value),
                 None => Err(ContainerError::KeyNotFound {
-                    key: format!("{}", key),
+                    key: format!("{key}"),
                 }),
             },
         }
@@ -534,7 +539,7 @@ impl HashTable {
     /// SRFI-125: hash-table-set! (multiple key-value pairs)
     pub fn hash_table_set(&mut self, pairs: &[(Value, Value)]) {
         for (key, value) in pairs {
-            self.insert(key.clone()), value.clone());
+            self.insert(key.clone(), value.clone());
         }
     }
     
@@ -555,17 +560,17 @@ impl HashTable {
         F: FnOnce(&Value) -> Value,
     {
         let current_value = match self.get(key) {
-            Some(value) => value.clone()),
+            Some(value) => value.clone(),
             None => match default {
                 Some(default_value) => default_value,
                 None => return Err(ContainerError::KeyNotFound {
-                    key: format!("{}", key),
+                    key: format!("{key}"),
                 }),
             },
         };
         
         let new_value = updater(&current_value);
-        self.insert(key.clone()), new_value);
+        self.insert(key.clone(), new_value);
         Ok(())
     }
     
@@ -613,7 +618,7 @@ mod tests {
         let key1 = Value::string("key1");
         let value1 = Value::number(42.0);
         
-        assert_eq!(table.insert(key1.clone()), value1.clone()), None);
+        assert_eq!(table.insert(key1.clone(), value1.clone()), None);
         assert_eq!(table.len(), 1);
         assert!(!table.is_empty());
         
@@ -621,7 +626,7 @@ mod tests {
         assert!(table.contains_key(&key1));
         
         let value2 = Value::number(24.0);
-        assert_eq!(table.insert(key1.clone()), value2.clone()), Some(value1));
+        assert_eq!(table.insert(key1.clone(), value2.clone()), Some(value1));
         assert_eq!(table.get(&key1), Some(&value2));
         
         assert_eq!(table.remove(&key1), Some(value2));
@@ -680,7 +685,7 @@ mod tests {
         let key = Value::string("test");
         let value = Value::number(123.0);
         
-        assert_eq!(table.insert(key.clone()), value.clone()), None);
+        assert_eq!(table.insert(key.clone(), value.clone()), None);
         assert_eq!(table.get(&key), Some(value.clone()));
         assert!(table.contains_key(&key));
         assert_eq!(table.len(), 1);
@@ -700,10 +705,10 @@ mod tests {
         let default = Value::number(0.0);
         
         // Test hash-table-ref with default
-        assert_eq!(table.hash_table_ref(&key1, Some(default.clone())), Ok(default.clone()));
+            assert_eq!(table.hash_table_ref(&key1, Some(default.clone())), Ok(default.clone()));
         
         // Test hash-table-set! with multiple pairs
-        table.hash_table_set(&[(key1.clone()), value1.clone()), (key2.clone()), value2.clone())]);
+        table.hash_table_set(&[(key1.clone(), value1.clone()), (key2.clone(), value2.clone())]);
         assert_eq!(table.len(), 2);
         
         // Test hash-table-update!

@@ -559,12 +559,12 @@ impl PerformanceAnalyzer {
                               else { 4 };
                 
                 let bottleneck = PerformanceBottleneck {
-                    description: format!("Low performance in {:?} operations", category),
-                    category: category.clone()),
+                    description: format!("Low performance in {category:?} operations"),
+                    category: category.clone(),
                     severity,
                     time_percentage: analysis.avg_operation_time_ns as f64 / 10_000.0, // Estimate
                     memory_impact: (analysis.memory_per_operation * 1000.0) as usize,
-                    suggested_fixes: analysis.opportunities.clone()),
+                    suggested_fixes: analysis.opportunities.clone(),
                 };
                 
                 bottlenecks.push(bottleneck);
@@ -600,7 +600,7 @@ impl PerformanceAnalyzer {
                                            else { 40.0 };
                 
                 let hot_path = HotPath {
-                    description: format!("Frequent execution of {}", operation),
+                    description: format!("Frequent execution of {operation}"),
                     operation,
                     execution_count: count,
                     total_time,
@@ -667,11 +667,11 @@ impl PerformanceAnalyzer {
                 for (i, fix) in bottleneck.suggested_fixes.iter().enumerate() {
                     let rec = OptimizationRecommendation {
                         title: format!("Fix bottleneck in {:?}", bottleneck.category),
-                        description: fix.clone()),
+                        description: fix.clone(),
                         priority: bottleneck.severity,
                         expected_improvement: 20.0 + (bottleneck.severity as f64 * 2.0),
                         implementation_difficulty: 5 + (i as u8),
-                        affected_categories: vec![bottleneck.category.clone())],
+                        affected_categories: vec![bottleneck.category.clone()],
                     };
                     recommendations.push(rec);
                 }
@@ -683,12 +683,12 @@ impl PerformanceAnalyzer {
             if analysis.score < 85.0 {
                 for opportunity in &analysis.opportunities {
                     let rec = OptimizationRecommendation {
-                        title: format!("Optimize {:?} performance", category),
-                        description: opportunity.clone()),
+                        title: format!("Optimize {category:?} performance"),
+                        description: opportunity.clone(),
                         priority: if analysis.score < 70.0 { 7 } else { 5 },
                         expected_improvement: (100.0 - analysis.score) * 0.3,
                         implementation_difficulty: 4,
-                        affected_categories: vec![category.clone())],
+                        affected_categories: vec![category.clone()],
                     };
                     recommendations.push(rec);
                 }
@@ -776,7 +776,7 @@ impl PerformanceAnalysis {
                 category, analysis.score, analysis.ops_per_second, analysis.avg_operation_time_ns));
             
             for issue in &analysis.issues {
-                report.push_str(&format!("  ⚠ {}\n", issue));
+                report.push_str(&format!("  ⚠ {issue}\n"));
             }
         }
         report.push('\n');

@@ -171,7 +171,7 @@ impl EffectLifter {
         let mut applicable_rules = Vec::new();
         for (name, rule) in &self.lifting_rules {
             if self.rule_applies(name, rule, operation, args) {
-                applicable_rules.push((name.clone()), rule.clone()));
+                applicable_rules.push((name.clone(), rule.clone()));
             }
         }
         
@@ -297,9 +297,9 @@ impl EffectLifter {
                 // For now, just use direct lifting
                 self.apply_lifting_rule(
                     &LiftingRule {
-                        target_effect: rule.target_effect.clone()),
+                        target_effect: rule.target_effect.clone(),
                         transformation: LiftingTransformation::Direct,
-                        conditions: rule.conditions.clone()),
+                        conditions: rule.conditions.clone(),
                         priority: rule.priority,
                     },
                     operation,
@@ -315,9 +315,9 @@ impl EffectLifter {
                 // Recursively lift the mapped operation
                 self.apply_lifting_rule(
                     &LiftingRule {
-                        target_effect: rule.target_effect.clone()),
+                        target_effect: rule.target_effect.clone(),
                         transformation: LiftingTransformation::Direct,
-                        conditions: rule.conditions.clone()),
+                        conditions: rule.conditions.clone(),
                         priority: rule.priority,
                     },
                     new_operation,
@@ -334,10 +334,10 @@ impl EffectLifter {
                 if let Some(value) = args.first() {
                     Ok(IOAction::Print(value.clone()))
                 } else {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         "display requires at least one argument".to_string(),
                         None,
-                    ))
+                    )))
                 }
             },
             "newline" => Ok(IOAction::Newline),
@@ -354,16 +354,16 @@ impl EffectLifter {
                     if let Some(var_name) = args[0].as_string() {
                         Ok(StateAction::SetVar(var_name.to_string(), args[1].clone()))
                     } else {
-                        Err(DiagnosticError::runtime_error(
+                        Err(Box::new(DiagnosticError::runtime_error(
                             "set! requires a variable name".to_string(),
                             None,
-                        ))
+                        )))
                     }
                 } else {
-                    Err(DiagnosticError::runtime_error(
+                    Err(Box::new(DiagnosticError::runtime_error(
                         "set! requires two arguments".to_string(),
                         None,
-                    ))
+                    )))
                 }
             },
             _ => Ok(StateAction::Custom(operation.to_string(), args.to_vec())),

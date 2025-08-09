@@ -120,7 +120,7 @@ impl HistoryManager {
         // Load existing history
         if manager.history_file.exists() {
             if let Err(e) = manager.load_from_file() {
-                eprintln!("Warning: Failed to load history: {}", e);
+                eprintln!("Warning: Failed to load history: {e}");
             }
         }
 
@@ -155,7 +155,7 @@ impl HistoryManager {
     }
 
     fn generate_session_id() -> String {
-        format!("session_{}", Utc::now().timestamp())
+        let timestamp = Utc::now().timestamp(); format!("session_{timestamp}")
     }
 
     pub fn add_entry(&mut self, command: String) -> Result<()> {
@@ -234,15 +234,14 @@ impl HistoryManager {
             .collect();
 
         if matches.is_empty() {
-            println!("No matches found for: {}", query);
+            println!("No matches found for: {query}");
         } else {
-            println!("Found {} matches for: {}", matches.len(), query);
+            let count = matches.len(); println!("Found {count} matches for: {query}");
             for (i, entry) in matches.iter().enumerate() {
-                println!("  {}: {} ({})", 
-                    i + 1, 
-                    entry.command, 
-                    entry.timestamp.format("%Y-%m-%d %H:%M:%S")
-                );
+                let index = i + 1;
+                let command = &entry.command;
+                let timestamp = entry.timestamp.format("%Y-%m-%d %H:%M:%S");
+                println!("  {index}: {command} ({timestamp})");
             }
         }
 
@@ -270,16 +269,14 @@ impl HistoryManager {
             return Ok(());
         }
 
-        println!("Recent history ({} entries):", recent_count);
+        println!("Recent history ({recent_count} entries):");
         
         let start_index = self.entries.len().saturating_sub(recent_count);
         for (i, entry) in self.entries.iter().skip(start_index).enumerate() {
             let display_index = start_index + i + 1;
-            println!("  {}: {} ({})", 
-                display_index,
-                entry.command,
-                entry.timestamp.format("%H:%M:%S")
-            );
+            let command = &entry.command;
+            let timestamp = entry.timestamp.format("%H:%M:%S");
+            println!("  {display_index}: {command} ({timestamp})");
         }
 
         Ok(())
@@ -301,9 +298,9 @@ impl HistoryManager {
             .collect();
 
         if commands.is_empty() {
-            println!("No commands found for session: {}", session_id);
+            println!("No commands found for session: {session_id}");
         } else {
-            println!("Found {} commands for session: {}", commands.len(), session_id);
+            let count = commands.len(); println!("Found {count} commands for session: {session_id}");
             for (i, command) in commands.iter().enumerate() {
                 println!("  {}: {}", i + 1, command);
             }
@@ -324,17 +321,17 @@ impl HistoryManager {
         // Create parent directories if they don't exist
         if let Some(parent) = self.history_file.parent() {
             fs::create_dir_all(parent)
-                .map_err(|e| Error::io_error(format!("Failed to create history directory: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to create history directory: {e}")))?;
         }
 
         let mut file = File::create(&self.history_file)
-            .map_err(|e| Error::io_error(format!("Failed to create history file: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Failed to create history file: {e}")))?;
 
         for entry in &self.entries {
             let json = serde_json::to_string(entry)
-                .map_err(|e| Error::io_error(format!("Failed to serialize history entry: {}", e)))?;
-            writeln!(file, "{}", json)
-                .map_err(|e| Error::io_error(format!("Failed to write history entry: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to serialize history entry: {e}")))?;
+            writeln!(file, "{json}")
+                .map_err(|e| Error::io_error(format!("Failed to write history entry: {e}")))?;
         }
 
         Ok(())
@@ -342,21 +339,21 @@ impl HistoryManager {
 
     pub fn load_from_file(&mut self) -> Result<()> {
         let file = File::open(&self.history_file)
-            .map_err(|e| Error::io_error(format!("Failed to open history file: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Failed to open history file: {e}")))?;
 
         let reader = BufReader::new(file);
         self.entries.clear();
 
         for line in reader.lines() {
             let line = line
-                .map_err(|e| Error::io_error(format!("Failed to read history line: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to read history line: {e}")))?;
             
             if line.trim().is_empty() {
                 continue;
             }
 
             let entry: HistoryEntry = serde_json::from_str(&line)
-                .map_err(|e| Error::io_error(format!("Failed to parse history entry: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to parse history entry: {e}")))?;
             
             self.entries.push_back(entry);
         }
@@ -371,7 +368,7 @@ impl HistoryManager {
 
     pub fn export_to_file<P: AsRef<Path>>(&self, path: P) -> Result<()> {
         let mut file = File::create(path.as_ref())
-            .map_err(|e| Error::io_error(format!("Failed to create export file: {}", e)))?;
+            .map_err(|e| Error::io_error(format!("Failed to create export file: {e}")))?;
 
         writeln!(file, "# Lambdust REPL History Export")?;
         writeln!(file, "# Generated at: {}", Utc::now().format("%Y-%m-%d %H:%M:%S UTC"))?;
@@ -382,10 +379,10 @@ impl HistoryManager {
             writeln!(file, "# Entry {}: {}", i + 1, entry.timestamp.format("%Y-%m-%d %H:%M:%S"))?;
             writeln!(file, "{}", entry.command)?;
             if let Some(ref result) = entry.result {
-                writeln!(file, "# Result: {}", result)?;
+                writeln!(file, "# Result: {result}")?;
             }
             if let Some(ref error) = entry.error {
-                writeln!(file, "# Error: {}", error)?;
+                writeln!(file, "# Error: {error}")?;
             }
             writeln!(file)?;
         }
@@ -463,7 +460,7 @@ impl HistoryStats {
         if !self.most_used_commands.is_empty() {
             println!("  Most used commands:");
             for (command, count) in &self.most_used_commands {
-                println!("    {}: {} times", command, count);
+                println!("    {command}: {count} times");
             }
         }
     }

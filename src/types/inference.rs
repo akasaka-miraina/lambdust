@@ -117,7 +117,7 @@ impl TypeInference {
         let solver_result = solver.solve();
         
         if !solver_result.errors.is_empty() {
-            return Err(solver_result.errors.into_iter().next().unwrap());
+            return Err(solver_result.errors.into_iter().next().unwrap().boxed());
         }
         
         // Apply final substitution
@@ -259,14 +259,14 @@ impl TypeInference {
     
     /// Infers the type of an identifier.
     fn infer_identifier(&mut self, name: &str, span: Span) -> Result<Type> {
-        if let Some(scheme) = self.env.lookup(name).clone())() {
+        if let Some(scheme) = self.env.lookup(name).cloned() {
             // Instantiate the type scheme with fresh variables
             Ok(self.instantiate_scheme(&scheme))
         } else {
             Err(Box::new(Error::type_error(
                 format!("Unbound variable: {name}"),
                 span,
-            ))
+            )))
         }
     }
     
@@ -282,14 +282,14 @@ impl TypeInference {
             return Err(Box::new(Error::type_error(
                 "Lambda body cannot be empty",
                 span,
-            ));
+            )));
         }
         
         // Create fresh type variables for parameters
         let (param_types, param_bindings) = self.create_parameter_types(formals)?;
         
         // Extend environment with parameter bindings
-        let old_env = self.env.clone());
+        let old_env = self.env.clone();
         for (name, type_scheme) in param_bindings {
             self.env.bind(name, type_scheme);
         }
@@ -358,7 +358,7 @@ impl TypeInference {
         
         // Consequent and alternative must have the same type
         self.add_constraint(TypeConstraint::equal(
-            consequent_type.clone()),
+            consequent_type.clone(),
             alternative_type,
             Some(span),
             "if expression branches",
@@ -383,7 +383,7 @@ impl TypeInference {
             // Value must match annotation
             self.add_constraint(TypeConstraint::equal(
                 value_type,
-                annotated_type.clone()),
+                annotated_type.clone(),
                 Some(span),
                 "type annotation",
             ));
@@ -440,7 +440,7 @@ impl TypeInference {
         // Expression must match annotation
         self.add_constraint(TypeConstraint::equal(
             expr_type,
-            annotated_type.clone()),
+            annotated_type.clone(),
             Some(span),
             "type annotation",
         ));
@@ -455,13 +455,13 @@ impl TypeInference {
         body: &[Spanned<Expr>],
         _span: Span,
     ) -> Result<Type> {
-        let old_env = self.env.clone());
+        let old_env = self.env.clone();
         
         // Infer binding types and extend environment
         for binding in bindings {
             let binding_type = self.infer_expr(&binding.value)?;
             let scheme = self.generalize(&binding_type);
-            self.env.bind(binding.name.clone()), scheme);
+            self.env.bind(binding.name.clone(), scheme);
         }
         
         // Infer body type
@@ -480,13 +480,13 @@ impl TypeInference {
         body: &[Spanned<Expr>],
         _span: Span,
     ) -> Result<Type> {
-        let old_env = self.env.clone());
+        let old_env = self.env.clone();
         
         // Process bindings sequentially
         for binding in bindings {
             let binding_type = self.infer_expr(&binding.value)?;
             let scheme = self.generalize(&binding_type);
-            self.env.bind(binding.name.clone()), scheme);
+            self.env.bind(binding.name.clone(), scheme);
         }
         
         // Infer body type
@@ -505,7 +505,7 @@ impl TypeInference {
         body: &[Spanned<Expr>],
         span: Span,
     ) -> Result<Type> {
-        let old_env = self.env.clone());
+        let old_env = self.env.clone();
         
         // Create fresh type variables for all bindings first
         let mut binding_types = Vec::new();
@@ -513,7 +513,7 @@ impl TypeInference {
             let binding_type = self.fresh_type_var();
             binding_types.push(binding_type.clone());
             let scheme = TypeScheme::monomorphic(binding_type);
-            self.env.bind(binding.name.clone()), scheme);
+            self.env.bind(binding.name.clone(), scheme);
         }
         
         // Now infer actual types and add constraints
@@ -521,7 +521,7 @@ impl TypeInference {
             let actual_type = self.infer_expr(&binding.value)?;
             self.add_constraint(TypeConstraint::equal(
                 actual_type,
-                expected_type.clone()),
+                expected_type.clone(),
                 Some(span),
                 "letrec binding",
             ));
@@ -559,7 +559,7 @@ impl TypeInference {
                 // All clauses must have the same type
                 self.add_constraint(TypeConstraint::equal(
                     clause_type,
-                    expected.clone()),
+                    expected.clone(),
                     Some(span),
                     "cond clause",
                 ));
@@ -595,47 +595,47 @@ impl TypeInference {
                 for param in params {
                     let param_type = self.fresh_type_var();
                     param_types.push(param_type.clone());
-                    bindings.push((param.clone()), TypeScheme::monomorphic(param_type)));
+                    bindings.push((param.clone(), TypeScheme::monomorphic(param_type)));
                 }
             }
             Formals::Variable(param) => {
                 // Variable parameters get list type
                 let element_type = self.fresh_type_var();
                 let list_type = Type::list(element_type);
-                bindings.push((param.clone()), TypeScheme::monomorphic(list_type)));
+                bindings.push((param.clone(), TypeScheme::monomorphic(list_type)));
             }
             Formals::Mixed { fixed, rest } => {
                 // Fixed parameters
                 for param in fixed {
                     let param_type = self.fresh_type_var();
                     param_types.push(param_type.clone());
-                    bindings.push((param.clone()), TypeScheme::monomorphic(param_type)));
+                    bindings.push((param.clone(), TypeScheme::monomorphic(param_type)));
                 }
                 
                 // Rest parameter gets list type
                 let element_type = self.fresh_type_var();
                 let list_type = Type::list(element_type);
-                bindings.push((rest.clone()), TypeScheme::monomorphic(list_type)));
+                bindings.push((rest.clone(), TypeScheme::monomorphic(list_type)));
             }
             Formals::Keyword { fixed, rest, keywords } => {
                 // Fixed parameters
                 for param in fixed {
                     let param_type = self.fresh_type_var();
                     param_types.push(param_type.clone());
-                    bindings.push((param.clone()), TypeScheme::monomorphic(param_type)));
+                    bindings.push((param.clone(), TypeScheme::monomorphic(param_type)));
                 }
                 
                 // Keyword parameters
                 for kw_param in keywords {
                     let param_type = self.fresh_type_var();
-                    bindings.push((kw_param.name.clone()), TypeScheme::monomorphic(param_type)));
+                    bindings.push((kw_param.name.clone(), TypeScheme::monomorphic(param_type)));
                 }
                 
                 // Rest parameter if present
                 if let Some(rest) = rest {
                     let element_type = self.fresh_type_var();
                     let list_type = Type::list(element_type);
-                    bindings.push((rest.clone()), TypeScheme::monomorphic(list_type)));
+                    bindings.push((rest.clone(), TypeScheme::monomorphic(list_type)));
                 }
             }
         }
@@ -658,8 +658,8 @@ impl TypeInference {
                         // Look up type constructor
                         if let Some(constructor) = self.env.constructors.get(name) {
                             Ok(Type::Constructor {
-                                name: constructor.name.clone()),
-                                kind: constructor.kind.clone()),
+                                name: constructor.name.clone(),
+                                kind: constructor.kind.clone(),
                             })
                         } else {
                             // Create type variable
@@ -693,7 +693,7 @@ impl TypeInference {
             _ => Err(Box::new(Error::type_error(
                 "Invalid type expression".to_string(),
                 type_expr.span,
-            )),
+            )))
         }
     }
     
@@ -705,7 +705,7 @@ impl TypeInference {
         // Variables to generalize are those in the type but not in the environment
         let generalized_vars: Vec<_> = type_vars
             .difference(&env_vars)
-            .clone())()
+            .cloned()
             .collect();
         
         TypeScheme::polymorphic(generalized_vars, Vec::new(), type_.clone())
@@ -714,13 +714,13 @@ impl TypeInference {
     /// Instantiates a type scheme with fresh type variables.
     fn instantiate_scheme(&mut self, scheme: &TypeScheme) -> Type {
         if scheme.vars.is_empty() {
-            return scheme.type_.clone());
+            return scheme.type_.clone();
         }
         
         // Create fresh variables for each quantified variable
         let fresh_mapping: HashMap<TypeVar, Type> = scheme.vars
             .iter()
-            .map(|var| (var.clone()), self.fresh_type_var()))
+            .map(|var| (var.clone(), self.fresh_type_var()))
             .collect();
         
         // Apply substitution
