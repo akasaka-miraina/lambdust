@@ -119,13 +119,13 @@ pub enum Value {
     Channel(Arc<crate::concurrency::channels::Channel>),
     
     /// Mutex for synchronization - Thread-safe
-    Mutex(Arc<crate::concurrency::sync::Mutex>),
+    Mutex(Arc<crate::concurrency::Mutex>),
     
     /// Semaphore for resource control - Thread-safe
-    Semaphore(Arc<crate::concurrency::sync::SemaphoreSync>),
+    Semaphore(Arc<crate::concurrency::SemaphoreSync>),
     
     /// Atomic counter - Thread-safe
-    AtomicCounter(Arc<crate::concurrency::sync::AtomicCounter>),
+    AtomicCounter(Arc<crate::concurrency::AtomicCounter>),
     
     /// Distributed node - Thread-safe
     DistributedNode(Arc<crate::concurrency::distributed::DistributedNode>),

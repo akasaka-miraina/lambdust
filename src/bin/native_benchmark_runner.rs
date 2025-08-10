@@ -178,6 +178,7 @@ pub struct NativeBenchmarkRunner {
     /// Test execution configuration
     config: TestConfiguration,
     /// Lambdust evaluator instance
+    #[allow(dead_code)]
     evaluator: Evaluator,
     /// Accumulated benchmark results
     results: Vec<BenchmarkCategory>,
@@ -388,7 +389,7 @@ impl NativeBenchmarkRunner {
             results.push(self.benchmark_operation(
                 &format!("factorial_{n}"),
                 &format!("Compute factorial of {n}"),
-                || self.compute_factorial(n)
+                || Self::compute_factorial(n)
             ));
         }
         
@@ -399,7 +400,7 @@ impl NativeBenchmarkRunner {
             results.push(self.benchmark_operation(
                 &format!("fibonacci_{n}"),
                 &format!("Compute fibonacci number {n}"),
-                || self.compute_fibonacci(n)
+                || Self::compute_fibonacci(n)
             ));
         }
         
@@ -715,12 +716,12 @@ impl NativeBenchmarkRunner {
         sum
     }
 
-    fn compute_factorial(&self, n: u64) -> u64 {
-        if n <= 1 { 1 } else { n * self.compute_factorial(n - 1) }
+    fn compute_factorial(n: u64) -> u64 {
+        if n <= 1 { 1 } else { n * Self::compute_factorial(n - 1) }
     }
 
-    fn compute_fibonacci(&self, n: u64) -> u64 {
-        if n <= 1 { n } else { self.compute_fibonacci(n - 1) + self.compute_fibonacci(n - 2) }
+    fn compute_fibonacci(n: u64) -> u64 {
+        if n <= 1 { n } else { Self::compute_fibonacci(n - 1) + Self::compute_fibonacci(n - 2) }
     }
 
     fn get_memory_usage_mb(&self) -> f64 {

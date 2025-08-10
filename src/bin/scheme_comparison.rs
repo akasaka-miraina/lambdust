@@ -64,10 +64,12 @@ fn run_comparison(iterations: usize, timeout: u64, output_dir: String) {
     println!("   Output: {output_dir}");
     println!();
 
-    let mut config = ComparisonConfig::default();
-    config.iterations = iterations;
-    config.timeout_secs = timeout;
-    config.output_dir = output_dir;
+    let _config = ComparisonConfig {
+        iterations,
+        timeout_secs: timeout,
+        output_dir,
+        ..Default::default()
+    };
 
     match run_scheme_comparison() {
         Ok(report) => {

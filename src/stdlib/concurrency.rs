@@ -11,7 +11,7 @@ use crate::concurrency::{
     futures::{Future, Promise, FutureOps},
     channels::{Channel, ChannelConfig, ChannelType},
     parallel::{ParallelOps, ParallelConfig},
-    sync::{Mutex, SemaphoreSync, AtomicCounter},
+    Mutex, SemaphoreSync, AtomicCounter,
     actors::{global_actor_system, EchoActor},
     scheduler::{submit_task, submit_priority_task, Priority},
     distributed::DistributedNode,

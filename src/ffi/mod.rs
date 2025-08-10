@@ -31,13 +31,18 @@ use std::fmt;
 
 pub mod marshal;
 pub mod registry;
-pub mod builtins;
 pub mod examples;
 pub mod library;
 pub mod c_types;
 pub mod callback;
 pub mod memory;
 pub mod safety;
+pub mod arithmetic_functions;
+pub mod string_functions;
+pub mod list_functions;
+pub mod type_checking_functions;
+pub mod io_functions;
+pub mod builtin_ffi_module;
 #[cfg(feature = "ffi")]
 pub mod libffi_integration;
 pub mod scheme_api;
@@ -52,12 +57,17 @@ pub mod ffi_bridge;
 
 pub use marshal::*;
 pub use registry::*;
-pub use builtins::*;
 pub use library::*;
 pub use c_types::*;
 pub use callback::*;
 pub use memory::*;
 pub use safety::*;
+pub use arithmetic_functions::*;
+pub use string_functions::*;
+pub use list_functions::*;
+pub use type_checking_functions::*;
+pub use io_functions::*;
+pub use builtin_ffi_module::*;
 #[cfg(feature = "ffi")]
 pub use libffi_integration::*;
 pub use scheme_api::*;

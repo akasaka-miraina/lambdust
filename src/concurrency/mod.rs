@@ -18,12 +18,30 @@ pub mod scheduler;
 
 // Individual structure modules
 pub mod concurrency_runtime;
+pub mod mutex;
+pub mod rwlock;
+pub mod semaphore;
+pub mod condvar;
+pub mod barrier;
+pub mod atomic_ref;
+pub mod lockfree_queue;
+pub mod atomic_primitives;
+pub mod sync_registry;
 
 #[cfg(test)]
 mod tests;
 
 // Re-export individual structures
 pub use concurrency_runtime::*;
+pub use mutex::{Mutex, MutexGuard};
+pub use rwlock::{RwLock, ReadGuard, WriteGuard};
+pub use semaphore::{SemaphoreSync, SemaphorePermit};
+pub use condvar::CondVar;
+pub use barrier::{Barrier, BarrierWaitResult};
+pub use atomic_ref::AtomicRef;
+pub use lockfree_queue::{LockFreeQueue, BoundedLockFreeQueue};
+pub use atomic_primitives::{AtomicCounter, AtomicFlag};
+pub use sync_registry::{SyncRegistry, global_sync_registry};
 
 use crate::diagnostics::{Error, Result};
 

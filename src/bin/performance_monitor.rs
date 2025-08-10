@@ -150,8 +150,10 @@ pub struct PerformanceMonitor {
     /// Historical performance snapshots
     snapshot_history: Vec<PerformanceSnapshot>,
     /// Performance testing utility
+    #[allow(dead_code)]
     performance_tester: PerformanceTester,
     /// Benchmark suite for performance testing
+    #[allow(dead_code)]
     benchmark_suite: SchemeBenchmarkSuite,
     /// Monitoring configuration settings
     monitoring_config: MonitoringConfig,
@@ -528,7 +530,7 @@ impl PerformanceMonitor {
         println!("Press Ctrl+C to stop monitoring\n");
 
         loop {
-            let snapshot = self.take_snapshot();
+            let _snapshot = self.take_snapshot();
 
             // Check for regressions
             let regressions = self.detect_regressions();

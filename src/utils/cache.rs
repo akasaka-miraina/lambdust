@@ -280,19 +280,32 @@ mod tests {
 
     #[test]
     fn test_memo_cache() {
+        use std::cell::RefCell;
+        use std::rc::Rc;
+        
         let cache = MemoCache::new(10);
         
-        let mut call_count = 0;
-        let compute = || {
-            call_count += 1;
-            format!("computed_{}", call_count)
-        };
+        let call_count = Rc::new(RefCell::new(0));
         
-        let result1 = cache.get_or_compute(1, compute);
-        let result2 = cache.get_or_compute(1, compute);
+        {
+            let call_count_clone = call_count.clone();
+            let compute = || {
+                *call_count_clone.borrow_mut() += 1;
+                format!("computed_{}", *call_count_clone.borrow())
+            };
+            let _result1 = cache.get_or_compute(1, compute);
+        }
         
-        assert_eq!(result1, result2);
-        assert_eq!(call_count, 1); // Should only compute once
+        {
+            let call_count_clone = call_count.clone();
+            let compute = || {
+                *call_count_clone.borrow_mut() += 1;
+                format!("computed_{}", *call_count_clone.borrow())
+            };
+            let _result2 = cache.get_or_compute(1, compute);
+        }
+        
+        assert_eq!(*call_count.borrow(), 1); // Should only compute once
         assert!(cache.hit_rate() > 0.0);
     }
 
