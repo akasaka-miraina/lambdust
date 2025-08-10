@@ -69,7 +69,7 @@ mod tests {
             Effect::State,
         ];
 
-        let mut sorted_effects = effects.clone());
+        let mut sorted_effects = effects.clone();
         sorted_effects.sort();
 
         assert_eq!(sorted_effects[0], Effect::Pure);
@@ -159,7 +159,7 @@ mod tests {
                     if args.is_empty() {
                         Ok(EffectResult::Value(Value::string("IO handled")))
                     } else {
-                        Ok(EffectResult::Value(args[0].clone())
+                        Ok(EffectResult::Value(args[0].clone()))
                     }
                 }
                 _ => Ok(EffectResult::Unhandled),
@@ -590,7 +590,7 @@ mod tests {
         // This test verifies the type constraints are correct
         let handler_ref = EffectHandlerRef {
             effect_name: "IO".to_string(),
-            handler: handler.clone()),
+            handler: handler.clone(),
         };
         
         assert_eq!(handler_ref.effect_name, "IO");
