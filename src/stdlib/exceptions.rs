@@ -1,10 +1,48 @@
 //! Exception handling for the Lambdust standard library.
 //!
-//! This module implements R7RS-compliant exception handling including:
-//! - Error objects and predicates
+//! This module implements R7RS-small compliant exception handling including:
+//! - Error objects and predicates (error?, error-object?, read-error?, file-error?)
 //! - Exception raising (raise, raise-continuable, error)
+//! - Error object accessors (error-object-message, error-object-irritants)
+//! - Complete error type hierarchy (general, read, file errors)
 //! - Exception handling infrastructure
 //! - Integration with the guard syntax form
+//! - Helper functions for creating and raising typed errors
+//!
+//! ## R7RS-small Compliance
+//! 
+//! All required R7RS-small exception procedures are implemented:
+//! - `error` - Creates and raises an error object with message and irritants
+//! - `raise` - Raises a non-continuable exception 
+//! - `raise-continuable` - Raises a continuable exception
+//! - `error-object?` - Tests if argument is an error object
+//! - `error-object-message` - Gets error message from error object
+//! - `error-object-irritants` - Gets error irritants from error object  
+//! - `read-error?` - Tests if error is a read error
+//! - `file-error?` - Tests if error is a file error
+//!
+//! ## Error Types
+//!
+//! The module supports three types of errors as per R7RS:
+//! - **General errors** - Created by `error` procedure
+//! - **Read errors** - Parsing and syntax errors
+//! - **File errors** - I/O and filesystem errors
+//!
+//! ## Usage Examples
+//!
+//! ```rust
+//! use lambdust::stdlib::exceptions::*;
+//! use lambdust::eval::value::Value;
+//!
+//! // Create error objects
+//! let general_error = create_error_object("Something went wrong".to_string(), vec![]);
+//! let read_error = create_read_error_object("Invalid syntax".to_string(), vec![]);
+//! let file_error = create_file_error_object("File not found".to_string(), vec![Value::string("test.txt")]);
+//!
+//! // Raise errors (returns Result<Value> with exception)
+//! let _ = raise_read_error("Parse error".to_string(), vec![]);
+//! let _ = raise_file_error("I/O error".to_string(), vec![]);
+//! ```
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
@@ -27,6 +65,17 @@ pub struct ExceptionObject {
     pub continuable: bool,
 }
 
+/// R7RS error types for proper categorization
+#[derive(Debug, Clone, PartialEq)]
+pub enum ErrorType {
+    /// General error (created by `error` procedure)
+    General,
+    /// Read error (parsing/syntax errors)
+    ReadError,
+    /// File error (I/O and filesystem errors) 
+    FileError,
+}
+
 /// R7RS Error object (subtype of exception object)
 #[derive(Debug, Clone, PartialEq)]
 pub struct ErrorObject {
@@ -34,6 +83,8 @@ pub struct ErrorObject {
     pub message: String,
     /// Error irritants (additional objects that caused the error)
     pub irritants: Vec<Value>,
+    /// Type of error (general, read, file)
+    pub error_type: ErrorType,
 }
 
 impl ExceptionObject {
@@ -52,10 +103,10 @@ impl ExceptionObject {
     pub fn error(message: String, irritants: Vec<Value>) -> Self {
         Self {
             exception_type: "error".to_string(),
-            value: Value::ErrorObject(Arc::new(ErrorObject {
-                message: message.clone(),
-                irritants: irritants.clone(),
-            })),
+            value: Value::ErrorObject(Arc::new(ErrorObject::new(
+                message.clone(),
+                irritants.clone(),
+            ))),
             message: Some(message),
             irritants,
             continuable: false,
@@ -66,10 +117,10 @@ impl ExceptionObject {
     pub fn read_error(message: String, irritants: Vec<Value>) -> Self {
         Self {
             exception_type: "read-error".to_string(),
-            value: Value::ErrorObject(Arc::new(ErrorObject {
-                message: message.clone(),
-                irritants: irritants.clone(),
-            })),
+            value: Value::ErrorObject(Arc::new(ErrorObject::read_error(
+                message.clone(),
+                irritants.clone(),
+            ))),
             message: Some(message),
             irritants,
             continuable: false,
@@ -80,10 +131,10 @@ impl ExceptionObject {
     pub fn file_error(message: String, irritants: Vec<Value>) -> Self {
         Self {
             exception_type: "file-error".to_string(),
-            value: Value::ErrorObject(Arc::new(ErrorObject {
-                message: message.clone(),
-                irritants: irritants.clone(),
-            })),
+            value: Value::ErrorObject(Arc::new(ErrorObject::file_error(
+                message.clone(),
+                irritants.clone(),
+            ))),
             message: Some(message),
             irritants,
             continuable: false,
@@ -102,9 +153,41 @@ impl ExceptionObject {
 }
 
 impl ErrorObject {
-    /// Creates a new error object
+    /// Creates a new general error object
     pub fn new(message: String, irritants: Vec<Value>) -> Self {
-        Self { message, irritants }
+        Self { 
+            message, 
+            irritants,
+            error_type: ErrorType::General,
+        }
+    }
+    
+    /// Creates a new read error object
+    pub fn read_error(message: String, irritants: Vec<Value>) -> Self {
+        Self {
+            message,
+            irritants,
+            error_type: ErrorType::ReadError,
+        }
+    }
+    
+    /// Creates a new file error object
+    pub fn file_error(message: String, irritants: Vec<Value>) -> Self {
+        Self {
+            message,
+            irritants,
+            error_type: ErrorType::FileError,
+        }
+    }
+    
+    /// Checks if this is a read error
+    pub fn is_read_error(&self) -> bool {
+        matches!(self.error_type, ErrorType::ReadError)
+    }
+    
+    /// Checks if this is a file error
+    pub fn is_file_error(&self) -> bool {
+        matches!(self.error_type, ErrorType::FileError)
     }
 }
 
@@ -241,6 +324,35 @@ fn bind_exception_handling(env: &Arc<ThreadSafeEnvironment>) {
     })));
 }
 
+// ============= PUBLIC ERROR CREATION HELPERS =============
+
+/// Creates a general error object and returns it as a Value
+pub fn create_error_object(message: String, irritants: Vec<Value>) -> Value {
+    Value::ErrorObject(Arc::new(ErrorObject::new(message, irritants)))
+}
+
+/// Creates a read error object and returns it as a Value
+pub fn create_read_error_object(message: String, irritants: Vec<Value>) -> Value {
+    Value::ErrorObject(Arc::new(ErrorObject::read_error(message, irritants)))
+}
+
+/// Creates a file error object and returns it as a Value
+pub fn create_file_error_object(message: String, irritants: Vec<Value>) -> Value {
+    Value::ErrorObject(Arc::new(ErrorObject::file_error(message, irritants)))
+}
+
+/// Creates and raises a read error exception
+pub fn raise_read_error(message: String, irritants: Vec<Value>) -> Result<Value> {
+    let exception = ExceptionObject::read_error(message, irritants);
+    Err(Box::new(DiagnosticError::exception(exception)))
+}
+
+/// Creates and raises a file error exception  
+pub fn raise_file_error(message: String, irritants: Vec<Value>) -> Result<Value> {
+    let exception = ExceptionObject::file_error(message, irritants);
+    Err(Box::new(DiagnosticError::exception(exception)))
+}
+
 // ============= EXCEPTION RAISING IMPLEMENTATIONS =============
 
 /// raise procedure - raises a non-continuable exception
@@ -342,9 +454,12 @@ fn primitive_read_error_p(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    // For now, we don't have specific read-error objects
-    // This would be implemented when we have proper error type hierarchy
-    Ok(Value::boolean(false))
+    let is_read_error = match &args[0] {
+        Value::ErrorObject(error) => error.is_read_error(),
+        _ => false,
+    };
+    
+    Ok(Value::boolean(is_read_error))
 }
 
 /// file-error? predicate
@@ -356,9 +471,12 @@ fn primitive_file_error_p(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    // For now, we don't have specific file-error objects
-    // This would be implemented when we have proper error type hierarchy
-    Ok(Value::boolean(false))
+    let is_file_error = match &args[0] {
+        Value::ErrorObject(error) => error.is_file_error(),
+        _ => false,
+    };
+    
+    Ok(Value::boolean(is_file_error))
 }
 
 // ============= ERROR OBJECT ACCESSOR IMPLEMENTATIONS =============
@@ -557,5 +675,208 @@ mod tests {
         // error with no arguments
         let result = primitive_error(&[]);
         assert!(result.is_err());
+    }
+    
+    #[test]
+    fn test_error_types() {
+        // Test ErrorType enum
+        assert_eq!(ErrorType::General, ErrorType::General);
+        assert_ne!(ErrorType::General, ErrorType::ReadError);
+        assert_ne!(ErrorType::General, ErrorType::FileError);
+        assert_ne!(ErrorType::ReadError, ErrorType::FileError);
+    }
+    
+    #[test]
+    fn test_error_object_types() {
+        // General error
+        let general_error = ErrorObject::new("general".to_string(), vec![]);
+        assert!(!general_error.is_read_error());
+        assert!(!general_error.is_file_error());
+        assert_eq!(general_error.error_type, ErrorType::General);
+        
+        // Read error
+        let read_error = ErrorObject::read_error("read error".to_string(), vec![]);
+        assert!(read_error.is_read_error());
+        assert!(!read_error.is_file_error());
+        assert_eq!(read_error.error_type, ErrorType::ReadError);
+        
+        // File error
+        let file_error = ErrorObject::file_error("file error".to_string(), vec![]);
+        assert!(!file_error.is_read_error());
+        assert!(file_error.is_file_error());
+        assert_eq!(file_error.error_type, ErrorType::FileError);
+    }
+    
+    #[test]
+    fn test_exception_object_error_types() {
+        let irritants = vec![Value::integer(42)];
+        
+        // General error exception
+        let general_exc = ExceptionObject::error("general error".to_string(), irritants.clone());
+        assert_eq!(general_exc.exception_type, "error");
+        assert!(general_exc.is_error());
+        
+        // Read error exception
+        let read_exc = ExceptionObject::read_error("read error".to_string(), irritants.clone());
+        assert_eq!(read_exc.exception_type, "read-error");
+        assert!(read_exc.is_error());
+        
+        // File error exception
+        let file_exc = ExceptionObject::file_error("file error".to_string(), irritants.clone());
+        assert_eq!(file_exc.exception_type, "file-error");
+        assert!(file_exc.is_error());
+    }
+    
+    #[test]
+    fn test_read_error_predicate() {
+        // Test with read error object
+        let read_error_obj = create_read_error_object("read error".to_string(), vec![]);
+        let result = primitive_read_error_p(&[read_error_obj]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        // Test with general error object
+        let general_error_obj = create_error_object("general error".to_string(), vec![]);
+        let result = primitive_read_error_p(&[general_error_obj]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test with file error object
+        let file_error_obj = create_file_error_object("file error".to_string(), vec![]);
+        let result = primitive_read_error_p(&[file_error_obj]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test with non-error object
+        let non_error = Value::integer(42);
+        let result = primitive_read_error_p(&[non_error]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+    }
+    
+    #[test]
+    fn test_file_error_predicate() {
+        // Test with file error object
+        let file_error_obj = create_file_error_object("file error".to_string(), vec![]);
+        let result = primitive_file_error_p(&[file_error_obj]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        // Test with general error object
+        let general_error_obj = create_error_object("general error".to_string(), vec![]);
+        let result = primitive_file_error_p(&[general_error_obj]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test with read error object
+        let read_error_obj = create_read_error_object("read error".to_string(), vec![]);
+        let result = primitive_file_error_p(&[read_error_obj]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test with non-error object
+        let non_error = Value::string("not an error");
+        let result = primitive_file_error_p(&[non_error]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+    }
+    
+    #[test]
+    fn test_helper_functions() {
+        // Test create_error_object
+        let general = create_error_object("test".to_string(), vec![Value::integer(1)]);
+        match general {
+            Value::ErrorObject(err) => {
+                assert_eq!(err.message, "test");
+                assert_eq!(err.irritants, vec![Value::integer(1)]);
+                assert_eq!(err.error_type, ErrorType::General);
+            },
+            _ => panic!("Expected ErrorObject"),
+        }
+        
+        // Test create_read_error_object
+        let read_err = create_read_error_object("read test".to_string(), vec![]);
+        match read_err {
+            Value::ErrorObject(err) => {
+                assert_eq!(err.message, "read test");
+                assert_eq!(err.error_type, ErrorType::ReadError);
+                assert!(err.is_read_error());
+            },
+            _ => panic!("Expected ErrorObject"),
+        }
+        
+        // Test create_file_error_object
+        let file_err = create_file_error_object("file test".to_string(), vec![]);
+        match file_err {
+            Value::ErrorObject(err) => {
+                assert_eq!(err.message, "file test");
+                assert_eq!(err.error_type, ErrorType::FileError);
+                assert!(err.is_file_error());
+            },
+            _ => panic!("Expected ErrorObject"),
+        }
+    }
+    
+    #[test]
+    fn test_raise_helper_functions() {
+        // Test raise_read_error
+        let result = raise_read_error("read error".to_string(), vec![Value::integer(42)]);
+        assert!(result.is_err());
+        
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.exception_type, "read-error");
+                assert!(exception.is_error());
+            } else {
+                panic!("Expected exception error");
+            }
+        } else {
+            panic!("Expected error result");
+        }
+        
+        // Test raise_file_error
+        let result = raise_file_error("file error".to_string(), vec![Value::string("test.txt")]);
+        assert!(result.is_err());
+        
+        if let Err(boxed_err) = result {
+            if let DiagnosticError::Exception { exception, .. } = boxed_err.as_ref() {
+                assert_eq!(exception.exception_type, "file-error");
+                assert!(exception.is_error());
+            } else {
+                panic!("Expected exception error");
+            }
+        } else {
+            panic!("Expected error result");
+        }
+    }
+    
+    #[test]
+    fn test_error_object_message_with_types() {
+        // Test with general error
+        let general_error = create_error_object("general message".to_string(), vec![]);
+        let result = primitive_error_object_message(&[general_error]).unwrap();
+        assert_eq!(result, Value::string("general message"));
+        
+        // Test with read error
+        let read_error = create_read_error_object("read message".to_string(), vec![]);
+        let result = primitive_error_object_message(&[read_error]).unwrap();
+        assert_eq!(result, Value::string("read message"));
+        
+        // Test with file error
+        let file_error = create_file_error_object("file message".to_string(), vec![]);
+        let result = primitive_error_object_message(&[file_error]).unwrap();
+        assert_eq!(result, Value::string("file message"));
+    }
+    
+    #[test]
+    fn test_error_object_irritants_with_types() {
+        let irritants = vec![Value::integer(1), Value::string("test"), Value::boolean(true)];
+        
+        // Test with general error
+        let general_error = create_error_object("message".to_string(), irritants.clone());
+        let result = primitive_error_object_irritants(&[general_error]).unwrap();
+        assert_eq!(result, Value::list(irritants.clone()));
+        
+        // Test with read error
+        let read_error = create_read_error_object("message".to_string(), irritants.clone());
+        let result = primitive_error_object_irritants(&[read_error]).unwrap();
+        assert_eq!(result, Value::list(irritants.clone()));
+        
+        // Test with file error
+        let file_error = create_file_error_object("message".to_string(), irritants.clone());
+        let result = primitive_error_object_irritants(&[file_error]).unwrap();
+        assert_eq!(result, Value::list(irritants.clone()));
     }
 }

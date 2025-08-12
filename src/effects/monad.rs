@@ -50,8 +50,10 @@ pub enum IOAction {
     Read(IOSource),
     /// Write to output
     Write(IOTarget, Value),
-    /// Print a value
+    /// Print a value (for display - without quotes for strings)
     Print(Value),
+    /// Write a value (for write - with quotes for strings)
+    WriteValue(Value),
     /// Print a newline
     Newline,
     /// Open a file for reading
@@ -412,6 +414,10 @@ impl IOComputation {
         match &self.action {
             IOAction::Return(value) => Ok(value.clone()),
             IOAction::Print(value) => {
+                print!("{}", value.display_string());
+                Ok(Value::Unspecified)
+            },
+            IOAction::WriteValue(value) => {
                 print!("{value}");
                 Ok(Value::Unspecified)
             },
@@ -612,6 +618,7 @@ impl fmt::Display for IOAction {
             IOAction::Read(_) => write!(f, "Read"),
             IOAction::Write(_, value) => write!(f, "Write({value})"),
             IOAction::Print(value) => write!(f, "Print({value})"),
+            IOAction::WriteValue(value) => write!(f, "WriteValue({value})"),
             IOAction::Newline => write!(f, "Newline"),
             IOAction::Return(value) => write!(f, "Return({value})"),
             IOAction::Custom(name, _) => write!(f, "Custom({name})"),

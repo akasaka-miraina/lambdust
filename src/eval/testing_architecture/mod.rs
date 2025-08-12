@@ -156,6 +156,8 @@ mod tests {
     use crate::ast::{Expr, Literal};
     use crate::diagnostics::Span;
     use crate::eval::operational_semantics::EvaluationContext;
+    use crate::eval::continuation_domain::ContinuationRepository;
+    use crate::eval::monadic_architecture::effect_interpreter::EffectInterpreter;
     use std::rc::Rc;
     
     #[test]

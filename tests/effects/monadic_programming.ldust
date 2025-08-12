@@ -1,0 +1,440 @@
+#!/usr/bin/env lambdust
+;; Test file: Monadic Programming
+;; Purpose: Test monadic abstractions, do-notation, and monad transformers
+;; Covers basic monads, monad laws, and advanced monadic patterns
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust effects)
+        (lambdust monads))  ;; TODO: Implement monads library
+
+;; =============================================================================
+;; BASIC MONAD DEFINITIONS
+;; =============================================================================
+
+(define-test-suite "Basic Monad Definitions"
+  
+  (test "Maybe monad definition"
+    ;; TODO: Monad syntax needs to be implemented
+    (define-type Maybe (a) Nothing (Just a))
+    
+    (define-monad Maybe
+      (return (lambda (x) (Just x)))
+      (bind (lambda (maybe-val f)
+              (match maybe-val
+                [Nothing Nothing]
+                [(Just x) (f x)]))))
+    
+    ;; Test basic monadic operations
+    (assert-equal (Just 42) (return 42))
+    (assert-equal (Just 10) (bind (Just 5) (lambda (x) (Just (* x 2)))))
+    (assert-equal Nothing (bind Nothing (lambda (x) (Just (* x 2))))))
+  
+  (test "List monad definition"
+    (define-monad List
+      (return (lambda (x) (list x)))
+      (bind (lambda (lst f)
+              (apply append (map f lst)))))
+    
+    ;; Test list monad operations
+    (assert-equal '(42) (return 42))
+    (assert-equal '(1 4 2 8 3 12) 
+                  (bind '(1 2 3) (lambda (x) (list x (* x 4)))))
+    (assert-equal '() (bind '() (lambda (x) (list x)))))
+  
+  (test "IO monad definition"
+    ;; TODO: IO monad requires special runtime support
+    (define-monad IO
+      (return (lambda (x) (io-return x)))
+      (bind (lambda (io-action f) (io-bind io-action f))))
+    
+    ;; TODO: Test when IO monad is implemented
+    ))
+
+;; =============================================================================
+;; MONAD LAWS VERIFICATION
+;; =============================================================================
+
+(define-test-suite "Monad Laws Verification"
+  
+  (test "Maybe monad laws"
+    ;; Left identity: return a >>= f ≡ f a
+    (define f (lambda (x) (Just (* x 2))))
+    (assert-equal (f 5) (bind (return 5) f))
+    
+    ;; Right identity: m >>= return ≡ m
+    (define maybe-val (Just 42))
+    (assert-equal maybe-val (bind maybe-val return))
+    
+    ;; Associativity: (m >>= f) >>= g ≡ m >>= (\x -> f x >>= g)
+    (define g (lambda (x) (Just (+ x 1))))
+    (define left-assoc (bind (bind (Just 5) f) g))
+    (define right-assoc (bind (Just 5) (lambda (x) (bind (f x) g))))
+    (assert-equal left-assoc right-assoc))
+  
+  (test "List monad laws"
+    ;; Test monad laws for List monad
+    (define f (lambda (x) (list x (* x 2))))
+    (define g (lambda (x) (list (+ x 1))))
+    
+    ;; Left identity
+    (assert-equal (f 5) (bind (return 5) f))
+    
+    ;; Right identity
+    (define list-val '(1 2 3))
+    (assert-equal list-val (bind list-val return))
+    
+    ;; Associativity
+    (define test-list '(1 2))
+    (define left-assoc (bind (bind test-list f) g))
+    (define right-assoc (bind test-list (lambda (x) (bind (f x) g))))
+    (assert-equal left-assoc right-assoc))
+  
+  (test "State monad laws"
+    ;; TODO: Test State monad laws when implemented
+    ))
+
+;; =============================================================================
+;; DO-NOTATION SYNTAX
+;; =============================================================================
+
+(define-test-suite "Do-Notation Syntax"
+  
+  (test "Basic do-notation for Maybe"
+    ;; TODO: Do-notation syntax needs to be implemented as a macro
+    (define (safe-arithmetic x y z)
+      (do Maybe
+        [a <- (if (> x 0) (Just x) Nothing)]
+        [b <- (if (> y 0) (Just y) Nothing)]
+        [c <- (if (> z 0) (Just z) Nothing)]
+        (return (+ (* a b) c))))
+    
+    (assert-equal (Just 17) (safe-arithmetic 3 4 5))
+    (assert-equal Nothing (safe-arithmetic -1 4 5))
+    (assert-equal Nothing (safe-arithmetic 3 -1 5)))
+  
+  (test "Do-notation for List monad"
+    (define (list-comprehension)
+      (do List
+        [x <- '(1 2 3)]
+        [y <- '(10 20)]
+        (return (+ x y))))
+    
+    (assert-equal '(11 21 12 22 13 23) (list-comprehension)))
+  
+  (test "Do-notation with guards"
+    (define (filtered-comprehension)
+      (do List
+        [x <- '(1 2 3 4 5)]
+        [_ <- (if (even? x) '(()) '())]  ;; Guard for even numbers
+        (return (* x x))))
+    
+    (assert-equal '(4 16) (filtered-comprehension)))
+  
+  (test "Nested do-notation"
+    ;; Do-blocks can be nested
+    (define (nested-monadic-computation)
+      (do Maybe
+        [outer <- (Just 10)]
+        [inner <- (do Maybe
+                    [x <- (Just 5)]
+                    (return (* x 2)))]
+        (return (+ outer inner))))
+    
+    (assert-equal (Just 20) (nested-monadic-computation))))
+
+;; =============================================================================
+;; BUILT-IN MONADS
+;; =============================================================================
+
+(define-test-suite "Built-in Monads"
+  
+  (test "State monad"
+    ;; State monad for stateful computations
+    (define-monad State
+      (return (lambda (x) (lambda (state) (cons x state))))
+      (bind (lambda (state-action f)
+              (lambda (state)
+                (let* ((result-and-state (state-action state))
+                       (result (car result-and-state))
+                       (new-state (cdr result-and-state)))
+                  ((f result) new-state))))))
+    
+    ;; State monad operations
+    (define (get-state) (lambda (state) (cons state state)))
+    (define (put-state new-state) (lambda (state) (cons '() new-state)))
+    (define (modify-state f) 
+      (do State
+        [state <- (get-state)]
+        (put-state (f state))))
+    
+    ;; Test stateful computation
+    (define (increment-twice)
+      (do State
+        [_ <- (modify-state (lambda (x) (+ x 1)))]
+        [_ <- (modify-state (lambda (x) (+ x 1)))]
+        (get-state)))
+    
+    (let ((result-and-state ((increment-twice) 5)))
+      (assert-equal 7 (car result-and-state))
+      (assert-equal 7 (cdr result-and-state))))
+  
+  (test "Reader monad"
+    ;; Reader monad for environment-based computations
+    (define-monad Reader
+      (return (lambda (x) (lambda (env) x)))
+      (bind (lambda (reader-action f)
+              (lambda (env)
+                (let ((result (reader-action env)))
+                  ((f result) env))))))
+    
+    (define (ask) (lambda (env) env))
+    (define (local f reader-action)
+      (lambda (env) (reader-action (f env))))
+    
+    ;; Test reader computation
+    (define (reader-computation)
+      (do Reader
+        [env <- (ask)]
+        [local-result <- (local (lambda (x) (* x 2)) (ask))]
+        (return (+ env local-result))))
+    
+    (assert-equal 15 ((reader-computation) 5)))
+  
+  (test "Writer monad"
+    ;; Writer monad for computations that produce output
+    (define-monad Writer
+      (return (lambda (x) (cons x '())))
+      (bind (lambda (writer-action f)
+              (let* ((result-and-output (writer-action))
+                     (result (car result-and-output))
+                     (output (cdr result-and-output))
+                     (new-result-and-output (f result)))
+                (cons (car new-result-and-output)
+                      (append output (cdr new-result-and-output)))))))
+    
+    (define (tell message)
+      (cons '() (list message)))
+    
+    ;; Test writer computation
+    (define (writer-computation x)
+      (do Writer
+        [_ <- (tell "Starting computation")]
+        [doubled <- (return (* x 2))]
+        [_ <- (tell (string-append "Doubled: " (number->string doubled)))]
+        (return doubled)))
+    
+    (let ((result-and-output (writer-computation 5)))
+      (assert-equal 10 (car result-and-output))
+      (assert-equal '("Starting computation" "Doubled: 10") (cdr result-and-output)))))
+
+;; =============================================================================
+;; MONAD TRANSFORMERS
+;; =============================================================================
+
+(define-test-suite "Monad Transformers"
+  
+  (test "MaybeT transformer"
+    ;; Maybe transformer over IO monad
+    ;; TODO: This requires advanced monad transformer implementation
+    (define-monad-transformer MaybeT
+      (lift (lambda (monad-action)
+              (do monad-action
+                [result <- monad-action]
+                (return (Just result)))))
+      (return (lambda (x) (m-return (Just x))))
+      (bind (lambda (maybe-t-action f)
+              (do 
+                [maybe-result <- maybe-t-action]
+                (match maybe-result
+                  [Nothing (m-return Nothing)]
+                  [(Just x) (f x)])))))
+    
+    ;; TODO: Test when monad transformers are implemented
+    )
+  
+  (test "StateT transformer"
+    ;; State transformer over other monads
+    ;; TODO: Implement StateT transformer
+    )
+  
+  (test "ReaderT transformer"  
+    ;; Reader transformer over other monads
+    ;; TODO: Implement ReaderT transformer
+    ))
+
+;; =============================================================================
+;; ADVANCED MONADIC PATTERNS
+;; =============================================================================
+
+(define-test-suite "Advanced Monadic Patterns"
+  
+  (test "Monadic parsing"
+    ;; Parser monad for parsing text
+    ;; TODO: Implement parser monad
+    (define-monad Parser
+      ;; TODO: Parser implementation
+      )
+    
+    ;; TODO: Test parsing combinators
+    )
+  
+  (test "Continuation monad"
+    ;; Continuation monad for control flow
+    (define-monad Cont
+      (return (lambda (x) (lambda (k) (k x))))
+      (bind (lambda (cont-action f)
+              (lambda (k)
+                (cont-action (lambda (x) ((f x) k)))))))
+    
+    ;; Continuation monad operations
+    (define (call/cc f)
+      (lambda (k)
+        ((f (lambda (x) (lambda (_) (k x)))) k)))
+    
+    ;; TODO: Test continuation monad
+    )
+  
+  (test "Free monad"
+    ;; Free monad for building DSLs
+    ;; TODO: Implement free monad when needed
+    ))
+
+;; =============================================================================
+;; MONAD UTILITIES AND COMBINATORS
+;; =============================================================================
+
+(define-test-suite "Monad Utilities and Combinators"
+  
+  (test "Sequence operations"
+    ;; sequence :: [m a] -> m [a]
+    (define (sequence monadic-list)
+      (fold-right (lambda (ma acc)
+                    (do 
+                      [a <- ma]
+                      [as <- acc]
+                      (return (cons a as))))
+                  (return '())
+                  monadic-list))
+    
+    ;; Test with Maybe monad
+    (assert-equal (Just '(1 2 3)) 
+                  (sequence (list (Just 1) (Just 2) (Just 3))))
+    (assert-equal Nothing 
+                  (sequence (list (Just 1) Nothing (Just 3)))))
+  
+  (test "MapM operations"
+    ;; mapM :: (a -> m b) -> [a] -> m [b]
+    (define (mapM f lst)
+      (sequence (map f lst)))
+    
+    ;; Test with Maybe monad
+    (define safe-reciprocal
+      (lambda (x)
+        (if (= x 0)
+            Nothing
+            (Just (/ 1 x)))))
+    
+    (assert-equal (Just '(1 1/2 1/3)) 
+                  (mapM safe-reciprocal '(1 2 3)))
+    (assert-equal Nothing 
+                  (mapM safe-reciprocal '(1 0 3))))
+  
+  (test "Filter operations"
+    ;; filterM :: (a -> m Bool) -> [a] -> m [a]
+    (define (filterM predicate lst)
+      (do 
+        [booleans <- (mapM predicate lst)]
+        (return (filter-by-bools booleans lst))))
+    
+    (define (filter-by-bools bools values)
+      (fold-right (lambda (bool val acc)
+                    (if bool (cons val acc) acc))
+                  '()
+                  bools
+                  values))
+    
+    ;; TODO: Test when filterM is fully implemented
+    ))
+
+;; =============================================================================
+;; PERFORMANCE AND OPTIMIZATION
+;; =============================================================================
+
+(define-test-suite "Monadic Performance and Optimization"
+  
+  (test "Monad fusion optimization"
+    ;; Test that monadic operations can be fused for performance
+    ;; TODO: Test compiler optimizations for monadic code
+    )
+  
+  (test "Lazy evaluation in monads"
+    ;; Test that monads work correctly with lazy evaluation
+    ;; TODO: Test lazy monadic computations
+    )
+  
+  (test "Stack-safe monadic recursion"
+    ;; Test that monadic recursion doesn't cause stack overflow
+    ;; TODO: Test tail-recursive monadic operations
+    ))
+
+;; =============================================================================
+;; ERROR HANDLING AND DEBUGGING
+;; =============================================================================
+
+(define-test-suite "Monadic Error Handling"
+  
+  (test "Exception monad"
+    ;; Monad for exception handling
+    ;; TODO: Implement exception monad
+    )
+  
+  (test "Debugging monadic computations"
+    ;; Tools for debugging monadic code
+    ;; TODO: Implement monad debugging utilities
+    )
+  
+  (test "Monad error recovery"
+    ;; Recovering from errors in monadic computations
+    ;; TODO: Test error recovery patterns
+    ))
+
+;; =============================================================================
+;; INTEGRATION WITH EFFECT SYSTEM
+;; =============================================================================
+
+(define-test-suite "Monad Integration with Effects"
+  
+  (test "Effect-aware monads"
+    ;; Monads that track effects in their types
+    ;; TODO: Integration with effect system
+    )
+  
+  (test "Monad/effect handler correspondence"
+    ;; How monads relate to effect handlers
+    ;; TODO: Test monad-handler duality
+    )
+  
+  (test "Effect inference in monadic code"
+    ;; Effect inference should work with monadic abstractions
+    ;; TODO: Test effect inference with do-notation
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Monad Definitions")
+(run-test-suite "Monad Laws Verification")
+(run-test-suite "Do-Notation Syntax")
+(run-test-suite "Built-in Monads")
+(run-test-suite "Monad Transformers")
+(run-test-suite "Advanced Monadic Patterns")
+(run-test-suite "Monad Utilities and Combinators")
+(run-test-suite "Monadic Performance and Optimization")
+(run-test-suite "Monadic Error Handling")
+(run-test-suite "Monad Integration with Effects")
+
+(display "Monadic programming test completed.\n")
+(display "This test verifies monadic abstractions and do-notation.\n")

@@ -332,7 +332,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_effect_isolation() {
-        use crate::runtime::effect_coordinator::{EffectIsolationLevel, EffectSandboxConfig};
+        use crate::runtime::{EffectIsolationLevel, EffectSandboxConfig};
         use crate::effects::Effect;
         
         let coordinator = EffectCoordinator::new();

@@ -363,10 +363,15 @@ impl<T> Parser<T> {
         T: Send + Sync + 'static,
     {
         Parser::new(move |input| {
+            // Clone input state for backtracking only if needed
+            let original_position = input.position.clone();
             match self.parse(input.clone()) {
                 Ok(result) => Ok(result),
                 Err(error1) => {
-                    match other.parse(input) {
+                    // Create new input with reset position for backtracking
+                    let mut reset_input = input;
+                    reset_input.position = original_position;
+                    match other.parse(reset_input) {
                         Ok(result) => Ok(result),
                         Err(error2) => Err(error1.combine(error2)),
                     }
@@ -382,7 +387,7 @@ impl<T> Parser<T> {
     {
         Parser::new(move |input| {
             let original_position = input.position.clone();
-            match self.parse(input.clone()) {
+            match self.parse(input) {
                 Ok(result) => Ok(result),
                 Err(mut error) => {
                     // Reset position to allow backtracking
@@ -417,9 +422,8 @@ impl<T> Parser<T> {
         let parser_for_many = self.clone();
         self.bind(move |first| {
             parser_for_many.clone().many().map(move |mut rest| {
-                let mut result = vec![first.clone()];
-                result.append(&mut rest);
-                result
+                rest.insert(0, first.clone());
+                rest
             })
         })
     }
@@ -454,10 +458,9 @@ impl<T> Parser<T> {
         self.bind(move |first| {
             let sep_clone = sep.clone();
             let parser_clone2 = parser_clone.clone();
-            sep_clone.then(parser_clone2).many().map(move |rest| {
-                let mut result = vec![first.clone()];
-                result.extend(rest);
-                result
+            sep_clone.then(parser_clone2).many().map(move |mut rest| {
+                rest.insert(0, first.clone());
+                rest
             })
         }).choice(Parser::pure(Vec::new()))
     }
@@ -478,8 +481,7 @@ impl<T> Parser<T> {
         U: Send + Sync + 'static,
     {
         self.bind(move |value| {
-            let value_clone = value.clone();
-            other.clone().map(move |_| value_clone.clone())
+            other.clone().map(move |_| value.clone())
         })
     }
     

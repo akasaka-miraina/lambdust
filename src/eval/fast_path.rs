@@ -269,7 +269,7 @@ fn fast_add_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
     }
     
     if all_small_integers && int_sum as f64 == sum {
-        Ok(OptimizedValue::fixnum(int_sum))
+        Ok(OptimizedValue::fixnum(int_sum.into()))
     } else {
         Ok(OptimizedValue::number(sum))
     }
@@ -322,7 +322,7 @@ fn fast_subtract_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
             
             // Try to return as fixnum if possible
             if result.fract() == 0.0 && result >= i32::MIN as f64 && result <= i32::MAX as f64 {
-                Ok(OptimizedValue::fixnum(result as i32))
+                Ok(OptimizedValue::fixnum((result as i32).into()))
             } else {
                 Ok(OptimizedValue::number(result))
             }
@@ -361,7 +361,7 @@ fn fast_multiply_optimized(args: &[OptimizedValue]) -> Result<OptimizedValue> {
     
     // Try to return as fixnum if possible
     if product.fract() == 0.0 && product >= i32::MIN as f64 && product <= i32::MAX as f64 {
-        Ok(OptimizedValue::fixnum(product as i32))
+        Ok(OptimizedValue::fixnum((product as i32).into()))
     } else {
         Ok(OptimizedValue::number(product))
     }
@@ -862,7 +862,13 @@ fn convert_value_to_optimized(value: &Value) -> Result<OptimizedValue> {
     match value {
         Value::Nil => Ok(OptimizedValue::nil()),
         Value::Literal(Literal::Boolean(b)) => Ok(OptimizedValue::boolean(*b)),
-        Value::Literal(Literal::Number(n)) => Ok(OptimizedValue::number(*n)),
+        Value::Literal(literal) if literal.is_number() => {
+            if let Some(n) = literal.to_f64() {
+                Ok(OptimizedValue::number(n))
+            } else {
+                Ok(OptimizedValue::number(0.0))
+            }
+        }
         Value::Literal(Literal::Character(ch)) => Ok(OptimizedValue::character(*ch)),
         Value::Literal(Literal::String(s)) => Ok(OptimizedValue::string(s.clone())),
         Value::Unspecified => Ok(OptimizedValue::unspecified()),

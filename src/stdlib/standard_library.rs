@@ -78,6 +78,15 @@ impl StandardLibrary {
         // Concurrency and parallelism (R7RS-large)
         crate::stdlib::concurrency::populate_environment(env);
         
+        // Set operations (SRFI-113)
+        crate::stdlib::sets::install_set_primitives(env);
+        
+        // Bag (multiset) operations (SRFI-113)
+        crate::stdlib::bags::install_bag_primitives(env);
+        
+        // Generator operations (SRFI-121)
+        crate::stdlib::generators::create_generator_bindings(env);
+        
         // Core Scheme procedures that don't fit in other categories
         super::bind_core_procedures(env);
     }

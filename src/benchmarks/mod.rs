@@ -13,6 +13,7 @@ pub mod performance_analysis;
 pub mod performance_tester;
 pub mod scheme_benchmark_suite;
 pub mod comprehensive_benchmark_suite;
+pub mod environment_optimization;
 pub mod statistical_analysis;
 pub mod statistical_analyzer;
 pub mod statistical_tests;
@@ -56,6 +57,12 @@ pub use scheme_benchmark_suite::{
 pub use comprehensive_benchmark_suite::{
     ComprehensiveBenchmarkSuite, BenchmarkSuiteResult,
     run_comprehensive_benchmarks, load_benchmark_config, save_benchmark_config,
+};
+
+pub use environment_optimization::{
+    BenchmarkConfig as EnvBenchmarkConfig, BenchmarkResults as EnvBenchmarkResults,
+    run_comprehensive_benchmark as run_env_benchmark, verify_correctness as verify_env_correctness,
+    run_performance_tests as run_env_performance_tests,
 };
 
 pub use benchmark_config::{

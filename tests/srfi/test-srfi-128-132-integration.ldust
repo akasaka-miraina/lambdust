@@ -1,0 +1,344 @@
+#!/usr/bin/env lambdust
+;; Test file: SRFI-128 & SRFI-132 Integration
+;; Purpose: Test integration between Comparators (SRFI-128) and Sort Libraries (SRFI-132)
+;; Validates that all comparator types work correctly with all sorting procedures
+
+(import (scheme base)
+        (scheme write)
+        (scheme vector)
+        (srfi 128)   ; Comparators
+        (srfi 132)   ; Sort Libraries
+        (lambdust test))
+
+;; =============================================================================
+;; BUILT-IN COMPARATOR INTEGRATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128/132 Built-in Comparator Integration"
+  
+  (test "number-comparator with all sorting procedures"
+    (define test-numbers '(3.14 -2 42 0 -17 100 1.5))
+    (define test-vec (list->vector test-numbers))
+    
+    ;; Test all list sorting procedures
+    (define list-sorted (list-sort number-comparator test-numbers))
+    (define list-stable-sorted (list-stable-sort number-comparator test-numbers))
+    (assert-true (list-sorted? number-comparator list-sorted))
+    (assert-true (list-sorted? number-comparator list-stable-sorted))
+    (assert-equal list-sorted list-stable-sorted)  ; Same result for numbers
+    
+    ;; Test all vector sorting procedures  
+    (define vec-sorted (vector-sort number-comparator test-vec))
+    (define vec-stable-sorted (vector-stable-sort number-comparator test-vec))
+    (assert-true (vector-sorted? number-comparator vec-sorted))
+    (assert-true (vector-sorted? number-comparator vec-stable-sorted))
+    
+    ;; List and vector results should be equivalent
+    (assert-equal (vector->list vec-sorted) list-sorted))
+  
+  (test "string-comparator with sorting and merging"
+    (define words1 '("apple" "cherry" "elderberry"))
+    (define words2 '("banana" "date" "fig"))
+    
+    ;; Sort individual lists
+    (define sorted1 (list-sort string-comparator words1))
+    (define sorted2 (list-sort string-comparator words2))
+    
+    ;; Merge sorted lists
+    (define merged (list-merge string-comparator sorted1 sorted2))
+    (assert-true (list-sorted? string-comparator merged))
+    (assert-equal 6 (length merged))
+    
+    ;; Test with vectors
+    (define vec1 (list->vector words1))
+    (define vec2 (list->vector words2))
+    (define vec-merged (vector-merge string-comparator 
+                                   (vector-sort string-comparator vec1)
+                                   (vector-sort string-comparator vec2)))
+    (assert-equal (vector->list vec-merged) merged))
+  
+  (test "char-comparator with duplicate deletion"
+    (define chars '(#\z #\a #\a #\m #\m #\m #\b #\b))
+    (define sorted-chars (list-sort char-comparator chars))
+    (define deduped (list-delete-neighbor-dups char-comparator sorted-chars))
+    (assert-equal '(#\a #\b #\m #\z) deduped)
+    
+    ;; Same with vectors
+    (define char-vec (list->vector chars))
+    (vector-sort! char-comparator char-vec)
+    (define deduped-vec (vector-delete-neighbor-dups char-comparator char-vec))
+    (assert-equal #(#\a #\b #\m #\z) deduped-vec))
+  
+  (test "boolean-comparator with advanced procedures"
+    (define bools #(#t #f #t #f #t #f #f #t))
+    (vector-sort! boolean-comparator bools)
+    (assert-equal #(#f #f #f #f #t #t #t #t) bools)
+    
+    ;; Test median finding
+    (define median-vec (vector-find-median boolean-comparator bools))
+    (assert-equal bools median-vec)))  ; Already sorted
+
+;; =============================================================================
+;; CUSTOM COMPARATOR INTEGRATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128/132 Custom Comparator Integration"
+  
+  (test "magnitude comparator with complex sorting"
+    ;; Sort numbers by absolute value
+    (define magnitude-cmp
+      (make-comparator number?
+                      (lambda (a b) (= (abs a) (abs b)))
+                      (lambda (a b) (- (abs a) (abs b)))
+                      (lambda (n) (abs n))))
+    
+    (define numbers '(-5 3 -1 4 -2 1 -4 2 5))
+    (define sorted (list-stable-sort magnitude-cmp numbers))
+    
+    ;; Should be sorted by magnitude: 1, -1, 2, -2, 3, -4, 4, -5, 5
+    ;; Stability preserves original order for equal magnitudes
+    (assert-equal '(-1 1 -2 2 3 -4 4 -5 5) sorted)
+    (assert-true (list-sorted? magnitude-cmp sorted)))
+  
+  (test "reverse string comparator"
+    ;; Sort strings in reverse alphabetical order
+    (define reverse-string-cmp
+      (make-comparator string?
+                      string=?
+                      (lambda (a b) (cond ((string<? a b) 1)
+                                         ((string>? a b) -1)
+                                         (else 0)))
+                      string-hash))
+    
+    (define words '("apple" "banana" "cherry" "date"))
+    (define reverse-sorted (list-sort reverse-string-cmp words))
+    (assert-equal '("date" "cherry" "banana" "apple") reverse-sorted)
+    (assert-true (list-sorted? reverse-string-cmp reverse-sorted)))
+  
+  (test "length-then-alpha comparator with stability"
+    ;; Sort strings by length first, then alphabetically
+    (define length-alpha-cmp
+      (make-comparator 
+        string?
+        string=?
+        (lambda (a b)
+          (let ((len-diff (- (string-length a) (string-length b))))
+            (if (= len-diff 0)
+                (cond ((string<? a b) -1)
+                      ((string>? a b) 1)
+                      (else 0))
+                len-diff)))))
+    
+    (define words '("cat" "elephant" "dog" "a" "bird" "ant" "zebra"))
+    (define sorted (list-stable-sort length-alpha-cmp words))
+    
+    ;; Expected: length 1: "a", length 3: "ant", "cat", "dog", length 4: "bird", 
+    ;; length 5: "zebra", length 8: "elephant"
+    (assert-equal '("a" "ant" "cat" "dog" "bird" "zebra" "elephant") sorted)
+    (assert-true (list-sorted? length-alpha-cmp sorted)))
+  
+  (test "pair comparator with vector operations"
+    ;; Sort pairs by first element, then by second element
+    (define pair-cmp
+      (make-comparator 
+        pair?
+        (lambda (a b) (and (equal? (car a) (car b)) (equal? (cdr a) (cdr b))))
+        (lambda (a b)
+          (let ((first-cmp (- (car a) (car b))))
+            (if (= first-cmp 0)
+                (- (cdr a) (cdr b))
+                first-cmp)))))
+    
+    (define pairs #((3 . 1) (1 . 2) (2 . 3) (1 . 1) (3 . 2)))
+    (vector-stable-sort! pair-cmp pairs)
+    
+    ;; Should be sorted: (1 . 1), (1 . 2), (2 . 3), (3 . 1), (3 . 2)
+    (assert-equal #((1 . 1) (1 . 2) (2 . 3) (3 . 1) (3 . 2)) pairs)
+    (assert-true (vector-sorted? pair-cmp pairs))))
+
+;; =============================================================================
+;; STABILITY AND COMPARATOR INTEGRATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128/132 Stability Integration"
+  
+  (test "stability with equal elements under custom comparator"
+    ;; Create records where comparison ignores one field
+    (define records '((john 25 engineer) (jane 30 doctor) (bob 25 teacher) (alice 30 nurse)))
+    
+    ;; Compare only by age (ignoring name and profession)
+    (define age-cmp
+      (make-comparator 
+        (lambda (r) (and (list? r) (= (length r) 3)))
+        (lambda (a b) (= (cadr a) (cadr b)))  ; Equal if same age
+        (lambda (a b) (- (cadr a) (cadr b)))))  ; Compare by age
+    
+    (define stable-sorted (list-stable-sort age-cmp records))
+    
+    ;; Should preserve original order for records with same age
+    (assert-equal '((john 25 engineer) (bob 25 teacher) (jane 30 doctor) (alice 30 nurse)) 
+                  stable-sorted)
+    (assert-true (list-sorted? age-cmp stable-sorted)))
+  
+  (test "merge stability with custom comparator"
+    ;; Test that merge preserves stability for equal elements
+    (define list1 '((1 . a) (3 . a) (5 . a)))
+    (define list2 '((1 . b) (3 . b) (5 . b)))
+    
+    (define first-element-cmp
+      (make-comparator pair?
+                      (lambda (a b) (= (car a) (car b)))
+                      (lambda (a b) (- (car a) (car b)))))
+    
+    ;; First list elements should come before second list elements for equal keys
+    (define merged (list-merge first-element-cmp list1 list2))
+    (assert-equal '((1 . a) (1 . b) (3 . a) (3 . b) (5 . a) (5 . b)) merged)
+    (assert-true (list-sorted? first-element-cmp merged))))
+
+;; =============================================================================
+;; PERFORMANCE AND ALGORITHM SELECTION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128/132 Algorithm Selection Integration"
+  
+  (test "small collection uses insertion sort efficiently"
+    ;; Test with small collections that should trigger insertion sort
+    (define small-numbers '(5 2 8 1 9 3 7))
+    (define custom-number-cmp
+      (make-comparator number?
+                      =
+                      (lambda (a b) (cond ((< a b) -1) ((> a b) 1) (else 0)))))
+    
+    (define sorted (list-sort custom-number-cmp small-numbers))
+    (assert-equal '(1 2 3 5 7 8 9) sorted)
+    
+    ;; Same test with vectors
+    (define small-vec (list->vector small-numbers))
+    (vector-sort! custom-number-cmp small-vec)
+    (assert-equal #(1 2 3 5 7 8 9) small-vec))
+  
+  (test "large collection algorithm selection"
+    ;; Test with larger collections that should trigger merge sort or quicksort
+    (define large-numbers (append '(15 8 23 4 42 16 7 31 12 19 28 3 33 9 25)
+                                 '(11 37 2 18 29 6 35 14 21 40 1 24 36 13)
+                                 '(30 5 38 17 26 10 39 20 34 22 27 32 41)))
+    
+    (define sorted-list (list-sort number-comparator large-numbers))
+    (assert-true (list-sorted? number-comparator sorted-list))
+    (assert-equal (length large-numbers) (length sorted-list))
+    
+    ;; Test stable sort gives same result for this data
+    (define stable-sorted (list-stable-sort number-comparator large-numbers))
+    (assert-equal sorted-list stable-sorted)))
+
+;; =============================================================================
+;; ERROR HANDLING INTEGRATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128/132 Error Handling Integration"
+  
+  (test "non-ordered comparator with sorting procedures"
+    ;; Create comparator without comparison function
+    (define non-ordered-cmp (make-comparator number? =))
+    
+    ;; Should error when trying to use with sorting
+    (assert-error (list-sort non-ordered-cmp '(1 2 3)))
+    (assert-error (vector-sort non-ordered-cmp #(1 2 3)))
+    (assert-error (list-merge non-ordered-cmp '(1) '(2))))
+  
+  (test "type mismatch handling"
+    ;; Test behavior with mismatched types
+    (define strict-number-cmp
+      (make-comparator (lambda (x) (and (number? x) (exact? x)))
+                      =
+                      (lambda (a b) (- a b))))
+    
+    ;; Should work with exact numbers
+    (assert-equal '(1 2 3) (list-sort strict-number-cmp '(3 1 2)))
+    
+    ;; Behavior with inexact numbers is implementation-dependent
+    ;; but should not crash))
+
+;; =============================================================================
+;; COMPREHENSIVE WORKFLOW TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128/132 Comprehensive Workflows"
+  
+  (test "complete data processing pipeline"
+    ;; Simulate processing a dataset with custom comparator
+    (define student-records 
+      '((alice 85 math) (bob 92 physics) (charlie 78 math) (diana 92 chemistry) (eve 85 physics)))
+    
+    ;; Sort by grade (descending), then by subject, then by name
+    (define student-cmp
+      (make-comparator 
+        (lambda (r) (and (list? r) (= (length r) 3)))
+        equal?
+        (lambda (a b)
+          (let ((grade-cmp (- (cadr b) (cadr a))))  ; Descending grade
+            (if (= grade-cmp 0)
+                (let ((subject-cmp (if (string<? (symbol->string (caddr a)) 
+                                                (symbol->string (caddr b)))
+                                      -1
+                                      (if (string=? (symbol->string (caddr a)) 
+                                                   (symbol->string (caddr b)))
+                                          0 1))))
+                  (if (= subject-cmp 0)
+                      (if (string<? (symbol->string (car a)) 
+                                   (symbol->string (car b)))
+                          -1
+                          (if (string=? (symbol->string (car a)) 
+                                       (symbol->string (car b)))
+                              0 1))
+                      subject-cmp))
+                grade-cmp)))))
+    
+    (define sorted-students (list-stable-sort student-cmp student-records))
+    (assert-true (list-sorted? student-cmp sorted-students))
+    
+    ;; Verify top students are sorted correctly
+    (assert-equal 92 (cadr (car sorted-students)))  ; Highest grade first
+    (assert-equal 92 (cadr (cadr sorted-students))) ; Second highest grade
+    )
+  
+  (test "multi-stage sorting and merging"
+    ;; Split data, sort separately, then merge
+    (define dataset1 '(12 5 18 9 3 15))
+    (define dataset2 '(7 14 1 20 11 6))
+    (define dataset3 '(13 8 19 2 16 4))
+    
+    ;; Sort each dataset
+    (define sorted1 (list-sort number-comparator dataset1))
+    (define sorted2 (list-sort number-comparator dataset2))
+    (define sorted3 (list-sort number-comparator dataset3))
+    
+    ;; Merge in pairs
+    (define merged12 (list-merge number-comparator sorted1 sorted2))
+    (define final-merged (list-merge number-comparator merged12 sorted3))
+    
+    ;; Should equal direct sort of all data
+    (define all-data (append dataset1 dataset2 dataset3))
+    (define direct-sorted (list-sort number-comparator all-data))
+    
+    (assert-equal direct-sorted final-merged)
+    (assert-true (list-sorted? number-comparator final-merged))))
+
+;; =============================================================================
+;; RUN ALL INTEGRATION TESTS
+;; =============================================================================
+
+(define (run-srfi-128-132-integration-tests)
+  (run-test-suite "SRFI-128/132 Built-in Comparator Integration")
+  (run-test-suite "SRFI-128/132 Custom Comparator Integration")
+  (run-test-suite "SRFI-128/132 Stability Integration")
+  (run-test-suite "SRFI-128/132 Algorithm Selection Integration")
+  (run-test-suite "SRFI-128/132 Error Handling Integration")
+  (run-test-suite "SRFI-128/132 Comprehensive Workflows")
+  
+  (display "\n=== SRFI-128 & SRFI-132 Integration Test Suite Complete ===\n")
+  (test-summary))
+
+;; Run tests if this file is executed directly
+(when (and (defined? 'command-line) (not (null? (command-line))))
+  (run-srfi-128-132-integration-tests))

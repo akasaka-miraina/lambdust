@@ -183,11 +183,19 @@ impl Parser {
             TokenKind::Quote => {
                 let start_span = self.current_span();
                 self.advance(); // consume quote
-                self.parse_quote_form(start_span)
+                let expr = self.parse_expression()?;
+                let span = start_span.combine(expr.span);
+                Ok(Spanned::new(Expr::Quote(Box::new(expr)), span))
             },
             TokenKind::Quasiquote => self.parse_quasiquote_expression(),
             TokenKind::Unquote => self.parse_unquote_expression(),
             TokenKind::UnquoteSplicing => self.parse_unquote_splicing_expression(),
+            TokenKind::Dot => {
+                // Handle dot as an identifier for dotted parameter lists
+                let span = self.current_span();
+                self.advance();
+                self.make_identifier(".".to_string(), span)
+            },
             _ => Err(Box::new(Error::unexpected_token(token, "expression"))),
         }
     }
@@ -549,9 +557,7 @@ impl Parser {
         let expr = self.parse_expression()?;
         let span = start_span.combine(expr.span);
         
-        // For now, treat quasiquote similar to quote
-        // TODO: Implement proper quasiquote semantics with unquote handling
-        Ok(Spanned::new(Expr::Quote(Box::new(expr)), span))
+        Ok(Spanned::new(Expr::Quasiquote(Box::new(expr)), span))
     }
 
     /// Parses an unquote expression.
@@ -562,13 +568,7 @@ impl Parser {
         let expr = self.parse_expression()?;
         let span = start_span.combine(expr.span);
         
-        // For now, create an application of 'unquote'
-        // TODO: Implement proper quasiquote/unquote semantics
-        let unquote_id = Spanned::new(Expr::Identifier("unquote".to_string()), start_span);
-        Ok(Spanned::new(Expr::Application {
-            operator: Box::new(unquote_id),
-            operands: vec![expr],
-        }, span))
+        Ok(Spanned::new(Expr::Unquote(Box::new(expr)), span))
     }
 
     /// Parses an unquote-splicing expression.
@@ -579,12 +579,6 @@ impl Parser {
         let expr = self.parse_expression()?;
         let span = start_span.combine(expr.span);
         
-        // For now, create an application of 'unquote-splicing'
-        // TODO: Implement proper quasiquote/unquote-splicing semantics
-        let unquote_splicing_id = Spanned::new(Expr::Identifier("unquote-splicing".to_string()), start_span);
-        Ok(Spanned::new(Expr::Application {
-            operator: Box::new(unquote_splicing_id),
-            operands: vec![expr],
-        }, span))
+        Ok(Spanned::new(Expr::UnquoteSplicing(Box::new(expr)), span))
     }
 }

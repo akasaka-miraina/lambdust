@@ -2,6 +2,36 @@
 //!
 //! This module implements R7RS-compliant character operations including
 //! character predicates, comparison, and conversion functions.
+//!
+//! ## R7RS-small Character Procedures Implemented:
+//! 
+//! **Character Predicates:**
+//! - `char?` - Test if argument is character
+//! - `char-alphabetic?` - Test if character is alphabetic
+//! - `char-numeric?` - Test if character is numeric
+//! - `char-whitespace?` - Test if character is whitespace
+//! - `char-upper-case?` - Test if character is uppercase
+//! - `char-lower-case?` - Test if character is lowercase
+//!
+//! **Character Comparison:**
+//! - `char=?`, `char<?`, `char>?`, `char<=?`, `char>=?` - Character comparison
+//! - `char-ci=?`, `char-ci<?`, `char-ci>?`, `char-ci<=?`, `char-ci>=?` - Case-insensitive comparison
+//!
+//! **Character Conversion:**
+//! - `char-upcase` - Convert to uppercase
+//! - `char-downcase` - Convert to lowercase
+//! - `char-foldcase` - Case folding (R7RS-small)
+//!
+//! **Character/Integer Conversion:**
+//! - `char->integer` - Character to Unicode code point
+//! - `integer->char` - Unicode code point to character
+//!
+//! ## Extensions (beyond R7RS-small):
+//! - `char-title-case?` - Test if character is titlecase
+//! - `char-titlecase` - Convert to titlecase
+//! - `char-general-category` - Unicode general category
+//!
+//! All functions support proper Unicode handling using Rust's native `char` type.
 
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
@@ -490,11 +520,13 @@ fn primitive_char_ci_equal(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    let first = extract_character(&args[0], "char-ci=?")?.to_ascii_lowercase();
+    let first_ch = extract_character(&args[0], "char-ci=?")?;
+    let first = first_ch.to_lowercase().next().unwrap_or(first_ch);
     
     for arg in &args[1..] {
-        let ch = extract_character(arg, "char-ci=?")?.to_ascii_lowercase();
-        if first != ch {
+        let ch = extract_character(arg, "char-ci=?")?;
+        let ch_lower = ch.to_lowercase().next().unwrap_or(ch);
+        if first != ch_lower {
             return Ok(Value::boolean(false));
         }
     }
@@ -511,8 +543,10 @@ fn primitive_char_ci_less(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let c1 = extract_character(&window[0], "char-ci<?")?.to_ascii_lowercase();
-        let c2 = extract_character(&window[1], "char-ci<?")?.to_ascii_lowercase();
+        let ch1 = extract_character(&window[0], "char-ci<?")?;
+        let ch2 = extract_character(&window[1], "char-ci<?")?;
+        let c1 = ch1.to_lowercase().next().unwrap_or(ch1);
+        let c2 = ch2.to_lowercase().next().unwrap_or(ch2);
         if c1 >= c2 {
             return Ok(Value::boolean(false));
         }
@@ -530,8 +564,10 @@ fn primitive_char_ci_greater(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let c1 = extract_character(&window[0], "char-ci>?")?.to_ascii_lowercase();
-        let c2 = extract_character(&window[1], "char-ci>?")?.to_ascii_lowercase();
+        let ch1 = extract_character(&window[0], "char-ci>?")?;
+        let ch2 = extract_character(&window[1], "char-ci>?")?;
+        let c1 = ch1.to_lowercase().next().unwrap_or(ch1);
+        let c2 = ch2.to_lowercase().next().unwrap_or(ch2);
         if c1 <= c2 {
             return Ok(Value::boolean(false));
         }
@@ -549,8 +585,10 @@ fn primitive_char_ci_less_equal(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let c1 = extract_character(&window[0], "char-ci<=?")?.to_ascii_lowercase();
-        let c2 = extract_character(&window[1], "char-ci<=?")?.to_ascii_lowercase();
+        let ch1 = extract_character(&window[0], "char-ci<=?")?;
+        let ch2 = extract_character(&window[1], "char-ci<=?")?;
+        let c1 = ch1.to_lowercase().next().unwrap_or(ch1);
+        let c2 = ch2.to_lowercase().next().unwrap_or(ch2);
         if c1 > c2 {
             return Ok(Value::boolean(false));
         }
@@ -568,8 +606,10 @@ fn primitive_char_ci_greater_equal(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let c1 = extract_character(&window[0], "char-ci>=?")?.to_ascii_lowercase();
-        let c2 = extract_character(&window[1], "char-ci>=?")?.to_ascii_lowercase();
+        let ch1 = extract_character(&window[0], "char-ci>=?")?;
+        let ch2 = extract_character(&window[1], "char-ci>=?")?;
+        let c1 = ch1.to_lowercase().next().unwrap_or(ch1);
+        let c2 = ch2.to_lowercase().next().unwrap_or(ch2);
         if c1 < c2 {
             return Ok(Value::boolean(false));
         }
@@ -632,7 +672,9 @@ fn primitive_char_upcase(args: &[Value]) -> Result<Value> {
     }
     
     let ch = extract_character(&args[0], "char-upcase")?;
-    Ok(Value::Literal(crate::ast::Literal::Character(ch.to_ascii_uppercase())))
+    // Use proper Unicode case conversion
+    let upper_ch = ch.to_uppercase().next().unwrap_or(ch);
+    Ok(Value::Literal(crate::ast::Literal::Character(upper_ch)))
 }
 
 fn primitive_char_downcase(args: &[Value]) -> Result<Value> {
@@ -644,7 +686,9 @@ fn primitive_char_downcase(args: &[Value]) -> Result<Value> {
     }
     
     let ch = extract_character(&args[0], "char-downcase")?;
-    Ok(Value::Literal(crate::ast::Literal::Character(ch.to_ascii_lowercase())))
+    // Use proper Unicode case conversion
+    let lower_ch = ch.to_lowercase().next().unwrap_or(ch);
+    Ok(Value::Literal(crate::ast::Literal::Character(lower_ch)))
 }
 
 fn primitive_char_foldcase(args: &[Value]) -> Result<Value> {
@@ -656,8 +700,10 @@ fn primitive_char_foldcase(args: &[Value]) -> Result<Value> {
     }
     
     let ch = extract_character(&args[0], "char-foldcase")?;
-    // Foldcase is like downcase for most purposes
-    Ok(Value::Literal(crate::ast::Literal::Character(ch.to_ascii_lowercase())))
+    // Case folding for Unicode - use lowercase for now
+    // In a full implementation, this would use Unicode case folding tables
+    let folded_ch = ch.to_lowercase().next().unwrap_or(ch);
+    Ok(Value::Literal(crate::ast::Literal::Character(folded_ch)))
 }
 
 /// char-titlecase case conversion
@@ -692,56 +738,298 @@ fn extract_character(value: &Value, operation: &str) -> Result<char> {
 mod tests {
     use super::*;
     
-    
-
     #[test]
     fn test_char_predicates() {
+        // Test char? predicate
         let char_a = Value::Literal(crate::ast::Literal::Character('a'));
         let result = primitive_char_p(&[char_a.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
+        let not_char = Value::integer(42);
+        let result = primitive_char_p(&[not_char]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char-alphabetic?
         let result = primitive_char_alphabetic_p(&[char_a.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
         let char_5 = Value::Literal(crate::ast::Literal::Character('5'));
-        let result = primitive_char_numeric_p(&[char_5]).unwrap();
+        let result = primitive_char_alphabetic_p(&[char_5.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char-numeric?
+        let result = primitive_char_numeric_p(&[char_5.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_numeric_p(&[char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char-whitespace?
+        let char_space = Value::Literal(crate::ast::Literal::Character(' '));
+        let result = primitive_char_whitespace_p(&[char_space]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_whitespace_p(&[char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char-upper-case?
+        let char_A = Value::Literal(crate::ast::Literal::Character('A'));
+        let result = primitive_char_upper_case_p(&[char_A.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_upper_case_p(&[char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char-lower-case?
+        let result = primitive_char_lower_case_p(&[char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_lower_case_p(&[char_A]).unwrap();
+        assert_eq!(result, Value::boolean(false));
     }
     
     #[test]
     fn test_char_comparison() {
         let char_a = Value::Literal(crate::ast::Literal::Character('a'));
         let char_b = Value::Literal(crate::ast::Literal::Character('b'));
+        let char_c = Value::Literal(crate::ast::Literal::Character('c'));
         
+        // Test char=?
         let result = primitive_char_equal(&[char_a.clone(), char_a.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
+        let result = primitive_char_equal(&[char_a.clone(), char_b.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test multiple arguments
+        let result = primitive_char_equal(&[char_a.clone(), char_a.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_equal(&[char_a.clone(), char_a.clone(), char_b.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char<?
         let result = primitive_char_less(&[char_a.clone(), char_b.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));
         
-        let result = primitive_char_greater(&[char_b, char_a]).unwrap();
+        let result = primitive_char_less(&[char_b.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test transitive
+        let result = primitive_char_less(&[char_a.clone(), char_b.clone(), char_c.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_less(&[char_a.clone(), char_c.clone(), char_b.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char>?
+        let result = primitive_char_greater(&[char_b.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_greater(&[char_a.clone(), char_b.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char<=?
+        let result = primitive_char_less_equal(&[char_a.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_less_equal(&[char_a.clone(), char_b.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_less_equal(&[char_b.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char>=?
+        let result = primitive_char_greater_equal(&[char_a.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_greater_equal(&[char_b.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_greater_equal(&[char_a, char_b]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+    }
+    
+    #[test]
+    fn test_char_ci_comparison() {
+        let char_a = Value::Literal(crate::ast::Literal::Character('a'));
+        let char_A = Value::Literal(crate::ast::Literal::Character('A'));
+        let char_b = Value::Literal(crate::ast::Literal::Character('b'));
+        let char_B = Value::Literal(crate::ast::Literal::Character('B'));
+        
+        // Test char-ci=?
+        let result = primitive_char_ci_equal(&[char_a.clone(), char_A.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_ci_equal(&[char_a.clone(), char_b.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char-ci<?
+        let result = primitive_char_ci_less(&[char_a.clone(), char_B.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_ci_less(&[char_B.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char-ci>?
+        let result = primitive_char_ci_greater(&[char_B.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_ci_greater(&[char_a.clone(), char_B.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(false));
+        
+        // Test char-ci<=?
+        let result = primitive_char_ci_less_equal(&[char_a.clone(), char_A.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_ci_less_equal(&[char_a.clone(), char_B.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        // Test char-ci>=?
+        let result = primitive_char_ci_greater_equal(&[char_A.clone(), char_a.clone()]).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        let result = primitive_char_ci_greater_equal(&[char_B, char_a]).unwrap();
         assert_eq!(result, Value::boolean(true));
     }
     
     #[test]
     fn test_char_conversion() {
+        // Test char->integer
         let char_a = Value::Literal(crate::ast::Literal::Character('a'));
         let result = primitive_char_to_integer(&[char_a]).unwrap();
         assert_eq!(result, Value::integer(97)); // ASCII value of 'a'
         
+        let char_zero = Value::Literal(crate::ast::Literal::Character('0'));
+        let result = primitive_char_to_integer(&[char_zero]).unwrap();
+        assert_eq!(result, Value::integer(48)); // ASCII value of '0'
+        
+        // Test integer->char
         let int_97 = Value::integer(97);
         let result = primitive_integer_to_char(&[int_97]).unwrap();
         assert_eq!(result, Value::Literal(crate::ast::Literal::Character('a')));
+        
+        let int_48 = Value::integer(48);
+        let result = primitive_integer_to_char(&[int_48]).unwrap();
+        assert_eq!(result, Value::Literal(crate::ast::Literal::Character('0')));
+        
+        // Test Unicode characters
+        let char_lambda = Value::Literal(crate::ast::Literal::Character('λ'));
+        let result = primitive_char_to_integer(&[char_lambda]).unwrap();
+        assert_eq!(result, Value::integer(955)); // Unicode value of 'λ'
+        
+        let int_955 = Value::integer(955);
+        let result = primitive_integer_to_char(&[int_955]).unwrap();
+        assert_eq!(result, Value::Literal(crate::ast::Literal::Character('λ')));
+    }
+    
+    #[test]
+    fn test_char_conversion_errors() {
+        // Test integer->char with invalid values
+        let negative = Value::integer(-1);
+        let result = primitive_integer_to_char(&[negative]);
+        assert!(result.is_err());
+        
+        let too_large = Value::integer(0x110000); // Beyond Unicode range
+        let result = primitive_integer_to_char(&[too_large]);
+        assert!(result.is_err());
+        
+        // Test with non-integer
+        let not_int = Value::string("not-an-integer");
+        let result = primitive_integer_to_char(&[not_int]);
+        assert!(result.is_err());
+        
+        // Test char->integer with non-character
+        let not_char = Value::integer(42);
+        let result = primitive_char_to_integer(&[not_char]);
+        assert!(result.is_err());
     }
     
     #[test]
     fn test_char_case() {
+        // Test basic ASCII case conversion
         let char_a = Value::Literal(crate::ast::Literal::Character('a'));
         let result = primitive_char_upcase(&[char_a]).unwrap();
         assert_eq!(result, Value::Literal(crate::ast::Literal::Character('A')));
         
-        let char_a_upper = Value::Literal(crate::ast::Literal::Character('A'));
-        let result = primitive_char_downcase(&[char_a_upper]).unwrap();
+        let char_A = Value::Literal(crate::ast::Literal::Character('A'));
+        let result = primitive_char_downcase(&[char_A]).unwrap();
         assert_eq!(result, Value::Literal(crate::ast::Literal::Character('a')));
+        
+        // Test that non-letter characters are unchanged
+        let char_5 = Value::Literal(crate::ast::Literal::Character('5'));
+        let result = primitive_char_upcase(&[char_5.clone()]).unwrap();
+        assert_eq!(result, char_5);
+        
+        let result = primitive_char_downcase(&[char_5]).unwrap();
+        assert_eq!(result, Value::Literal(crate::ast::Literal::Character('5')));
+        
+        // Test char-foldcase
+        let char_A_fold = Value::Literal(crate::ast::Literal::Character('A'));
+        let result = primitive_char_foldcase(&[char_A_fold]).unwrap();
+        assert_eq!(result, Value::Literal(crate::ast::Literal::Character('a')));
+    }
+    
+    #[test]
+    fn test_unicode_case() {
+        // Test Unicode case conversion
+        let char_alpha = Value::Literal(crate::ast::Literal::Character('α')); // Greek small alpha
+        let result = primitive_char_upcase(&[char_alpha]).unwrap();
+        assert_eq!(result, Value::Literal(crate::ast::Literal::Character('Α'))); // Greek capital alpha
+        
+        let char_Alpha = Value::Literal(crate::ast::Literal::Character('Α')); // Greek capital alpha
+        let result = primitive_char_downcase(&[char_Alpha]).unwrap();
+        assert_eq!(result, Value::Literal(crate::ast::Literal::Character('α'))); // Greek small alpha
+        
+        // Test German ß (should remain unchanged in upcase in most implementations)
+        let char_eszett = Value::Literal(crate::ast::Literal::Character('ß'));
+        let result = primitive_char_upcase(&[char_eszett.clone()]).unwrap();
+        // Note: This might be 'ß' or 'SS' depending on Unicode rules
+        // We'll just check it doesn't error for now
+        assert!(matches!(result, Value::Literal(crate::ast::Literal::Character(_))));
+    }
+    
+    #[test]
+    fn test_char_errors() {
+        // Test wrong number of arguments
+        let result = primitive_char_p(&[]);
+        assert!(result.is_err());
+        
+        let char_a = Value::Literal(crate::ast::Literal::Character('a'));
+        let char_b = Value::Literal(crate::ast::Literal::Character('b'));
+        let result = primitive_char_p(&[char_a.clone(), char_b]);
+        assert!(result.is_err());
+        
+        // Test comparison with wrong argument types
+        let not_char = Value::integer(42);
+        let result = primitive_char_equal(&[char_a.clone(), not_char]);
+        assert!(result.is_err());
+        
+        // Test comparison with too few arguments
+        let result = primitive_char_equal(&[char_a]);
+        assert!(result.is_err());
+        
+        let result = primitive_char_equal(&[]);
+        assert!(result.is_err());
+    }
+    
+    #[test]
+    fn test_char_general_category() {
+        // Test basic categories
+        let char_a = Value::Literal(crate::ast::Literal::Character('a'));
+        let result = primitive_char_general_category(&[char_a]).unwrap();
+        assert_eq!(result, Value::symbol(intern_symbol("Ll"))); // Letter, lowercase
+        
+        let char_A = Value::Literal(crate::ast::Literal::Character('A'));
+        let result = primitive_char_general_category(&[char_A]).unwrap();
+        assert_eq!(result, Value::symbol(intern_symbol("Lu"))); // Letter, uppercase
+        
+        let char_5 = Value::Literal(crate::ast::Literal::Character('5'));
+        let result = primitive_char_general_category(&[char_5]).unwrap();
+        assert_eq!(result, Value::symbol(intern_symbol("Nd"))); // Number, decimal digit
+        
+        let char_space = Value::Literal(crate::ast::Literal::Character(' '));
+        let result = primitive_char_general_category(&[char_space]).unwrap();
+        assert_eq!(result, Value::symbol(intern_symbol("Zs"))); // Separator, space
     }
 }

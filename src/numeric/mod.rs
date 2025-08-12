@@ -37,7 +37,14 @@ pub mod optimization;
 /// Demonstration and example code for numeric operations.
 pub mod demo;
 /// SIMD-optimized numeric operations for performance.
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub mod simd_optimization;
+/// Stub SIMD implementation for non-x86 architectures.
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+pub mod simd_optimization_stub;
+/// SIMD performance benchmarking and analysis suite.
+#[cfg(feature = "simd-benchmarks")]
+pub mod simd_benchmarks;
 
 pub use complex::*;
 pub use rational::*;
@@ -49,14 +56,53 @@ pub use primitives::*;
 pub use integration::*;
 pub use optimization::*;
 pub use demo::*;
+
+#[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub use simd_optimization::{
-    SimdNumericOps, SimdConfig, SimdBenchmarkResults,
-    add_numeric_arrays_optimized, dot_product_optimized,
+    SimdNumericOps, SimdOperationType, AlignedBuffer, CpuFeatures,
 };
+
+#[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
+pub use simd_optimization_stub::{
+    SimdNumericOps, SimdOperationType, AlignedBuffer, CpuFeatures,
+};
+
+// Re-export SIMD configuration and optimized functions
+pub use SimdNumericOps as SimdConfig;
+
+/// Optimized addition of numeric arrays using SIMD
+pub fn add_numeric_arrays_optimized(a: &[f64], b: &[f64]) -> crate::diagnostics::Result<Vec<f64>> {
+    let mut result = vec![0.0; a.len()];
+    let simd_ops_guard = get_simd_ops();
+    let mut simd_ops = simd_ops_guard.lock()
+        .map_err(|_| crate::diagnostics::Error::runtime_error("Failed to acquire SIMD lock".to_string(), None))?;
+    simd_ops.add_f64_arrays(a, b, &mut result)?;
+    Ok(result)
+}
+
+/// Optimized dot product using SIMD  
+pub fn dot_product_optimized(a: &[f64], b: &[f64]) -> crate::diagnostics::Result<f64> {
+    let simd_ops_guard = get_simd_ops();
+    let mut simd_ops = simd_ops_guard.lock()
+        .map_err(|_| crate::diagnostics::Error::runtime_error("Failed to acquire SIMD lock".to_string(), None))?;
+    simd_ops.dot_product_f64(a, b)
+}
 
 use crate::ast::Literal;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::sync::{Arc, Mutex};
+use once_cell::sync::Lazy;
+
+/// Global SIMD optimization engine for high-performance numeric computations
+static GLOBAL_SIMD_OPS: Lazy<Arc<Mutex<SimdNumericOps>>> = Lazy::new(|| {
+    Arc::new(Mutex::new(SimdNumericOps::new()))
+});
+
+/// Gets the global SIMD operations engine
+pub fn get_simd_ops() -> Arc<Mutex<SimdNumericOps>> {
+    GLOBAL_SIMD_OPS.clone()
+}
 
 /// Unified numeric value type that encompasses all numeric types in the tower
 #[derive(Debug, Clone, PartialEq)]
@@ -71,6 +117,8 @@ pub enum NumericValue {
     Real(f64),
     /// Complex number (real + imaginary parts)
     Complex(Complex),
+    /// Vector of numeric values for SIMD optimization
+    Vector(Vec<NumericValue>),
 }
 
 /// Numeric type classification for the tower
@@ -86,6 +134,8 @@ pub enum NumericType {
     Real = 3,
     /// Complex number with real and imaginary parts
     Complex = 4,
+    /// Vector of numeric values
+    Vector = 5,
 }
 
 impl NumericValue {
@@ -114,6 +164,19 @@ impl NumericValue {
         Self::Complex(Complex::new(real, imag))
     }
 
+    /// Creates a vector value
+    pub fn vector(values: Vec<NumericValue>) -> Self {
+        Self::Vector(values)
+    }
+    
+    /// Creates a vector of real values (optimized for SIMD)
+    pub fn real_vector(values: Vec<f64>) -> Self {
+        let num_values: Vec<NumericValue> = values.into_iter()
+            .map(NumericValue::real)
+            .collect();
+        Self::Vector(num_values)
+    }
+
     /// Gets the numeric type for tower operations
     pub fn numeric_type(&self) -> NumericType {
         match self {
@@ -122,27 +185,33 @@ impl NumericValue {
             Self::Rational(_) => NumericType::Rational,
             Self::Real(_) => NumericType::Real,
             Self::Complex(_) => NumericType::Complex,
+            Self::Vector(_) => NumericType::Vector,
         }
     }
 
     /// Checks if this number is exact (rational or integer)
     pub fn is_exact(&self) -> bool {
-        matches!(self, 
-            Self::Integer(_) | 
-            Self::BigInteger(_) | 
-            Self::Rational(_)
-        )
+        match self {
+            Self::Integer(_) | Self::BigInteger(_) | Self::Rational(_) => true,
+            Self::Vector(v) => v.iter().all(|x| x.is_exact()),
+            _ => false,
+        }
     }
 
     /// Checks if this number is inexact (real or complex)
     pub fn is_inexact(&self) -> bool {
-        matches!(self, Self::Real(_) | Self::Complex(_))
+        match self {
+            Self::Real(_) | Self::Complex(_) => true,
+            Self::Vector(v) => v.iter().any(|x| x.is_inexact()),
+            _ => false,
+        }
     }
 
     /// Checks if this number is real (not complex with non-zero imaginary part)
     pub fn is_real(&self) -> bool {
         match self {
             Self::Complex(c) => c.imaginary == 0.0,
+            Self::Vector(v) => v.iter().all(|x| x.is_real()),
             _ => true,
         }
     }
@@ -154,6 +223,7 @@ impl NumericValue {
             Self::Rational(r) => r.denominator == 1,
             Self::Real(r) => r.fract() == 0.0 && r.is_finite(),
             Self::Complex(c) => c.imaginary == 0.0 && c.real.fract() == 0.0 && c.real.is_finite(),
+            Self::Vector(v) => v.iter().all(|x| x.is_integer()),
         }
     }
 
@@ -165,6 +235,7 @@ impl NumericValue {
             Self::Rational(r) => r.numerator == 0,
             Self::Real(r) => *r == 0.0,
             Self::Complex(c) => c.real == 0.0 && c.imaginary == 0.0,
+            Self::Vector(v) => v.iter().all(|x| x.is_zero()),
         }
     }
 
@@ -176,6 +247,7 @@ impl NumericValue {
             Self::Rational(r) => r.is_positive(),
             Self::Real(r) => *r > 0.0,
             Self::Complex(_) => false, // Complex numbers are not ordered
+            Self::Vector(v) => v.iter().all(|x| x.is_positive()),
         }
     }
 
@@ -187,6 +259,7 @@ impl NumericValue {
             Self::Rational(r) => r.is_negative(),
             Self::Real(r) => *r < 0.0,
             Self::Complex(_) => false, // Complex numbers are not ordered
+            Self::Vector(v) => v.iter().all(|x| x.is_negative()),
         }
     }
 
@@ -199,6 +272,7 @@ impl NumericValue {
             Self::Real(r) => Some(*r),
             Self::Complex(c) if c.imaginary == 0.0 => Some(c.real),
             Self::Complex(_) => None,
+            Self::Vector(_) => None, // Vectors don't convert to single f64
         }
     }
 
@@ -216,14 +290,16 @@ impl NumericValue {
                 let i = c.real as i64;
                 if i as f64 == c.real { Some(i) } else { None }
             }
-            _ => None,
+            Self::Vector(_) => None, // Vectors don't convert to single i64
+            _ => None, // Other types don't convert to i64
         }
     }
 
     /// Converts from a Literal
     pub fn from_literal(lit: &Literal) -> Option<Self> {
         match lit {
-            Literal::Number(n) => Some(Self::Real(*n)),
+            Literal::ExactInteger(n) => Some(Self::Integer(*n)),
+            Literal::InexactReal(n) => Some(Self::Real(*n)),
             Literal::Rational { numerator, denominator } => {
                 Some(Self::Rational(Rational::new(*numerator, *denominator)))
             }
@@ -237,26 +313,30 @@ impl NumericValue {
     /// Converts to a Literal
     pub fn to_literal(&self) -> Literal {
         match self {
-            Self::Integer(n) => Literal::Number(*n as f64),
+            Self::Integer(n) => Literal::ExactInteger(*n),
             Self::BigInteger(n) => {
-                // If it fits in f64 range, use Number; otherwise use string representation
-                if let Some(f) = n.to_f64() {
-                    Literal::Number(f)
+                // If it fits in i64 range, use ExactInteger; otherwise use InexactReal
+                if let Some(i) = n.to_i64() {
+                    Literal::ExactInteger(i)
                 } else {
-                    // For now, fall back to f64 representation
-                    // In a full implementation, we might want to extend Literal to support BigInt
-                    Literal::Number(n.to_f64().unwrap_or(f64::INFINITY))
+                    // For very large integers, convert to inexact representation
+                    Literal::InexactReal(n.to_f64().unwrap_or(f64::INFINITY))
                 }
             }
             Self::Rational(r) => Literal::Rational {
                 numerator: r.numerator,
                 denominator: r.denominator,
             },
-            Self::Real(r) => Literal::Number(*r),
+            Self::Real(r) => Literal::InexactReal(*r),
             Self::Complex(c) => Literal::Complex {
                 real: c.real,
                 imaginary: c.imaginary,
             },
+            Self::Vector(_) => {
+                // Vectors are represented as strings for now
+                // In the future, this could be a Vector literal type
+                Literal::String(format!("{self}"))
+            }
         }
     }
 
@@ -279,6 +359,145 @@ impl NumericValue {
     pub fn subtract(&self, other: &Self) -> Result<Self, String> {
         Ok(crate::numeric::tower::subtract(self, other))
     }
+
+    /// SIMD-optimized vector addition for compatible vectors
+    pub fn simd_vector_add(&self, other: &Self) -> Result<Self, String> {
+        match (self, other) {
+            (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
+                // Try to extract f64 vectors for SIMD optimization
+                let a_f64: Result<Vec<f64>, _> = a.iter()
+                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+                    .collect();
+                let b_f64: Result<Vec<f64>, _> = b.iter()
+                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+                    .collect();
+
+                match (a_f64, b_f64) {
+                    (Ok(a_vals), Ok(b_vals)) => {
+                        // Use SIMD optimization
+                        let simd_ops_arc = get_simd_ops();
+                        let mut simd_ops = simd_ops_arc.lock()
+                            .map_err(|_| "Failed to acquire SIMD lock")?;
+                        let mut result = vec![0.0; a_vals.len()];
+                        simd_ops.add_f64_arrays(&a_vals, &b_vals, &mut result)
+                            .map_err(|e| format!("SIMD error: {e}"))?;
+                        Ok(Self::real_vector(result))
+                    }
+                    _ => {
+                        // Fallback to element-wise addition
+                        let result: Result<Vec<_>, _> = a.iter()
+                            .zip(b.iter())
+                            .map(|(x, y)| x.add(y))
+                            .collect();
+                        Ok(Self::Vector(result?))
+                    }
+                }
+            }
+            _ => Err("Cannot perform SIMD vector addition on non-matching vectors".to_string())
+        }
+    }
+
+    /// SIMD-optimized vector multiplication for compatible vectors
+    pub fn simd_vector_multiply(&self, other: &Self) -> Result<Self, String> {
+        match (self, other) {
+            (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
+                let a_f64: Result<Vec<f64>, _> = a.iter()
+                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+                    .collect();
+                let b_f64: Result<Vec<f64>, _> = b.iter()
+                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+                    .collect();
+
+                match (a_f64, b_f64) {
+                    (Ok(a_vals), Ok(b_vals)) => {
+                        let simd_ops_arc = get_simd_ops();
+                        let mut simd_ops = simd_ops_arc.lock()
+                            .map_err(|_| "Failed to acquire SIMD lock")?;
+                        let mut result = vec![0.0; a_vals.len()];
+                        simd_ops.multiply_f64_arrays(&a_vals, &b_vals, &mut result)
+                            .map_err(|e| format!("SIMD error: {e}"))?;
+                        Ok(Self::real_vector(result))
+                    }
+                    _ => {
+                        let result: Result<Vec<_>, _> = a.iter()
+                            .zip(b.iter())
+                            .map(|(x, y)| x.multiply(y))
+                            .collect();
+                        Ok(Self::Vector(result?))
+                    }
+                }
+            }
+            _ => Err("Cannot perform SIMD vector multiplication on non-matching vectors".to_string())
+        }
+    }
+
+    /// SIMD-optimized dot product for compatible vectors
+    pub fn simd_dot_product(&self, other: &Self) -> Result<Self, String> {
+        match (self, other) {
+            (Self::Vector(a), Self::Vector(b)) if a.len() == b.len() => {
+                let a_f64: Result<Vec<f64>, _> = a.iter()
+                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+                    .collect();
+                let b_f64: Result<Vec<f64>, _> = b.iter()
+                    .map(|v| v.to_f64().ok_or("Not convertible to f64"))
+                    .collect();
+
+                match (a_f64, b_f64) {
+                    (Ok(a_vals), Ok(b_vals)) => {
+                        let simd_ops_arc = get_simd_ops();
+                        let mut simd_ops = simd_ops_arc.lock()
+                            .map_err(|_| "Failed to acquire SIMD lock")?;
+                        let result = simd_ops.dot_product_f64(&a_vals, &b_vals)
+                            .map_err(|e| format!("SIMD error: {e}"))?;
+                        Ok(Self::Real(result))
+                    }
+                    _ => {
+                        // Fallback: compute sum of element-wise products
+                        let products: Result<Vec<_>, _> = a.iter()
+                            .zip(b.iter())
+                            .map(|(x, y)| x.multiply(y))
+                            .collect();
+                        let sum = products?.into_iter()
+                            .try_fold(Self::Integer(0), |acc, x| acc.add(&x))?;
+                        Ok(sum)
+                    }
+                }
+            }
+            _ => Err("Cannot perform dot product on non-matching vectors".to_string())
+        }
+    }
+
+    /// Extracts f64 values from a numeric vector if possible
+    pub fn to_f64_vector(&self) -> Option<Vec<f64>> {
+        match self {
+            Self::Vector(v) => {
+                let f64_vec: Result<Vec<f64>, _> = v.iter()
+                    .map(|x| x.to_f64().ok_or(()))
+                    .collect();
+                f64_vec.ok()
+            }
+            _ => None
+        }
+    }
+
+    /// Gets vector length if this is a vector
+    pub fn vector_length(&self) -> Option<usize> {
+        match self {
+            Self::Vector(v) => Some(v.len()),
+            _ => None
+        }
+    }
+
+    /// Checks if this value can benefit from SIMD optimization
+    pub fn is_simd_optimizable(&self) -> bool {
+        match self {
+            Self::Vector(v) => {
+                v.len() >= 8 && // Minimum size for SIMD benefit
+                v.iter().all(|x| x.to_f64().is_some()) // All elements convertible to f64
+            }
+            _ => false
+        }
+    }
 }
 
 impl fmt::Display for NumericValue {
@@ -295,6 +514,16 @@ impl fmt::Display for NumericValue {
                 }
             }
             Self::Complex(c) => write!(f, "{c}"),
+            Self::Vector(v) => {
+                write!(f, "#(")?;
+                for (i, val) in v.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, " ")?;
+                    }
+                    write!(f, "{val}")?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }
@@ -308,6 +537,7 @@ impl Hash for NumericValue {
             Self::Rational(r) => r.hash(state),
             Self::Real(r) => r.to_bits().hash(state),
             Self::Complex(c) => c.hash(state),
+            Self::Vector(v) => v.hash(state),
         }
     }
 }
@@ -359,5 +589,83 @@ mod tests {
         let back_lit = num_val.to_literal();
 
         assert_eq!(lit, back_lit);
+    }
+
+    #[test]
+    fn test_vector_creation_and_operations() {
+        let vec_a = NumericValue::real_vector(vec![1.0, 2.0, 3.0, 4.0]);
+        let vec_b = NumericValue::real_vector(vec![5.0, 6.0, 7.0, 8.0]);
+
+        assert_eq!(vec_a.numeric_type(), NumericType::Vector);
+        assert_eq!(vec_a.vector_length(), Some(4));
+        assert!(vec_a.is_simd_optimizable());
+
+        // Test SIMD vector addition
+        let result = vec_a.simd_vector_add(&vec_b).unwrap();
+        if let NumericValue::Vector(result_vals) = result {
+            assert_eq!(result_vals.len(), 4);
+            // Expected: [6.0, 8.0, 10.0, 12.0]
+            assert_eq!(result_vals[0].to_f64().unwrap(), 6.0);
+            assert_eq!(result_vals[1].to_f64().unwrap(), 8.0);
+            assert_eq!(result_vals[2].to_f64().unwrap(), 10.0);
+            assert_eq!(result_vals[3].to_f64().unwrap(), 12.0);
+        } else {
+            panic!("Expected vector result");
+        }
+    }
+
+    #[test]
+    fn test_simd_dot_product() {
+        let vec_a = NumericValue::real_vector(vec![1.0, 2.0, 3.0, 4.0]);
+        let vec_b = NumericValue::real_vector(vec![2.0, 3.0, 4.0, 5.0]);
+
+        let result = vec_a.simd_dot_product(&vec_b).unwrap();
+        // Expected: 1*2 + 2*3 + 3*4 + 4*5 = 2 + 6 + 12 + 20 = 40
+        assert_eq!(result.to_f64().unwrap(), 40.0);
+    }
+
+    #[test]
+    fn test_vector_predicates() {
+        let positive_vec = NumericValue::real_vector(vec![1.0, 2.0, 3.0]);
+        let mixed_vec = NumericValue::vector(vec![
+            NumericValue::integer(1),
+            NumericValue::real(2.5),
+            NumericValue::integer(3)
+        ]);
+
+        assert!(positive_vec.is_positive());
+        assert!(positive_vec.is_real());
+        assert!(!positive_vec.is_exact());
+        assert!(positive_vec.is_inexact());
+
+        assert!(mixed_vec.is_positive());
+        assert!(mixed_vec.is_real());
+        assert!(!mixed_vec.is_exact()); // Contains real number
+    }
+
+    #[test]
+    fn test_vector_display() {
+        let vec = NumericValue::vector(vec![
+            NumericValue::integer(1),
+            NumericValue::real(2.5),
+            NumericValue::rational(3, 4)
+        ]);
+
+        let display_str = format!("{}", vec);
+        assert!(display_str.starts_with("#("));
+        assert!(display_str.ends_with(")"));
+    }
+
+    #[test]
+    fn test_vector_f64_extraction() {
+        let real_vec = NumericValue::real_vector(vec![1.0, 2.0, 3.0]);
+        let mixed_vec = NumericValue::vector(vec![
+            NumericValue::integer(1),
+            NumericValue::rational(3, 2), // 1.5
+            NumericValue::complex(2.0, 1.0) // Not convertible
+        ]);
+
+        assert_eq!(real_vec.to_f64_vector(), Some(vec![1.0, 2.0, 3.0]));
+        assert_eq!(mixed_vec.to_f64_vector(), None); // Contains complex number
     }
 }

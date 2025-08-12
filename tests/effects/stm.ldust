@@ -1,0 +1,457 @@
+#!/usr/bin/env lambdust
+;; Test file: Software Transactional Memory (STM)
+;; Purpose: Test STM transactions, composability, and consistency guarantees
+;; Covers TVar operations, transaction retry, and concurrent access patterns
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust stm)
+        (lambdust concurrency))  ;; TODO: Implement STM library
+
+;; =============================================================================
+;; BASIC STM OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Basic STM Operations"
+  
+  (test "TVar creation and basic operations"
+    ;; TODO: STM syntax needs to be implemented
+    (define account-balance (new-tvar 100))
+    
+    ;; Read TVar value
+    (assert-equal 100 (atomically (read-tvar account-balance)))
+    
+    ;; Write TVar value
+    (atomically (write-tvar account-balance 150))
+    (assert-equal 150 (atomically (read-tvar account-balance)))
+    
+    ;; Modify TVar value
+    (atomically (modify-tvar account-balance (lambda (x) (+ x 50))))
+    (assert-equal 200 (atomically (read-tvar account-balance))))
+  
+  (test "Transaction atomicity"
+    ;; Multiple TVar operations should be atomic
+    (define account-a (new-tvar 100))
+    (define account-b (new-tvar 50))
+    
+    ;; Transfer money between accounts
+    (define (transfer amount from to)
+      (atomically
+        (let ((from-balance (read-tvar from))
+              (to-balance (read-tvar to)))
+          (if (>= from-balance amount)
+              (begin
+                (write-tvar from (- from-balance amount))
+                (write-tvar to (+ to-balance amount))
+                #t)
+              #f))))
+    
+    (assert-true (transfer 30 account-a account-b))
+    (assert-equal 70 (atomically (read-tvar account-a)))
+    (assert-equal 80 (atomically (read-tvar account-b))))
+  
+  (test "Transaction consistency"
+    ;; Invariants should be maintained across transactions
+    (define x (new-tvar 10))
+    (define y (new-tvar 20))
+    
+    ;; Invariant: x + y = 30
+    (define (maintain-sum new-x)
+      (atomically
+        (write-tvar x new-x)
+        (write-tvar y (- 30 new-x))))
+    
+    (maintain-sum 15)
+    (assert-equal 15 (atomically (read-tvar x)))
+    (assert-equal 15 (atomically (read-tvar y)))
+    (assert-equal 30 (atomically (+ (read-tvar x) (read-tvar y))))))
+
+;; =============================================================================
+;; TRANSACTION RETRY AND BLOCKING
+;; =============================================================================
+
+(define-test-suite "Transaction Retry and Blocking"
+  
+  (test "Explicit retry mechanism"
+    ;; retry should block until a condition becomes true
+    (define semaphore (new-tvar 0))
+    
+    (define (acquire)
+      (atomically
+        (let ((count (read-tvar semaphore)))
+          (if (> count 0)
+              (write-tvar semaphore (- count 1))
+              (retry)))))
+    
+    (define (release)
+      (atomically
+        (modify-tvar semaphore (lambda (x) (+ x 1)))))
+    
+    ;; TODO: Test with concurrent execution
+    ;; This requires threading support
+    ;; (future (begin (sleep 100) (release)))
+    ;; (acquire)  ; Should block until release is called
+    )
+  
+  (test "Conditional waiting"
+    ;; Block until a condition is met
+    (define condition-var (new-tvar #f))
+    
+    (define (wait-for-condition)
+      (atomically
+        (let ((condition (read-tvar condition-var)))
+          (if condition
+              condition
+              (retry)))))
+    
+    ;; TODO: Test with concurrent condition setting
+    )
+  
+  (test "Retry with timeout"
+    ;; TODO: Implement retry with timeout functionality
+    ;; (define result 
+    ;;   (atomically-with-timeout 1000  ; 1 second timeout
+    ;;     (retry)))  ; This should timeout
+    ;; (assert-equal 'timeout result)
+    ))
+
+;; =============================================================================
+;; STM COMPOSABILITY
+;; =============================================================================
+
+(define-test-suite "STM Composability"
+  
+  (test "Composing atomic operations"
+    ;; Multiple atomic operations should compose into larger atomic operations
+    (define counter (new-tvar 0))
+    
+    (define (increment!)
+      (atomically
+        (modify-tvar counter (lambda (x) (+ x 1)))))
+    
+    (define (decrement!)
+      (atomically
+        (modify-tvar counter (lambda (x) (- x 1)))))
+    
+    (define (increment-then-decrement!)
+      (atomically
+        (increment!)
+        (decrement!)))
+    
+    ;; TODO: This needs careful semantics - nested atomically blocks
+    ;; (increment-then-decrement!)
+    ;; (assert-equal 0 (atomically (read-tvar counter)))
+    )
+  
+  (test "Transaction composition patterns"
+    ;; Common patterns for composing transactions
+    (define account-1 (new-tvar 100))
+    (define account-2 (new-tvar 200))
+    (define account-3 (new-tvar 50))
+    
+    (define (transfer-chain amount)
+      (atomically
+        ;; Transfer from 1 to 2, then from 2 to 3
+        (let ((balance-1 (read-tvar account-1))
+              (balance-2 (read-tvar account-2)))
+          (when (>= balance-1 amount)
+            (write-tvar account-1 (- balance-1 amount))
+            (write-tvar account-2 (+ balance-2 amount)))
+          (when (>= (read-tvar account-2) amount)
+            (write-tvar account-2 (- (read-tvar account-2) amount))
+            (write-tvar account-3 (+ (read-tvar account-3) amount))))))
+    
+    ;; TODO: Test transaction chaining
+    )
+  
+  (test "Alternative composition (orElse)"
+    ;; Try one transaction, if it retries, try another
+    ;; TODO: Implement orElse combinator
+    ;; (define result
+    ;;   (atomically
+    ;;     (or-else
+    ;;       (begin (retry))  ; This will always retry
+    ;;       (return 42))))   ; So this should be tried instead
+    ;; (assert-equal 42 result)
+    ))
+
+;; =============================================================================
+;; CONCURRENT STM ACCESS PATTERNS
+;; =============================================================================
+
+(define-test-suite "Concurrent STM Access Patterns"
+  
+  (test "Producer-consumer pattern"
+    ;; Multiple producers and consumers accessing shared queue
+    (define queue (new-tvar '()))
+    
+    (define (enqueue item)
+      (atomically
+        (modify-tvar queue (lambda (q) (append q (list item))))))
+    
+    (define (dequeue)
+      (atomically
+        (let ((q (read-tvar queue)))
+          (if (null? q)
+              (retry)
+              (begin
+                (write-tvar queue (cdr q))
+                (car q))))))
+    
+    ;; TODO: Test with multiple concurrent threads
+    ;; This requires threading infrastructure
+    )
+  
+  (test "Reader-writer pattern"
+    ;; Multiple readers, single writer access pattern
+    (define data (new-tvar "initial"))
+    (define reader-count (new-tvar 0))
+    
+    (define (read-data)
+      (atomically
+        (modify-tvar reader-count (lambda (x) (+ x 1)))
+        (let ((result (read-tvar data)))
+          (modify-tvar reader-count (lambda (x) (- x 1)))
+          result)))
+    
+    (define (write-data new-data)
+      (atomically
+        (let ((readers (read-tvar reader-count)))
+          (if (= readers 0)
+              (write-tvar data new-data)
+              (retry)))))
+    
+    ;; TODO: Test concurrent readers and writers
+    )
+  
+  (test "Dining philosophers problem"
+    ;; Classic concurrency problem solved with STM
+    (define (make-philosopher name left-fork right-fork)
+      (lambda ()
+        (let loop ()
+          ;; Think
+          (display (string-append name " is thinking\n"))
+          ;; Try to eat
+          (atomically
+            (let ((left-available (read-tvar left-fork))
+                  (right-available (read-tvar right-fork)))
+              (if (and left-available right-available)
+                  (begin
+                    (write-tvar left-fork #f)
+                    (write-tvar right-fork #f))
+                  (retry))))
+          ;; Eat
+          (display (string-append name " is eating\n"))
+          ;; Put down forks
+          (atomically
+            (write-tvar left-fork #t)
+            (write-tvar right-fork #t))
+          (loop))))
+    
+    ;; TODO: Test with multiple philosopher threads
+    ))
+
+;; =============================================================================
+;; STM PERFORMANCE AND OPTIMIZATION
+;; =============================================================================
+
+(define-test-suite "STM Performance and Optimization"
+  
+  (test "Contention handling"
+    ;; Test behavior under high contention
+    ;; TODO: Measure performance with many concurrent transactions
+    )
+  
+  (test "Read-only transaction optimization"
+    ;; Read-only transactions should be optimized
+    (define data (new-tvar 42))
+    
+    (define (read-only-transaction)
+      (atomically
+        (read-tvar data)))
+    
+    ;; TODO: Verify that read-only transactions don't conflict
+    )
+  
+  (test "Transaction size optimization"
+    ;; Large transactions vs. many small transactions
+    ;; TODO: Performance comparison tests
+    ))
+
+;; =============================================================================
+;; STM ERROR HANDLING AND DEBUGGING
+;; =============================================================================
+
+(define-test-suite "STM Error Handling and Debugging"
+  
+  (test "Transaction failure recovery"
+    ;; Transactions should handle exceptions gracefully
+    (define counter (new-tvar 0))
+    
+    (define (failing-transaction)
+      (atomically
+        (modify-tvar counter (lambda (x) (+ x 1)))
+        (error "Something went wrong")
+        (modify-tvar counter (lambda (x) (+ x 1)))))
+    
+    ;; The first increment should be rolled back
+    (assert-error 'user-error (failing-transaction))
+    (assert-equal 0 (atomically (read-tvar counter))))
+  
+  (test "Transaction debugging utilities"
+    ;; Tools for debugging STM transactions
+    ;; TODO: Implement transaction tracing and logging
+    )
+  
+  (test "Deadlock detection"
+    ;; STM should detect and resolve deadlocks
+    ;; TODO: Test deadlock detection mechanisms
+    ))
+
+;; =============================================================================
+;; ADVANCED STM FEATURES
+;; =============================================================================
+
+(define-test-suite "Advanced STM Features"
+  
+  (test "Nested transactions"
+    ;; Transactions within transactions
+    ;; TODO: Define semantics for nested transactions
+    )
+  
+  (test "Transaction isolation levels"
+    ;; Different isolation levels for transactions
+    ;; TODO: Implement isolation level controls
+    )
+  
+  (test "STM with weak references"
+    ;; STM integration with garbage collection
+    ;; TODO: Test TVar cleanup and weak references
+    )
+  
+  (test "Distributed STM"
+    ;; STM across multiple processes/machines
+    ;; TODO: Implement distributed STM protocol
+    ))
+
+;; =============================================================================
+;; STM DATA STRUCTURES
+;; =============================================================================
+
+(define-test-suite "STM Data Structures"
+  
+  (test "STM queue implementation"
+    ;; Thread-safe queue using STM
+    (define (make-stm-queue)
+      (new-tvar '()))
+    
+    (define (stm-enqueue queue item)
+      (atomically
+        (modify-tvar queue (lambda (q) (append q (list item))))))
+    
+    (define (stm-dequeue queue)
+      (atomically
+        (let ((q (read-tvar queue)))
+          (if (null? q)
+              #f
+              (begin
+                (write-tvar queue (cdr q))
+                (car q))))))
+    
+    (define test-queue (make-stm-queue))
+    (stm-enqueue test-queue 'a)
+    (stm-enqueue test-queue 'b)
+    (assert-equal 'a (stm-dequeue test-queue))
+    (assert-equal 'b (stm-dequeue test-queue))
+    (assert-equal #f (stm-dequeue test-queue)))
+  
+  (test "STM hash table implementation"
+    ;; Thread-safe hash table using STM
+    ;; TODO: Implement STM-based hash table
+    )
+  
+  (test "STM stack implementation"
+    ;; Thread-safe stack using STM
+    (define (make-stm-stack)
+      (new-tvar '()))
+    
+    (define (stm-push stack item)
+      (atomically
+        (modify-tvar stack (lambda (s) (cons item s)))))
+    
+    (define (stm-pop stack)
+      (atomically
+        (let ((s (read-tvar stack)))
+          (if (null? s)
+              #f
+              (begin
+                (write-tvar stack (cdr s))
+                (car s))))))
+    
+    (define test-stack (make-stm-stack))
+    (stm-push test-stack 'x)
+    (stm-push test-stack 'y)
+    (assert-equal 'y (stm-pop test-stack))
+    (assert-equal 'x (stm-pop test-stack))
+    (assert-equal #f (stm-pop test-stack))))
+
+;; =============================================================================
+;; INTEGRATION WITH OTHER CONCURRENCY MODELS
+;; =============================================================================
+
+(define-test-suite "STM Integration with Other Models"
+  
+  (test "STM with actors"
+    ;; Using STM within actor message handlers
+    ;; TODO: Test STM/actor integration
+    )
+  
+  (test "STM with futures"
+    ;; Combining STM with future-based concurrency
+    ;; TODO: Test STM/future interaction
+    )
+  
+  (test "STM with threads"
+    ;; Traditional threading with STM
+    ;; TODO: Test STM with OS threads
+    ))
+
+;; =============================================================================
+;; STM BENCHMARKS AND STRESS TESTS
+;; =============================================================================
+
+(define-test-suite "STM Benchmarks and Stress Tests"
+  
+  (test "High contention stress test"
+    ;; Many threads accessing same TVar
+    ;; TODO: Stress test with high contention
+    )
+  
+  (test "Large transaction stress test"
+    ;; Transactions touching many TVars
+    ;; TODO: Test scalability with large transactions
+    )
+  
+  (test "Long-running transaction test"
+    ;; Transactions that run for extended periods
+    ;; TODO: Test long-running transaction behavior
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic STM Operations")
+(run-test-suite "Transaction Retry and Blocking")
+(run-test-suite "STM Composability")
+(run-test-suite "Concurrent STM Access Patterns")
+(run-test-suite "STM Performance and Optimization")
+(run-test-suite "STM Error Handling and Debugging")
+(run-test-suite "Advanced STM Features")
+(run-test-suite "STM Data Structures")
+(run-test-suite "STM Integration with Other Models")
+(run-test-suite "STM Benchmarks and Stress Tests")
+
+(display "STM test completed.\n")
+(display "This test verifies Software Transactional Memory implementation.\n")

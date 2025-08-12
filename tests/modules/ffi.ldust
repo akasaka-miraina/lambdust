@@ -1,0 +1,443 @@
+#!/usr/bin/env lambdust
+;; Test file: Foreign Function Interface (FFI)
+;; Purpose: Test C interoperability, dynamic library loading, and memory safety
+;; Covers function calls, data marshaling, and callback mechanisms
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust ffi))  ;; TODO: Implement FFI library
+
+;; =============================================================================
+;; BASIC FFI OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Basic FFI Operations"
+  
+  (test "Dynamic library loading"
+    ;; TODO: FFI syntax needs to be implemented
+    ;; Load standard C library
+    (define libc (load-dynamic-library "libc.so.6"))  ;; Linux
+    ;; (define libc (load-dynamic-library "libc.dylib"))  ;; macOS
+    ;; (define libc (load-dynamic-library "msvcrt.dll"))  ;; Windows
+    
+    (assert-true (foreign-library? libc)))
+  
+  (test "Simple C function calls"
+    ;; Call basic C functions
+    (define libc (load-dynamic-library "libc.so.6"))
+    
+    ;; int abs(int x);
+    (define c-abs (foreign-procedure libc "abs" '(int) 'int))
+    
+    (assert-equal 42 (c-abs -42))
+    (assert-equal 0 (c-abs 0))
+    (assert-equal 123 (c-abs 123)))
+  
+  (test "String operations"
+    ;; C string functions
+    (define libc (load-dynamic-library "libc.so.6"))
+    
+    ;; size_t strlen(const char *s);
+    (define c-strlen (foreign-procedure libc "strlen" '(string) 'size_t))
+    
+    (assert-equal 5 (c-strlen "hello"))
+    (assert-equal 0 (c-strlen ""))
+    (assert-equal 13 (c-strlen "Hello, world!")))
+  
+  (test "Mathematical functions"
+    ;; Math library functions
+    (define libm (load-dynamic-library "libm.so.6"))
+    
+    ;; double sin(double x);
+    (define c-sin (foreign-procedure libm "sin" '(double) 'double))
+    ;; double cos(double x);  
+    (define c-cos (foreign-procedure libm "cos" '(double) 'double))
+    
+    (assert-true (< (abs (c-sin 0.0)) 0.0001))
+    (assert-true (< (abs (- (c-cos 0.0) 1.0)) 0.0001))
+    (assert-true (< (abs (- (c-sin (/ 3.14159265 2)) 1.0)) 0.001))))
+
+;; =============================================================================
+;; DATA TYPE MARSHALING
+;; =============================================================================
+
+(define-test-suite "Data Type Marshaling"
+  
+  (test "Primitive type conversions"
+    ;; Test conversion between Scheme and C types
+    (define test-lib (load-dynamic-library "./test-ffi-lib.so"))
+    
+    ;; int identity_int(int x);
+    (define identity-int (foreign-procedure test-lib "identity_int" '(int) 'int))
+    ;; double identity_double(double x);
+    (define identity-double (foreign-procedure test-lib "identity_double" '(double) 'double))
+    ;; char identity_char(char c);
+    (define identity-char (foreign-procedure test-lib "identity_char" '(char) 'char))
+    
+    (assert-equal 42 (identity-int 42))
+    (assert-equal 3.14 (identity-double 3.14))
+    (assert-equal #\A (identity-char #\A)))
+  
+  (test "String marshaling"
+    ;; String conversion between Scheme and C
+    (define test-lib (load-dynamic-library "./test-ffi-lib.so"))
+    
+    ;; char* string_duplicate(const char* str);
+    (define string-duplicate (foreign-procedure test-lib "string_duplicate" '(string) 'string))
+    
+    (assert-equal "hello" (string-duplicate "hello"))
+    (assert-equal "world" (string-duplicate "world")))
+  
+  (test "Array marshaling"
+    ;; Convert between Scheme vectors and C arrays
+    (define test-lib (load-dynamic-library "./test-ffi-lib.so"))
+    
+    ;; int sum_int_array(int* arr, size_t len);
+    (define sum-int-array 
+      (foreign-procedure test-lib "sum_int_array" '(int-array size_t) 'int))
+    
+    (define test-array (make-foreign-array 'int '(1 2 3 4 5)))
+    (assert-equal 15 (sum-int-array test-array 5)))
+  
+  (test "Struct marshaling"
+    ;; Convert between Scheme records and C structs
+    (define test-lib (load-dynamic-library "./test-ffi-lib.so"))
+    
+    ;; Define C struct: typedef struct { int x; int y; } Point;
+    (define-foreign-struct Point
+      (x int)
+      (y int))
+    
+    ;; double point_distance(Point* p1, Point* p2);
+    (define point-distance 
+      (foreign-procedure test-lib "point_distance" '(Point* Point*) 'double))
+    
+    (define p1 (make-Point 0 0))
+    (define p2 (make-Point 3 4))
+    
+    (assert-equal 5.0 (point-distance p1 p2))))
+
+;; =============================================================================
+;; MEMORY MANAGEMENT
+;; =============================================================================
+
+(define-test-suite "FFI Memory Management"
+  
+  (test "Foreign memory allocation"
+    ;; Allocate memory for C functions
+    (define ptr (foreign-alloc 'int 10))  ;; Allocate 10 integers
+    
+    (assert-true (foreign-pointer? ptr))
+    (assert-true (> (foreign-pointer-address ptr) 0))
+    
+    ;; Should be able to free without error
+    (foreign-free ptr))
+  
+  (test "Memory safety checks"
+    ;; Test that memory safety is enforced
+    (define ptr (foreign-alloc 'int 1))
+    (foreign-free ptr)
+    
+    ;; Using freed pointer should be detected
+    ;; TODO: Test memory safety violations
+    ;; (assert-error 'memory-error (foreign-ref ptr 'int))
+    )
+  
+  (test "Garbage collection integration"
+    ;; Foreign objects should integrate with GC
+    (define (make-temp-pointer)
+      (foreign-alloc 'double 100))
+    
+    ;; Create and abandon pointer
+    (make-temp-pointer)
+    
+    ;; Force garbage collection
+    (collect-garbage)
+    
+    ;; TODO: Test that unreferenced foreign memory is cleaned up
+    )
+  
+  (test "Reference counting for foreign objects"
+    ;; Foreign objects with multiple references
+    (define ptr (foreign-alloc 'int 1))
+    (define ptr-ref1 ptr)
+    (define ptr-ref2 ptr)
+    
+    ;; Should not be freed while references exist
+    ;; TODO: Test reference counting when implemented
+    ))
+
+;; =============================================================================
+;; CALLBACKS AND FUNCTION POINTERS
+;; =============================================================================
+
+(define-test-suite "Callbacks and Function Pointers"
+  
+  (test "Simple callback functions"
+    ;; Scheme functions called from C
+    (define test-lib (load-dynamic-library "./test-ffi-lib.so"))
+    
+    ;; typedef int (*BinaryFunc)(int, int);
+    ;; int apply_binary_func(BinaryFunc func, int a, int b);
+    (define apply-binary-func
+      (foreign-procedure test-lib "apply_binary_func" '(callback int int) 'int))
+    
+    ;; Define Scheme callback
+    (define scheme-add
+      (foreign-callback '(int int) 'int
+        (lambda (a b) (+ a b))))
+    
+    (assert-equal 7 (apply-binary-func scheme-add 3 4)))
+  
+  (test "Complex callback scenarios"
+    ;; Callbacks with complex data types
+    (define test-lib (load-dynamic-library "./test-ffi-lib.so"))
+    
+    ;; typedef struct { double* values; size_t count; } DoubleArray;
+    (define-foreign-struct DoubleArray
+      (values double*)
+      (count size_t))
+    
+    ;; typedef double (*Reducer)(DoubleArray* arr);
+    ;; double reduce_array(DoubleArray* arr, Reducer reducer);
+    (define reduce-array
+      (foreign-procedure test-lib "reduce_array" '(DoubleArray* callback) 'double))
+    
+    ;; Scheme reducer function (sum)
+    (define array-sum
+      (foreign-callback '(DoubleArray*) 'double
+        (lambda (arr-ptr)
+          ;; TODO: Implement array access from callback
+          0.0)))  ;; Placeholder
+    
+    ;; TODO: Test when struct access in callbacks is implemented
+    )
+  
+  (test "Callback lifecycle management"
+    ;; Test that callbacks are properly managed
+    ;; TODO: Test callback registration/deregistration
+    ))
+
+;; =============================================================================
+;; ERROR HANDLING IN FFI
+;; =============================================================================
+
+(define-test-suite "FFI Error Handling"
+  
+  (test "Library loading errors"
+    ;; Test errors when loading non-existent libraries
+    (assert-error 'library-not-found 
+                  (load-dynamic-library "non-existent-lib.so")))
+  
+  (test "Function binding errors"
+    ;; Test errors when binding non-existent functions
+    (define libc (load-dynamic-library "libc.so.6"))
+    
+    (assert-error 'function-not-found
+                  (foreign-procedure libc "non_existent_function" '(int) 'int)))
+  
+  (test "Type conversion errors"
+    ;; Test errors in type conversion
+    (define libc (load-dynamic-library "libc.so.6"))
+    (define c-abs (foreign-procedure libc "abs" '(int) 'int))
+    
+    ;; Passing wrong type should be caught
+    (assert-error 'type-error (c-abs "not-a-number")))
+  
+  (test "Memory access errors"
+    ;; Test detection of invalid memory access
+    ;; TODO: Test bounds checking and null pointer detection
+    )
+  
+  (test "Exception propagation"
+    ;; Test that Scheme exceptions work across FFI boundary
+    (define scheme-callback
+      (foreign-callback '(int) 'int
+        (lambda (x)
+          (if (= x 0)
+              (error "Division by zero in callback")
+              (/ 100 x)))))
+    
+    ;; TODO: Test exception handling in callbacks
+    ))
+
+;; =============================================================================
+;; PERFORMANCE CONSIDERATIONS
+;; =============================================================================
+
+(define-test-suite "FFI Performance"
+  
+  (test "Call overhead measurement"
+    ;; Measure FFI call overhead
+    (define libc (load-dynamic-library "libc.so.6"))
+    (define c-abs (foreign-procedure libc "abs" '(int) 'int))
+    
+    (define iterations 10000)
+    (define start-time (current-time))
+    
+    (let loop ((n iterations))
+      (when (> n 0)
+        (c-abs -42)
+        (loop (- n 1))))
+    
+    (define end-time (current-time))
+    (define total-time (- end-time start-time))
+    
+    ;; TODO: Add performance assertions when timing is available
+    )
+  
+  (test "Large data transfer performance"
+    ;; Test performance with large data structures
+    (define test-lib (load-dynamic-library "./test-ffi-lib.so"))
+    
+    ;; Create large array
+    (define large-array (make-foreign-array 'double (iota 100000)))
+    
+    ;; TODO: Test large data transfer performance
+    )
+  
+  (test "Callback performance"
+    ;; Measure callback overhead
+    ;; TODO: Test callback performance characteristics
+    ))
+
+;; =============================================================================
+;; ADVANCED FFI FEATURES
+;; =============================================================================
+
+(define-test-suite "Advanced FFI Features"
+  
+  (test "Variadic function calls"
+    ;; Call C functions with variable arguments
+    (define libc (load-dynamic-library "libc.so.6"))
+    
+    ;; int printf(const char* format, ...);
+    (define c-printf 
+      (foreign-procedure libc "printf" '(string ...) 'int))
+    
+    ;; TODO: Test variadic calls when implemented
+    ;; (assert-true (> (c-printf "Number: %d\n" 42) 0))
+    )
+  
+  (test "Function pointer manipulation"
+    ;; Direct function pointer operations
+    (define libc (load-dynamic-library "libc.so.6"))
+    
+    ;; Get function pointer
+    (define abs-ptr (foreign-symbol-pointer libc "abs"))
+    
+    ;; Call via pointer
+    (define indirect-abs 
+      (foreign-procedure-from-pointer abs-ptr '(int) 'int))
+    
+    (assert-equal 42 (indirect-abs -42)))
+  
+  (test "Shared data structures"
+    ;; Share data structures between Scheme and C
+    (define shared-buffer (make-shared-buffer 'byte 1024))
+    
+    ;; TODO: Test shared memory when implemented
+    )
+  
+  (test "Thread-safe FFI calls"
+    ;; FFI calls from multiple threads
+    ;; TODO: Test FFI thread safety
+    ))
+
+;; =============================================================================
+;; INTEGRATION WITH EXISTING LIBRARIES
+;; =============================================================================
+
+(define-test-suite "Library Integration Examples"
+  
+  (test "SQLite integration"
+    ;; Example integration with SQLite database
+    ;; TODO: Load SQLite library and test basic operations
+    ;; (define sqlite (load-dynamic-library "libsqlite3.so"))
+    ;; (define sqlite-open (foreign-procedure sqlite "sqlite3_open" ...))
+    )
+  
+  (test "Graphics library integration"
+    ;; Example with graphics library (e.g., SDL, OpenGL)
+    ;; TODO: Test graphics library integration
+    )
+  
+  (test "Network library integration"
+    ;; Example with networking library
+    ;; TODO: Test network library integration
+    )
+  
+  (test "System API integration"
+    ;; Integration with system APIs
+    ;; TODO: Test system call wrappers
+    ))
+
+;; =============================================================================
+;; FFI DEBUGGING AND INTROSPECTION
+;; =============================================================================
+
+(define-test-suite "FFI Debugging and Introspection"
+  
+  (test "Library introspection"
+    ;; Examine loaded libraries and their exports
+    (define libc (load-dynamic-library "libc.so.6"))
+    
+    ;; TODO: Test library introspection when available
+    ;; (define exports (foreign-library-exports libc))
+    ;; (assert-true (member "abs" exports))
+    )
+  
+  (test "Type information"
+    ;; Get type information for foreign functions
+    ;; TODO: Test FFI type introspection
+    )
+  
+  (test "Memory debugging"
+    ;; Debug foreign memory usage
+    ;; TODO: Test memory leak detection and reporting
+    )
+  
+  (test "Call tracing"
+    ;; Trace FFI calls for debugging
+    ;; TODO: Test FFI call tracing utilities
+    ))
+
+;; =============================================================================
+;; FFI SECURITY CONSIDERATIONS
+;; =============================================================================
+
+(define-test-suite "FFI Security"
+  
+  (test "Sandboxing foreign code"
+    ;; Restrict capabilities of foreign functions
+    ;; TODO: Test FFI security policies
+    )
+  
+  (test "Buffer overflow protection"
+    ;; Protect against buffer overflows in FFI calls
+    ;; TODO: Test buffer bounds checking
+    )
+  
+  (test "Permission-based access"
+    ;; Control access to foreign functions
+    ;; TODO: Test FFI permission system
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic FFI Operations")
+(run-test-suite "Data Type Marshaling")
+(run-test-suite "FFI Memory Management")
+(run-test-suite "Callbacks and Function Pointers")
+(run-test-suite "FFI Error Handling")
+(run-test-suite "FFI Performance")
+(run-test-suite "Advanced FFI Features")
+(run-test-suite "Library Integration Examples")
+(run-test-suite "FFI Debugging and Introspection")
+(run-test-suite "FFI Security")
+
+(display "FFI test completed.\n")
+(display "This test verifies Foreign Function Interface and C interoperability.\n")

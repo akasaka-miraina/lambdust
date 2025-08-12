@@ -110,32 +110,22 @@ impl LibraryPathResolver {
     }
 
     /// Resolves the full path to a specific library file.
-    pub fn resolve_library_file(&self, subdir: &str, filename: &str) -> Result<PathBuf> {
-        println!("Debug: LibraryPathResolver::resolve_library_file called: subdir={subdir}, filename={filename}");
-        println!("Debug: Primary lib dir: {:?}", self.primary_lib_dir);
-        println!("Debug: Search paths count: {}", self.search_paths.len());
-        
+    pub fn resolve_library_file(&self, subdir: &str, filename: &str) -> Result<PathBuf> {        
         // Check primary library directory first
         if let Some(primary) = &self.primary_lib_dir {
             let file_path = primary.join(subdir).join(filename);
-            println!("Debug: Checking primary path: {}", file_path.display());
             if file_path.exists() && file_path.is_file() {
-                println!("Debug: Found file at primary path: {}", file_path.display());
                 return Ok(file_path);
             }
         }
 
         // Check search paths
-        for (i, search_path) in self.search_paths.iter().enumerate() {
+        for search_path in self.search_paths.iter() {
             let file_path = search_path.join(subdir).join(filename);
-            println!("Debug: Checking search path {}: {}", i, file_path.display());
             if file_path.exists() && file_path.is_file() {
-                println!("Debug: Found file at search path {}: {}", i, file_path.display());
                 return Ok(file_path);
             }
         }
-
-        println!("Debug: Library file not found in any path");
         Err(Box::new(Error::io_error(format!(
             "Library file '{}/{}' not found in any search path. \
              Primary lib dir: {:?}, Search paths: {:?}. \

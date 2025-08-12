@@ -50,13 +50,25 @@ pub enum NetworkSocket {
 }
 
 /// Network listener wrapper
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum NetworkListener {
     Tcp(Arc<std::sync::Mutex<Option<TcpListener>>>),
     #[cfg(unix)]
     Unix(Arc<std::sync::Mutex<Option<UnixListener>>>),
     #[cfg(feature = "tls")]
     Tls(Arc<std::sync::Mutex<Option<TcpListener>>>, Arc<TlsAcceptor>),
+}
+
+impl std::fmt::Debug for NetworkListener {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NetworkListener::Tcp(_) => f.debug_tuple("Tcp").field(&"TcpListener").finish(),
+            #[cfg(unix)]
+            NetworkListener::Unix(_) => f.debug_tuple("Unix").field(&"UnixListener").finish(),
+            #[cfg(feature = "tls")]
+            NetworkListener::Tls(_, _) => f.debug_tuple("Tls").field(&"TcpListener").field(&"TlsAcceptor").finish(),
+        }
+    }
 }
 
 /// HTTP request/response structures

@@ -1,0 +1,451 @@
+#!/usr/bin/env lambdust
+;; Test file: Algebraic Data Types
+;; Purpose: Test ADT definition, construction, pattern matching, and advanced features
+;; Covers enumerations, product types, recursive types, and parametric types
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust types)
+        (lambdust pattern-match))  ;; TODO: Implement pattern matching library
+
+;; =============================================================================
+;; BASIC ADT DEFINITION
+;; =============================================================================
+
+(define-test-suite "Basic ADT Definition"
+  
+  (test "Simple enumeration types"
+    ;; TODO: ADT syntax needs to be implemented
+    (define-type Color
+      Red
+      Green
+      Blue)
+    
+    ;; Constructor tests
+    (assert-true (Color? Red))
+    (assert-true (Color? Green))
+    (assert-true (Color? Blue))
+    
+    ;; Type predicates
+    (assert-false (Color? 'red))
+    (assert-false (Color? 42))
+    (assert-false (Color? "Red")))
+  
+  (test "Product types with fields"
+    (define-type Point
+      (Point Number Number))
+    
+    (define p1 (Point 3 4))
+    (assert-true (Point? p1))
+    (assert-false (Point? '(3 4)))
+    
+    ;; TODO: Field accessors
+    ;; (assert-equal 3 (Point-field-0 p1))
+    ;; (assert-equal 4 (Point-field-1 p1))
+    )
+  
+  (test "Multiple constructors"
+    (define-type Shape
+      (Circle Number)                    ;; radius
+      (Rectangle Number Number)          ;; width, height
+      (Triangle Number Number Number))   ;; three sides
+    
+    (define c (Circle 5))
+    (define r (Rectangle 3 4))
+    (define t (Triangle 3 4 5))
+    
+    (assert-true (Shape? c))
+    (assert-true (Shape? r))
+    (assert-true (Shape? t))
+    
+    (assert-false (Shape? 42))))
+
+;; =============================================================================
+;; PARAMETRIC ADT TYPES
+;; =============================================================================
+
+(define-test-suite "Parametric ADT Types"
+  
+  (test "Maybe/Optional type"
+    (define-type Maybe (a)
+      Nothing
+      (Just a))
+    
+    (define none Nothing)
+    (define some-42 (Just 42))
+    (define some-string (Just "hello"))
+    
+    (assert-true (Maybe? none))
+    (assert-true (Maybe? some-42))
+    (assert-true (Maybe? some-string))
+    
+    ;; Type constructors work with any type
+    (assert-true (Maybe? (Just '(1 2 3))))
+    (assert-true (Maybe? (Just (lambda (x) x)))))
+  
+  (test "Either type for error handling"
+    (define-type Either (a b)
+      (Left a)
+      (Right b))
+    
+    (define error-case (Left "error message"))
+    (define success-case (Right 42))
+    
+    (assert-true (Either? error-case))
+    (assert-true (Either? success-case)))
+  
+  (test "List type (recursive parametric)"
+    (define-type List (a)
+      Nil
+      (Cons a (List a)))
+    
+    (define empty-list Nil)
+    (define number-list (Cons 1 (Cons 2 (Cons 3 Nil))))
+    (define string-list (Cons "a" (Cons "b" Nil)))
+    
+    (assert-true (List? empty-list))
+    (assert-true (List? number-list))
+    (assert-true (List? string-list))))
+
+;; =============================================================================
+;; RECURSIVE ADT TYPES
+;; =============================================================================
+
+(define-test-suite "Recursive ADT Types"
+  
+  (test "Binary tree"
+    (define-type Tree (a)
+      Leaf
+      (Node a (Tree a) (Tree a)))
+    
+    (define empty-tree Leaf)
+    (define small-tree (Node 42 Leaf Leaf))
+    (define balanced-tree 
+      (Node 2 
+            (Node 1 Leaf Leaf)
+            (Node 3 Leaf Leaf)))
+    
+    (assert-true (Tree? empty-tree))
+    (assert-true (Tree? small-tree))
+    (assert-true (Tree? balanced-tree)))
+  
+  (test "Natural numbers (Peano)"
+    (define-type Nat
+      Zero
+      (Succ Nat))
+    
+    (define zero Zero)
+    (define one (Succ Zero))
+    (define two (Succ (Succ Zero)))
+    (define three (Succ (Succ (Succ Zero))))
+    
+    (assert-true (Nat? zero))
+    (assert-true (Nat? one))
+    (assert-true (Nat? two))
+    (assert-true (Nat? three)))
+  
+  (test "Expression trees"
+    (define-type Expr
+      (Literal Number)
+      (Variable Symbol)
+      (Add Expr Expr)
+      (Multiply Expr Expr))
+    
+    (define expr1 (Literal 42))
+    (define expr2 (Variable 'x))
+    (define expr3 (Add (Literal 2) (Literal 3)))
+    (define expr4 (Multiply (Variable 'x) (Literal 5)))
+    
+    (assert-true (Expr? expr1))
+    (assert-true (Expr? expr2))
+    (assert-true (Expr? expr3))
+    (assert-true (Expr? expr4))))
+
+;; =============================================================================
+;; PATTERN MATCHING
+;; =============================================================================
+
+(define-test-suite "Pattern Matching"
+  
+  (test "Simple pattern matching"
+    (define-type Color Red Green Blue)
+    
+    (define (color-name c)
+      (match c
+        [Red "red"]
+        [Green "green"] 
+        [Blue "blue"]))
+    
+    (assert-equal "red" (color-name Red))
+    (assert-equal "green" (color-name Green))
+    (assert-equal "blue" (color-name Blue)))
+  
+  (test "Pattern matching with data extraction"
+    (define-type Point (Point Number Number))
+    
+    (define (point-distance-from-origin p)
+      (match p
+        [(Point x y) (sqrt (+ (* x x) (* y y)))]))
+    
+    (assert-equal 5.0 (point-distance-from-origin (Point 3 4))))
+  
+  (test "Maybe pattern matching"
+    (define-type Maybe (a) Nothing (Just a))
+    
+    (define (maybe-map f maybe-val)
+      (match maybe-val
+        [Nothing Nothing]
+        [(Just x) (Just (f x))]))
+    
+    (assert-equal Nothing (maybe-map (lambda (x) (* x 2)) Nothing))
+    (assert-equal (Just 10) (maybe-map (lambda (x) (* x 2)) (Just 5))))
+  
+  (test "Recursive pattern matching"
+    (define-type List (a) Nil (Cons a (List a)))
+    
+    (define (list-length lst)
+      (match lst
+        [Nil 0]
+        [(Cons _ tail) (+ 1 (list-length tail))]))
+    
+    (define test-list (Cons 1 (Cons 2 (Cons 3 Nil))))
+    (assert-equal 3 (list-length test-list))
+    (assert-equal 0 (list-length Nil))))
+
+;; =============================================================================
+;; ADVANCED PATTERN MATCHING
+;; =============================================================================
+
+(define-test-suite "Advanced Pattern Matching"
+  
+  (test "Pattern guards"
+    (define-type Maybe (a) Nothing (Just a))
+    
+    (define (safe-divide x y)
+      (match y
+        [(Just n) #:when (not (= n 0)) (Just (/ x n))]
+        [_ Nothing]))
+    
+    (assert-equal (Just 2) (safe-divide 10 (Just 5)))
+    (assert-equal Nothing (safe-divide 10 (Just 0)))
+    (assert-equal Nothing (safe-divide 10 Nothing)))
+  
+  (test "Variable patterns and wildcards"
+    (define-type Tree (a) Leaf (Node a (Tree a) (Tree a)))
+    
+    (define (tree-has-left-child? tree)
+      (match tree
+        [(Node _ left _) #:when (not (match left [Leaf #t] [_ #f])) #t]
+        [_ #f]))
+    
+    ;; TODO: Implement when pattern matching is available
+    )
+  
+  (test "As-patterns (binding whole and parts)"
+    (define-type List (a) Nil (Cons a (List a)))
+    
+    (define (duplicate-head lst)
+      (match lst
+        [(Cons x tail) #:as original-list
+         (Cons x original-list)]
+        [empty-list empty-list]))
+    
+    ;; TODO: Implement when as-patterns are available
+    )
+  
+  (test "Nested pattern matching"
+    (define-type Maybe (a) Nothing (Just a))
+    
+    (define (unwrap-double-maybe maybe-maybe)
+      (match maybe-maybe
+        [Nothing Nothing]
+        [(Just Nothing) Nothing]
+        [(Just (Just x)) (Just x)]))
+    
+    (assert-equal Nothing (unwrap-double-maybe Nothing))
+    (assert-equal Nothing (unwrap-double-maybe (Just Nothing)))
+    (assert-equal (Just 42) (unwrap-double-maybe (Just (Just 42))))))
+
+;; =============================================================================
+;; ADT OPERATIONS AND UTILITIES
+;; =============================================================================
+
+(define-test-suite "ADT Operations and Utilities"
+  
+  (test "Equality for ADTs"
+    (define-type Point (Point Number Number))
+    
+    (define p1 (Point 3 4))
+    (define p2 (Point 3 4))
+    (define p3 (Point 5 6))
+    
+    (assert-true (equal? p1 p2))
+    (assert-false (equal? p1 p3)))
+  
+  (test "Ordering for ADTs"
+    ;; TODO: Implement derived instances for Ord
+    (define-type Color Red Green Blue)
+    
+    ;; Define ordering: Red < Green < Blue
+    ;; TODO: This requires type class instances
+    )
+  
+  (test "Show/Display for ADTs"
+    ;; TODO: Implement Show type class for ADTs
+    (define-type Maybe (a) Nothing (Just a))
+    
+    ;; Should be able to display/show ADT values
+    ;; (assert-equal "Nothing" (show Nothing))
+    ;; (assert-equal "(Just 42)" (show (Just 42)))
+    ))
+
+;; =============================================================================
+;; COMPLEX ADT EXAMPLES
+;; =============================================================================
+
+(define-test-suite "Complex ADT Examples"
+  
+  (test "JSON-like data structure"
+    (define-type JSON
+      (JSONNull)
+      (JSONBool Boolean)
+      (JSONNumber Number)
+      (JSONString String)
+      (JSONArray (List JSON))
+      (JSONObject (List (Pair String JSON))))
+    
+    (define sample-json
+      (JSONObject 
+        (list (cons "name" (JSONString "Alice"))
+              (cons "age" (JSONNumber 30))
+              (cons "active" (JSONBool #t))
+              (cons "scores" (JSONArray (list (JSONNumber 85) 
+                                            (JSONNumber 92)))))))
+    
+    (assert-true (JSON? sample-json)))
+  
+  (test "State machine representation"
+    (define-type State
+      Idle
+      Processing
+      Complete
+      Error)
+    
+    (define-type Event
+      Start
+      Finish
+      Fail
+      Reset)
+    
+    (define (next-state current-state event)
+      (match (list current-state event)
+        [(list Idle Start) Processing]
+        [(list Processing Finish) Complete]
+        [(list Processing Fail) Error]
+        [(list _ Reset) Idle]
+        [_ current-state]))  ;; No transition
+    
+    (assert-equal Processing (next-state Idle Start))
+    (assert-equal Complete (next-state Processing Finish))
+    (assert-equal Error (next-state Processing Fail))
+    (assert-equal Idle (next-state Error Reset)))
+  
+  (test "Abstract syntax tree for mini language"
+    (define-type Type
+      IntType
+      BoolType
+      (FunType Type Type))
+    
+    (define-type Term
+      (Var String)
+      (Lit Number)
+      (Bool Boolean)
+      (Add Term Term)
+      (If Term Term Term)
+      (Lambda String Type Term)
+      (App Term Term))
+    
+    ;; Sample terms
+    (define identity-function 
+      (Lambda "x" IntType (Var "x")))
+    
+    (define conditional-expression
+      (If (Bool #t) (Lit 42) (Lit 0)))
+    
+    (assert-true (Term? identity-function))
+    (assert-true (Term? conditional-expression))))
+
+;; =============================================================================
+;; ADT PERFORMANCE AND MEMORY
+;; =============================================================================
+
+(define-test-suite "ADT Performance and Memory"
+  
+  (test "Memory efficiency"
+    ;; TODO: Test that ADTs are memory-efficient
+    ;; compared to equivalent representations using lists/vectors
+    )
+  
+  (test "Pattern matching performance"
+    ;; TODO: Test that pattern matching compiles to efficient code
+    ;; especially for large ADTs with many constructors
+    )
+  
+  (test "Recursive ADT performance"
+    ;; TODO: Test performance with deeply nested recursive structures
+    ))
+
+;; =============================================================================
+;; ADT TYPE CHECKING
+;; =============================================================================
+
+(define-test-suite "ADT Type Checking"
+  
+  (test "Constructor type checking"
+    ;; TODO: Test that ADT constructors enforce correct types
+    (define-type Point (Point Number Number))
+    
+    ;; These should be type errors
+    ;; (assert-type-error (Point "3" 4))
+    ;; (assert-type-error (Point 3))
+    ;; (assert-type-error (Point 3 4 5))
+    )
+  
+  (test "Pattern matching exhaustiveness"
+    ;; TODO: Test that pattern matching checks for exhaustiveness
+    (define-type Color Red Green Blue)
+    
+    ;; This should warn about non-exhaustive patterns
+    ;; (define incomplete-match
+    ;;   (match some-color
+    ;;     [Red "red"]
+    ;;     [Green "green"]
+    ;;     ;; Missing Blue case
+    ;;     ))
+    )
+  
+  (test "Parametric type instantiation"
+    ;; TODO: Test that parametric types are properly instantiated
+    (define-type Maybe (a) Nothing (Just a))
+    
+    ;; These should have different types
+    ;; (Maybe Number) vs (Maybe String)
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic ADT Definition")
+(run-test-suite "Parametric ADT Types")
+(run-test-suite "Recursive ADT Types")
+(run-test-suite "Pattern Matching")
+(run-test-suite "Advanced Pattern Matching")
+(run-test-suite "ADT Operations and Utilities")
+(run-test-suite "Complex ADT Examples")
+(run-test-suite "ADT Performance and Memory")
+(run-test-suite "ADT Type Checking")
+
+(display "Algebraic data types test completed.\n")
+(display "This test verifies ADT definition, construction, and pattern matching.\n")

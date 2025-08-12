@@ -75,6 +75,8 @@ pub mod runtime;
 pub mod stdlib;
 /// Bytecode compilation and virtual machine.
 pub mod bytecode;
+/// Just-In-Time compilation system for native code generation.
+pub mod jit;
 
 // Advanced numeric system
 /// Advanced numeric tower with bigints, rationals, and complex numbers.
@@ -179,7 +181,7 @@ impl Lambdust {
     }
 
     /// Expands macros in the AST.
-    pub fn expand_macros(&self, program: Program) -> Result<Program> {
+    pub fn expand_macros(&mut self, program: Program) -> Result<Program> {
         self.runtime.expand_macros(program)
     }
 
@@ -348,4 +350,5 @@ mod tests {
     fn test_version_constants() {
         assert_eq!(LANGUAGE_VERSION, "0.1.0");
     }
+
 }

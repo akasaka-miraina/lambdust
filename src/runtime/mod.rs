@@ -17,6 +17,9 @@ mod library_path_resolver;
 mod primitive_bridge; // Re-enabled for containers integration
 // mod integration_example; // Temporarily disabled due to compilation issues
 
+// Parallel generational garbage collector
+pub mod gc;
+
 // Effect coordinator component modules
 mod effect_coordinator_main;
 mod thread_effect_state;
@@ -79,6 +82,12 @@ pub use effect_statistics::EffectStatistics;
 pub use effect_isolation_level::{EffectIsolationLevel, EffectIsolationRules, IsolationException};
 pub use effect_sandbox_config::{EffectSandboxConfig, EffectSandboxHandle, SandboxResourceLimits, SandboxStatistics, ResourceUsage};
 pub use effect_isolation_statistics::EffectIsolationStatistics;
+
+// Parallel generational garbage collector exports  
+pub use gc::{
+    ParallelGc, ParallelGcConfig, GcSystem, GcConfigBuilder, GcSystemStatistics,
+    GenerationManager, AllocationCoordinator, ObjectHeader, GenerationId, CollectionResult
+};
 
 // Re-export individual structures
 pub use runtime::*;

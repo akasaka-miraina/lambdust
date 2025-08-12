@@ -210,11 +210,10 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
                 List::concat_many(results)
             },
             ListImpl::Lazy(computation) => {
-                let f_clone = f.clone();
                 let comp_clone = computation.clone();
                 List { 
                     inner: ListImpl::Lazy(Arc::new(move || {
-                        List { inner: comp_clone() }.bind(f_clone.clone()).inner
+                        List { inner: comp_clone() }.bind(f.clone()).inner
                     }))
                 }
             },
@@ -345,7 +344,13 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
         match self.inner {
             ListImpl::Empty => Vec::new(),
             ListImpl::Single(value) => vec![value],
-            ListImpl::Multiple(vec) => (*vec).clone(),
+            ListImpl::Multiple(vec) => {
+                // Try to avoid clone if we're the only owner
+                match Arc::try_unwrap(vec) {
+                    Ok(owned_vec) => owned_vec,
+                    Err(arc_vec) => (*arc_vec).clone(),
+                }
+            },
             ListImpl::Lazy(f) => List { inner: f() }.to_vec(),
             ListImpl::Concat(left, right) => {
                 let mut result = left.as_ref().clone().to_vec();
@@ -373,7 +378,10 @@ impl<T: Clone + Send + Sync + 'static> List<T> {
         F: Fn(T) -> U + Clone + Send + Sync + 'static,
         U: Clone + Send + Sync + 'static,
     {
-        f_list.bind(move |f| self.clone().map(f))
+        f_list.bind(move |f| {
+            let list_clone = self.clone();
+            list_clone.map(f)
+        })
     }
     
     /// Sequence a list of monadic computations

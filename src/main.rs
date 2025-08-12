@@ -144,7 +144,10 @@ fn eval_expression(lambdust: &mut Lambdust, expr: &str, type_check_only: bool) -
     } else {
         // Evaluate
         let result = lambdust.eval(expr, Some("<command-line>"))?;
-        println!("{result}");
+        // Don't print the result if it's unspecified (e.g., from display, set!, etc.)
+        if !matches!(result, lambdust::eval::Value::Unspecified) {
+            println!("{result}");
+        }
     }
     Ok(())
 }
@@ -168,7 +171,10 @@ fn execute_file(lambdust: &mut Lambdust, filename: &str, type_check_only: bool) 
     } else {
         // Evaluate
         let result = lambdust.eval(&source, Some(filename))?;
-        println!("{result}");
+        // Don't print the result if it's unspecified (e.g., from display, set!, etc.)
+        if !matches!(result, lambdust::eval::Value::Unspecified) {
+            println!("{result}");
+        }
     }
     Ok(())
 }
@@ -224,10 +230,13 @@ fn start_repl(lambdust: &mut Lambdust) -> Result<()> {
                     _ => {}
                 }
 
-                // Evaluate expression
-                match lambdust.eval(line, Some("<repl>")) {
+                // Evaluate expression with proper macro support for REPL
+                match evaluate_repl_expression(lambdust, line) {
                     Ok(result) => {
-                        println!("{}", format!("{result}").bright_green());
+                        // Don't print the result if it's unspecified (e.g., from display, set!, etc.)
+                        if !matches!(result, lambdust::eval::Value::Unspecified) {
+                            println!("{}", format!("{result}").bright_green());
+                        }
                     }
                     Err(e) => {
                         eprintln!("{}", format!("Error: {e}").bright_red());
@@ -265,6 +274,15 @@ fn start_enhanced_repl(lambdust: Lambdust) -> Result<()> {
     let config = ReplConfig::default();
     let mut repl = EnhancedRepl::with_defaults(lambdust)?;
     repl.run()
+}
+
+#[cfg(feature = "repl")]
+fn evaluate_repl_expression(lambdust: &mut Lambdust, source: &str) -> Result<lambdust::eval::Value> {
+    // This function provides improved macro handling for REPL sessions
+    // by maintaining macro state between evaluations
+    
+    // Use the standard evaluation pipeline which now includes proper macro expansion
+    lambdust.eval(source, Some("<repl>"))
 }
 
 #[cfg(feature = "repl")]

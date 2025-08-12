@@ -1,0 +1,431 @@
+#!/usr/bin/env lambdust
+;; Test file: Type Classes
+;; Purpose: Test Haskell-style type classes for constrained polymorphism
+;; Covers class definition, instances, constraints, and advanced features
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust types)
+        (lambdust type-classes))  ;; TODO: Implement type class library
+
+;; =============================================================================
+;; BASIC TYPE CLASS DEFINITIONS
+;; =============================================================================
+
+(define-test-suite "Basic Type Class Definitions"
+  
+  (test "Eq type class"
+    ;; TODO: Type class syntax needs to be implemented
+    (define-class (Eq a)
+      (= : a -> a -> Boolean)
+      (≠ : a -> a -> Boolean))
+    
+    ;; Default implementation for ≠
+    (define-default ≠ (lambda (x y) (not (= x y))))
+    
+    ;; Test the class structure exists
+    ;; TODO: Implement class introspection
+    ;; (assert-true (type-class? Eq))
+    ;; (assert-equal '(= ≠) (class-methods Eq))
+    )
+  
+  (test "Ord type class with superclass"
+    (define-class (Eq a) => (Ord a)
+      (compare : a -> a -> Ordering)
+      (<  : a -> a -> Boolean)
+      (<= : a -> a -> Boolean)
+      (>  : a -> a -> Boolean)
+      (>= : a -> a -> Boolean))
+    
+    ;; Ordering enumeration
+    (define-type Ordering LT EQ GT)
+    
+    ;; Default implementations based on compare
+    (define-default < (lambda (x y) (equal? (compare x y) LT)))
+    (define-default <= (lambda (x y) (not (equal? (compare x y) GT))))
+    (define-default > (lambda (x y) (equal? (compare x y) GT)))
+    (define-default >= (lambda (x y) (not (equal? (compare x y) LT))))
+    
+    ;; TODO: Test superclass constraint
+    )
+  
+  (test "Show type class"
+    (define-class (Show a)
+      (show : a -> String))
+    
+    ;; This should be the only required method
+    ;; TODO: Test minimal complete definition
+    ))
+
+;; =============================================================================
+;; BASIC TYPE CLASS INSTANCES
+;; =============================================================================
+
+(define-test-suite "Basic Type Class Instances"
+  
+  (test "Number instances"
+    ;; Instance for Eq Number
+    (define-instance (Eq Number)
+      (= (lambda (x y) (= x y))))  ;; Uses primitive =
+    
+    ;; Instance for Ord Number
+    (define-instance (Ord Number)
+      (compare (lambda (x y)
+                (cond ((< x y) LT)
+                      ((> x y) GT)
+                      (else EQ)))))
+    
+    ;; Instance for Show Number
+    (define-instance (Show Number)
+      (show number->string))
+    
+    ;; Test the instances work
+    (assert-true (= 5 5))
+    (assert-false (= 5 6))
+    (assert-true (< 3 5))
+    (assert-false (< 5 3))
+    (assert-equal "42" (show 42)))
+  
+  (test "String instances"
+    (define-instance (Eq String)
+      (= string=?))
+    
+    (define-instance (Ord String)
+      (compare (lambda (s1 s2)
+                (cond ((string<? s1 s2) LT)
+                      ((string>? s1 s2) GT)
+                      (else EQ)))))
+    
+    (define-instance (Show String)
+      (show (lambda (s) (string-append "\"" s "\""))))
+    
+    (assert-true (= "hello" "hello"))
+    (assert-false (= "hello" "world"))
+    (assert-true (< "apple" "banana"))
+    (assert-equal "\"hello\"" (show "hello")))
+  
+  (test "Boolean instances"
+    (define-instance (Eq Boolean)
+      (= eq?))
+    
+    (define-instance (Show Boolean)
+      (show (lambda (b) (if b "true" "false"))))
+    
+    (assert-true (= #t #t))
+    (assert-false (= #t #f))
+    (assert-equal "true" (show #t))
+    (assert-equal "false" (show #f))))
+
+;; =============================================================================
+;; DERIVED INSTANCES
+;; =============================================================================
+
+(define-test-suite "Derived Instances"
+  
+  (test "List instances"
+    ;; Eq instance for lists (requires Eq elements)
+    (define-instance (Eq a) => (Eq (List a))
+      (= (lambda (xs ys)
+           (cond
+             [(and (null? xs) (null? ys)) #t]
+             [(or (null? xs) (null? ys)) #f]
+             [else (and (= (car xs) (car ys))
+                        (= (cdr xs) (cdr ys)))]))))
+    
+    ;; Show instance for lists (requires Show elements)
+    (define-instance (Show a) => (Show (List a))
+      (show (lambda (lst)
+              (string-append "["
+                           (string-join (map show lst) ", ")
+                           "]"))))
+    
+    ;; Test with number lists
+    (assert-true (= '(1 2 3) '(1 2 3)))
+    (assert-false (= '(1 2 3) '(1 2 4)))
+    (assert-equal "[1, 2, 3]" (show '(1 2 3))))
+  
+  (test "Maybe instances"
+    (define-type Maybe (a) Nothing (Just a))
+    
+    ;; Eq instance for Maybe
+    (define-instance (Eq a) => (Eq (Maybe a))
+      (= (lambda (mx my)
+           (match (list mx my)
+             [(list Nothing Nothing) #t]
+             [(list (Just x) (Just y)) (= x y)]
+             [_ #f]))))
+    
+    ;; Show instance for Maybe
+    (define-instance (Show a) => (Show (Maybe a))
+      (show (lambda (maybe-val)
+              (match maybe-val
+                [Nothing "Nothing"]
+                [(Just x) (string-append "(Just " (show x) ")")]))))
+    
+    (assert-true (= Nothing Nothing))
+    (assert-true (= (Just 42) (Just 42)))
+    (assert-false (= Nothing (Just 42)))
+    (assert-equal "Nothing" (show Nothing))
+    (assert-equal "(Just 42)" (show (Just 42)))))
+
+;; =============================================================================
+;; CUSTOM TYPE CLASSES
+;; =============================================================================
+
+(define-test-suite "Custom Type Classes"
+  
+  (test "Numeric type class"
+    (define-class (Numeric a)
+      (+ : a -> a -> a)
+      (* : a -> a -> a)
+      (negate : a -> a)
+      (abs : a -> a)
+      (signum : a -> a))
+    
+    ;; Instance for Number
+    (define-instance (Numeric Number)
+      (+ (lambda (x y) (+ x y)))
+      (* (lambda (x y) (* x y)))
+      (negate (lambda (x) (- x)))
+      (abs (lambda (x) (if (< x 0) (- x) x)))
+      (signum (lambda (x) (cond ((> x 0) 1)
+                               ((< x 0) -1)
+                               (else 0)))))
+    
+    ;; Test numeric operations
+    (assert-equal 7 (+ 3 4))
+    (assert-equal 12 (* 3 4))
+    (assert-equal -5 (negate 5))
+    (assert-equal 5 (abs -5))
+    (assert-equal 1 (signum 42)))
+  
+  (test "Functor type class"
+    (define-class (Functor (f : * -> *))
+      (map : (∀ a b. (a -> b) -> f a -> f b)))
+    
+    ;; Instance for Maybe
+    (define-instance (Functor Maybe)
+      (map (lambda (func maybe-val)
+             (match maybe-val
+               [Nothing Nothing]
+               [(Just x) (Just (func x))]))))
+    
+    ;; Instance for List
+    (define-instance (Functor List)
+      (map (lambda (func lst)
+             (if (null? lst)
+                 '()
+                 (cons (func (car lst))
+                       (map func (cdr lst)))))))
+    
+    ;; Test functor operations
+    (assert-equal (Just 10) (map (lambda (x) (* x 2)) (Just 5)))
+    (assert-equal Nothing (map (lambda (x) (* x 2)) Nothing))
+    (assert-equal '(2 4 6) (map (lambda (x) (* x 2)) '(1 2 3))))
+  
+  (test "Monad type class"
+    (define-class (Functor m) => (Monad m)
+      (return : (∀ a. a -> m a))
+      (bind : (∀ a b. m a -> (a -> m b) -> m b)))
+    
+    ;; Instance for Maybe
+    (define-instance (Monad Maybe)
+      (return (lambda (x) (Just x)))
+      (bind (lambda (maybe-val func)
+              (match maybe-val
+                [Nothing Nothing]
+                [(Just x) (func x)]))))
+    
+    ;; Test monadic operations
+    (assert-equal (Just 42) (return 42))
+    (assert-equal (Just 10) (bind (Just 5) (lambda (x) (Just (* x 2)))))
+    (assert-equal Nothing (bind Nothing (lambda (x) (Just (* x 2)))))))
+
+;; =============================================================================
+;; MULTIPLE CONSTRAINTS
+;; =============================================================================
+
+(define-test-suite "Multiple Constraints"
+  
+  (test "Functions with multiple constraints"
+    (define (sort-and-show lst)
+      #:constraint (Ord a) (Show a)
+      #:type (-> (List a) String)
+      (show (sort lst)))
+    
+    ;; TODO: Implement sort function and test
+    ;; (assert-equal "[1, 2, 3]" (sort-and-show '(3 1 2)))
+    )
+  
+  (test "Debug type class with multiple superclasses"
+    (define-class (Eq a) (Show a) => (Debug a)
+      (debug : a -> String))
+    
+    ;; Default implementation using Show and Eq
+    (define-default debug 
+      (lambda (x)
+        (string-append (show x) " [debuggable]")))
+    
+    ;; Instance for Number
+    (define-instance (Debug Number)
+      ;; Uses default implementation
+      )
+    
+    ;; TODO: Test when constraints are fully implemented
+    ;; (assert-equal "42 [debuggable]" (debug 42))
+    ))
+
+;; =============================================================================
+;; ADVANCED TYPE CLASS FEATURES
+;; =============================================================================
+
+(define-test-suite "Advanced Type Class Features"
+  
+  (test "Associated types (type families)"
+    ;; TODO: This requires type family support
+    (define-class (Collection (c : * -> *))
+      (type Element c : *)
+      (type Index c : *)
+      (empty : (∀ a. c a))
+      (insert : (∀ a. Index c -> a -> c a -> c a))
+      (lookup : (∀ a. Index c -> c a -> Maybe a)))
+    
+    ;; Instance for Vector
+    ;; TODO: Implement when type families are available
+    )
+  
+  (test "Higher-kinded type classes"
+    ;; Test that type classes work with higher-kinded types
+    (define (void f-val)
+      #:constraint (Functor f)
+      #:type (∀ (f : * -> *) a. f a -> f ())
+      (map (lambda (_) '()) f-val))
+    
+    ;; TODO: Test when higher-kinded types are fully implemented
+    )
+  
+  (test "Overlapping instances"
+    ;; TODO: Test how overlapping instances are resolved
+    ;; This is a complex feature that requires careful design
+    ))
+
+;; =============================================================================
+;; COHERENCE AND INFERENCE
+;; =============================================================================
+
+(define-test-suite "Type Class Coherence and Inference"
+  
+  (test "Instance resolution"
+    ;; Test that the type system can find the right instances
+    (define (generic-equals x y)
+      #:constraint (Eq a)
+      #:type (∀ a. a -> a -> Boolean)
+      (= x y))
+    
+    ;; Should work for any type with an Eq instance
+    (assert-true (generic-equals 5 5))
+    (assert-false (generic-equals 5 6))
+    (assert-true (generic-equals "hello" "hello"))
+    (assert-false (generic-equals "hello" "world")))
+  
+  (test "Constraint propagation"
+    ;; Test that constraints are properly propagated through function calls
+    (define (compare-and-show x y)
+      #:constraint (Ord a) (Show a)
+      #:type (∀ a. a -> a -> String)
+      (show (compare x y)))
+    
+    ;; TODO: Test when constraint system is fully implemented
+    )
+  
+  (test "Instance coherence"
+    ;; Test that instance selection is coherent and predictable
+    ;; TODO: This requires careful testing of the instance resolution algorithm
+    ))
+
+;; =============================================================================
+;; ERROR HANDLING AND DIAGNOSTICS
+;; =============================================================================
+
+(define-test-suite "Type Class Error Handling"
+  
+  (test "Missing instance errors"
+    ;; TODO: Test that missing instances produce good error messages
+    ;; (assert-type-error (= some-uninstanced-type another-value))
+    )
+  
+  (test "Ambiguous instance errors"
+    ;; TODO: Test that ambiguous instances are detected and reported
+    )
+  
+  (test "Superclass constraint violations"
+    ;; TODO: Test that violations of superclass constraints are caught
+    ))
+
+;; =============================================================================
+;; INTEGRATION WITH OTHER FEATURES
+;; =============================================================================
+
+(define-test-suite "Type Class Integration"
+  
+  (test "Integration with gradual typing"
+    ;; TODO: Test how type classes work with the gradual type system
+    )
+  
+  (test "Integration with ADTs"
+    ;; Test that type classes work well with algebraic data types
+    (define-type Color Red Green Blue)
+    
+    ;; Manually define Eq for Color
+    (define-instance (Eq Color)
+      (= (lambda (c1 c2)
+           (match (list c1 c2)
+             [(list Red Red) #t]
+             [(list Green Green) #t]
+             [(list Blue Blue) #t]
+             [_ #f]))))
+    
+    (assert-true (= Red Red))
+    (assert-false (= Red Green)))
+  
+  (test "Integration with effect system"
+    ;; TODO: Test how type classes interact with effects
+    ))
+
+;; =============================================================================
+;; PERFORMANCE AND OPTIMIZATION
+;; =============================================================================
+
+(define-test-suite "Type Class Performance"
+  
+  (test "Instance dictionary passing"
+    ;; TODO: Test that type class methods compile to efficient code
+    )
+  
+  (test "Specialization opportunities"
+    ;; TODO: Test that monomorphic uses of polymorphic functions
+    ;; are specialized and optimized
+    )
+  
+  (test "Inlining of small methods"
+    ;; TODO: Test that small type class methods are inlined
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Type Class Definitions")
+(run-test-suite "Basic Type Class Instances")
+(run-test-suite "Derived Instances")
+(run-test-suite "Custom Type Classes")
+(run-test-suite "Multiple Constraints")
+(run-test-suite "Advanced Type Class Features")
+(run-test-suite "Type Class Coherence and Inference")
+(run-test-suite "Type Class Error Handling")
+(run-test-suite "Type Class Integration")
+(run-test-suite "Type Class Performance")
+
+(display "Type classes test completed.\n")
+(display "This test verifies Haskell-style constrained polymorphism.\n")

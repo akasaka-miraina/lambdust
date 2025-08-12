@@ -29,6 +29,14 @@ path = "src/bin/native_benchmark_runner.rs"
 name = "performance-monitor"
 path = "src/bin/performance_monitor.rs"
 
+[[bin]]
+name = "evaluation-test"
+path = "src/bin/evaluation_test.rs"
+
+[[bin]]
+name = "advanced-evaluation-test"
+path = "src/bin/advanced_evaluation_test.rs"
+
 [dependencies]
 # Core parsing and lexing
 nom = "7.1"
@@ -81,7 +89,7 @@ ariadne = "0.4"                                    # Beautiful error reporting
 libloading = "0.8"
 dlopen2 = "0.7"
 libc = "0.2"                                  # C standard library bindings
-libffi = { version = "3.2", optional = true } # Foreign Function Interface for C interop
+libffi = { version = "3.2", optional = true, features = ["system"] } # Foreign Function Interface for C interop
 cc = { version = "1.0", optional = true }     # C compiler integration
 
 # Performance and optimization
@@ -130,6 +138,7 @@ ring = "0.17" # Cryptography
 rustls = { version = "0.23", features = [
     "std",
 ], optional = true } # TLS implementation
+tokio-rustls = { version = "0.26", optional = true } # Async TLS for tokio
 webpki-roots = { version = "0.26", optional = true } # Root certificates
 
 # Development and testing
@@ -141,6 +150,8 @@ futures = "0.3"                                 # For futures utilities in tests
 regex = "1.10"
 unicode-normalization = "0.1"
 unicode-segmentation = "1.10"
+icu_collator = { version = "1.4", optional = true } # Unicode collation for text processing
+icu_locid = { version = "1.4", optional = true } # ICU locale support
 lru = "0.12"
 
 # Numeric traits for monad implementations
@@ -171,10 +182,10 @@ enhanced-repl = [
     "dep:dirs",
 ]
 async = ["tokio", "tokio-util"]
-advanced-io = ["async", "rustls", "webpki-roots", "nix", "winapi"]
-text-processing = []
+advanced-io = ["async", "rustls", "tokio-rustls", "webpki-roots", "nix", "winapi"]
+text-processing = ["icu_collator", "icu_locid"]
 compression = ["flate2", "zstd", "lz4_flex"]
-tls = ["rustls", "webpki-roots"]
+tls = ["rustls", "tokio-rustls", "webpki-roots"]
 unix-extensions = ["nix"]
 windows-extensions = ["winapi"]
 benchmarks = ["criterion", "flame"]
@@ -182,6 +193,7 @@ property-testing = ["proptest"]
 multithreaded-tests = ["async", "tokio/test-util"]
 ffi = ["libffi", "cc"] # FFI support
 jit = [] # Future JIT compilation support
+simd-benchmarks = ["benchmarks"] # SIMD optimization benchmarking
 
 # Benchmark configuration
 [[bench]]

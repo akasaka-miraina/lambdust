@@ -411,7 +411,7 @@ impl CallbackRegistry {
             let value = match param_type {
                 CType::CInt => {
                     let int_val = unsafe { *(arg_ptr as *const libc::c_int) };
-                    Value::Literal(Literal::Number(int_val as f64))
+                    Value::Literal(Literal::integer(int_val as i64))
                 }
                 CType::CString => {
                     let c_str_ptr = unsafe { *(arg_ptr as *const *const libc::c_char) };
@@ -440,7 +440,7 @@ impl CallbackRegistry {
             match &callback.function {
                 Value::Procedure(_) => {
                     // Would call evaluator here
-                    Ok(Value::Literal(Literal::Number(0.0))) // Placeholder
+                    Ok(Value::Literal(Literal::integer(0))) // Placeholder
                 }
                 _ => Err(CallbackError::ExecutionFailed {
                     callback: name.to_string(),

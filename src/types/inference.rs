@@ -245,6 +245,8 @@ impl TypeInference {
     /// Infers the type of a literal.
     fn infer_literal(&mut self, literal: &Literal) -> Result<Type> {
         match literal {
+            Literal::ExactInteger(_) => Ok(Type::Number),
+            Literal::InexactReal(_) => Ok(Type::Number),
             Literal::Number(_) => Ok(Type::Number),
             Literal::Rational { .. } => Ok(Type::Number),
             Literal::Complex { .. } => Ok(Type::Number),

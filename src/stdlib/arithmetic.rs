@@ -346,6 +346,15 @@ fn bind_number_predicates(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_nan_p),
         effects: vec![Effect::Pure],
     })));
+    
+    // Exact integer predicate (R7RS-small requirement)
+    env.define("exact-integer?".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "exact-integer?".to_string(),
+        arity_min: 1,
+        arity_max: Some(1),
+        implementation: PrimitiveImpl::RustFn(primitive_exact_integer_p),
+        effects: vec![Effect::Pure],
+    })));
 }
 
 /// Binds complex number operations.
@@ -1557,7 +1566,8 @@ enum NumberValue {
 /// Extracts a number from a Value for arithmetic operations.
 fn extract_number(value: &Value, operation: &str) -> Result<NumberValue> {
     match value {
-        Value::Literal(Literal::Number(n)) => Ok(NumberValue::Float(*n)),
+        Value::Literal(Literal::ExactInteger(n)) => Ok(NumberValue::Integer(*n)),
+        Value::Literal(Literal::InexactReal(n)) => Ok(NumberValue::Float(*n)),
         Value::Literal(Literal::Rational { numerator, denominator }) => 
             Ok(NumberValue::Rational { numerator: *numerator, denominator: *denominator }),
         Value::Literal(Literal::Complex { real, imaginary }) => 
@@ -1572,7 +1582,8 @@ fn extract_number(value: &Value, operation: &str) -> Result<NumberValue> {
 /// Tries to extract a number from a Value (for predicates).
 fn try_extract_number(value: &Value) -> Option<NumberValue> {
     match value {
-        Value::Literal(Literal::Number(n)) => Some(NumberValue::Float(*n)),
+        Value::Literal(Literal::ExactInteger(n)) => Some(NumberValue::Integer(*n)),
+        Value::Literal(Literal::InexactReal(n)) => Some(NumberValue::Float(*n)),
         Value::Literal(Literal::Rational { numerator, denominator }) => 
             Some(NumberValue::Rational { numerator: *numerator, denominator: *denominator }),
         Value::Literal(Literal::Complex { real, imaginary }) => 
@@ -2628,7 +2639,23 @@ fn is_odd(a: NumberValue) -> Result<bool> {
     
     match a {
         NumberValue::Integer(i) => Ok(i % 2 != 0),
+        NumberValue::Float(f) => {
+            // Convert the float to integer since we know it's an integer value
+            let i = f as i64;
+            Ok(i % 2 != 0)
+        },
         NumberValue::Rational { numerator, denominator: 1 } => Ok(numerator % 2 != 0),
+        NumberValue::Complex { real, imaginary } => {
+            if imaginary == 0.0 {
+                let i = real as i64;
+                Ok(i % 2 != 0)
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "odd? requires an integer argument".to_string(),
+                    None,
+                )))
+            }
+        },
         _ => Err(Box::new(DiagnosticError::runtime_error(
             "odd? requires an integer argument".to_string(),
             None,
@@ -2646,7 +2673,23 @@ fn is_even(a: NumberValue) -> Result<bool> {
     
     match a {
         NumberValue::Integer(i) => Ok(i % 2 == 0),
+        NumberValue::Float(f) => {
+            // Convert the float to integer since we know it's an integer value
+            let i = f as i64;
+            Ok(i % 2 == 0)
+        },
         NumberValue::Rational { numerator, denominator: 1 } => Ok(numerator % 2 == 0),
+        NumberValue::Complex { real, imaginary } => {
+            if imaginary == 0.0 {
+                let i = real as i64;
+                Ok(i % 2 == 0)
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "even? requires an integer argument".to_string(),
+                    None,
+                )))
+            }
+        },
         _ => Err(Box::new(DiagnosticError::runtime_error(
             "even? requires an integer argument".to_string(),
             None,

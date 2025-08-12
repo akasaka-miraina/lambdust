@@ -50,23 +50,18 @@ impl Parser {
                         span
                     )))
                 }
-                Literal::Number(i as f64)
+                // Integer literals are exact integers in R7RS
+                Literal::integer(i)
             }
             crate::lexer::NumericValue::Real(r) => {
                 // Check for special floating-point values
-                if r.is_nan() {
-                    return Err(Box::new(crate::diagnostics::Error::parse_error(
-                        "NaN is not a valid number literal", 
-                        span
-                    )))
+                // Allow infinity and NaN for R7RS-small special values
+                if r.is_nan() || r.is_infinite() {
+                    Literal::InexactReal(r) // +nan.0 and +/-inf.0 are allowed
+                } else {
+                    // Real literals are inexact in R7RS
+                    Literal::float(r)
                 }
-                if r.is_infinite() {
-                    return Err(Box::new(crate::diagnostics::Error::parse_error(
-                        "Infinity is not a valid number literal", 
-                        span
-                    )))
-                }
-                Literal::Number(r)
             }
             crate::lexer::NumericValue::Rational(rat) => {
                 // Validate rational number

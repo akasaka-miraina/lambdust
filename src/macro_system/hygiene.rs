@@ -473,8 +473,32 @@ impl HygieneContext {
                 }
             }
 
+            // Handle quasiquote and related forms
+            Expr::Quote(inner_expr) => {
+                // Don't rename inside quoted expressions
+                Expr::Quote(inner_expr)
+            }
+            
+            Expr::Quasiquote(inner_expr) => {
+                // Recursively rename in quasiquote, but preserve unquote contexts
+                let renamed_inner = self.rename_expr(*inner_expr)?;
+                Expr::Quasiquote(Box::new(renamed_inner))
+            }
+            
+            Expr::Unquote(inner_expr) => {
+                // Rename inside unquote expressions
+                let renamed_inner = self.rename_expr(*inner_expr)?;
+                Expr::Unquote(Box::new(renamed_inner))
+            }
+            
+            Expr::UnquoteSplicing(inner_expr) => {
+                // Rename inside unquote-splicing expressions
+                let renamed_inner = self.rename_expr(*inner_expr)?;
+                Expr::UnquoteSplicing(Box::new(renamed_inner))
+            }
+
             // These don't contain identifiers to rename
-            Expr::Literal(_) | Expr::Keyword(_) | Expr::Quote(_) => expr.inner,
+            Expr::Literal(_) | Expr::Keyword(_) => expr.inner,
         };
         
         Ok(Spanned::new(renamed_inner, expr.span))

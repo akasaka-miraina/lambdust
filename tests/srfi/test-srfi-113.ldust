@@ -1,0 +1,1060 @@
+#!/usr/bin/env lambdust
+;; Test file: SRFI-113 Sets and Bags
+;; Purpose: Comprehensive test suite for SRFI-113 Sets and Bags implementation
+;; Tests set and bag operations, theory operations, higher-order functions, and integration
+
+(import (scheme base)
+        (scheme write)
+        (scheme case-lambda)
+        (srfi 113)   ; Sets and Bags
+        (srfi 128)   ; Comparators (for integration tests)
+        (lambdust test))
+
+;; =============================================================================
+;; SET CONSTRUCTOR TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Constructors"
+  
+  (test "empty set creation"
+    (define s (set))
+    (assert-true (set? s))
+    (assert-true (set-empty? s))
+    (assert-equal 0 (set-size s)))
+  
+  (test "set creation with elements"
+    (define s (set 1 2 3))
+    (assert-true (set? s))
+    (assert-false (set-empty? s))
+    (assert-equal 3 (set-size s))
+    (assert-true (set-contains? s 1))
+    (assert-true (set-contains? s 2))
+    (assert-true (set-contains? s 3))
+    (assert-false (set-contains? s 4)))
+  
+  (test "set creation with duplicate elements"
+    (define s (set 1 2 2 3 1))
+    (assert-true (set? s))
+    (assert-equal 3 (set-size s))
+    (assert-true (set-contains? s 1))
+    (assert-true (set-contains? s 2))
+    (assert-true (set-contains? s 3)))
+  
+  (test "list->set conversion"
+    (define lst '(1 2 3 2 1))
+    (define s (list->set lst))
+    (assert-true (set? s))
+    (assert-equal 3 (set-size s))
+    (assert-true (set-contains? s 1))
+    (assert-true (set-contains? s 2))
+    (assert-true (set-contains? s 3)))
+  
+  (test "list->set with comparator"
+    (define lst '("apple" "APPLE" "Apple"))
+    (define s (list->set lst string-comparator))
+    (assert-true (set? s))
+    ;; With case-sensitive string comparator, all three are different
+    (assert-equal 3 (set-size s)))
+  
+  (test "set-unfold constructor"
+    (define s (set-unfold (lambda (x) (> x 5))
+                         (lambda (x) (* x x))
+                         (lambda (x) (+ x 1))
+                         1))
+    (assert-true (set? s))
+    (assert-equal 5 (set-size s))
+    (assert-true (set-contains? s 1))   ; 1*1
+    (assert-true (set-contains? s 4))   ; 2*2
+    (assert-true (set-contains? s 9))   ; 3*3
+    (assert-true (set-contains? s 16))  ; 4*4
+    (assert-true (set-contains? s 25))) ; 5*5
+
+;; =============================================================================
+;; SET PREDICATE TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Predicates"
+  
+  (test "set? predicate"
+    (assert-true (set? (set)))
+    (assert-true (set? (set 1 2 3)))
+    (assert-false (set? '(1 2 3)))
+    (assert-false (set? #(1 2 3)))
+    (assert-false (set? "abc"))
+    (assert-false (set? 123)))
+  
+  (test "set-contains? predicate"
+    (define s (set 1 2 3))
+    (assert-true (set-contains? s 1))
+    (assert-true (set-contains? s 2))
+    (assert-true (set-contains? s 3))
+    (assert-false (set-contains? s 4))
+    (assert-false (set-contains? s 0)))
+  
+  (test "set-empty? predicate"
+    (assert-true (set-empty? (set)))
+    (assert-false (set-empty? (set 1)))
+    (assert-false (set-empty? (set 1 2 3))))
+  
+  (test "set-disjoint? predicate"
+    (define s1 (set 1 2 3))
+    (define s2 (set 4 5 6))
+    (define s3 (set 3 4 5))
+    
+    (assert-true (set-disjoint? s1 s2))
+    (assert-false (set-disjoint? s1 s3))
+    (assert-true (set-disjoint? (set) s1))
+    (assert-true (set-disjoint? s1 (set)))))
+
+;; =============================================================================
+;; SET ACCESSOR TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Accessors"
+  
+  (test "set-member accessor"
+    (define s (set 'a 'b 'c))
+    (assert-equal 'a (set-member s 'a 'not-found))
+    (assert-equal 'not-found (set-member s 'd 'not-found)))
+  
+  (test "set-element-at accessor"
+    (define s (set 1 2 3))
+    (assert-equal 2 (set-element-at s 2))
+    (assert-false (set-element-at s 4)))
+  
+  (test "set-size accessor"
+    (assert-equal 0 (set-size (set)))
+    (assert-equal 1 (set-size (set 'a)))
+    (assert-equal 3 (set-size (set 1 2 3)))
+    (assert-equal 3 (set-size (set 1 2 2 3 1)))))
+
+;; =============================================================================
+;; SET UPDATER TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Updaters"
+  
+  (test "set-adjoin immutable"
+    (define s1 (set 1 2))
+    (define s2 (set-adjoin s1 3 4))
+    
+    (assert-equal 2 (set-size s1))  ; Original unchanged
+    (assert-equal 4 (set-size s2))  ; New set has additions
+    (assert-true (set-contains? s2 1))
+    (assert-true (set-contains? s2 2))
+    (assert-true (set-contains? s2 3))
+    (assert-true (set-contains? s2 4)))
+  
+  (test "set-adjoin! mutable"
+    (define s (set 1 2))
+    (set-adjoin! s 3 4)
+    
+    (assert-equal 4 (set-size s))
+    (assert-true (set-contains? s 1))
+    (assert-true (set-contains? s 2))
+    (assert-true (set-contains? s 3))
+    (assert-true (set-contains? s 4)))
+  
+  (test "set-adjoin with duplicates"
+    (define s1 (set 1 2))
+    (define s2 (set-adjoin s1 2 3))
+    
+    (assert-equal 3 (set-size s2))  ; Size should be 3, not 4
+    (assert-true (set-contains? s2 1))
+    (assert-true (set-contains? s2 2))
+    (assert-true (set-contains? s2 3)))
+  
+  (test "set-delete immutable"
+    (define s1 (set 1 2 3))
+    (define s2 (set-delete s1 2 4))  ; Delete existing and non-existing
+    
+    (assert-equal 3 (set-size s1))  ; Original unchanged
+    (assert-equal 2 (set-size s2))  ; New set missing deleted element
+    (assert-true (set-contains? s2 1))
+    (assert-false (set-contains? s2 2))
+    (assert-true (set-contains? s2 3)))
+  
+  (test "set-delete! mutable"
+    (define s (set 1 2 3))
+    (set-delete! s 2 4)  ; Delete existing and non-existing
+    
+    (assert-equal 2 (set-size s))
+    (assert-true (set-contains? s 1))
+    (assert-false (set-contains? s 2))
+    (assert-true (set-contains? s 3)))
+  
+  (test "set-delete-all with list"
+    (define s1 (set 1 2 3 4 5))
+    (define s2 (set-delete-all s1 '(2 4 6)))
+    
+    (assert-equal 5 (set-size s1))  ; Original unchanged
+    (assert-equal 3 (set-size s2))  ; 2 and 4 removed, 6 not present
+    (assert-true (set-contains? s2 1))
+    (assert-false (set-contains? s2 2))
+    (assert-true (set-contains? s2 3))
+    (assert-false (set-contains? s2 4))
+    (assert-true (set-contains? s2 5)))
+  
+  (test "set-delete-all! mutable with list"
+    (define s (set 1 2 3 4 5))
+    (set-delete-all! s '(2 4 6))
+    
+    (assert-equal 3 (set-size s))
+    (assert-true (set-contains? s 1))
+    (assert-false (set-contains? s 2))
+    (assert-true (set-contains? s 3))
+    (assert-false (set-contains? s 4))
+    (assert-true (set-contains? s 5))))
+
+;; =============================================================================
+;; SET WHOLE OPERATIONS TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Whole Operations"
+  
+  (test "set-find operation"
+    (define s (set 1 2 3 4 5))
+    
+    ;; Find even number
+    (assert-equal 2 (set-find even? s (lambda () 'not-found)))
+    ;; Find number > 10 (should not exist)
+    (assert-equal 'not-found (set-find (lambda (x) (> x 10)) s (lambda () 'not-found))))
+  
+  (test "set-count operation"
+    (define s (set 1 2 3 4 5 6))
+    
+    (assert-equal 3 (set-count even? s))
+    (assert-equal 3 (set-count odd? s))
+    (assert-equal 2 (set-count (lambda (x) (> x 4)) s))
+    (assert-equal 0 (set-count (lambda (x) (> x 10)) s)))
+  
+  (test "set-any? predicate"
+    (define s (set 1 2 3 4 5))
+    
+    (assert-true (set-any? even? s))
+    (assert-true (set-any? odd? s))
+    (assert-true (set-any? (lambda (x) (> x 4)) s))
+    (assert-false (set-any? (lambda (x) (> x 10)) s)))
+  
+  (test "set-every? predicate"
+    (define s1 (set 2 4 6))
+    (define s2 (set 1 2 3))
+    
+    (assert-true (set-every? even? s1))
+    (assert-false (set-every? even? s2))
+    (assert-true (set-every? (lambda (x) (> x 0)) s2))
+    (assert-false (set-every? (lambda (x) (> x 2)) s2))))
+
+;; =============================================================================
+;; SET HIGHER-ORDER FUNCTION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Higher-Order Functions"
+  
+  (test "set-map operation"
+    (define s1 (set 1 2 3))
+    (define s2 (set-map (lambda (x) (* x x)) s1))
+    
+    (assert-true (set? s2))
+    (assert-equal 3 (set-size s2))
+    (assert-true (set-contains? s2 1))
+    (assert-true (set-contains? s2 4))
+    (assert-true (set-contains? s2 9)))
+  
+  (test "set-map with duplicates elimination"
+    (define s1 (set 1 2 -1 -2))
+    (define s2 (set-map abs s1))
+    
+    (assert-true (set? s2))
+    (assert-equal 2 (set-size s2))  ; abs eliminates sign differences
+    (assert-true (set-contains? s2 1))
+    (assert-true (set-contains? s2 2)))
+  
+  (test "set-for-each side effects"
+    (define s (set 1 2 3))
+    (define results '())
+    
+    (set-for-each (lambda (x) (set! results (cons x results))) s)
+    
+    ;; Should have processed all elements (order may vary)
+    (assert-equal 3 (length results))
+    (assert-true (member 1 results))
+    (assert-true (member 2 results))
+    (assert-true (member 3 results)))
+  
+  (test "set-fold accumulation"
+    (define s (set 1 2 3 4 5))
+    (define sum (set-fold + 0 s))
+    (define product (set-fold * 1 s))
+    
+    (assert-equal 15 sum)
+    (assert-equal 120 product))
+  
+  (test "set-filter operation"
+    (define s1 (set 1 2 3 4 5 6))
+    (define s2 (set-filter even? s1))
+    
+    (assert-true (set? s2))
+    (assert-equal 3 (set-size s2))
+    (assert-true (set-contains? s2 2))
+    (assert-true (set-contains? s2 4))
+    (assert-true (set-contains? s2 6))
+    (assert-false (set-contains? s2 1)))
+  
+  (test "set-remove operation"
+    (define s1 (set 1 2 3 4 5 6))
+    (define s2 (set-remove even? s1))
+    
+    (assert-true (set? s2))
+    (assert-equal 3 (set-size s2))
+    (assert-true (set-contains? s2 1))
+    (assert-true (set-contains? s2 3))
+    (assert-true (set-contains? s2 5))
+    (assert-false (set-contains? s2 2)))
+  
+  (test "set-partition operation"
+    (define s1 (set 1 2 3 4 5 6))
+    (define partitioned (set-partition even? s1))
+    (define evens (car partitioned))
+    (define odds (cdr partitioned))
+    
+    (assert-true (set? evens))
+    (assert-true (set? odds))
+    (assert-equal 3 (set-size evens))
+    (assert-equal 3 (set-size odds))
+    
+    (assert-true (set-contains? evens 2))
+    (assert-true (set-contains? evens 4))
+    (assert-true (set-contains? evens 6))
+    
+    (assert-true (set-contains? odds 1))
+    (assert-true (set-contains? odds 3))
+    (assert-true (set-contains? odds 5))))
+
+;; =============================================================================
+;; SET COPY AND CONVERSION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Copy and Conversion"
+  
+  (test "set-copy operation"
+    (define s1 (set 1 2 3))
+    (define s2 (set-copy s1))
+    
+    (assert-true (set? s2))
+    (assert-equal (set-size s1) (set-size s2))
+    (assert-true (set=? s1 s2))
+    
+    ;; Modify original, copy should be unchanged
+    (set-adjoin! s1 4)
+    (assert-equal 4 (set-size s1))
+    (assert-equal 3 (set-size s2)))
+  
+  (test "set->list conversion"
+    (define s (set 1 2 3))
+    (define lst (set->list s))
+    
+    (assert-true (list? lst))
+    (assert-equal 3 (length lst))
+    (assert-true (member 1 lst))
+    (assert-true (member 2 lst))
+    (assert-true (member 3 lst)))
+  
+  (test "bidirectional set/list conversion"
+    (define original-list '(3 1 4 1 5 9 2 6))
+    (define s (list->set original-list))
+    (define result-list (set->list s))
+    
+    ;; Set eliminates duplicates
+    (assert-equal 7 (length result-list))
+    ;; All original elements present
+    (assert-true (member 1 result-list))
+    (assert-true (member 2 result-list))
+    (assert-true (member 3 result-list))
+    (assert-true (member 4 result-list))
+    (assert-true (member 5 result-list))
+    (assert-true (member 6 result-list))
+    (assert-true (member 9 result-list))))
+
+;; =============================================================================
+;; SET COMPARISON TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Comparisons"
+  
+  (test "set=? equality"
+    (define s1 (set 1 2 3))
+    (define s2 (set 3 2 1))  ; Different order
+    (define s3 (set 1 2 3 3 2 1))  ; With duplicates
+    (define s4 (set 1 2))
+    
+    (assert-true (set=? s1 s2))
+    (assert-true (set=? s1 s3))
+    (assert-false (set=? s1 s4)))
+  
+  (test "set<? proper subset"
+    (define s1 (set 1 2))
+    (define s2 (set 1 2 3))
+    (define s3 (set 1 2))
+    (define s4 (set 2 3))
+    
+    (assert-true (set<? s1 s2))
+    (assert-false (set<? s1 s3))  ; Equal sets
+    (assert-false (set<? s1 s4))  ; Not subset
+    (assert-false (set<? s2 s1))) ; Superset
+  
+  (test "set>? proper superset"
+    (define s1 (set 1 2 3))
+    (define s2 (set 1 2))
+    (define s3 (set 1 2 3))
+    
+    (assert-true (set>? s1 s2))
+    (assert-false (set>? s1 s3))  ; Equal sets
+    (assert-false (set>? s2 s1))) ; Subset
+  
+  (test "set<=? subset or equal"
+    (define s1 (set 1 2))
+    (define s2 (set 1 2 3))
+    (define s3 (set 1 2))
+    (define s4 (set 2 3))
+    
+    (assert-true (set<=? s1 s2))  ; Proper subset
+    (assert-true (set<=? s1 s3))  ; Equal
+    (assert-false (set<=? s1 s4)) ; Not subset
+    (assert-false (set<=? s2 s1))) ; Superset
+  
+  (test "set>=? superset or equal"
+    (define s1 (set 1 2 3))
+    (define s2 (set 1 2))
+    (define s3 (set 1 2 3))
+    
+    (assert-true (set>=? s1 s2))  ; Proper superset
+    (assert-true (set>=? s1 s3))  ; Equal
+    (assert-false (set>=? s2 s1))) ; Subset
+
+;; =============================================================================
+;; SET THEORY OPERATIONS TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Set Theory Operations"
+  
+  (test "set-union operation"
+    (define s1 (set 1 2 3))
+    (define s2 (set 3 4 5))
+    (define s3 (set 5 6 7))
+    
+    (define union12 (set-union s1 s2))
+    (assert-true (set? union12))
+    (assert-equal 5 (set-size union12))
+    (assert-true (set-contains? union12 1))
+    (assert-true (set-contains? union12 2))
+    (assert-true (set-contains? union12 3))
+    (assert-true (set-contains? union12 4))
+    (assert-true (set-contains? union12 5))
+    
+    ;; Multiple sets
+    (define union-all (set-union s1 s2 s3))
+    (assert-equal 7 (set-size union-all))
+    (assert-true (set-contains? union-all 6))
+    (assert-true (set-contains? union-all 7)))
+  
+  (test "set-intersection operation"
+    (define s1 (set 1 2 3 4))
+    (define s2 (set 3 4 5 6))
+    (define s3 (set 4 5 6 7))
+    
+    (define intersect12 (set-intersection s1 s2))
+    (assert-true (set? intersect12))
+    (assert-equal 2 (set-size intersect12))
+    (assert-true (set-contains? intersect12 3))
+    (assert-true (set-contains? intersect12 4))
+    
+    ;; Multiple sets
+    (define intersect-all (set-intersection s1 s2 s3))
+    (assert-equal 1 (set-size intersect-all))
+    (assert-true (set-contains? intersect-all 4)))
+  
+  (test "set-difference operation"
+    (define s1 (set 1 2 3 4 5))
+    (define s2 (set 3 4))
+    (define s3 (set 1 5))
+    
+    (define diff12 (set-difference s1 s2))
+    (assert-true (set? diff12))
+    (assert-equal 3 (set-size diff12))
+    (assert-true (set-contains? diff12 1))
+    (assert-true (set-contains? diff12 2))
+    (assert-true (set-contains? diff12 5))
+    
+    ;; Multiple sets
+    (define diff-all (set-difference s1 s2 s3))
+    (assert-equal 1 (set-size diff-all))
+    (assert-true (set-contains? diff-all 2)))
+  
+  (test "set-xor symmetric difference"
+    (define s1 (set 1 2 3))
+    (define s2 (set 3 4 5))
+    
+    (define xor (set-xor s1 s2))
+    (assert-true (set? xor))
+    (assert-equal 4 (set-size xor))
+    (assert-true (set-contains? xor 1))
+    (assert-true (set-contains? xor 2))
+    (assert-false (set-contains? xor 3))  ; Common element excluded
+    (assert-true (set-contains? xor 4))
+    (assert-true (set-contains? xor 5)))
+  
+  (test "empty set operations"
+    (define s1 (set 1 2 3))
+    (define empty-s (set))
+    
+    (assert-true (set=? s1 (set-union s1 empty-s)))
+    (assert-true (set=? empty-s (set-intersection s1 empty-s)))
+    (assert-true (set=? s1 (set-difference s1 empty-s)))
+    (assert-true (set=? s1 (set-xor s1 empty-s)))))
+
+;; =============================================================================
+;; BAG CONSTRUCTOR TESTS  
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Bag Constructors"
+  
+  (test "empty bag creation"
+    (define b (bag))
+    (assert-true (bag? b))
+    (assert-true (bag-empty? b))
+    (assert-equal 0 (bag-size b))
+    (assert-equal 0 (bag-unique-size b)))
+  
+  (test "bag creation with elements"
+    (define b (bag 1 2 3))
+    (assert-true (bag? b))
+    (assert-false (bag-empty? b))
+    (assert-equal 3 (bag-size b))
+    (assert-equal 3 (bag-unique-size b))
+    (assert-true (bag-contains? b 1))
+    (assert-true (bag-contains? b 2))
+    (assert-true (bag-contains? b 3))
+    (assert-false (bag-contains? b 4)))
+  
+  (test "bag creation with duplicate elements"
+    (define b (bag 1 2 2 3 1 1))
+    (assert-true (bag? b))
+    (assert-equal 6 (bag-size b))
+    (assert-equal 3 (bag-unique-size b))
+    (assert-equal 3 (bag-element-count b 1))
+    (assert-equal 2 (bag-element-count b 2))
+    (assert-equal 1 (bag-element-count b 3))
+    (assert-equal 0 (bag-element-count b 4)))
+  
+  (test "list->bag conversion"
+    (define lst '(a b b c a a))
+    (define b (list->bag lst))
+    (assert-true (bag? b))
+    (assert-equal 6 (bag-size b))
+    (assert-equal 3 (bag-unique-size b))
+    (assert-equal 3 (bag-element-count b 'a))
+    (assert-equal 2 (bag-element-count b 'b))
+    (assert-equal 1 (bag-element-count b 'c)))
+  
+  (test "bag-unfold constructor"
+    (define b (bag-unfold (lambda (x) (> x 3))
+                         (lambda (x) (if (even? x) 'even 'odd))
+                         (lambda (x) (+ x 1))
+                         1))
+    (assert-true (bag? b))
+    (assert-equal 3 (bag-size b))
+    (assert-equal 2 (bag-unique-size b))
+    ;; 1->odd, 2->even, 3->odd
+    (assert-equal 2 (bag-element-count b 'odd))
+    (assert-equal 1 (bag-element-count b 'even))))
+
+;; =============================================================================
+;; BAG PREDICATE TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Bag Predicates"
+  
+  (test "bag? predicate"
+    (assert-true (bag? (bag)))
+    (assert-true (bag? (bag 1 2 3)))
+    (assert-false (bag? '(1 2 3)))
+    (assert-false (bag? #(1 2 3)))
+    (assert-false (bag? (set 1 2 3)))
+    (assert-false (bag? "abc"))
+    (assert-false (bag? 123)))
+  
+  (test "bag-contains? predicate"
+    (define b (bag 1 2 2 3))
+    (assert-true (bag-contains? b 1))
+    (assert-true (bag-contains? b 2))
+    (assert-true (bag-contains? b 3))
+    (assert-false (bag-contains? b 4))
+    (assert-false (bag-contains? b 0)))
+  
+  (test "bag-empty? predicate"
+    (assert-true (bag-empty? (bag)))
+    (assert-false (bag-empty? (bag 1)))
+    (assert-false (bag-empty? (bag 1 2 3))))
+  
+  (test "bag-disjoint? predicate"
+    (define b1 (bag 1 2 3))
+    (define b2 (bag 4 5 6))
+    (define b3 (bag 3 4 5))
+    
+    (assert-true (bag-disjoint? b1 b2))
+    (assert-false (bag-disjoint? b1 b3))
+    (assert-true (bag-disjoint? (bag) b1))
+    (assert-true (bag-disjoint? b1 (bag)))))
+
+;; =============================================================================
+;; BAG ACCESSOR TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Bag Accessors"
+  
+  (test "bag-member accessor"
+    (define b (bag 'a 'b 'b 'c))
+    (assert-equal 'b (bag-member b 'b 'not-found))
+    (assert-equal 'not-found (bag-member b 'd 'not-found)))
+  
+  (test "bag-element-at accessor"
+    (define b (bag 1 2 2 3))
+    (assert-equal 2 (bag-element-at b 2))
+    (assert-false (bag-element-at b 4)))
+  
+  (test "bag-element-count accessor"
+    (define b (bag 1 1 1 2 2 3))
+    (assert-equal 3 (bag-element-count b 1))
+    (assert-equal 2 (bag-element-count b 2))
+    (assert-equal 1 (bag-element-count b 3))
+    (assert-equal 0 (bag-element-count b 4)))
+  
+  (test "bag-size vs bag-unique-size"
+    (define b (bag 'a 'a 'b 'b 'b 'c))
+    (assert-equal 6 (bag-size b))          ; Total elements
+    (assert-equal 3 (bag-unique-size b))))  ; Unique elements
+
+;; =============================================================================
+;; BAG UPDATER TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Bag Updaters"
+  
+  (test "bag-adjoin immutable"
+    (define b1 (bag 1 2 2))
+    (define b2 (bag-adjoin b1 2 3))
+    
+    (assert-equal 3 (bag-size b1))  ; Original unchanged
+    (assert-equal 5 (bag-size b2))  ; New bag has additions
+    (assert-equal 2 (bag-element-count b1 2))
+    (assert-equal 3 (bag-element-count b2 2))
+    (assert-equal 1 (bag-element-count b2 3)))
+  
+  (test "bag-adjoin! mutable"
+    (define b (bag 1 2 2))
+    (bag-adjoin! b 2 3)
+    
+    (assert-equal 5 (bag-size b))
+    (assert-equal 3 (bag-element-count b 2))
+    (assert-equal 1 (bag-element-count b 3)))
+  
+  (test "bag-delete immutable"
+    (define b1 (bag 1 2 2 3))
+    (define b2 (bag-delete b1 2))  ; Remove one instance
+    
+    (assert-equal 4 (bag-size b1))  ; Original unchanged
+    (assert-equal 3 (bag-size b2))  ; One element removed
+    (assert-equal 2 (bag-element-count b1 2))
+    (assert-equal 1 (bag-element-count b2 2)))
+  
+  (test "bag-delete! mutable"
+    (define b (bag 1 2 2 3))
+    (bag-delete! b 2)  ; Remove one instance
+    
+    (assert-equal 3 (bag-size b))
+    (assert-equal 1 (bag-element-count b 2)))
+  
+  (test "bag-delete-all removes all instances"
+    (define b1 (bag 1 2 2 2 3))
+    (define b2 (bag-delete-all b1 2))
+    
+    (assert-equal 5 (bag-size b1))  ; Original unchanged
+    (assert-equal 2 (bag-size b2))  ; All instances of 2 removed
+    (assert-equal 3 (bag-element-count b1 2))
+    (assert-equal 0 (bag-element-count b2 2)))
+  
+  (test "bag-increment! and bag-decrement!"
+    (define b (bag 1 2 2))
+    
+    (bag-increment! b 2 2)  ; Add 2 more instances of 2
+    (assert-equal 5 (bag-size b))
+    (assert-equal 4 (bag-element-count b 2))
+    
+    (bag-decrement! b 2 1)  ; Remove 1 instance of 2
+    (assert-equal 4 (bag-size b))
+    (assert-equal 3 (bag-element-count b 2))
+    
+    (bag-increment! b 3 2)  ; Add new element
+    (assert-equal 6 (bag-size b))
+    (assert-equal 2 (bag-element-count b 3))))
+
+;; =============================================================================
+;; BAG HIGHER-ORDER FUNCTION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Bag Higher-Order Functions"
+  
+  (test "bag-map operation"
+    (define b1 (bag 1 2 2 3))
+    (define b2 (bag-map (lambda (x) (* x x)) b1))
+    
+    (assert-true (bag? b2))
+    (assert-equal 4 (bag-size b2))
+    (assert-equal 1 (bag-element-count b2 1))   ; 1^2
+    (assert-equal 2 (bag-element-count b2 4))   ; 2^2, appearing twice
+    (assert-equal 1 (bag-element-count b2 9)))  ; 3^2
+  
+  (test "bag-filter operation"
+    (define b1 (bag 1 2 2 3 4 4 5))
+    (define b2 (bag-filter even? b1))
+    
+    (assert-true (bag? b2))
+    (assert-equal 4 (bag-size b2))  ; 2, 2, 4, 4
+    (assert-equal 2 (bag-element-count b2 2))
+    (assert-equal 2 (bag-element-count b2 4))
+    (assert-equal 0 (bag-element-count b2 1)))
+  
+  (test "bag-fold accumulation"
+    (define b (bag 1 2 2 3))
+    (define sum (bag-fold + 0 b))
+    
+    (assert-equal 8 sum))  ; 1 + 2 + 2 + 3 = 8
+  
+  (test "bag-partition operation"
+    (define b1 (bag 1 2 2 3 4 4 5))
+    (define partitioned (bag-partition even? b1))
+    (define evens (car partitioned))
+    (define odds (cdr partitioned))
+    
+    (assert-true (bag? evens))
+    (assert-true (bag? odds))
+    (assert-equal 4 (bag-size evens))  ; 2, 2, 4, 4
+    (assert-equal 3 (bag-size odds))   ; 1, 3, 5
+    
+    (assert-equal 2 (bag-element-count evens 2))
+    (assert-equal 2 (bag-element-count evens 4))
+    (assert-equal 1 (bag-element-count odds 1))
+    (assert-equal 1 (bag-element-count odds 3))
+    (assert-equal 1 (bag-element-count odds 5))))
+
+;; =============================================================================
+;; BAG CONVERSION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Bag Conversions"
+  
+  (test "bag->list conversion"
+    (define b (bag 1 2 2 3))
+    (define lst (bag->list b))
+    
+    (assert-true (list? lst))
+    (assert-equal 4 (length lst))
+    ;; Count occurrences in list
+    (assert-equal 1 (length (filter (lambda (x) (= x 1)) lst)))
+    (assert-equal 2 (length (filter (lambda (x) (= x 2)) lst)))
+    (assert-equal 1 (length (filter (lambda (x) (= x 3)) lst))))
+  
+  (test "bag->set conversion"
+    (define b (bag 1 2 2 3 3 3))
+    (define s (bag->set b))
+    
+    (assert-true (set? s))
+    (assert-equal 3 (set-size s))
+    (assert-true (set-contains? s 1))
+    (assert-true (set-contains? s 2))
+    (assert-true (set-contains? s 3)))
+  
+  (test "set->bag conversion"
+    (define s (set 1 2 3))
+    (define b (set->bag s))
+    
+    (assert-true (bag? b))
+    (assert-equal 3 (bag-size b))
+    (assert-equal 3 (bag-unique-size b))
+    (assert-equal 1 (bag-element-count b 1))
+    (assert-equal 1 (bag-element-count b 2))
+    (assert-equal 1 (bag-element-count b 3)))
+  
+  (test "bidirectional bag/set conversion"
+    (define original-bag (bag 1 1 2 3 3 3))
+    (define converted-set (bag->set original-bag))
+    (define final-bag (set->bag converted-set))
+    
+    ;; Final bag should have unique elements only
+    (assert-equal 3 (bag-size final-bag))
+    (assert-equal 3 (bag-unique-size final-bag))
+    (assert-equal 1 (bag-element-count final-bag 1))
+    (assert-equal 1 (bag-element-count final-bag 2))
+    (assert-equal 1 (bag-element-count final-bag 3))))
+
+;; =============================================================================
+;; BAG THEORY OPERATIONS TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Bag Theory Operations"
+  
+  (test "bag-sum operation (additive union)"
+    (define b1 (bag 1 1 2 3))
+    (define b2 (bag 1 2 2 4))
+    (define sum (bag-sum b1 b2))
+    
+    (assert-true (bag? sum))
+    (assert-equal 8 (bag-size sum))
+    (assert-equal 3 (bag-element-count sum 1))  ; 2 + 1
+    (assert-equal 3 (bag-element-count sum 2))  ; 1 + 2
+    (assert-equal 1 (bag-element-count sum 3))  ; 1 + 0
+    (assert-equal 1 (bag-element-count sum 4))) ; 0 + 1
+  
+  (test "bag-union operation (maximum multiplicity)"
+    (define b1 (bag 1 1 2 3))
+    (define b2 (bag 1 2 2 4))
+    (define union (bag-union b1 b2))
+    
+    (assert-true (bag? union))
+    (assert-equal 6 (bag-size union))
+    (assert-equal 2 (bag-element-count union 1))  ; max(2, 1)
+    (assert-equal 2 (bag-element-count union 2))  ; max(1, 2)
+    (assert-equal 1 (bag-element-count union 3))  ; max(1, 0)
+    (assert-equal 1 (bag-element-count union 4))) ; max(0, 1)
+  
+  (test "bag-intersection operation (minimum multiplicity)"
+    (define b1 (bag 1 1 1 2 3))
+    (define b2 (bag 1 1 2 2 4))
+    (define intersection (bag-intersection b1 b2))
+    
+    (assert-true (bag? intersection))
+    (assert-equal 3 (bag-size intersection))
+    (assert-equal 2 (bag-element-count intersection 1))  ; min(3, 2)
+    (assert-equal 1 (bag-element-count intersection 2))  ; min(1, 2)
+    (assert-equal 0 (bag-element-count intersection 3))  ; min(1, 0)
+    (assert-equal 0 (bag-element-count intersection 4))) ; min(0, 1)
+  
+  (test "bag-difference operation"
+    (define b1 (bag 1 1 1 2 3))
+    (define b2 (bag 1 1 2 2 4))
+    (define difference (bag-difference b1 b2))
+    
+    (assert-true (bag? difference))
+    (assert-equal 2 (bag-size difference))
+    (assert-equal 1 (bag-element-count difference 1))  ; max(0, 3-2)
+    (assert-equal 0 (bag-element-count difference 2))  ; max(0, 1-2)
+    (assert-equal 1 (bag-element-count difference 3))  ; max(0, 1-0)
+    (assert-equal 0 (bag-element-count difference 4))) ; max(0, 0-1)
+  
+  (test "bag-product operation (minimum multiplicity for common elements)"
+    (define b1 (bag 1 1 1 2 3))
+    (define b2 (bag 1 1 2 2 4))
+    (define product (bag-product b1 b2))
+    
+    (assert-true (bag? product))
+    ;; Product should contain only common elements with minimum multiplicity
+    (assert-equal 3 (bag-size product))
+    (assert-equal 2 (bag-element-count product 1))
+    (assert-equal 1 (bag-element-count product 2))
+    (assert-equal 0 (bag-element-count product 3))
+    (assert-equal 0 (bag-element-count product 4))))
+
+;; =============================================================================
+;; BAG COMPARISON TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Bag Comparisons"
+  
+  (test "bag=? equality"
+    (define b1 (bag 1 1 2 3))
+    (define b2 (bag 3 2 1 1))  ; Different order
+    (define b3 (bag 1 2 3))    ; Different multiplicities
+    
+    (assert-true (bag=? b1 b2))
+    (assert-false (bag=? b1 b3)))
+  
+  (test "bag<? subbag relation"
+    (define b1 (bag 1 2))
+    (define b2 (bag 1 1 2 3))
+    (define b3 (bag 1 2))
+    
+    (assert-true (bag<? b1 b2))   ; Proper subbag
+    (assert-false (bag<? b1 b3))  ; Equal bags
+    (assert-false (bag<? b2 b1))) ; Not subbag
+  
+  (test "bag<=? subbag or equal relation"
+    (define b1 (bag 1 2))
+    (define b2 (bag 1 1 2 3))
+    (define b3 (bag 1 2))
+    
+    (assert-true (bag<=? b1 b2))  ; Proper subbag
+    (assert-true (bag<=? b1 b3))  ; Equal bags
+    (assert-false (bag<=? b2 b1))) ; Not subbag
+
+;; =============================================================================
+;; INTEGRATION WITH SRFI-128 COMPARATORS TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 SRFI-128 Integration"
+  
+  (test "set with custom comparator"
+    ;; Test that sets can use SRFI-128 comparators
+    (define case-insensitive-set
+      (list->set '("Apple" "apple" "APPLE") string-ci-comparator))
+    
+    ;; With case-insensitive comparator, should treat as same element
+    ;; (This test may need adjustment based on actual implementation)
+    (assert-true (set? case-insensitive-set)))
+  
+  (test "bag with custom comparator"
+    ;; Test that bags can use SRFI-128 comparators
+    (define case-insensitive-bag
+      (list->bag '("Hello" "hello" "HELLO") string-ci-comparator))
+    
+    (assert-true (bag? case-insensitive-bag)))
+  
+  (test "numeric comparator with sets"
+    (define numeric-set (list->set '(3.0 3 3/1) number-comparator))
+    
+    ;; All should be treated as equal with number-comparator
+    (assert-true (set? numeric-set))))
+
+;; =============================================================================
+;; ERROR HANDLING AND EDGE CASES TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Error Handling and Edge Cases"
+  
+  (test "type errors on non-sets"
+    (assert-error (set-size 'not-a-set))
+    (assert-error (set-contains? '(1 2 3) 1))
+    (assert-error (set-adjoin "not-a-set" 1)))
+  
+  (test "type errors on non-bags"
+    (assert-error (bag-size 'not-a-bag))
+    (assert-error (bag-contains? '(1 2 3) 1))
+    (assert-error (bag-element-count "not-a-bag" 1)))
+  
+  (test "mixed type operations"
+    (define s (set 1 2 3))
+    (define b (bag 1 2 3))
+    
+    ;; Cannot mix sets and bags in operations
+    (assert-error (set-union s b))
+    (assert-error (bag-sum s b)))
+  
+  (test "empty collection edge cases"
+    (define empty-set (set))
+    (define empty-bag (bag))
+    
+    ;; Operations on empty collections should work
+    (assert-equal 0 (set-size empty-set))
+    (assert-equal 0 (bag-size empty-bag))
+    (assert-equal 0 (bag-unique-size empty-bag))
+    
+    ;; Searching in empty collections
+    (assert-equal 'not-found
+                  (set-find (lambda (x) #t) empty-set (lambda () 'not-found)))
+    (assert-equal 0 (set-count (lambda (x) #t) empty-set))
+    (assert-false (set-any? (lambda (x) #t) empty-set))
+    (assert-true (set-every? (lambda (x) #t) empty-set)))
+  
+  (test "large collection handling"
+    ;; Test with reasonably large collections
+    (define large-list (make-list 1000 'x))
+    (define large-set (list->set large-list))
+    (define large-bag (list->bag large-list))
+    
+    (assert-equal 1 (set-size large-set))      ; All elements same
+    (assert-equal 1000 (bag-size large-bag))   ; All elements preserved
+    (assert-equal 1 (bag-unique-size large-bag)))
+  
+  (test "circular list handling"
+    ;; Test error handling for improper input
+    ;; (This test may need adjustment based on implementation)
+    (let ((improper-list '(1 2 . 3)))
+      ;; Should handle improper lists gracefully
+      (assert-error (list->set improper-list)))))
+
+;; =============================================================================
+;; PERFORMANCE AND STRESS TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-113 Performance Tests"
+  
+  (test "large set operations"
+    (define large-set1 (list->set (make-list 100 1)))
+    (define large-set2 (list->set (make-list 100 2)))
+    
+    ;; Union of large sets
+    (define union (set-union large-set1 large-set2))
+    (assert-equal 2 (set-size union))
+    
+    ;; Intersection should be empty
+    (define intersection (set-intersection large-set1 large-set2))
+    (assert-equal 0 (set-size intersection)))
+  
+  (test "repeated operations"
+    (define s (set 1 2 3))
+    
+    ;; Repeated adjoining should be efficient
+    (do ((i 0 (+ i 1))
+         (result s (set-adjoin result i)))
+        ((= i 10)
+         (assert-equal 13 (set-size result)))))  ; 3 original + 10 new
+  
+  (test "bag multiplicity stress test"
+    (define b (bag))
+    
+    ;; Add many of the same element
+    (do ((i 0 (+ i 1)))
+        ((= i 100))
+      (set! b (bag-adjoin b 'x)))
+    
+    (assert-equal 100 (bag-size b))
+    (assert-equal 1 (bag-unique-size b))
+    (assert-equal 100 (bag-element-count b 'x))))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(define (run-srfi-113-tests)
+  ;; Set Tests
+  (run-test-suite "SRFI-113 Set Constructors")
+  (run-test-suite "SRFI-113 Set Predicates")
+  (run-test-suite "SRFI-113 Set Accessors")
+  (run-test-suite "SRFI-113 Set Updaters")
+  (run-test-suite "SRFI-113 Set Whole Operations")
+  (run-test-suite "SRFI-113 Set Higher-Order Functions")
+  (run-test-suite "SRFI-113 Set Copy and Conversion")
+  (run-test-suite "SRFI-113 Set Comparisons")
+  (run-test-suite "SRFI-113 Set Theory Operations")
+  
+  ;; Bag Tests
+  (run-test-suite "SRFI-113 Bag Constructors")
+  (run-test-suite "SRFI-113 Bag Predicates")
+  (run-test-suite "SRFI-113 Bag Accessors")
+  (run-test-suite "SRFI-113 Bag Updaters")
+  (run-test-suite "SRFI-113 Bag Higher-Order Functions")
+  (run-test-suite "SRFI-113 Bag Conversions")
+  (run-test-suite "SRFI-113 Bag Theory Operations")
+  (run-test-suite "SRFI-113 Bag Comparisons")
+  
+  ;; Integration and Edge Cases
+  (run-test-suite "SRFI-113 SRFI-128 Integration")
+  (run-test-suite "SRFI-113 Error Handling and Edge Cases")
+  (run-test-suite "SRFI-113 Performance Tests")
+  
+  (display "\n=== SRFI-113 Sets and Bags Test Suite Complete ===\n")
+  (test-summary))
+
+;; Run tests if this file is executed directly
+(when (and (defined? 'command-line) (not (null? (command-line))))
+  (run-srfi-113-tests))

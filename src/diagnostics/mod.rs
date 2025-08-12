@@ -14,6 +14,7 @@ pub mod span;
 pub mod source_map;
 pub mod stack_trace;
 pub mod suggestions;
+pub mod gc_diagnostics;
 
 pub use error::*;
 pub use position::*;
@@ -21,6 +22,10 @@ pub use span::{Span, Spanned, spanned};
 pub use source_map::*;
 pub use stack_trace::*;
 pub use suggestions::*;
+pub use gc_diagnostics::{
+    GcDiagnosticManager, GcDiagnosticConfig, DiagnosticId, PreservedError,
+    ErrorKind, ErrorContext, GcAwareError, DiagnosticStatistics
+};
 
 /// Result type used throughout the Lambdust implementation.
 pub type Result<T> = std::result::Result<T, Box<Error>>;

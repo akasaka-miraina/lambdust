@@ -481,8 +481,8 @@ impl TypeSafetyValidator {
     /// Check if a value is compatible with a C type
     fn is_value_compatible_with_type(&self, value: &Value, c_type: &CType) -> bool {
         match (value, c_type) {
-            (Value::Literal(Literal::Number(_)), t) if t.is_numeric() => true,
-            (Value::Literal(Literal::Number(_)), CType::Float | CType::Double) => true,
+            (Value::Literal(literal), t) if literal.is_number() && t.is_numeric() => true,
+            (Value::Literal(literal), CType::Float | CType::Double) if literal.is_number() => true,
             (Value::Literal(Literal::Boolean(_)), CType::Bool) => true,
             (Value::Literal(Literal::String(_)), CType::CString) => true,
             (Value::Literal(Literal::Character(_)), CType::Char) => true,
@@ -515,14 +515,16 @@ impl TypeSafetyValidator {
                 }
                 TypeConstraint::Bounds { parameter, min, max } => {
                     if config.bounds_checking && *parameter < args.len() {
-                        if let Value::Literal(Literal::Number(val)) = &args[*parameter] {
-                            if *val < (*min as f64) || *val > (*max as f64) {
-                                let mut stats = self.stats.write().unwrap();
-                                stats.bounds_violations += 1;
-                                return Err(Box::new(SafetyError::BoundaryViolation {
-                                    operation: format!("parameter {parameter} bounds check"),
-                                    description: format!("value {val} not in range [{min}..{max}]"),
-                                }));
+                        if let Value::Literal(literal) = &args[*parameter] {
+                            if let Some(val) = literal.to_f64() {
+                                if val < (*min as f64) || val > (*max as f64) {
+                                    let mut stats = self.stats.write().unwrap();
+                                    stats.bounds_violations += 1;
+                                    return Err(Box::new(SafetyError::BoundaryViolation {
+                                        operation: format!("parameter {parameter} bounds check"),
+                                        description: format!("value {val} not in range [{min}..{max}]"),
+                                    }));
+                                }
                             }
                         }
                     }
@@ -602,13 +604,16 @@ impl TypeSafetyValidator {
             }
             ValidationFunction::BoundsCheck { min, max } => {
                 for (i, arg) in args.iter().enumerate() {
-                    if let Value::Literal(Literal::Number(val)) = arg {
-                        if *val < (*min as f64) || *val > (*max as f64) {
-                            return Err(Box::new(SafetyError::BoundaryViolation {
-                                operation: rule.name.clone(),
-                                description: format!("value {val} not in range [{min}..{max}]"),
-                            }));
-                        }
+                    let val = match arg {
+                        Value::Literal(Literal::ExactInteger(val)) => *val as f64,
+                        Value::Literal(Literal::InexactReal(val)) => *val,
+                        _ => continue,
+                    };
+                    if val < (*min as f64) || val > (*max as f64) {
+                        return Err(Box::new(SafetyError::BoundaryViolation {
+                            operation: rule.name.clone(),
+                            description: format!("value {val} not in range [{min}..{max}]"),
+                        }));
                     }
                 }
             }

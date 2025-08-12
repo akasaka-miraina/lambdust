@@ -44,6 +44,12 @@ pub mod records_simple;
 pub mod srfi23_enhanced;
 /// SRFI-9 record types macro system.
 pub mod srfi9_macro;
+/// Set operations and SRFI-113 implementation.
+pub mod sets;
+/// Bag (multiset) operations and SRFI-113 implementation.
+pub mod bags;
+/// Generator operations and SRFI-121 implementation.
+pub mod generators;
 /// String manipulation and conversion operations.
 pub mod strings;
 /// System interface and process operations.

@@ -301,10 +301,9 @@
   (define (raise obj)
     "Raises an exception."
     ;; TODO: Implement proper exception handling in Rust
-    ;; Use print to avoid naming conflicts with display/newline
-    (print "Exception raised: " (current-error-port))
-    (print obj (current-error-port))
-    (print "\n" (current-error-port))
+    (display "Exception raised: " (current-error-port))
+    (display obj (current-error-port))
+    (newline (current-error-port))
     (exit 1))
 
   (define (raise-continuable obj)
@@ -355,7 +354,9 @@
   (define (emergency-exit . code)
     "Emergency exit."
     ;; TODO: Implement in Rust stdlib
-    (exit code))
+    (if (null? code)
+        (exit)
+        (exit (car code))))
 
   (define (get-environment-variable name)
     "Gets an environment variable."
@@ -444,4 +445,7 @@
   (define (apply-primitive proc args)
     "Apply a procedure to a list of arguments (primitive version)."
     ;; TODO: This should be implemented as a real Rust builtin
-    (error "apply not yet fully implemented")))
+    (error "apply not yet fully implemented"))
+
+  ) ;; End of (begin ...)
+) ;; End of (define-library (scheme base) ...)

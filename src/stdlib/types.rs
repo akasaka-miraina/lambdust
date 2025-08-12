@@ -412,6 +412,8 @@ fn primitive_function_return_type(_args: &[Value]) -> Result<Value> {
 fn get_value_type_name(value: &Value) -> String {
     match value {
         Value::Literal(lit) => match lit {
+            crate::ast::Literal::ExactInteger(_) => "integer".to_string(),
+            crate::ast::Literal::InexactReal(_) => "real".to_string(),
             crate::ast::Literal::Number(_) => "number".to_string(),
             crate::ast::Literal::Rational { .. } => "rational".to_string(),
             crate::ast::Literal::Complex { .. } => "complex".to_string(),
@@ -427,6 +429,7 @@ fn get_value_type_name(value: &Value) -> String {
         Value::Nil => "null".to_string(),
         Value::Unspecified => "unspecified".to_string(),
         Value::Pair(_, _) => "pair".to_string(),
+        Value::MutablePair(_, _) => "pair".to_string(),
         Value::Vector(_) => "vector".to_string(),
         Value::Hashtable(_) => "hashtable".to_string(),
         Value::Procedure(_) => "procedure".to_string(),
@@ -456,6 +459,10 @@ fn get_value_type_name(value: &Value) -> String {
         Value::Semaphore(_) => "semaphore".to_string(),
         Value::AtomicCounter(_) => "atomic-counter".to_string(),
         Value::DistributedNode(_) => "distributed-node".to_string(),
+        Value::MutableString(_) => "string".to_string(),
+        Value::Set(_) => "set".to_string(),
+        Value::Bag(_) => "bag".to_string(),
+        Value::Generator(_) => "generator".to_string(),
         Value::Opaque(_) => "opaque".to_string(),
     }
 }

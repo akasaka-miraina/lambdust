@@ -7,6 +7,7 @@ use super::analysis_types::*;
 use super::profiling_analysis::Profiler;
 use super::warning_system::AnalysisWarning;
 use super::variable_scope_analysis::{VariableUsage, VariableInfo, ScopeInfo};
+use super::analysis_types::ScopeType;
 use super::control_flow_analysis::{ControlFlowGraph, BasicBlock};
 use super::quality_metrics::{QualityMetrics, DuplicationInfo, OptimizationOpportunity};
 use super::type_analysis::{TypeInformation, FunctionSignature, TypeConstraint, TypeError};
@@ -329,16 +330,14 @@ impl InternalDependencyAnalyzer {
             if !visited.contains(node_name) {
                 let mut path = Vec::new();
                 let mut path_set = HashSet::new();
-                self.dfs_cycles(node_name, graph, &mut visited, &mut path, &mut path_set, &mut cycles);
+                Self::dfs_cycles(node_name, graph, &mut visited, &mut path, &mut path_set, &mut cycles);
             }
         }
         
         cycles
     }
 
-    #[allow(clippy::only_used_in_recursion)]
     fn dfs_cycles(
-        &self,
         node: &str,
         graph: &DependencyGraph,
         visited: &mut HashSet<String>,
@@ -364,7 +363,7 @@ impl InternalDependencyAnalyzer {
 
         if let Some(node_info) = graph.nodes.get(node) {
             for dep in &node_info.dependencies {
-                self.dfs_cycles(dep, graph, visited, path, path_set, cycles);
+                Self::dfs_cycles(dep, graph, visited, path, path_set, cycles);
             }
         }
 
@@ -385,17 +384,39 @@ impl VariableAnalyzer {
         }
     }
 
-    #[allow(clippy::only_used_in_recursion)]
     fn analyze_expression(&mut self, expr: &Spanned<Expr>, usage: &mut VariableUsage) -> Result<()> {
         match &expr.inner {
             Expr::Identifier(name) => {
+                // Update internal scope tracking
                 if let Some(var_info) = self.find_variable_mut(name) {
                     var_info.read = true;
                     var_info.uses.push(expr.span);
                 }
+                
+                // Also update the usage tracking parameter
+                if let Some(usage_var_info) = usage.variables.get_mut(name) {
+                    usage_var_info.read = true;
+                    usage_var_info.uses.push(expr.span);
+                }
             }
             Expr::Define { name, value, .. } => {
                 self.define_variable(name.clone(), Some(expr.span));
+                
+                // Add to usage tracking as well
+                usage.variables.entry(name.clone()).or_insert(VariableInfo {
+                    name: name.clone(),
+                    definition: Some(expr.span),
+                    uses: Vec::new(),
+                    read: false,
+                    written: true,
+                    captured: false,
+                    scope: ScopeInfo {
+                        scope_type: ScopeType::Global,  // Could be refined based on context
+                        level: self.scopes.len() - 1,
+                        scope_id: format!("scope-{}", self.scopes.len() - 1),
+                    },
+                });
+                
                 self.analyze_expression(value, usage)?;
             }
             _ => {}

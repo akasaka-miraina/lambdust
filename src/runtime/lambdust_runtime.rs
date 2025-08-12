@@ -46,7 +46,6 @@ impl LambdustRuntime {
         let effect_coordinator = Arc::new(EffectCoordinator::new());
         let io_coordinator = Arc::new(IOCoordinator::new());
         let error_propagation = Arc::new(ErrorPropagationCoordinator::new());
-        #[allow(clippy::arc_with_non_send_sync)]
         let module_system = Arc::new(std::sync::RwLock::new(ModuleSystem::new()?));
         let handle_counter = Arc::new(std::sync::atomic::AtomicU64::new(0));
         
@@ -114,7 +113,6 @@ impl LambdustRuntime {
         let effect_coordinator = Arc::new(EffectCoordinator::new());
         let io_coordinator = Arc::new(IOCoordinator::new());
         let error_propagation = Arc::new(ErrorPropagationCoordinator::new());
-        #[allow(clippy::arc_with_non_send_sync)]
         let module_system = Arc::new(std::sync::RwLock::new(
             ModuleSystem::new().map_err(|e| crate::diagnostics::Error::runtime_error(
                 format!("Failed to create module system: {e}"),

@@ -1,0 +1,413 @@
+#!/usr/bin/env lambdust
+;; Test file: Type Inference
+;; Purpose: Test Hindley-Milner type inference, unification, and constraint solving
+;; Covers automatic type inference, polymorphism, and error reporting
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust types))
+
+;; =============================================================================
+;; BASIC TYPE INFERENCE
+;; =============================================================================
+
+(define-test-suite "Basic Type Inference"
+  
+  (test "Simple function inference"
+    ;; Identity function - should infer ∀a. a -> a
+    (define id (lambda (x) x))
+    
+    (assert-equal 42 (id 42))
+    (assert-equal "hello" (id "hello"))
+    (assert-equal '(1 2 3) (id '(1 2 3)))
+    
+    ;; TODO: Test type introspection when available
+    ;; (assert-equal "∀a. a -> a" (inferred-type id))
+    )
+  
+  (test "Constant function inference"
+    ;; Should infer ∀a b. a -> b -> a
+    (define const (lambda (x y) x))
+    
+    (assert-equal 42 (const 42 "ignored"))
+    (assert-equal "hello" (const "hello" 999))
+    
+    ;; TODO: Test inferred type
+    ;; (assert-equal "∀a b. a -> b -> a" (inferred-type const))
+    )
+  
+  (test "Arithmetic function inference"
+    ;; Should infer Number -> Number -> Number
+    (define add (lambda (x y) (+ x y)))
+    
+    (assert-equal 7 (add 3 4))
+    (assert-equal 7.5 (add 3 4.5))
+    
+    ;; TODO: Test monomorphic type inference
+    ;; (assert-equal "Number -> Number -> Number" (inferred-type add))
+    ))
+
+;; =============================================================================
+;; POLYMORPHIC TYPE INFERENCE
+;; =============================================================================
+
+(define-test-suite "Polymorphic Type Inference"
+  
+  (test "List operations inference"
+    ;; Length should infer ∀a. List a -> Number
+    (define length
+      (lambda (lst)
+        (if (null? lst)
+            0
+            (+ 1 (length (cdr lst))))))
+    
+    (assert-equal 3 (length '(a b c)))
+    (assert-equal 3 (length '(1 2 3)))
+    (assert-equal 0 (length '())))
+  
+  (test "Map function inference"
+    ;; Should infer ∀a b. (a -> b) -> List a -> List b
+    (define map
+      (lambda (f lst)
+        (if (null? lst)
+            '()
+            (cons (f (car lst)) (map f (cdr lst))))))
+    
+    (assert-equal '(1 4 9 16) (map (lambda (x) (* x x)) '(1 2 3 4)))
+    (assert-equal '("1" "2" "3") (map number->string '(1 2 3))))
+  
+  (test "Fold function inference"
+    ;; Should infer ∀a b. (a -> b -> b) -> b -> List a -> b
+    (define fold-right
+      (lambda (f init lst)
+        (if (null? lst)
+            init
+            (f (car lst) (fold-right f init (cdr lst))))))
+    
+    (assert-equal 10 (fold-right + 0 '(1 2 3 4)))
+    (assert-equal "abcd" (fold-right string-append "" '("a" "b" "c" "d")))))
+
+;; =============================================================================
+;; HIGHER-ORDER FUNCTION INFERENCE
+;; =============================================================================
+
+(define-test-suite "Higher-Order Function Inference"
+  
+  (test "Function composition inference"
+    ;; Should infer ∀a b c. (b -> c) -> (a -> b) -> a -> c
+    (define compose
+      (lambda (f g)
+        (lambda (x) (f (g x)))))
+    
+    (define add1 (lambda (x) (+ x 1)))
+    (define double (lambda (x) (* x 2)))
+    (define add1-then-double (compose double add1))
+    
+    (assert-equal 8 (add1-then-double 3)))
+  
+  (test "Apply-twice inference"
+    ;; Should infer ∀a. (a -> a) -> a -> a
+    (define apply-twice
+      (lambda (f x)
+        (f (f x))))
+    
+    (assert-equal 7 (apply-twice (lambda (n) (+ n 1)) 5))
+    (assert-equal "abcabc" (apply-twice (lambda (s) (string-append s s)) "abc")))
+  
+  (test "Flip function inference"
+    ;; Should infer ∀a b c. (a -> b -> c) -> b -> a -> c
+    (define flip
+      (lambda (f)
+        (lambda (x y) (f y x))))
+    
+    (define subtract (lambda (x y) (- x y)))
+    (define flipped-subtract (flip subtract))
+    
+    (assert-equal 2 (subtract 5 3))
+    (assert-equal -2 (flipped-subtract 5 3))))
+
+;; =============================================================================
+;; LET POLYMORPHISM
+;; =============================================================================
+
+(define-test-suite "Let Polymorphism"
+  
+  (test "Local polymorphic definitions"
+    ;; Test that let-bound variables can be polymorphic
+    (let ((id (lambda (x) x)))
+      (assert-equal 42 (id 42))
+      (assert-equal "hello" (id "hello"))))
+  
+  (test "Multiple uses with different types"
+    ;; Test that polymorphic functions can be used at different types
+    (let ((identity (lambda (x) x)))
+      (let ((number-result (identity 42))
+            (string-result (identity "hello")))
+        (assert-equal 42 number-result)
+        (assert-equal "hello" string-result))))
+  
+  (test "Polymorphic recursion limitations"
+    ;; Test that polymorphic recursion is handled correctly
+    ;; Most HM systems don't support full polymorphic recursion
+    (define length-mono
+      (lambda (lst)
+        (if (null? lst)
+            0
+            (+ 1 (length-mono (cdr lst))))))
+    
+    ;; This should work for any specific list type
+    (assert-equal 3 (length-mono '(1 2 3)))))
+
+;; =============================================================================
+;; CONSTRAINT GENERATION AND SOLVING
+;; =============================================================================
+
+(define-test-suite "Constraint Generation and Solving"
+  
+  (test "Simple unification"
+    ;; Test basic unification scenarios
+    (define test-unify
+      (lambda (x)
+        (let ((y (+ x 1)))  ;; Constrains x to be Number
+          (if (> y 0)       ;; Uses Number operations
+              y
+              0))))
+    
+    (assert-equal 43 (test-unify 42))
+    (assert-equal 1 (test-unify 0)))
+  
+  (test "Complex constraint solving"
+    ;; Function that generates multiple constraints
+    (define complex-function
+      (lambda (f g x)
+        (let ((y (f x))
+              (z (g x)))
+          (if (equal? y z)
+              y
+              z))))
+    
+    ;; Should work when f and g have compatible types
+    (assert-equal 42 
+                  (complex-function 
+                    (lambda (x) x)           ;; identity
+                    (lambda (x) x)           ;; identity
+                    42)))
+  
+  (test "Occurs check"
+    ;; Test that infinite types are rejected
+    ;; TODO: This would be a compile-time error
+    ;; Example: (lambda (x) (x x)) should fail occurs check
+    ))
+
+;; =============================================================================
+;; TYPE ERROR DETECTION
+;; =============================================================================
+
+(define-test-suite "Type Error Detection"
+  
+  (test "Type mismatch errors"
+    ;; TODO: These should be caught at compile time in static mode
+    ;; For now, they'll be runtime errors
+    (define bad-function
+      (lambda (x)
+        (+ x "hello")))
+    
+    ;; This should produce a type error
+    ;; TODO: Test when static type checking is implemented
+    ;; (assert-type-error (bad-function 42))
+    )
+  
+  (test "Arity mismatch errors"
+    ;; Test that functions with wrong arity are caught
+    (define single-arg-function
+      (lambda (x) (+ x 1)))
+    
+    ;; These should be type errors
+    ;; TODO: Test when arity checking in inference is implemented
+    ;; (assert-type-error (single-arg-function))
+    ;; (assert-type-error (single-arg-function 1 2))
+    )
+  
+  (test "Infinite type errors"
+    ;; Test that self-referential types are rejected
+    ;; TODO: Test occurs check failures
+    ))
+
+;; =============================================================================
+;; ADVANCED INFERENCE FEATURES
+;; =============================================================================
+
+(define-test-suite "Advanced Inference Features"
+  
+  (test "Record type inference"
+    ;; TODO: Test inference with record types when available
+    ;; Should infer field types and relationships
+    )
+  
+  (test "ADT pattern matching inference"
+    ;; TODO: Test that pattern matching generates correct constraints
+    ;; and infers types properly
+    )
+  
+  (test "Type class constraint inference"
+    ;; TODO: Test that type class constraints are inferred correctly
+    ;; Example: (lambda (x y) (+ x y)) should infer (Num a) => a -> a -> a
+    ))
+
+;; =============================================================================
+;; INFERENCE WITH ANNOTATIONS
+;; =============================================================================
+
+(define-test-suite "Inference with Type Annotations"
+  
+  (test "Partial type annotations"
+    ;; Test that partial annotations guide inference
+    (define partially-annotated
+      (lambda (x)
+        #:type (-> Number _)  ;; Infer return type
+        (+ x 1)))
+    
+    (assert-equal 43 (partially-annotated 42)))
+  
+  (test "Over-constrained annotations"
+    ;; Test that overly specific annotations are accepted
+    (define over-constrained
+      (lambda (x)
+        #:type (-> Number Number)  ;; Could be more general
+        x))
+    
+    (assert-equal 42 (over-constrained 42)))
+  
+  (test "Conflicting annotations"
+    ;; Test that conflicting annotations are detected
+    ;; TODO: This should be a type error
+    ;; (define conflicting
+    ;;   (lambda (x)
+    ;;     #:type (-> String Number)
+    ;;     (+ x 1)))  ;; x used as Number, not String
+    ))
+
+;; =============================================================================
+;; INFERENCE PERFORMANCE
+;; =============================================================================
+
+(define-test-suite "Type Inference Performance"
+  
+  (test "Linear inference time"
+    ;; Test that inference time grows reasonably with code size
+    ;; TODO: This requires performance measurement tools
+    )
+  
+  (test "Constraint solving efficiency"
+    ;; Test that complex constraint systems are solved efficiently
+    ;; TODO: Implement performance tests
+    )
+  
+  (test "Memory usage during inference"
+    ;; Test that inference doesn't use excessive memory
+    ;; TODO: Implement memory usage tests
+    ))
+
+;; =============================================================================
+;; INFERENCE DEBUGGING AND INTROSPECTION
+;; =============================================================================
+
+(define-test-suite "Inference Debugging and Introspection"
+  
+  (test "Type inference traces"
+    ;; TODO: Test that inference can produce traces for debugging
+    ;; (define traced-function (lambda (x) (+ x 1)))
+    ;; (assert-true (has-inference-trace? traced-function))
+    )
+  
+  (test "Constraint visualization"
+    ;; TODO: Test that generated constraints can be examined
+    )
+  
+  (test "Unification step tracking"
+    ;; TODO: Test that unification steps can be traced
+    ))
+
+;; =============================================================================
+;; INTEGRATION WITH OTHER FEATURES
+;; =============================================================================
+
+(define-test-suite "Inference Integration"
+  
+  (test "Integration with gradual typing"
+    ;; Test that inference works well with gradual typing boundaries
+    ;; TODO: Test inference across dynamic/static boundaries
+    )
+  
+  (test "Integration with macros"
+    ;; Test that inference works correctly with macro expansion
+    ;; TODO: Test that macro-generated code has correct types inferred
+    )
+  
+  (test "Integration with modules"
+    ;; Test that inference works across module boundaries
+    ;; TODO: Test type inference with imported/exported functions
+    ))
+
+;; =============================================================================
+;; INFERENCE LIMITS AND EDGE CASES
+;; =============================================================================
+
+(define-test-suite "Inference Limits and Edge Cases"
+  
+  (test "Inference with mutual recursion"
+    ;; Test inference with mutually recursive functions
+    (define even? 
+      (lambda (n)
+        (if (= n 0)
+            #t
+            (odd? (- n 1)))))
+    
+    (define odd?
+      (lambda (n)
+        (if (= n 0)
+            #f
+            (even? (- n 1)))))
+    
+    (assert-true (even? 4))
+    (assert-false (odd? 4)))
+  
+  (test "Inference with complex data structures"
+    ;; Test that complex nested structures are handled correctly
+    (define nested-function
+      (lambda (f)
+        (lambda (g)
+          (lambda (x)
+            (f (g x))))))
+    
+    ;; Should infer ∀a b c. (b -> c) -> (a -> b) -> a -> c
+    (define composed ((nested-function (lambda (x) (* x 2)))
+                     (lambda (x) (+ x 1))))
+    
+    (assert-equal 8 (composed 3)))
+  
+  (test "Inference failure recovery"
+    ;; Test that the system gracefully handles inference failures
+    ;; TODO: Test error recovery mechanisms
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Type Inference")
+(run-test-suite "Polymorphic Type Inference")
+(run-test-suite "Higher-Order Function Inference")
+(run-test-suite "Let Polymorphism")
+(run-test-suite "Constraint Generation and Solving")
+(run-test-suite "Type Error Detection")
+(run-test-suite "Advanced Inference Features")
+(run-test-suite "Inference with Type Annotations")
+(run-test-suite "Type Inference Performance")
+(run-test-suite "Inference Debugging and Introspection")
+(run-test-suite "Inference Integration")
+(run-test-suite "Inference Limits and Edge Cases")
+
+(display "Type inference test completed.\n")
+(display "This test verifies Hindley-Milner type inference and unification.\n")

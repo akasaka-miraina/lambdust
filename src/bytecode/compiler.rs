@@ -300,7 +300,9 @@ impl BytecodeCompiler {
         context: &mut CompilerContext,
     ) -> Result<()> {
         let constant_value = match literal {
-            Literal::Number(n) => ConstantValue::Number(*n),
+            Literal::ExactInteger(i) => ConstantValue::Number(*i as f64),
+            Literal::InexactReal(f) => ConstantValue::Number(*f),
+            Literal::Number(f) => ConstantValue::Number(*f),
             Literal::Rational { numerator, denominator } => {
                 // Convert rational to float for now
                 ConstantValue::Number(*numerator as f64 / *denominator as f64)

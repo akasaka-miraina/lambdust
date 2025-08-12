@@ -1,0 +1,361 @@
+#!/usr/bin/env lambdust
+;; Test file: R7RS Compliance
+;; Purpose: Verify R7RS-large compliance and standard library support
+;; Tests essential Scheme language features as defined by R7RS
+
+(import (scheme base)
+        (scheme write)
+        (scheme case-lambda)
+        (scheme char)
+        (scheme complex)
+        (scheme cxr)
+        (scheme eval)
+        (scheme file)
+        (scheme inexact)
+        (scheme lazy)
+        (scheme load)
+        (scheme process-context)
+        (scheme read)
+        (scheme repl)
+        (scheme time)
+        (lambdust test))
+
+;; =============================================================================
+;; R7RS BASE LIBRARY FEATURES
+;; =============================================================================
+
+(define-test-suite "R7RS Base Compliance"
+  
+  (test "Let bindings"
+    (assert-equal 6 (let ((x 2) (y 3)) (+ x y (* x y))))
+    (assert-equal 35 (let ((x 2) (y 3)) 
+                      (let ((x 7) (z (+ x y))) 
+                        (* z x))))
+    (assert-equal 70 (let* ((x 2) (y (* x 3))) (* x y))))
+  
+  (test "Letrec bindings"
+    (define fact 
+      (letrec ((f (lambda (n) 
+                    (if (= n 0) 1 (* n (f (- n 1)))))))
+        f))
+    (assert-equal 120 (fact 5))
+    (assert-equal 1 (fact 0)))
+  
+  (test "Conditional expressions"
+    (assert-equal 'yes (if #t 'yes 'no))
+    (assert-equal 'no (if #f 'yes 'no))
+    (assert-equal 'yes (if 42 'yes 'no))  ;; Non-#f is true
+    (assert-equal 'yes (if '() 'yes 'no)) ;; Empty list is true
+    
+    ;; One-armed if
+    (assert-unspecified (if #f 'never-reached))
+    (assert-equal 'reached (if #t 'reached)))
+  
+  (test "Cond expressions"
+    (assert-equal 'composite 
+                  (cond ((> 3 3) 'greater)
+                        ((< 3 3) 'less)
+                        (else 'composite)))
+    
+    (assert-equal 2 (cond ((assv 'b '((a 1) (b 2))) => cadr)
+                          (else #f)))
+    
+    ;; No matching clause
+    (assert-unspecified (cond (#f 'never))))
+  
+  (test "Case expressions"
+    (assert-equal 'consonant
+                  (case #\c
+                    ((#\a #\e #\i #\o #\u) 'vowel)
+                    (else 'consonant)))
+    
+    (assert-equal 'digit
+                  (case 4
+                    ((0 1 2 3 4 5 6 7 8 9) 'digit)
+                    (else 'not-digit))))
+  
+  (test "And/or short-circuit evaluation"
+    (assert-equal #t (and))
+    (assert-equal #f (or))
+    (assert-equal 4 (and 1 2 3 4))
+    (assert-equal #f (and 1 2 #f 4))
+    (assert-equal 2 (or #f 2 3))
+    
+    ;; Side effects should not occur
+    (let ((x 0))
+      (and #f (set! x 1))
+      (assert-equal 0 x))))
+
+;; =============================================================================
+;; LAMBDA AND PROCEDURE FEATURES
+;; =============================================================================
+
+(define-test-suite "Lambda and Procedure Features"
+  
+  (test "Basic lambda"
+    (assert-equal 5 ((lambda (x) (+ x 2)) 3))
+    (assert-equal 6 ((lambda (x y) (+ x y)) 2 4))
+    (assert-equal '() ((lambda () '()))))
+  
+  (test "Variable arity lambda"
+    (assert-equal '(3 4 5) ((lambda x x) 3 4 5))
+    (assert-equal 15 ((lambda (x . rest) (apply + x rest)) 1 2 3 4 5))
+    (assert-equal 1 ((lambda (x . rest) x) 1 2 3 4 5)))
+  
+  (test "Named let (iteration)"
+    (define (sum-to n)
+      (let loop ((i n) (acc 0))
+        (if (= i 0)
+            acc
+            (loop (- i 1) (+ acc i)))))
+    (assert-equal 15 (sum-to 5))
+    (assert-equal 0 (sum-to 0)))
+  
+  (test "Internal definitions"
+    (define (test-internal-def)
+      (define (internal x) (* x x))
+      (define y 5)
+      (internal y))
+    (assert-equal 25 (test-internal-def))))
+
+;; =============================================================================
+;; DYNAMIC FEATURES
+;; =============================================================================
+
+(define-test-suite "Dynamic Features"
+  
+  (test "Dynamic-wind"
+    (let ((path '())
+          (add (lambda (s) (set! path (cons s path)))))
+      (dynamic-wind
+        (lambda () (add 'before))
+        (lambda () (add 'during) 42)
+        (lambda () (add 'after)))
+      (assert-equal '(after during before) path)))
+  
+  (test "Parameter objects" 
+    ;; TODO: Requires (scheme base) parameters or SRFI-39
+    ;; (define p (make-parameter 10))
+    ;; (assert-equal 10 (p))
+    ;; (assert-equal 20 (parameterize ((p 20)) (p)))
+    )
+  
+  (test "Guard expressions"
+    (define (safe-divide x y)
+      (guard (condition
+              ((and (number? condition) (= condition 0)) 'division-by-zero)
+              (else 'other-error))
+        (/ x y)))
+    
+    ;; TODO: This requires proper exception system
+    ;; (assert-equal 2 (safe-divide 10 5))
+    ;; (assert-equal 'division-by-zero (safe-divide 10 0))
+    ))
+
+;; =============================================================================
+;; MACRO SYSTEM FEATURES
+;; =============================================================================
+
+(define-test-suite "Macro System Features"
+  
+  (test "Syntax-rules macros"
+    (define-syntax when
+      (syntax-rules ()
+        ((_ test body ...)
+         (if test (begin body ...)))))
+    
+    (let ((x 0))
+      (when #t (set! x 1) (set! x (+ x 1)))
+      (assert-equal 2 x))
+    
+    (let ((y 0))
+      (when #f (set! y 99))
+      (assert-equal 0 y)))
+  
+  (test "Ellipsis patterns"
+    (define-syntax let*
+      (syntax-rules ()
+        ((_ () body ...)
+         (begin body ...))
+        ((_ ((var val) . rest) body ...)
+         (let ((var val))
+           (let* rest body ...)))))
+    
+    (assert-equal 6 (let* ((x 2) (y (* x 3))) y)))
+  
+  (test "Macro hygiene"
+    (define-syntax swap!
+      (syntax-rules ()
+        ((_ a b)
+         (let ((temp a))
+           (set! a b)
+           (set! b temp)))))
+    
+    (let ((temp 'outer) (x 1) (y 2))
+      (swap! x y)
+      (assert-equal 2 x)
+      (assert-equal 1 y)
+      (assert-equal 'outer temp))))  ;; Hygiene preserved
+
+;; =============================================================================
+;; NUMERIC TOWER
+;; =============================================================================
+
+(define-test-suite "Numeric Tower"
+  
+  (test "Integer arithmetic"
+    (assert-true (integer? 42))
+    (assert-true (integer? -17))
+    (assert-true (integer? 0))
+    (assert-false (integer? 3.14))
+    
+    (assert-equal 8 (expt 2 3))
+    (assert-equal 1/8 (expt 2 -3))
+    (assert-equal 3 (quotient 10 3))
+    (assert-equal 1 (remainder 10 3))
+    (assert-equal 1 (modulo 10 3)))
+  
+  (test "Rational arithmetic"
+    (assert-true (rational? 1/3))
+    (assert-true (rational? 42))
+    (assert-equal 1/6 (* 1/2 1/3))
+    (assert-equal 5/6 (+ 1/2 1/3))
+    (assert-equal 3/2 (/ 1/2 1/3)))
+  
+  (test "Real arithmetic"
+    (assert-true (real? 3.14))
+    (assert-true (real? 1/3))
+    (assert-true (real? -42))
+    
+    (assert-equal 5.0 (sqrt 25))
+    (assert-equal 1.0 (sin (/ 3.14159265 2)))  ;; Approximate
+    (assert-equal 1.0 (exp 0)))
+  
+  (test "Complex arithmetic"
+    ;; TODO: Requires (scheme complex)
+    ;; (assert-true (complex? 3+4i))
+    ;; (assert-equal 5.0 (magnitude 3+4i))
+    ;; (assert-equal 3 (real-part 3+4i))
+    ;; (assert-equal 4 (imag-part 3+4i))
+    ))
+
+;; =============================================================================
+;; CHARACTER AND STRING FEATURES
+;; =============================================================================
+
+(define-test-suite "Character and String Features"
+  
+  (test "Character operations"
+    (assert-true (char? #\a))
+    (assert-true (char=? #\a #\a))
+    (assert-false (char=? #\a #\b))
+    (assert-true (char<? #\a #\b))
+    
+    (assert-equal #\A (char-upcase #\a))
+    (assert-equal #\a (char-downcase #\A))
+    
+    (assert-true (char-alphabetic? #\a))
+    (assert-true (char-numeric? #\5))
+    (assert-true (char-whitespace? #\space)))
+  
+  (test "String operations"
+    (assert-equal "hello world" (string-append "hello" " " "world"))
+    (assert-equal "olleh" (list->string (reverse (string->list "hello"))))
+    
+    (assert-equal "sub" (substring "substring" 0 3))
+    (assert-equal "string" (substring "substring" 3 9))
+    
+    (assert-true (string=? "hello" "hello"))
+    (assert-false (string=? "hello" "Hello"))
+    (assert-true (string<? "apple" "banana"))))
+
+;; =============================================================================
+;; PORT AND I/O FEATURES
+;; =============================================================================
+
+(define-test-suite "Port and I/O Features"
+  
+  (test "Port predicates"
+    (assert-true (input-port? (current-input-port)))
+    (assert-true (output-port? (current-output-port)))
+    (assert-true (textual-port? (current-input-port)))
+    
+    ;; TODO: Test binary ports when implemented
+    )
+  
+  (test "String ports"
+    ;; TODO: Implement string ports for testing
+    ;; (define sp (open-input-string "hello world"))
+    ;; (assert-equal 'hello (read sp))
+    ;; (assert-equal 'world (read sp))
+    ))
+
+;; =============================================================================
+;; EVAL AND ENVIRONMENTS
+;; =============================================================================
+
+(define-test-suite "Eval and Environments"
+  
+  (test "Evaluation"
+    ;; TODO: Requires (scheme eval)
+    ;; (assert-equal 7 (eval '(+ 3 4) (scheme-report-environment 7)))
+    ;; (assert-equal 42 (eval 42 (null-environment 7)))
+    )
+  
+  (test "Environments"
+    ;; TODO: Test environment operations
+    ))
+
+;; =============================================================================
+;; LIBRARY SYSTEM FEATURES
+;; =============================================================================
+
+(define-test-suite "Library System Features"
+  
+  (test "Import declarations"
+    ;; Basic imports tested by the fact this file loads
+    (assert-true #t))
+  
+  (test "Library definitions"
+    ;; TODO: Test define-library forms
+    ;; This requires loading external library files
+    ))
+
+;; =============================================================================
+;; SRFI FEATURES (R7RS-large)
+;; =============================================================================
+
+(define-test-suite "SRFI Features"
+  
+  (test "SRFI-1 List Library"
+    ;; TODO: Import (srfi 1) when available
+    ;; (import (srfi 1))
+    ;; (assert-equal '(1 4 9 16) (map square '(1 2 3 4)))
+    ;; (assert-equal 10 (fold + 0 '(1 2 3 4)))
+    )
+  
+  (test "SRFI-23 Error reporting"
+    ;; Should be in base
+    (assert-error 'user-error (error "test error")))
+  
+  (test "SRFI-39 Parameter objects"
+    ;; TODO: Test when implemented
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "R7RS Base Compliance")
+(run-test-suite "Lambda and Procedure Features")
+(run-test-suite "Dynamic Features")
+(run-test-suite "Macro System Features")
+(run-test-suite "Numeric Tower")
+(run-test-suite "Character and String Features")
+(run-test-suite "Port and I/O Features")
+(run-test-suite "Eval and Environments")
+(run-test-suite "Library System Features")
+(run-test-suite "SRFI Features")
+
+(display "R7RS compliance test completed.\n")
+(display "This test verifies standard Scheme language features.\n")

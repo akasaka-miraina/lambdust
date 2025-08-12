@@ -24,6 +24,7 @@ pub mod syntax_rules;
 // Individual structure modules
 pub mod macro_transformer;
 pub mod macro_expander;
+pub mod gc_integration;
 
 pub use pattern::*;
 pub use template::*;
@@ -40,6 +41,10 @@ pub use syntax_rules::{
 // Re-export individual structures
 pub use macro_transformer::*;
 pub use macro_expander::*;
+pub use gc_integration::{
+    GcMacroCoordinator, GcMacroConfig, ExpansionId, ExpansionContext,
+    GcMacroExpansionResult, MacroExpansionStatistics, MacroExpanderGcExt
+};
 
 /// Global counter for generating unique identifiers for hygiene.
 static HYGIENE_COUNTER: AtomicU64 = AtomicU64::new(0);

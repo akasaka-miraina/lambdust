@@ -35,6 +35,10 @@ pub mod recovery_config;
 /// Parser builder for configurable parser construction.
 pub mod parser_builder;
 
+/// Integration tests for character literal parsing.
+#[cfg(test)]
+mod character_test_integration;
+
 // Re-export individual structures
 pub use parser_config::*;
 pub use parser::*;

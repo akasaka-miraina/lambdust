@@ -55,11 +55,18 @@ pub enum EvalStep {
         location: Option<Span>,
     },
     
-    /// Handle a captured continuation
+    /// Handle a captured continuation with non-local jump
     CallContinuation {
         continuation: Arc<Continuation>,
         value: Value,
     },
+    
+    /// Non-local jump - immediately return value, bypassing all computation
+    NonLocalJump {
+        value: Value,
+        target_stack_depth: usize,
+    },
+    
     
     /// Evaluation error
     Error(Error),
@@ -97,6 +104,8 @@ pub struct Evaluator {
     module_system: ModuleSystem,
     /// Scheme library loader for SRFI modules
     scheme_loader: SchemeLibraryLoader,
+    /// Active call/cc context for proper continuation scoping
+    call_cc_context: Option<u64>,
 }
 
 impl Evaluator {
@@ -118,6 +127,7 @@ impl Evaluator {
             context_stack: Vec::new(),
             module_system,
             scheme_loader,
+            call_cc_context: None,
         }
     }
 
@@ -139,6 +149,7 @@ impl Evaluator {
             context_stack: Vec::new(),
             module_system,
             scheme_loader,
+            call_cc_context: None,
         }
     }
 
@@ -160,6 +171,7 @@ impl Evaluator {
             context_stack: Vec::new(),
             module_system,
             scheme_loader,
+            call_cc_context: None,
         }
     }
 
@@ -188,6 +200,10 @@ impl Evaluator {
                 }
                 EvalStep::CallContinuation { continuation, value } => {
                     self.call_continuation(continuation, value)
+                }
+                EvalStep::NonLocalJump { value, target_stack_depth: _ } => {
+                    // Non-local jump immediately returns the value, bypassing all computation
+                    return Ok(value);
                 }
             };
         }
@@ -254,6 +270,10 @@ impl Evaluator {
                     EvalStep::CallContinuation { continuation, value } => {
                         self.call_continuation(continuation, value)
                     }
+                    EvalStep::NonLocalJump { value, target_stack_depth: _ } => {
+                        // Non-local jump immediately returns the value
+                        return Ok(value);
+                    }
                 };
             }
         }
@@ -276,6 +296,10 @@ impl Evaluator {
                     }
                     EvalStep::CallContinuation { continuation, value } => {
                         self.call_continuation(continuation, value)
+                    }
+                    EvalStep::NonLocalJump { value, target_stack_depth: _ } => {
+                        // Non-local jump immediately returns the value
+                        return Ok(value);
                     }
                 };
             }
@@ -304,6 +328,10 @@ impl Evaluator {
                     }
                     EvalStep::CallContinuation { continuation, value } => {
                         self.call_continuation(continuation, value)
+                    }
+                    EvalStep::NonLocalJump { value, target_stack_depth: _ } => {
+                        // Non-local jump immediately returns the value
+                        return Ok(value);
                     }
                 };
             }
@@ -357,7 +385,7 @@ impl Evaluator {
     }
 
     /// Performs a single evaluation step.
-    fn eval_step(&mut self, expr: &Spanned<Expr>, env: Rc<Environment>) -> EvalStep {
+    pub fn eval_step(&mut self, expr: &Spanned<Expr>, env: Rc<Environment>) -> EvalStep {
         match &expr.inner {
             // Self-evaluating expressions
             Expr::Literal(lit) => self.eval_self_evaluating_literal(lit),
@@ -368,6 +396,9 @@ impl Evaluator {
 
             // Special forms
             Expr::Quote(quoted) => self.eval_quote(quoted),
+            Expr::Quasiquote(template) => self.eval_quasiquote(template, env, expr.span),
+            Expr::Unquote(unquoted) => self.eval_unquote(unquoted, env, expr.span),
+            Expr::UnquoteSplicing(spliced) => self.eval_unquote_splicing(spliced, env, expr.span),
             Expr::Lambda { formals, metadata, body } => {
                 self.eval_lambda(formals, metadata, body, env.clone(), expr.span)
             }
@@ -430,6 +461,18 @@ impl Evaluator {
             Expr::Pair { car, cdr } => {
                 self.eval_pair_construction(car, cdr, env)
             }
+            
+            // Direct list evaluation (for quoted lists)
+            Expr::List(elements) => {
+                let mut values = Vec::new();
+                for element in elements {
+                    match self.ast_to_value(&element.inner) {
+                        Ok(value) => values.push(value),
+                        Err(e) => return EvalStep::Error(*e),
+                    }
+                }
+                EvalStep::Return(Value::list(values))
+            }
 
             // Unimplemented forms
             _ => EvalStep::Error(Error::runtime_error(
@@ -446,6 +489,218 @@ impl Evaluator {
             Ok(value) => EvalStep::Return(value),
             Err(e) => EvalStep::Error(*e),
         }
+    }
+
+    /// Evaluates a quasiquote template.
+    fn eval_quasiquote(&mut self, template: &Spanned<Expr>, env: Rc<Environment>, span: Span) -> EvalStep {
+        match self.quasiquote_expand(template, 1, &env) {
+            Ok(value) => EvalStep::Return(value),
+            Err(e) => EvalStep::Error(Error::runtime_error(
+                format!("Quasiquote expansion error: {e}"),
+                Some(span),
+            )),
+        }
+    }
+
+    /// Evaluates an unquote expression (error outside of quasiquote).
+    fn eval_unquote(&mut self, _unquoted: &Spanned<Expr>, _env: Rc<Environment>, span: Span) -> EvalStep {
+        EvalStep::Error(Error::runtime_error(
+            "unquote: not in quasiquote",
+            Some(span),
+        ))
+    }
+
+    /// Evaluates an unquote-splicing expression (error outside of quasiquote).
+    fn eval_unquote_splicing(&mut self, _spliced: &Spanned<Expr>, _env: Rc<Environment>, span: Span) -> EvalStep {
+        EvalStep::Error(Error::runtime_error(
+            "unquote-splicing: not in quasiquote",
+            Some(span),
+        ))
+    }
+
+    /// Core quasiquote expansion with nesting level tracking.
+    /// 
+    /// This implements the R7RS-small specification for quasiquote:
+    /// - level 0: evaluate and substitute
+    /// - level > 0: preserve structure while decrementing level for nested unquotes
+    fn quasiquote_expand(&mut self, template: &Spanned<Expr>, level: i32, env: &Rc<Environment>) -> Result<Value> {
+        match &template.inner {
+            // Unquote: evaluate if level == 1, otherwise preserve structure
+            Expr::Unquote(inner) => {
+                if level == 1 {
+                    // Evaluate the unquoted expression
+                    self.eval(inner, env.clone())
+                } else {
+                    // Preserve unquote structure with decremented level
+                    let inner_value = self.quasiquote_expand(inner, level - 1, env)?;
+                    Ok(Value::list(vec![
+                        Value::symbol_from_str("unquote"),
+                        inner_value,
+                    ]))
+                }
+            }
+            
+            // Unquote-splicing: evaluate and splice if level == 1
+            Expr::UnquoteSplicing(inner) => {
+                if level == 1 {
+                    // This should only appear in list contexts - handle in list processing
+                    Err(Box::new(Error::runtime_error(
+                        "unquote-splicing: not in list context",
+                        Some(template.span),
+                    )))
+                } else {
+                    // Preserve unquote-splicing structure with decremented level  
+                    let inner_value = self.quasiquote_expand(inner, level - 1, env)?;
+                    Ok(Value::list(vec![
+                        Value::symbol_from_str("unquote-splicing"),
+                        inner_value,
+                    ]))
+                }
+            }
+            
+            // Nested quasiquote: increment level
+            Expr::Quasiquote(inner) => {
+                let inner_value = self.quasiquote_expand(inner, level + 1, env)?;
+                Ok(Value::list(vec![
+                    Value::symbol_from_str("quasiquote"),
+                    inner_value,
+                ]))
+            }
+            
+            // Lists: process each element, handling splicing
+            Expr::List(elements) => {
+                self.quasiquote_expand_list(elements, level, env)
+            }
+            
+            // Pairs: process both car and cdr
+            Expr::Pair { car, cdr } => {
+                let car_value = self.quasiquote_expand(car, level, env)?;
+                let cdr_value = self.quasiquote_expand(cdr, level, env)?;
+                Ok(Value::pair(car_value, cdr_value))
+            }
+            
+            // Applications that might contain unquoting
+            Expr::Application { operator, operands } => {
+                // Check for unquote/unquote-splicing in operator position
+                match &operator.inner {
+                    Expr::Identifier(name) if name == "unquote" && level == 1 => {
+                        if operands.len() != 1 {
+                            return Err(Box::new(Error::runtime_error(
+                                "unquote: wrong number of arguments",
+                                Some(template.span),
+                            )));
+                        }
+                        self.eval(&operands[0], env.clone())
+                    }
+                    Expr::Identifier(name) if name == "unquote-splicing" && level == 1 => {
+                        Err(Box::new(Error::runtime_error(
+                            "unquote-splicing: not in list context",
+                            Some(template.span),
+                        )))
+                    }
+                    _ => {
+                        // Regular application - expand operator and operands
+                        let op_value = self.quasiquote_expand(operator, level, env)?;
+                        let mut operand_values = Vec::new();
+                        for operand in operands {
+                            operand_values.push(self.quasiquote_expand(operand, level, env)?);
+                        }
+                        let mut result = vec![op_value];
+                        result.extend(operand_values);
+                        Ok(Value::list(result))
+                    }
+                }
+            }
+            
+            // Other expressions: convert to value as-is
+            _ => {
+                self.ast_to_value(&template.inner)
+            }
+        }
+    }
+    
+    /// Expands a list in quasiquote context, handling unquote-splicing.
+    fn quasiquote_expand_list(&mut self, elements: &[Spanned<Expr>], level: i32, env: &Rc<Environment>) -> Result<Value> {
+        let mut result = Vec::new();
+        
+        for element in elements {
+            match &element.inner {
+                // Handle unquote-splicing at the correct level
+                Expr::UnquoteSplicing(inner) if level == 1 => {
+                    let spliced_value = self.eval(inner, env.clone())?;
+                    // Splice the list elements into the result
+                    match spliced_value {
+                        Value::Nil => {
+                            // Nothing to splice
+                        }
+                        Value::Pair(car, cdr) => {
+                            // Flatten the list into individual elements
+                            let mut current = Value::Pair(car, cdr);
+                            while let Value::Pair(car, cdr) = current {
+                                result.push((*car).clone());
+                                current = (*cdr).clone();
+                            }
+                            // Handle improper list tail
+                            if !matches!(current, Value::Nil) {
+                                return Err(Box::new(Error::runtime_error(
+                                    "unquote-splicing: not a proper list",
+                                    Some(element.span),
+                                )));
+                            }
+                        }
+                        _ => {
+                            return Err(Box::new(Error::runtime_error(
+                                "unquote-splicing: not a list",
+                                Some(element.span),
+                            )));
+                        }
+                    }
+                }
+                
+                // Handle applications with unquote-splicing
+                Expr::Application { operator, operands } 
+                    if matches!(&operator.inner, Expr::Identifier(name) if name == "unquote-splicing") 
+                    && level == 1 => {
+                    if operands.len() != 1 {
+                        return Err(Box::new(Error::runtime_error(
+                            "unquote-splicing: wrong number of arguments",
+                            Some(element.span),
+                        )));
+                    }
+                    let spliced_value = self.eval(&operands[0], env.clone())?;
+                    // Same splicing logic as above
+                    match spliced_value {
+                        Value::Nil => {}
+                        Value::Pair(car, cdr) => {
+                            let mut current = Value::Pair(car, cdr);
+                            while let Value::Pair(car, cdr) = current {
+                                result.push((*car).clone());
+                                current = (*cdr).clone();
+                            }
+                            if !matches!(current, Value::Nil) {
+                                return Err(Box::new(Error::runtime_error(
+                                    "unquote-splicing: not a proper list",
+                                    Some(element.span),
+                                )));
+                            }
+                        }
+                        _ => {
+                            return Err(Box::new(Error::runtime_error(
+                                "unquote-splicing: not a list",
+                                Some(element.span),
+                            )));
+                        }
+                    }
+                }
+                
+                // Regular element - expand normally
+                _ => {
+                    result.push(self.quasiquote_expand(element, level, env)?);
+                }
+            }
+        }
+        
+        Ok(Value::list(result))
     }
 
     /// Evaluates a lambda expression (creates a closure).
@@ -736,16 +991,19 @@ impl Evaluator {
     ) -> EvalStep {
         self.stack_trace.push(StackFrame::special_form("call/cc".to_string(), Some(span)));
 
+        // Capture the current continuation BEFORE evaluating the procedure
+        // This captures the context surrounding the call/cc expression
+        let continuation = self.capture_continuation(env.clone(), None);
+        let cont_value = Value::Continuation(Arc::new(continuation));
+
         // Evaluate the procedure
         match self.eval(proc_expr, env.clone()) {
             Ok(procedure) => {
-                // Create a continuation that captures the current evaluation context
-                let continuation = self.capture_continuation(env.clone(), None);
-                let cont_value = Value::Continuation(Arc::new(continuation));
-                
                 self.stack_trace.pop();
                 
                 // Apply the procedure to the continuation
+                // This is where the magic happens - the procedure receives the continuation
+                // that represents "the rest of the computation after call/cc returns"
                 EvalStep::TailCall {
                     procedure,
                     args: vec![cont_value],
@@ -826,31 +1084,91 @@ impl Evaluator {
             }
         }
         
-        // Evaluate operator normally
-        match self.eval(operator, env.clone()) {
-            Ok(procedure) => {
-                // Evaluate operands
-                let mut args = Vec::new();
-                for operand in operands {
-                    match self.eval(operand, env.clone()) {
-                        Ok(value) => args.push(value),
-                        Err(e) => return EvalStep::Error(*e),
+        // For proper continuation support, we need to evaluate operator and operands
+        // through the trampoline system instead of direct eval() calls
+        // This ensures that continuation calls can properly escape from deep evaluation contexts
+        
+        // Use a more robust evaluation approach that handles continuations properly
+        self.eval_application_with_continuation_support(operator, operands, env, span)
+    }
+    
+    /// Evaluates application with proper continuation support.
+    /// This method handles continuation calls that can escape from deep evaluation contexts.
+    fn eval_application_with_continuation_support(
+        &mut self,
+        operator: &Spanned<Expr>,
+        operands: &[Spanned<Expr>],
+        env: Rc<Environment>,
+        span: Span,
+    ) -> EvalStep {
+        // First, evaluate the operator
+        let mut step = EvalStep::Continue {
+            expr: operator.clone(),
+            env: env.clone(),
+        };
+        
+        // Use mini-trampoline to evaluate operator
+        let procedure = loop {
+            step = match step {
+                EvalStep::Return(value) => break value,
+                EvalStep::Error(error) => return EvalStep::Error(error),
+                EvalStep::NonLocalJump { value, target_stack_depth: _ } => {
+                    // Continuation call during operator evaluation 
+                    // Return the continuation value directly
+                    return EvalStep::Return(value);
+                }
+                EvalStep::Continue { expr, env } => self.eval_step(&expr, env),
+                EvalStep::TailCall { procedure, args, location } => {
+                    self.apply_procedure(procedure, args, location)
+                }
+                EvalStep::CallContinuation { continuation, value } => {
+                    self.call_continuation(continuation, value)
+                }
+            };
+        };
+        
+        // Now evaluate operands one by one
+        let mut args = Vec::new();
+        for operand in operands {
+            let mut step = EvalStep::Continue {
+                expr: operand.clone(),
+                env: env.clone(),
+            };
+            
+            // Use mini-trampoline to evaluate each operand
+            let arg_value = loop {
+                step = match step {
+                    EvalStep::Return(value) => break value,
+                    EvalStep::Error(error) => return EvalStep::Error(error),
+                    EvalStep::NonLocalJump { value, target_stack_depth: _ } => {
+                        // Continuation call during operand evaluation 
+                        // This means a continuation was called somewhere in the operand
+                        // We should return this value instead of continuing with application
+                        return EvalStep::Return(value);
                     }
-                }
-
-                // Apply procedure to arguments (tail call)
-                EvalStep::TailCall {
-                    procedure,
-                    args,
-                    location: Some(span),
-                }
-            }
-            Err(e) => EvalStep::Error(*e),
+                    EvalStep::Continue { expr, env } => self.eval_step(&expr, env),
+                    EvalStep::TailCall { procedure, args, location } => {
+                        self.apply_procedure(procedure, args, location)
+                    }
+                    EvalStep::CallContinuation { continuation, value } => {
+                        self.call_continuation(continuation, value)
+                    }
+                };
+            };
+            
+            args.push(arg_value);
+        }
+        
+        // Apply procedure to arguments (tail call)
+        EvalStep::TailCall {
+            procedure,
+            args,
+            location: Some(span),
         }
     }
 
     /// Applies a procedure to arguments.
-    fn apply_procedure(&mut self, procedure: Value, args: Vec<Value>, location: Option<Span>) -> EvalStep {
+    pub fn apply_procedure(&mut self, procedure: Value, args: Vec<Value>, location: Option<Span>) -> EvalStep {
         match procedure {
             Value::Procedure(proc) => self.apply_user_procedure(&proc, args, location),
             Value::CaseLambda(case_lambda) => self.apply_case_lambda_procedure(&case_lambda, args, location),
@@ -1035,6 +1353,7 @@ impl Evaluator {
         let result = match &prim.implementation {
             PrimitiveImpl::RustFn(f) => f(&args),
             PrimitiveImpl::Native(f) => f(&args),
+            PrimitiveImpl::EvaluatorIntegrated(f) => f(self, &args),
             PrimitiveImpl::ForeignFn { library: _, symbol: _ } => {
                 // TODO: Implement FFI calls
                 Err(Box::new(Error::runtime_error(
@@ -1053,27 +1372,19 @@ impl Evaluator {
     }
 
     /// Calls a continuation.
-    fn call_continuation(&mut self, continuation: Arc<Continuation>, value: Value) -> EvalStep {
-        // Check if this continuation has already been invoked (one-shot semantics)
-        if continuation.is_invoked() {
-            return EvalStep::Error(Error::runtime_error(
-                "Attempt to invoke continuation more than once".to_string(),
-                None,
-            ));
-        }
-
-        // Mark the continuation as invoked
-        continuation.mark_invoked();
-
-        // Restore the captured evaluation context
+    pub fn call_continuation(&mut self, continuation: Arc<Continuation>, value: Value) -> EvalStep {
+        // Restore the continuation context and continue computation with the provided value
         self.restore_continuation(&continuation, value)
     }
 
     /// Captures the current continuation.
+    /// This preserves the evaluation context so it can be restored during continuation invocation.
     fn capture_continuation(&self, env: Rc<Environment>, current_expr: Option<Spanned<Expr>>) -> Continuation {
-        // Clone the current context stack
+        // Clone the current context stack - this represents the "rest of the computation"
+        // that would normally be executed after the call/cc returns
         let captured_stack = self.context_stack.clone();
         
+        // Create the continuation with captured evaluation context
         Continuation::new(
             captured_stack,
             env.to_thread_safe(),
@@ -1083,14 +1394,18 @@ impl Evaluator {
     }
 
     /// Restores a captured continuation and returns the given value.
+    /// This implements the non-local jump semantics of call/cc.
     fn restore_continuation(&mut self, continuation: &Continuation, value: Value) -> EvalStep {
-        // Restore the context stack
+        // Restore the context stack to the state when continuation was captured
         self.context_stack = continuation.stack.clone();
         
-        // The continuation essentially performs a non-local exit
-        // by abandoning the current computation and returning the value
-        // in the context where the continuation was captured
-        EvalStep::Return(value)
+        // The key insight: we need to perform a controlled non-local jump that
+        // escapes from the current procedure context but preserves the outer
+        // computation context that was captured in the continuation
+        EvalStep::NonLocalJump {
+            value,
+            target_stack_depth: continuation.stack.len(),
+        }
     }
 
     /// Pushes a frame onto the context stack.
@@ -1138,99 +1453,154 @@ impl Evaluator {
     }
 
     /// Evaluates a let expression.
+    /// 
+    /// `let` is implemented by transformation to lambda application:
+    /// `(let ((x e1) (y e2)) body...)` => `((lambda (x y) body...) e1 e2)`
     fn eval_let(
         &mut self,
         bindings: &[crate::ast::Binding],
         body: &[Spanned<Expr>],
         env: Rc<Environment>,
-        _span: Span,
+        span: Span,
     ) -> EvalStep {
-        // Create new environment
-        let new_env = env.extend(self.generation);
-
-        // Evaluate all binding values in the original environment
-        for binding in bindings {
-            match self.eval(&binding.value, env.clone()) {
-                Ok(value) => new_env.define(binding.name.clone(), value),
-                Err(e) => return EvalStep::Error(*e),
-            }
+        if bindings.is_empty() {
+            // Empty let - just evaluate the body in current environment
+            return self.eval_sequence(body, env);
         }
 
-        // Evaluate body in new environment
-        self.eval_sequence(body, new_env)
+        // Extract names and values from bindings
+        let names: Vec<String> = bindings.iter().map(|b| b.name.clone()).collect();
+        let values: Vec<Spanned<Expr>> = bindings.iter().map(|b| b.value.clone()).collect();
+
+        // Create formals for the lambda
+        let formals = Formals::Fixed(names);
+
+        // Create the lambda expression
+        let lambda_expr = Expr::Lambda {
+            formals,
+            metadata: std::collections::HashMap::new(),
+            body: body.to_vec(),
+        };
+
+        // Create the lambda application
+        let app_expr = Expr::Application {
+            operator: Box::new(Spanned::new(lambda_expr, span)),
+            operands: values,
+        };
+
+        // Continue evaluation with the transformed expression
+        EvalStep::Continue {
+            expr: Spanned::new(app_expr, span),
+            env,
+        }
     }
 
     /// Evaluates a let* expression.
+    /// 
+    /// `let*` is implemented by transformation to nested lambda applications:
+    /// `(let* ((x e1) (y e2)) body...)` => `((lambda (x) ((lambda (y) body...) e2)) e1)`
     fn eval_let_star(
         &mut self,
         bindings: &[crate::ast::Binding],
         body: &[Spanned<Expr>],
         env: Rc<Environment>,
-        _span: Span,
+        span: Span,
     ) -> EvalStep {
-        let mut current_env = env;
-
-        // Process bindings sequentially
-        for binding in bindings {
-            match self.eval(&binding.value, current_env.clone()) {
-                Ok(value) => {
-                    let new_env = current_env.extend(self.generation);
-                    new_env.define(binding.name.clone(), value);
-                    current_env = new_env;
-                }
-                Err(e) => return EvalStep::Error(*e),
-            }
+        if bindings.is_empty() {
+            // Empty let* - just evaluate the body in current environment
+            return self.eval_sequence(body, env);
         }
 
-        // Evaluate body in final environment
-        self.eval_sequence(body, current_env)
+        // Transform let* to nested lambda applications (right-to-left)
+        let mut result_expr = if body.len() == 1 {
+            // Single body expression
+            body[0].inner.clone()
+        } else {
+            // Multiple body expressions - wrap in begin
+            Expr::Begin(body.to_vec())
+        };
+
+        // Build nested lambda applications from right to left
+        for binding in bindings.iter().rev() {
+            let lambda_expr = Expr::Lambda {
+                formals: Formals::Fixed(vec![binding.name.clone()]),
+                metadata: std::collections::HashMap::new(),
+                body: vec![Spanned::new(result_expr, span)],
+            };
+
+            result_expr = Expr::Application {
+                operator: Box::new(Spanned::new(lambda_expr, span)),
+                operands: vec![binding.value.clone()],
+            };
+        }
+
+        // Continue evaluation with the transformed expression
+        EvalStep::Continue {
+            expr: Spanned::new(result_expr, span),
+            env,
+        }
     }
 
     /// Evaluates a letrec expression.
+    /// 
+    /// `letrec` uses the "assignment" transformation approach:
+    /// Transform to: (let ((x #<unspecified>) ...) (set! x expr) ... body...)
+    /// This allows recursive references to work properly.
     fn eval_letrec(
         &mut self,
         bindings: &[crate::ast::Binding],
         body: &[Spanned<Expr>],
         env: Rc<Environment>,
-        _span: Span,
+        span: Span,
     ) -> EvalStep {
-        // Create new environment
-        let new_env = env.extend(self.generation);
-
-        // First pass: bind all names to unspecified
-        for binding in bindings {
-            new_env.define(binding.name.clone(), Value::Unspecified);
+        if bindings.is_empty() {
+            // Empty letrec - just evaluate the body in current environment
+            return self.eval_sequence(body, env);
         }
 
-        // Second pass: evaluate all expressions and update bindings
-        for binding in bindings {
-            match self.eval(&binding.value, new_env.clone()) {
-                Ok(value) => {
-                    new_env.define(binding.name.clone(), value);
-                }
-                Err(e) => return EvalStep::Error(*e),
+        // Transform letrec to let + set! pattern
+        // (letrec ((x e1) (y e2)) body...) 
+        // =>
+        // (let ((x #<unspecified>) (y #<unspecified>)) (set! x e1) (set! y e2) body...)
+        
+        // Create let bindings with unspecified values
+        let let_bindings: Vec<crate::ast::Binding> = bindings.iter().map(|b| {
+            crate::ast::Binding {
+                name: b.name.clone(),
+                value: Spanned::new(
+                    Expr::Literal(crate::ast::Literal::Unspecified),
+                    span
+                ),
             }
-        }
+        }).collect();
 
-        // Third pass: fix procedure environments to ensure they see the final state
-        for binding in bindings {
-            if let Some(Value::Procedure(proc_arc)) = new_env.lookup(&binding.name) {
-                let proc = proc_arc.as_ref();
-                let updated_proc = Procedure {
-                    formals: proc.formals.clone(),
-                    body: proc.body.clone(),
-                    environment: new_env.to_thread_safe(), // Capture final environment state
-                    name: Some(binding.name.clone()),
-                    metadata: proc.metadata.clone(),
-                    source: proc.source,
-                };
-                new_env.define(binding.name.clone(), Value::Procedure(Arc::new(updated_proc)));
-            }
-        }
+        // Create set! expressions
+        let mut set_exprs: Vec<Spanned<Expr>> = bindings.iter().map(|b| {
+            Spanned::new(
+                Expr::Set {
+                    name: b.name.clone(),
+                    value: Box::new(b.value.clone()),
+                },
+                span
+            )
+        }).collect();
 
-        // Evaluate body in new environment
-        self.eval_sequence(body, new_env)
+        // Add body expressions
+        set_exprs.extend_from_slice(body);
+
+        // Create the transformed let expression
+        let transformed_expr = Expr::Let {
+            bindings: let_bindings,
+            body: set_exprs,
+        };
+
+        // Continue evaluation with the transformed expression
+        EvalStep::Continue {
+            expr: Spanned::new(transformed_expr, span),
+            env,
+        }
     }
+
 
     /// Evaluates a cond expression.
     fn eval_cond(
@@ -1608,6 +1978,14 @@ impl Evaluator {
                 let cdr_val = self.ast_to_value(&cdr.inner)?;
                 Ok(Value::pair(car_val, cdr_val))
             }
+            Expr::List(elements) => {
+                // Convert list elements to values
+                let mut values = Vec::new();
+                for element in elements {
+                    values.push(self.ast_to_value(&element.inner)?);
+                }
+                Ok(Value::list(values))
+            }
             Expr::Application { operator, operands } => {
                 // Convert to list
                 let mut values = vec![self.ast_to_value(&operator.inner)?];
@@ -1861,9 +2239,13 @@ impl Evaluator {
             match &element.inner {
                 Expr::Identifier(name) => components.push(name.clone()),
                 Expr::Symbol(name) => components.push(name.clone()),
-                Expr::Literal(crate::ast::Literal::Number(n)) => {
+                Expr::Literal(literal) if literal.is_number() => {
                     // Handle numeric components like "41" in (srfi 41)
-                    components.push(format!("{}", *n as i64));
+                    if let Some(n) = literal.to_f64() {
+                        components.push(format!("{}", n as i64));
+                    } else {
+                        components.push("0".to_string());
+                    }
                 }
                 _ => return Err(Box::new(Error::syntax_error(
                     format!("Module identifier components must be symbols or numbers, found: {:?}", element.inner),
@@ -2139,7 +2521,10 @@ mod tests {
         let result = evaluator.eval(&spanned(call_cc_expr), env);
         
         match result {
-            Ok(Value::Literal(Literal::Number(n))) => {
+            Ok(Value::Literal(Literal::ExactInteger(n))) => {
+                assert_eq!(n, 42);
+            }
+            Ok(Value::Literal(Literal::InexactReal(n))) => {
                 assert_eq!(n, 42.0);
             }
             Ok(other) => panic!("Expected number 42, got {other:?}"),
@@ -2179,7 +2564,7 @@ mod tests {
     }
 
     #[test]
-    fn test_continuation_one_shot_semantics() {
+    fn test_continuation_multiple_calls() {
         let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
         let continuation = Arc::new(Continuation::new(
             vec![],
@@ -2190,6 +2575,7 @@ mod tests {
         
         let mut evaluator = Evaluator::new();
         
+        // Under R7RS semantics, continuations can be called multiple times
         // First invocation should succeed
         let result1 = evaluator.call_continuation(continuation.clone(), Value::integer(42));
         match result1 {
@@ -2199,14 +2585,13 @@ mod tests {
             other => panic!("Expected return of 42, got {other:?}"),
         }
         
-        // Second invocation should fail
+        // Second invocation should now also succeed under R7RS semantics
         let result2 = evaluator.call_continuation(continuation, Value::integer(84));
         match result2 {
-            EvalStep::Error(e) => {
-                let error_msg = format!("{e:?}");
-                assert!(error_msg.contains("more than once"));
+            EvalStep::Return(Value::Literal(Literal::Number(n))) => {
+                assert_eq!(n, 84.0);
             }
-            other => panic!("Expected error for second invocation, got {other:?}"),
+            other => panic!("Expected return of 84, got {other:?}"),
         }
     }
 

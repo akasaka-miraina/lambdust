@@ -43,11 +43,17 @@ pub enum Value {
     /// Cons pair (a . b) - Thread-safe
     Pair(Arc<Value>, Arc<Value>),
 
+    /// Mutable cons pair (a . b) - Thread-safe with interior mutability
+    MutablePair(Arc<RwLock<Value>>, Arc<RwLock<Value>>),
+
     /// Vector (mutable array-like structure) - Thread-safe
     Vector(Arc<RwLock<Vec<Value>>>),
 
     /// Hash table (mutable associative array) - Thread-safe
     Hashtable(Arc<RwLock<HashMap<Value, Value>>>),
+
+    /// Mutable string (for string-set! and string-fill!) - Thread-safe
+    MutableString(Arc<RwLock<Vec<char>>>),
 
     // ============= ADVANCED CONTAINERS =============
 
@@ -68,6 +74,15 @@ pub enum Value {
 
     /// Random access list (SRFI-101) - Thread-safe
     RandomAccessList(Arc<crate::containers::ThreadSafeRandomAccessList>),
+
+    /// Set data structure (SRFI-113) - Thread-safe
+    Set(Arc<crate::containers::ThreadSafeSet>),
+
+    /// Bag (multiset) data structure (SRFI-113) - Thread-safe
+    Bag(Arc<crate::containers::ThreadSafeBag>),
+
+    /// Generator data structure (SRFI-121) - Thread-safe
+    Generator(Arc<crate::containers::ThreadSafeGenerator>),
 
     // ============= PROCEDURES =============
 
@@ -188,6 +203,8 @@ pub enum PrimitiveImpl {
     RustFn(fn(&[Value]) -> crate::diagnostics::Result<Value>),
     /// Native implementation (alias for RustFn for compatibility)
     Native(fn(&[Value]) -> crate::diagnostics::Result<Value>),
+    /// Evaluator-integrated function for higher-order functions
+    EvaluatorIntegrated(fn(&mut crate::eval::evaluator::Evaluator, &[Value]) -> crate::diagnostics::Result<Value>),
     /// FFI function from dynamic library
     ForeignFn {
         library: String,
@@ -677,10 +694,34 @@ impl Value {
     pub fn is_number(&self) -> bool {
         matches!(self, Value::Literal(lit) if lit.is_number())
     }
+    
+    /// Formats this value for display according to R7RS specification.
+    /// 
+    /// This is the proper formatting function for the `display` procedure:
+    /// - Strings are displayed without quotes
+    /// - Characters are displayed without the #\ prefix
+    /// - Other values use their standard Display representation
+    pub fn display_string(&self) -> String {
+        match self {
+            Value::Literal(Literal::String(s)) => s.clone(),
+            Value::Literal(Literal::Character(c)) => c.to_string(),
+            _ => format!("{self}"),
+        }
+    }
 
-    /// Returns true if this value is a string.
+    /// Returns true if this value is a string (immutable or mutable).
     pub fn is_string(&self) -> bool {
+        matches!(self, Value::Literal(Literal::String(_)) | Value::MutableString(_))
+    }
+
+    /// Returns true if this value is an immutable string.
+    pub fn is_immutable_string(&self) -> bool {
         matches!(self, Value::Literal(Literal::String(_)))
+    }
+
+    /// Returns true if this value is a mutable string.
+    pub fn is_mutable_string(&self) -> bool {
+        matches!(self, Value::MutableString(_))
     }
 
     /// Returns true if this value is a symbol.
@@ -690,7 +731,7 @@ impl Value {
 
     /// Returns true if this value is a pair.
     pub fn is_pair(&self) -> bool {
-        matches!(self, Value::Pair(_, _))
+        matches!(self, Value::Pair(_, _) | Value::MutablePair(_, _))
     }
 
     /// Returns true if this value is the empty list.
@@ -752,10 +793,32 @@ impl Value {
         }
     }
 
-    /// Converts this value to a Rust string if it's a string.
+    /// Converts this value to a Rust string if it's an immutable string.
     pub fn as_string(&self) -> Option<&str> {
         match self {
             Value::Literal(Literal::String(s)) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Gets the string content as an owned String (works with both immutable and mutable strings).
+    pub fn as_string_owned(&self) -> Option<String> {
+        match self {
+            Value::Literal(Literal::String(s)) => Some(s.clone()),
+            Value::MutableString(chars) => {
+                chars.read().ok().map(|guard| guard.iter().collect())
+            }
+            _ => None,
+        }
+    }
+
+    /// Gets the length of a string (works with both immutable and mutable strings).
+    pub fn string_length(&self) -> Option<usize> {
+        match self {
+            Value::Literal(Literal::String(s)) => Some(s.chars().count()),
+            Value::MutableString(chars) => {
+                chars.read().ok().map(|guard| guard.len())
+            }
             _ => None,
         }
     }
@@ -780,6 +843,23 @@ impl Value {
                     result.push((**car).clone());
                     current = cdr;
                 }
+                Value::MutablePair(car_ref, cdr_ref) => {
+                    if let (Ok(car), Ok(cdr)) = (car_ref.read(), cdr_ref.read()) {
+                        result.push(car.clone());
+                        // For mutable pairs, we need to handle recursion carefully
+                        // to avoid holding locks too long
+                        let cdr_clone = cdr.clone();
+                        drop(cdr); // Release the lock
+                        if let Some(mut rest) = cdr_clone.as_list() {
+                            result.append(&mut rest);
+                            return Some(result);
+                        } else {
+                            return None; // Not a proper list
+                        }
+                    } else {
+                        return None; // Lock failed
+                    }
+                }
                 _ => return None, // Not a proper list
             }
         }
@@ -787,7 +867,7 @@ impl Value {
 
     /// Creates a new number value.
     pub fn number(n: f64) -> Self {
-        Value::Literal(Literal::Number(n))
+        Value::Literal(Literal::from_f64(n))
     }
 
     /// Creates a new integer value.
@@ -795,9 +875,21 @@ impl Value {
         Value::Literal(Literal::integer(n))
     }
 
-    /// Creates a new string value.
+    /// Creates a new immutable string value.
     pub fn string(s: impl Into<String>) -> Self {
         Value::Literal(Literal::String(s.into()))
+    }
+
+    /// Creates a new mutable string value.
+    pub fn mutable_string(s: impl Into<String>) -> Self {
+        let chars: Vec<char> = s.into().chars().collect();
+        Value::MutableString(Arc::new(RwLock::new(chars)))
+    }
+
+    /// Creates a new mutable string value with specified length and fill character.
+    pub fn mutable_string_filled(length: usize, ch: char) -> Self {
+        let chars = vec![ch; length];
+        Value::MutableString(Arc::new(RwLock::new(chars)))
     }
 
     /// Creates a new boolean value.
@@ -823,6 +915,11 @@ impl Value {
     /// Creates a new pair value.
     pub fn pair(car: Value, cdr: Value) -> Self {
         Value::Pair(Arc::new(car), Arc::new(cdr))
+    }
+
+    /// Creates a new mutable pair value.
+    pub fn mutable_pair(car: Value, cdr: Value) -> Self {
+        Value::MutablePair(Arc::new(RwLock::new(car)), Arc::new(RwLock::new(cdr)))
     }
 
     /// Creates a list from a vector of values.
@@ -970,6 +1067,84 @@ impl Value {
         Value::RandomAccessList(Arc::new(crate::containers::ThreadSafeRandomAccessList::from_vec(values)))
     }
 
+    /// Creates a new set value.
+    pub fn set() -> Self {
+        Value::Set(Arc::new(crate::containers::ThreadSafeSet::new()))
+    }
+
+    /// Creates a new set with a custom comparator.
+    pub fn set_with_comparator(comparator: crate::containers::HashComparator) -> Self {
+        Value::Set(Arc::new(crate::containers::ThreadSafeSet::with_comparator(comparator)))
+    }
+
+    /// Creates a set from an iterator of values.
+    pub fn set_from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        Value::Set(Arc::new(crate::containers::ThreadSafeSet::from_iter(iter)))
+    }
+
+    /// Creates a new bag value.
+    pub fn bag() -> Self {
+        Value::Bag(Arc::new(crate::containers::ThreadSafeBag::new()))
+    }
+
+    /// Creates a new bag with a custom comparator.
+    pub fn bag_with_comparator(comparator: crate::containers::HashComparator) -> Self {
+        Value::Bag(Arc::new(crate::containers::ThreadSafeBag::with_comparator(comparator)))
+    }
+
+    /// Creates a bag from an iterator of values.
+    pub fn bag_from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        Value::Bag(Arc::new(crate::containers::ThreadSafeBag::from_iter(iter)))
+    }
+
+    // ============= GENERATOR CONSTRUCTORS =============
+
+    /// Creates a new generator from a procedure (thunk).
+    pub fn generator_from_procedure(thunk: Value, environment: Arc<ThreadSafeEnvironment>) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::from_procedure(thunk, environment)))
+    }
+
+    /// Creates a new generator from explicit values.
+    pub fn generator_from_values(values: Vec<Value>) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::from_values(values)))
+    }
+
+    /// Creates a new range generator.
+    pub fn generator_range(start: f64, end: Option<f64>, step: f64) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::range(start, end, step)))
+    }
+
+    /// Creates a new iota generator.
+    pub fn generator_iota(count: Option<usize>, start: i64, step: i64) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::iota(count, start, step)))
+    }
+
+    /// Creates a new generator from a list.
+    pub fn generator_from_list(list: Value) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::from_list(list)))
+    }
+
+    /// Creates a new generator from a vector.
+    pub fn generator_from_vector(vector: Arc<RwLock<Vec<Value>>>) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::from_vector(vector)))
+    }
+
+    /// Creates a new generator from a string.
+    pub fn generator_from_string(string: String) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::from_string(string)))
+    }
+
+    /// Creates an already exhausted generator.
+    pub fn generator_exhausted() -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::exhausted()))
+    }
+
     // ============= ADVANCED CONTAINER TYPE PREDICATES =============
 
     /// Returns true if this value is an advanced hash table.
@@ -1000,6 +1175,21 @@ impl Value {
     /// Returns true if this value is a random access list.
     pub fn is_random_access_list(&self) -> bool {
         matches!(self, Value::RandomAccessList(_))
+    }
+
+    /// Returns true if this value is a set.
+    pub fn is_set(&self) -> bool {
+        matches!(self, Value::Set(_))
+    }
+
+    /// Returns true if this value is a bag.
+    pub fn is_bag(&self) -> bool {
+        matches!(self, Value::Bag(_))
+    }
+
+    /// Returns true if this value is a generator.
+    pub fn is_generator(&self) -> bool {
+        matches!(self, Value::Generator(_))
     }
 
     /// Returns true if this value is a future.
@@ -1052,6 +1242,59 @@ impl Value {
             _ => None,
         }
     }
+
+    // ============= R7RS NUMERIC PREDICATES =============
+
+    /// R7RS exact? predicate - returns true if this value is an exact number.
+    pub fn is_exact_number(&self) -> bool {
+        match self {
+            Value::Literal(lit) => lit.is_exact(),
+            _ => false,
+        }
+    }
+
+    /// R7RS inexact? predicate - returns true if this value is an inexact number.
+    pub fn is_inexact_number(&self) -> bool {
+        match self {
+            Value::Literal(lit) => lit.is_inexact(),
+            _ => false,
+        }
+    }
+
+    /// R7RS finite? predicate - returns true if this value is a finite number.
+    pub fn is_finite_number(&self) -> bool {
+        match self {
+            Value::Literal(Literal::ExactInteger(_)) => true,
+            Value::Literal(Literal::InexactReal(f)) => f.is_finite(),
+            Value::Literal(Literal::Rational { .. }) => true,
+            Value::Literal(Literal::Complex { real, imaginary }) => {
+                real.is_finite() && imaginary.is_finite()
+            }
+            _ => false,
+        }
+    }
+
+    /// R7RS infinite? predicate - returns true if this value is an infinite number.
+    pub fn is_infinite_number(&self) -> bool {
+        match self {
+            Value::Literal(Literal::InexactReal(f)) => f.is_infinite(),
+            Value::Literal(Literal::Complex { real, imaginary }) => {
+                real.is_infinite() || imaginary.is_infinite()
+            }
+            _ => false,
+        }
+    }
+
+    /// R7RS nan? predicate - returns true if this value is a NaN.
+    pub fn is_nan_number(&self) -> bool {
+        match self {
+            Value::Literal(Literal::InexactReal(f)) => f.is_nan(),
+            Value::Literal(Literal::Complex { real, imaginary }) => {
+                real.is_nan() || imaginary.is_nan()
+            }
+            _ => false,
+        }
+    }
 }
 
 impl PartialEq for Value {
@@ -1093,6 +1336,9 @@ impl PartialEq for Value {
             (Value::OrderedSet(a), Value::OrderedSet(b)) => Arc::ptr_eq(a, b),
             (Value::ListQueue(a), Value::ListQueue(b)) => Arc::ptr_eq(a, b),
             (Value::RandomAccessList(a), Value::RandomAccessList(b)) => Arc::ptr_eq(a, b),
+            (Value::Set(a), Value::Set(b)) => Arc::ptr_eq(a, b),
+            (Value::Bag(a), Value::Bag(b)) => Arc::ptr_eq(a, b),
+            (Value::Generator(a), Value::Generator(b)) => Arc::ptr_eq(a, b),
             // Concurrency values use reference equality
             (Value::Future(a), Value::Future(b)) => Arc::ptr_eq(a, b),
             (Value::Channel(a), Value::Channel(b)) => Arc::ptr_eq(a, b),
@@ -1149,6 +1395,11 @@ impl fmt::Display for Value {
             Value::Pair(_car, _cdr) => {
                 write!(f, "(")?;
                 self.write_list_contents(f, true)?;
+                write!(f, ")")
+            }
+            Value::MutablePair(_car, _cdr) => {
+                write!(f, "(")?;
+                self.write_mutable_list_contents(f, true)?;
                 write!(f, ")")
             }
             Value::Vector(vec) => {
@@ -1213,6 +1464,41 @@ impl fmt::Display for Value {
             Value::Semaphore(_) => write!(f, "#<semaphore>"),
             Value::AtomicCounter(counter) => write!(f, "#<atomic-counter:{}>", counter.get()),
             Value::DistributedNode(_) => write!(f, "#<distributed-node>"),
+            Value::MutableString(s) => {
+                match s.read() {
+                    Ok(chars) => {
+                        write!(f, "\"")?;
+                        for ch in chars.iter() {
+                            match ch {
+                                '"' => write!(f, "\\\"")?,
+                                '\\' => write!(f, "\\\\")?,
+                                '\n' => write!(f, "\\n")?,
+                                '\t' => write!(f, "\\t")?,
+                                '\r' => write!(f, "\\r")?,
+                                c if c.is_control() => write!(f, "\\x{:02x}", *c as u8)?,
+                                c => write!(f, "{c}")?,
+                            }
+                        }
+                        write!(f, "\"")
+                    }
+                    Err(_) => write!(f, "#<locked-string>"),
+                }
+            }
+            Value::Set(set) => {
+                match set.size() {
+                    Ok(size) => write!(f, "#<set:{size}>"),
+                    Err(_) => write!(f, "#<set:locked>"),
+                }
+            }
+            Value::Bag(bag) => {
+                match bag.total_size() {
+                    Ok(size) => write!(f, "#<bag:{size}>"),
+                    Err(_) => write!(f, "#<bag:locked>"),
+                }
+            }
+            Value::Generator(generator) => {
+                write!(f, "{generator}")
+            }
             Value::Opaque(_) => write!(f, "#<opaque>"),
         }
     }
@@ -1231,6 +1517,46 @@ impl Value {
                 match &**cdr {
                     Value::Nil => Ok(()),
                     Value::Pair(_, _) => cdr.write_list_contents(f, false),
+                    _ => write!(f, " . {cdr}"),
+                }
+            }
+            _ => write!(f, " . {self}"),
+        }
+    }
+
+    /// Helper method to write mutable list contents for display.
+    fn write_mutable_list_contents(&self, f: &mut fmt::Formatter<'_>, first: bool) -> fmt::Result {
+        match self {
+            Value::Nil => Ok(()),
+            Value::MutablePair(car_ref, cdr_ref) => {
+                if !first {
+                    write!(f, " ")?;
+                }
+                if let Ok(car) = car_ref.read() {
+                    write!(f, "{car}")?;
+                } else {
+                    write!(f, "...")?;
+                }
+                if let Ok(cdr) = cdr_ref.read() {
+                    match &*cdr {
+                        Value::Nil => Ok(()),
+                        Value::MutablePair(_, _) => cdr.write_mutable_list_contents(f, false),
+                        _ => write!(f, " . {cdr}"),
+                    }
+                } else {
+                    write!(f, " . ...")?;
+                    Ok(())
+                }
+            }
+            Value::Pair(car, cdr) => {
+                if !first {
+                    write!(f, " ")?;
+                }
+                write!(f, "{car}")?;
+                match &**cdr {
+                    Value::Nil => Ok(()),
+                    Value::Pair(_, _) => cdr.write_list_contents(f, false),
+                    Value::MutablePair(_, _) => cdr.write_mutable_list_contents(f, false),
                     _ => write!(f, " . {cdr}"),
                 }
             }

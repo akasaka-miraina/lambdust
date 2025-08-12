@@ -199,7 +199,7 @@ impl AdvancedTypeClass {
         // Simplified overlap checking
         // In a full implementation, this would use unification
         for (t1, t2) in inst1.type_args.iter().zip(inst2.type_args.iter()) {
-            if !self.types_potentially_unifiable(t1, t2) {
+            if !Self::types_potentially_unifiable(t1, t2) {
                 return false;
             }
         }
@@ -207,15 +207,14 @@ impl AdvancedTypeClass {
         true
     }
 
-    #[allow(clippy::only_used_in_recursion)]
-    fn types_potentially_unifiable(&self, _t1: &Type, _t2: &Type) -> bool {
+    fn types_potentially_unifiable(_t1: &Type, _t2: &Type) -> bool {
         match (_t1, _t2) {
             (Type::Variable(_), _) | (_, Type::Variable(_)) => true,
             (Type::Constructor { name: n1, .. }, Type::Constructor { name: n2, .. }) => n1 == n2,
             (Type::Application { constructor: c1, argument: a1 }, 
              Type::Application { constructor: c2, argument: a2 }) => {
-                self.types_potentially_unifiable(c1, c2) && 
-                self.types_potentially_unifiable(a1, a2)
+                Self::types_potentially_unifiable(c1, c2) && 
+                Self::types_potentially_unifiable(a1, a2)
             }
             _ => _t1 == _t2,
         }

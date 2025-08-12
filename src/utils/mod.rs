@@ -5,6 +5,7 @@ pub mod string_interner;
 pub mod memory_pool;
 pub mod advanced_memory_pool;
 pub mod gc;
+pub mod gc_integration;
 pub mod profiler;
 pub mod symbol_id;
 pub mod cache;
@@ -22,6 +23,10 @@ pub use advanced_memory_pool::{
     ConsPool, SmallObjectPool, global_pool_manager
 };
 pub use gc::*;
+pub use gc_integration::{
+    GcValue, GcEnvironment, GcIntegration, GcIntegrationConfig,
+    GcRootScanResult, maybe_gc_alloc, scan_value_for_gc_integration
+};
 pub use profiler::*;
 pub use symbol_id::*;
 pub use cache::{LruCache, MemoCache, CacheStats};

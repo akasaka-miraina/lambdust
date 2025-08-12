@@ -1,0 +1,640 @@
+#!/usr/bin/env lambdust
+;; Test file: Synchronization Primitives
+;; Purpose: Test mutexes, semaphores, barriers, and other synchronization mechanisms
+;; Covers thread safety, deadlock prevention, and coordination patterns
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust sync)
+        (lambdust threads))  ;; TODO: Implement synchronization library
+
+;; =============================================================================
+;; MUTEX OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Mutex Operations"
+  
+  (test "Basic mutex lock/unlock"
+    ;; TODO: Synchronization syntax needs to be implemented
+    (define mutex (make-mutex))
+    (define shared-counter 0)
+    
+    ;; Simple critical section
+    (mutex-lock! mutex)
+    (set! shared-counter (+ shared-counter 1))
+    (mutex-unlock! mutex)
+    
+    (assert-equal 1 shared-counter))
+  
+  (test "Mutex mutual exclusion"
+    ;; Multiple threads should not enter critical section simultaneously
+    (define mutex (make-mutex))
+    (define shared-resource 0)
+    (define increment-count 100)
+    
+    (define (increment-worker)
+      (let loop ((n increment-count))
+        (when (> n 0)
+          (mutex-lock! mutex)
+          (let ((old-value shared-resource))
+            ;; Simulate some work
+            (sleep 1)
+            (set! shared-resource (+ old-value 1)))
+          (mutex-unlock! mutex)
+          (loop (- n 1)))))
+    
+    ;; Start multiple threads
+    (define thread1 (spawn-thread increment-worker))
+    (define thread2 (spawn-thread increment-worker))
+    
+    ;; Wait for completion
+    (thread-join! thread1)
+    (thread-join! thread2)
+    
+    ;; Should be exactly 200 if mutex works correctly
+    (assert-equal 200 shared-resource))
+  
+  (test "Recursive mutex"
+    ;; Recursive mutexes can be locked multiple times by same thread
+    (define recursive-mutex (make-recursive-mutex))
+    (define call-depth 0)
+    
+    (define (recursive-function depth)
+      (mutex-lock! recursive-mutex)
+      (set! call-depth (+ call-depth 1))
+      (when (> depth 0)
+        (recursive-function (- depth 1)))
+      (set! call-depth (- call-depth 1))
+      (mutex-unlock! recursive-mutex))
+    
+    (recursive-function 5)
+    (assert-equal 0 call-depth))
+  
+  (test "Mutex timeout"
+    ;; Mutex lock with timeout should not block indefinitely
+    (define mutex (make-mutex))
+    (define locked-by-other-thread #f)
+    
+    ;; Lock mutex in one thread and hold it
+    (define holder-thread
+      (spawn-thread 
+        (lambda ()
+          (mutex-lock! mutex)
+          (set! locked-by-other-thread #t)
+          (sleep 200)  ;; Hold for a while
+          (mutex-unlock! mutex))))
+    
+    ;; Wait until other thread has the lock
+    (let loop ()
+      (unless locked-by-other-thread
+        (sleep 10)
+        (loop)))
+    
+    ;; Try to lock with timeout - should fail
+    (define lock-result (mutex-try-lock! mutex 50))  ;; 50ms timeout
+    (assert-false lock-result)
+    
+    ;; Cleanup
+    (thread-join! holder-thread)))
+
+;; =============================================================================
+;; SEMAPHORE OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Semaphore Operations"
+  
+  (test "Basic semaphore operations"
+    ;; Semaphores control access to resources with limited capacity
+    (define semaphore (make-semaphore 2))  ;; Allow 2 simultaneous accesses
+    
+    ;; Acquire permits
+    (semaphore-acquire! semaphore)
+    (semaphore-acquire! semaphore)
+    
+    ;; Should have no permits left
+    (assert-false (semaphore-try-acquire! semaphore))
+    
+    ;; Release a permit
+    (semaphore-release! semaphore)
+    
+    ;; Should now be able to acquire
+    (assert-true (semaphore-try-acquire! semaphore)))
+  
+  (test "Semaphore resource pooling"
+    ;; Use semaphore to limit access to a resource pool
+    (define resource-pool-size 3)
+    (define pool-semaphore (make-semaphore resource-pool-size))
+    (define active-users 0)
+    (define max-concurrent-users 0)
+    
+    (define (use-resource worker-id duration)
+      (semaphore-acquire! pool-semaphore)
+      (set! active-users (+ active-users 1))
+      (set! max-concurrent-users (max max-concurrent-users active-users))
+      (sleep duration)
+      (set! active-users (- active-users 1))
+      (semaphore-release! pool-semaphore))
+    
+    ;; Start multiple workers
+    (define workers
+      (map (lambda (id)
+             (spawn-thread (lambda () (use-resource id 50))))
+           (iota 10)))
+    
+    ;; Wait for all to complete
+    (for-each thread-join! workers)
+    
+    ;; Should never exceed semaphore limit
+    (assert-true (<= max-concurrent-users resource-pool-size))
+    (assert-equal 0 active-users))
+  
+  (test "Counting semaphore"
+    ;; Semaphore that can be incremented beyond initial value
+    (define counting-sem (make-semaphore 0))
+    
+    ;; Release multiple permits
+    (semaphore-release! counting-sem)
+    (semaphore-release! counting-sem)
+    (semaphore-release! counting-sem)
+    
+    ;; Should be able to acquire all three
+    (semaphore-acquire! counting-sem)
+    (semaphore-acquire! counting-sem)
+    (semaphore-acquire! counting-sem)
+    
+    ;; Should be empty now
+    (assert-false (semaphore-try-acquire! counting-sem))))
+
+;; =============================================================================
+;; BARRIER SYNCHRONIZATION
+;; =============================================================================
+
+(define-test-suite "Barrier Synchronization"
+  
+  (test "Basic barrier synchronization"
+    ;; Barrier waits for all threads to reach a sync point
+    (define thread-count 4)
+    (define barrier (make-barrier thread-count))
+    (define phase-1-completions 0)
+    (define phase-2-completions 0)
+    
+    (define (worker worker-id)
+      ;; Phase 1 work
+      (sleep (* worker-id 10))  ;; Staggered work times
+      (set! phase-1-completions (+ phase-1-completions 1))
+      
+      ;; Synchronization point
+      (barrier-wait! barrier)
+      
+      ;; Phase 2 work (all threads should start this together)
+      (sleep 20)
+      (set! phase-2-completions (+ phase-2-completions 1)))
+    
+    ;; Start all worker threads
+    (define threads
+      (map (lambda (id)
+             (spawn-thread (lambda () (worker id))))
+           (iota thread-count)))
+    
+    ;; Wait for completion
+    (for-each thread-join! threads)
+    
+    (assert-equal thread-count phase-1-completions)
+    (assert-equal thread-count phase-2-completions))
+  
+  (test "Reusable barrier"
+    ;; Barriers that can be used multiple times
+    (define barrier (make-cyclic-barrier 3))
+    (define round-1-done 0)
+    (define round-2-done 0)
+    
+    (define (multi-round-worker)
+      ;; Round 1
+      (sleep 10)
+      (barrier-wait! barrier)
+      (set! round-1-done (+ round-1-done 1))
+      
+      ;; Round 2
+      (sleep 15)
+      (barrier-wait! barrier)
+      (set! round-2-done (+ round-2-done 1)))
+    
+    ;; Start threads
+    (define threads
+      (map (lambda (_) (spawn-thread multi-round-worker))
+           (iota 3)))
+    
+    (for-each thread-join! threads)
+    
+    (assert-equal 3 round-1-done)
+    (assert-equal 3 round-2-done))
+  
+  (test "Barrier with action"
+    ;; Barrier that executes action when all threads arrive
+    (define barrier-action-called #f)
+    (define barrier-with-action
+      (make-barrier 2 (lambda () (set! barrier-action-called #t))))
+    
+    (define (worker-with-action)
+      (sleep 20)
+      (barrier-wait! barrier-with-action))
+    
+    (define thread1 (spawn-thread worker-with-action))
+    (define thread2 (spawn-thread worker-with-action))
+    
+    (thread-join! thread1)
+    (thread-join! thread2)
+    
+    (assert-true barrier-action-called)))
+
+;; =============================================================================
+;; CONDITION VARIABLES
+;; =============================================================================
+
+(define-test-suite "Condition Variables"
+  
+  (test "Basic condition variable wait/signal"
+    ;; Condition variables for thread coordination
+    (define condition (make-condition-variable))
+    (define mutex (make-mutex))
+    (define ready #f)
+    
+    ;; Worker waits for condition
+    (define worker-thread
+      (spawn-thread
+        (lambda ()
+          (mutex-lock! mutex)
+          (let loop ()
+            (unless ready
+              (condition-wait! condition mutex)
+              (loop)))
+          (mutex-unlock! mutex))))
+    
+    ;; Signal the condition after delay
+    (sleep 50)
+    (mutex-lock! mutex)
+    (set! ready #t)
+    (condition-signal! condition)
+    (mutex-unlock! mutex)
+    
+    (thread-join! worker-thread))
+  
+  (test "Producer-consumer with condition variables"
+    ;; Classic producer-consumer using condition variables
+    (define buffer '())
+    (define buffer-size 5)
+    (define mutex (make-mutex))
+    (define not-empty (make-condition-variable))
+    (define not-full (make-condition-variable))
+    
+    (define (producer item)
+      (mutex-lock! mutex)
+      (let loop ()
+        (when (>= (length buffer) buffer-size)
+          (condition-wait! not-full mutex)
+          (loop)))
+      (set! buffer (append buffer (list item)))
+      (condition-signal! not-empty)
+      (mutex-unlock! mutex))
+    
+    (define (consumer)
+      (mutex-lock! mutex)
+      (let loop ()
+        (when (null? buffer)
+          (condition-wait! not-empty mutex)
+          (loop)))
+      (let ((item (car buffer)))
+        (set! buffer (cdr buffer))
+        (condition-signal! not-full)
+        (mutex-unlock! mutex)
+        item))
+    
+    ;; Test producer-consumer interaction
+    (define producer-thread
+      (spawn-thread
+        (lambda ()
+          (for-each producer '(a b c d e)))))
+    
+    (define consumed-items '())
+    (define consumer-thread
+      (spawn-thread
+        (lambda ()
+          (let loop ((n 5))
+            (when (> n 0)
+              (set! consumed-items (cons (consumer) consumed-items))
+              (loop (- n 1)))))))
+    
+    (thread-join! producer-thread)
+    (thread-join! consumer-thread)
+    
+    (assert-equal '(e d c b a) consumed-items))
+  
+  (test "Condition variable broadcast"
+    ;; Waking up multiple waiting threads
+    (define condition (make-condition-variable))
+    (define mutex (make-mutex))
+    (define ready #f)
+    (define awakened-count 0)
+    
+    (define (waiting-worker)
+      (mutex-lock! mutex)
+      (let loop ()
+        (unless ready
+          (condition-wait! condition mutex)
+          (loop)))
+      (set! awakened-count (+ awakened-count 1))
+      (mutex-unlock! mutex))
+    
+    ;; Start multiple waiting threads
+    (define threads
+      (map (lambda (_) (spawn-thread waiting-worker))
+           (iota 5)))
+    
+    (sleep 50)  ;; Let threads start waiting
+    
+    ;; Broadcast to all threads
+    (mutex-lock! mutex)
+    (set! ready #t)
+    (condition-broadcast! condition)
+    (mutex-unlock! mutex)
+    
+    (for-each thread-join! threads)
+    
+    (assert-equal 5 awakened-count)))
+
+;; =============================================================================
+;; READ-WRITE LOCKS
+;; =============================================================================
+
+(define-test-suite "Read-Write Locks"
+  
+  (test "Basic read-write lock operations"
+    ;; Multiple readers, exclusive writers
+    (define rw-lock (make-read-write-lock))
+    (define shared-data 42)
+    
+    ;; Multiple readers should be allowed
+    (read-lock! rw-lock)
+    (define read-result1 shared-data)
+    (read-unlock! rw-lock)
+    
+    (assert-equal 42 read-result1)
+    
+    ;; Writer should have exclusive access
+    (write-lock! rw-lock)
+    (set! shared-data 84)
+    (write-unlock! rw-lock)
+    
+    (assert-equal 84 shared-data))
+  
+  (test "Reader-writer concurrency"
+    ;; Test that multiple readers can read simultaneously
+    (define rw-lock (make-read-write-lock))
+    (define shared-resource "initial-value")
+    (define concurrent-readers 0)
+    (define max-concurrent-readers 0)
+    
+    (define (reader-worker)
+      (read-lock! rw-lock)
+      (set! concurrent-readers (+ concurrent-readers 1))
+      (set! max-concurrent-readers (max max-concurrent-readers concurrent-readers))
+      (let ((value shared-resource))  ;; Read operation
+        (sleep 50)  ;; Hold lock for a while
+        (set! concurrent-readers (- concurrent-readers 1)))
+      (read-unlock! rw-lock))
+    
+    ;; Start multiple reader threads
+    (define reader-threads
+      (map (lambda (_) (spawn-thread reader-worker))
+           (iota 3)))
+    
+    (for-each thread-join! reader-threads)
+    
+    ;; Multiple readers should have been concurrent
+    (assert-true (>= max-concurrent-readers 2)))
+  
+  (test "Writer exclusion"
+    ;; Writers should exclude all other access
+    (define rw-lock (make-read-write-lock))
+    (define shared-counter 0)
+    (define writer-active #f)
+    (define interference-detected #f)
+    
+    (define (writer-worker)
+      (write-lock! rw-lock)
+      (set! writer-active #t)
+      (let loop ((n 100))
+        (when (> n 0)
+          (set! shared-counter (+ shared-counter 1))
+          (when (not writer-active)  ;; This shouldn't happen
+            (set! interference-detected #t))
+          (loop (- n 1))))
+      (set! writer-active #f)
+      (write-unlock! rw-lock))
+    
+    (define (interfering-reader)
+      (read-lock! rw-lock)
+      (when writer-active
+        (set! interference-detected #t))
+      (read-unlock! rw-lock))
+    
+    (define writer-thread (spawn-thread writer-worker))
+    (define reader-thread (spawn-thread interfering-reader))
+    
+    (thread-join! writer-thread)
+    (thread-join! reader-thread)
+    
+    (assert-false interference-detected)
+    (assert-equal 100 shared-counter)))
+
+;; =============================================================================
+;; ATOMIC OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Atomic Operations"
+  
+  (test "Compare-and-swap operations"
+    ;; Atomic compare-and-swap for lock-free programming
+    (define atomic-counter (make-atomic-reference 0))
+    
+    ;; Basic CAS operation
+    (assert-true (atomic-compare-and-set! atomic-counter 0 1))
+    (assert-equal 1 (atomic-get atomic-counter))
+    
+    ;; Failed CAS (current value doesn't match expected)
+    (assert-false (atomic-compare-and-set! atomic-counter 0 2))
+    (assert-equal 1 (atomic-get atomic-counter)))
+  
+  (test "Atomic increment operations"
+    ;; Atomic arithmetic operations
+    (define atomic-counter (make-atomic-reference 10))
+    
+    (assert-equal 10 (atomic-get-and-increment! atomic-counter))
+    (assert-equal 11 (atomic-get atomic-counter))
+    
+    (assert-equal 12 (atomic-increment-and-get! atomic-counter))
+    (assert-equal 12 (atomic-get atomic-counter))
+    
+    (assert-equal 17 (atomic-add-and-get! atomic-counter 5))
+    (assert-equal 17 (atomic-get atomic-counter)))
+  
+  (test "Lock-free counter with CAS"
+    ;; Implement lock-free counter using only CAS
+    (define atomic-counter (make-atomic-reference 0))
+    
+    (define (lock-free-increment!)
+      (let loop ()
+        (let ((current (atomic-get atomic-counter)))
+          (unless (atomic-compare-and-set! atomic-counter current (+ current 1))
+            (loop)))))
+    
+    ;; Multiple threads incrementing concurrently
+    (define threads
+      (map (lambda (_)
+             (spawn-thread
+               (lambda ()
+                 (let loop ((n 100))
+                   (when (> n 0)
+                     (lock-free-increment!)
+                     (loop (- n 1)))))))
+           (iota 5)))
+    
+    (for-each thread-join! threads)
+    
+    ;; Should be exactly 500 if lock-free counter works
+    (assert-equal 500 (atomic-get atomic-counter))))
+
+;; =============================================================================
+;; DEADLOCK PREVENTION AND DETECTION
+;; =============================================================================
+
+(define-test-suite "Deadlock Prevention and Detection"
+  
+  (test "Ordered lock acquisition"
+    ;; Prevent deadlock by always acquiring locks in same order
+    (define mutex-a (make-mutex "mutex-a"))
+    (define mutex-b (make-mutex "mutex-b"))
+    (define shared-resource-a 0)
+    (define shared-resource-b 0)
+    
+    (define (ordered-worker iterations)
+      (let loop ((n iterations))
+        (when (> n 0)
+          ;; Always acquire in alphabetical order: a before b
+          (mutex-lock! mutex-a)
+          (mutex-lock! mutex-b)
+          (set! shared-resource-a (+ shared-resource-a 1))
+          (set! shared-resource-b (+ shared-resource-b 1))
+          (mutex-unlock! mutex-b)
+          (mutex-unlock! mutex-a)
+          (loop (- n 1)))))
+    
+    ;; Multiple threads should not deadlock
+    (define threads
+      (map (lambda (_) (spawn-thread (lambda () (ordered-worker 50))))
+           (iota 4)))
+    
+    (for-each thread-join! threads)
+    
+    (assert-equal 200 shared-resource-a)
+    (assert-equal 200 shared-resource-b))
+  
+  (test "Timeout-based deadlock prevention"
+    ;; Use timeouts to prevent indefinite blocking
+    (define mutex-1 (make-mutex))
+    (define mutex-2 (make-mutex))
+    (define deadlock-avoided 0)
+    
+    (define (timeout-worker acquire-order)
+      (let ((first-mutex (if acquire-order mutex-1 mutex-2))
+            (second-mutex (if acquire-order mutex-2 mutex-1)))
+        (mutex-lock! first-mutex)
+        ;; Try to acquire second mutex with timeout
+        (if (mutex-try-lock! second-mutex 100)  ;; 100ms timeout
+            (begin
+              ;; Got both locks - do work
+              (sleep 10)
+              (mutex-unlock! second-mutex)
+              (mutex-unlock! first-mutex))
+            (begin
+              ;; Timeout - avoid deadlock
+              (set! deadlock-avoided (+ deadlock-avoided 1))
+              (mutex-unlock! first-mutex)))))
+    
+    ;; Start threads that would deadlock without timeout
+    (define thread-1 (spawn-thread (lambda () (timeout-worker #t))))
+    (define thread-2 (spawn-thread (lambda () (timeout-worker #f))))
+    
+    (thread-join! thread-1)
+    (thread-join! thread-2)
+    
+    ;; At least one thread should have used timeout to avoid deadlock
+    (assert-true (>= deadlock-avoided 1)))
+  
+  (test "Banker's algorithm simulation"
+    ;; Resource allocation deadlock avoidance
+    ;; TODO: Implement when resource management is available
+    ))
+
+;; =============================================================================
+;; PERFORMANCE AND SCALABILITY
+;; =============================================================================
+
+(define-test-suite "Synchronization Performance and Scalability"
+  
+  (test "Lock contention measurement"
+    ;; Measure performance under high contention
+    (define mutex (make-mutex))
+    (define operations-per-thread 1000)
+    (define thread-count 4)
+    (define total-operations 0)
+    
+    (define (contended-worker)
+      (let loop ((n operations-per-thread))
+        (when (> n 0)
+          (mutex-lock! mutex)
+          (set! total-operations (+ total-operations 1))
+          (mutex-unlock! mutex)
+          (loop (- n 1)))))
+    
+    (define start-time (current-time))
+    
+    (define threads
+      (map (lambda (_) (spawn-thread contended-worker))
+           (iota thread-count)))
+    
+    (for-each thread-join! threads)
+    
+    (define end-time (current-time))
+    (define total-time (- end-time start-time))
+    
+    (assert-equal (* thread-count operations-per-thread) total-operations)
+    ;; TODO: Add performance assertions when timing is available
+    )
+  
+  (test "Lock-free vs locked performance comparison"
+    ;; Compare lock-free and locked implementations
+    ;; TODO: Implement performance comparison tests
+    )
+  
+  (test "Synchronization overhead measurement"
+    ;; Measure overhead of synchronization primitives
+    ;; TODO: Implement overhead measurement
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Mutex Operations")
+(run-test-suite "Semaphore Operations")
+(run-test-suite "Barrier Synchronization")
+(run-test-suite "Condition Variables")
+(run-test-suite "Read-Write Locks")
+(run-test-suite "Atomic Operations")
+(run-test-suite "Deadlock Prevention and Detection")
+(run-test-suite "Synchronization Performance and Scalability")
+
+(display "Synchronization primitives test completed.\n")
+(display "This test verifies thread synchronization and coordination mechanisms.\n")

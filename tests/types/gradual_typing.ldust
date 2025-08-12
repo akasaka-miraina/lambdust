@@ -1,0 +1,351 @@
+#!/usr/bin/env lambdust
+;; Test file: Gradual Typing System
+;; Purpose: Test the four-level gradual typing system (Dynamic -> Contracts -> Static -> Dependent)
+;; Verifies smooth transitions between typing levels and blame assignment
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust types))  ;; TODO: Implement type system library
+
+;; =============================================================================
+;; LEVEL 0: DYNAMIC TYPING
+;; =============================================================================
+
+(define-test-suite "Dynamic Typing (Level 0)"
+  
+  (test "Pure dynamic functions"
+    ;; No type annotations - standard Scheme behavior
+    (define (factorial n)
+      (if (= n 0)
+          1
+          (* n (factorial (- n 1)))))
+    
+    (assert-equal 120 (factorial 5))
+    (assert-equal 1 (factorial 0))
+    
+    ;; Should work with different number types
+    (assert-equal 120.0 (factorial 5.0)))
+  
+  (test "Dynamic polymorphism"
+    (define (length lst)
+      (if (null? lst)
+          0
+          (+ 1 (length (cdr lst)))))
+    
+    (assert-equal 3 (length '(a b c)))
+    (assert-equal 0 (length '()))
+    
+    ;; Should work with any list type
+    (assert-equal 3 (length '(1 2 3)))
+    (assert-equal 3 (length '("a" "b" "c"))))
+  
+  (test "Runtime type errors"
+    (define (add-numbers x y)
+      (+ x y))
+    
+    ;; Valid calls
+    (assert-equal 7 (add-numbers 3 4))
+    (assert-equal 7.5 (add-numbers 3 4.5))
+    
+    ;; Runtime type errors
+    (assert-error 'type-error (add-numbers 3 "4"))
+    (assert-error 'type-error (add-numbers '() 4))))
+
+;; =============================================================================
+;; LEVEL 1: CONTRACT TYPING
+;; =============================================================================
+
+(define-test-suite "Contract Typing (Level 1)"
+  
+  (test "Simple contracts"
+    ;; TODO: Contract syntax needs to be implemented
+    (define (safe-divide x y)
+      #:contract (-> Number Number Number)
+      #:requires (not (= y 0))
+      (/ x y))
+    
+    ;; Valid calls
+    (assert-equal 2 (safe-divide 10 5))
+    (assert-equal 2.5 (safe-divide 10 4))
+    
+    ;; Contract violations
+    (assert-error 'contract-violation (safe-divide 10 "5"))
+    (assert-error 'contract-violation (safe-divide 10 0)))
+  
+  (test "Higher-order contracts"
+    (define (map-numbers f lst)
+      #:contract (-> (-> Number Number) (List-of Number) (List-of Number))
+      (map f lst))
+    
+    (assert-equal '(1 4 9 16) (map-numbers (lambda (x) (* x x)) '(1 2 3 4)))
+    
+    ;; Contract violations
+    (assert-error 'contract-violation 
+                  (map-numbers (lambda (x) (* x x)) '(1 2 "3" 4)))
+    (assert-error 'contract-violation
+                  (map-numbers (lambda (x) (number->string x)) '(1 2 3 4))))
+  
+  (test "Custom predicate contracts"
+    (define positive-integer?
+      (lambda (x)
+        (and (integer? x) (positive? x))))
+    
+    (define (factorial-safe n)
+      #:contract (-> positive-integer? positive-integer?)
+      (if (= n 1)
+          1
+          (* n (factorial-safe (- n 1)))))
+    
+    (assert-equal 120 (factorial-safe 5))
+    (assert-error 'contract-violation (factorial-safe 0))
+    (assert-error 'contract-violation (factorial-safe -5))
+    (assert-error 'contract-violation (factorial-safe 3.5)))
+  
+  (test "Blame assignment"
+    ;; Test that contract violations correctly assign blame
+    (define (typed-double x)
+      #:contract (-> Number Number)
+      (* 2 x))
+    
+    (define (bad-caller)
+      (typed-double "not a number"))
+    
+    ;; The error should blame the caller, not the callee
+    ;; TODO: Implement blame tracking
+    ;; (assert-blame 'bad-caller (bad-caller))
+    ))
+
+;; =============================================================================
+;; LEVEL 2: STATIC TYPING
+;; =============================================================================
+
+(define-test-suite "Static Typing (Level 2)"
+  
+  (test "Type inference"
+    ;; TODO: Static type annotation syntax
+    (define (identity x)
+      #:type (∀ (a) (-> a a))
+      x)
+    
+    (assert-equal 42 (identity 42))
+    (assert-equal "hello" (identity "hello"))
+    (assert-equal '(1 2 3) (identity '(1 2 3))))
+  
+  (test "Parametric polymorphism"
+    (define (map-typed f lst)
+      #:type (∀ (a b) (-> (-> a b) (List a) (List b)))
+      (if (null? lst)
+          '()
+          (cons (f (car lst))
+                (map-typed f (cdr lst)))))
+    
+    ;; Type inference should work
+    (assert-equal '(1 4 9) (map-typed (lambda (x) (* x x)) '(1 2 3)))
+    (assert-equal '("1" "2" "3") (map-typed number->string '(1 2 3))))
+  
+  (test "Type constraints"
+    (define (sum-numbers lst)
+      #:type (-> (List Number) Number)
+      (if (null? lst)
+          0
+          (+ (car lst) (sum-numbers (cdr lst)))))
+    
+    (assert-equal 10 (sum-numbers '(1 2 3 4)))
+    
+    ;; These should be compile-time errors
+    ;; TODO: Test static type checking
+    ;; (assert-compile-error (sum-numbers '("a" "b" "c")))
+    ;; (assert-compile-error (sum-numbers 42))
+    )
+  
+  (test "Function composition typing"
+    (define (compose f g)
+      #:type (∀ (a b c) (-> (-> b c) (-> a b) (-> a c)))
+      (lambda (x) (f (g x))))
+    
+    (define add1 (lambda (x) (+ x 1)))
+    (define double (lambda (x) (* x 2)))
+    (define add1-then-double (compose double add1))
+    
+    (assert-equal 8 (add1-then-double 3))))
+
+;; =============================================================================
+;; LEVEL 3: DEPENDENT TYPING  
+;; =============================================================================
+
+(define-test-suite "Dependent Typing (Level 3)"
+  
+  (test "Refinement types"
+    ;; TODO: Dependent type syntax
+    (define-type Nat Number (lambda (n) (>= n 0)))
+    (define-type Positive-Number Number (lambda (n) (> n 0)))
+    
+    (define (safe-sqrt x)
+      #:type (-> Nat Nat)
+      (sqrt x))
+    
+    (assert-equal 4.0 (safe-sqrt 16))
+    ;; TODO: Implement refinement checking
+    ;; (assert-refinement-error (safe-sqrt -4))
+    )
+  
+  (test "Length-indexed vectors"
+    ;; TODO: Dependent types with indices
+    (define-type Vec (n : Nat) (vector-of-length n Any))
+    
+    (define (safe-head v)
+      #:type (∀ (n : Nat) (-> (Vec (+ n 1)) Any))
+      (vector-ref v 0))
+    
+    ;; TODO: Test length-indexed operations
+    )
+  
+  (test "Proof-carrying code"
+    (define (divide-safe x y)
+      #:type (-> x:Number {y:Number | y ≠ 0} {r:Number | r = x/y})
+      #:requires (not (= y 0))
+      #:ensures (lambda (result) (= result (/ x y)))
+      (/ x y))
+    
+    ;; TODO: Test proof obligations
+    ))
+
+;; =============================================================================
+;; GRADUAL TRANSITIONS
+;; =============================================================================
+
+(define-test-suite "Gradual Type Transitions"
+  
+  (test "Dynamic to contract boundary"
+    ;; Dynamic code calling contracted code
+    (define (contracted-double x)
+      #:contract (-> Number Number)
+      (* 2 x))
+    
+    (define (dynamic-caller)
+      ;; No type info - should insert runtime check
+      (contracted-double 21))
+    
+    (assert-equal 42 (dynamic-caller)))
+  
+  (test "Contract to static boundary"
+    ;; Contracted code calling statically typed code
+    (define (static-square x)
+      #:type (-> Number Number)
+      (* x x))
+    
+    (define (contract-caller y)
+      #:contract (-> Number Number)
+      (static-square y))
+    
+    (assert-equal 25 (contract-caller 5)))
+  
+  (test "Static to dependent boundary"
+    ;; TODO: Test static to dependent type transitions
+    )
+  
+  (test "Multi-level integration"
+    ;; Mix all four levels in one computation
+    (define (level-0-input) 42)              ;; Dynamic
+    
+    (define (level-1-process x)              ;; Contract
+      #:contract (-> Number Number)
+      (+ x 8))
+    
+    (define (level-2-transform x)            ;; Static
+      #:type (-> Number Number)
+      (* x 2))
+    
+    ;; TODO: Add level 3 function
+    
+    (define (multi-level-computation)
+      (level-2-transform 
+        (level-1-process 
+          (level-0-input))))
+    
+    (assert-equal 100 (multi-level-computation))))
+
+;; =============================================================================
+;; TYPE INFERENCE TESTING
+;; =============================================================================
+
+(define-test-suite "Type Inference Engine"
+  
+  (test "Hindley-Milner inference"
+    ;; Test automatic type inference without annotations
+    (define id (lambda (x) x))
+    ;; Should infer: ∀a. a -> a
+    
+    (assert-equal 42 (id 42))
+    (assert-equal "hello" (id "hello")))
+  
+  (test "Constraint generation and solving"
+    (define apply-twice (lambda (f x) (f (f x))))
+    ;; Should infer: ∀a. (a -> a) -> a -> a
+    
+    (assert-equal 7 (apply-twice (lambda (n) (+ n 1)) 5)))
+  
+  (test "Unification algorithm"
+    ;; Test type unification with complex expressions
+    (define compose (lambda (f g) (lambda (x) (f (g x)))))
+    ;; Should infer: ∀a b c. (b -> c) -> (a -> b) -> a -> c
+    
+    (define add1 (lambda (x) (+ x 1)))
+    (define double (lambda (x) (* x 2)))
+    (define composed (compose double add1))
+    
+    (assert-equal 8 (composed 3))))
+
+;; =============================================================================
+;; ERROR HANDLING AND REPORTING
+;; =============================================================================
+
+(define-test-suite "Type Error Reporting"
+  
+  (test "Contract violation messages"
+    ;; TODO: Test that contract violations provide clear error messages
+    )
+  
+  (test "Type inference error messages"
+    ;; TODO: Test that type inference failures provide helpful messages
+    )
+  
+  (test "Blame tracking across boundaries"
+    ;; TODO: Test that blame is correctly assigned across type level boundaries
+    ))
+
+;; =============================================================================
+;; PERFORMANCE AND OPTIMIZATION
+;; =============================================================================
+
+(define-test-suite "Type System Performance"
+  
+  (test "Zero-cost abstractions"
+    ;; TODO: Test that type annotations don't add runtime overhead
+    ;; when not needed for checking
+    )
+  
+  (test "Optimization opportunities"
+    ;; TODO: Test that type information enables optimizations
+    )
+  
+  (test "Contract optimization"
+    ;; TODO: Test that repeated contracts are optimized away
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Dynamic Typing (Level 0)")
+(run-test-suite "Contract Typing (Level 1)")
+(run-test-suite "Static Typing (Level 2)")
+(run-test-suite "Dependent Typing (Level 3)")
+(run-test-suite "Gradual Type Transitions")
+(run-test-suite "Type Inference Engine")
+(run-test-suite "Type Error Reporting")
+(run-test-suite "Type System Performance")
+
+(display "Gradual typing test completed.\n")
+(display "This test verifies the four-level progressive typing system.\n")

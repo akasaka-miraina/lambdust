@@ -141,8 +141,16 @@ fn extract_bytevector_mut(value: &Value, operation: &str) -> Result<Vec<u8>> {
 /// Extracts an integer from a Value.
 fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
     match value {
-        Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => Ok(*n as i64),
-        Value::Literal(Literal::Rational { numerator, denominator }) if *denominator == 1 => Ok(*numerator),
+        Value::Literal(literal) => {
+            if let Some(i) = literal.to_i64() {
+                Ok(i)
+            } else {
+                Err(Box::new(Error::runtime_error(
+                    format!("{operation} requires an integer argument"),
+                    None,
+                )))
+            }
+        }
         _ => Err(Box::new(Error::runtime_error(
             format!("{operation} requires an integer argument"),
             None,

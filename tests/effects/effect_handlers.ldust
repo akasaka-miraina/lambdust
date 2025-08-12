@@ -1,0 +1,409 @@
+#!/usr/bin/env lambdust
+;; Test file: Effect Handlers
+;; Purpose: Test algebraic effect handlers and pluggable effect management
+;; Covers effect definition, handler implementation, and effect composition
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust effects)
+        (lambdust handlers))  ;; TODO: Implement effect handlers library
+
+;; =============================================================================
+;; BASIC EFFECT HANDLER DEFINITION
+;; =============================================================================
+
+(define-test-suite "Basic Effect Handler Definition"
+  
+  (test "Simple state effect handler"
+    ;; TODO: Effect and handler syntax needs to be implemented
+    (define-effect State
+      (get : Unit -> Any)
+      (put : Any -> Unit))
+    
+    ;; State handler that manages a single value
+    (define (with-state initial-state computation)
+      (handle computation
+        (State
+          (get () k) => (k initial-state initial-state)
+          (put new-state k) => (k () new-state))
+        (return value final-state) => (list value final-state)))
+    
+    ;; Test basic state operations
+    (define (test-state-ops)
+      #:effect State
+      (let ((old-val (get)))
+        (put (+ old-val 10))
+        (get)))
+    
+    ;; TODO: Test when handlers are implemented
+    ;; (assert-equal '(10 10) (with-state 0 test-state-ops))
+    )
+  
+  (test "IO effect handler"
+    ;; Handler that captures IO operations
+    (define-effect IO
+      (read-line : Unit -> String)
+      (write-line : String -> Unit))
+    
+    (define (with-captured-io input-lines computation)
+      (let ((input (list->queue input-lines))
+            (output '()))
+        (handle computation
+          (IO
+            (read-line () k) => 
+            (if (queue-empty? input)
+                (k "" input output)
+                (let ((line (queue-pop! input)))
+                  (k line input output)))
+            (write-line line k) =>
+            (let ((new-output (append output (list line))))
+              (k () input new-output)))
+          (return value input output) => (list value (reverse output)))))
+    
+    ;; TODO: Test when IO handlers are implemented
+    )
+  
+  (test "Error effect handler"
+    ;; Handler for error/exception effects
+    (define-effect Error
+      (raise : String -> Any))
+    
+    (define (with-error-handling computation)
+      (handle computation
+        (Error
+          (raise message k) => (list 'error message))
+        (return value) => (list 'ok value)))
+    
+    ;; TODO: Test error handling
+    ))
+
+;; =============================================================================
+;; EFFECT COMPOSITION AND NESTING
+;; =============================================================================
+
+(define-test-suite "Effect Composition and Nesting"
+  
+  (test "Multiple effects in one computation"
+    ;; Using both State and IO effects together
+    (define (stateful-io-computation)
+      #:effects (State IO)
+      (let ((current-state (get)))
+        (write-line (string-append "Current state: " (show current-state)))
+        (put (+ current-state 1))
+        (write-line "State incremented")
+        (get)))
+    
+    ;; TODO: Test with multiple handlers
+    ;; (define result
+    ;;   (with-captured-io '()
+    ;;     (with-state 5 stateful-io-computation)))
+    ;; (assert-equal '((6 6) ("Current state: 5" "State incremented"))
+    ;;              result)
+    )
+  
+  (test "Handler composition"
+    ;; Composing multiple handlers
+    (define (with-state-and-io initial-state input-lines computation)
+      (with-state initial-state
+        (with-captured-io input-lines
+          computation)))
+    
+    ;; TODO: Test handler composition
+    )
+  
+  (test "Effect handler nesting"
+    ;; Handlers can be nested and effects can escape outer handlers
+    ;; TODO: Test effect scoping and nesting semantics
+    ))
+
+;; =============================================================================
+;; ADVANCED HANDLER PATTERNS
+;; =============================================================================
+
+(define-test-suite "Advanced Handler Patterns"
+  
+  (test "Non-determinism handler"
+    ;; Handler for non-deterministic choice
+    (define-effect Choice
+      (choose : (List Any) -> Any))
+    
+    (define (with-all-choices computation)
+      (handle computation
+        (Choice
+          (choose options k) =>
+          (apply append (map k options)))
+        (return value) => (list value)))
+    
+    (define (test-nondeterminism)
+      #:effect Choice
+      (let ((x (choose '(1 2 3)))
+            (y (choose '(10 20))))
+        (+ x y)))
+    
+    ;; Should return all possible sums
+    ;; TODO: Test when non-determinism is implemented
+    ;; (assert-equal '(11 21 12 22 13 23) (with-all-choices test-nondeterminism))
+    )
+  
+  (test "Continuation-based coroutines"
+    ;; Handler for cooperative multitasking
+    (define-effect Yield
+      (yield : Any -> Unit))
+    
+    (define (with-round-robin computations)
+      ;; TODO: Implement round-robin scheduler using continuations
+      )
+    
+    ;; TODO: Test coroutine-style concurrency
+    )
+  
+  (test "Async/await pattern"
+    ;; Handler for asynchronous operations
+    (define-effect Async
+      (async : (Unit -> Any) -> Promise)
+      (await : Promise -> Any))
+    
+    ;; TODO: Implement async handler
+    ))
+
+;; =============================================================================
+;; EFFECT POLYMORPHISM
+;; =============================================================================
+
+(define-test-suite "Effect Polymorphism"
+  
+  (test "Effect-polymorphic functions"
+    ;; Functions that work with any effect
+    (define (twice computation)
+      #:effects (eff)
+      #:type (∀ eff a. {eff} a -> {eff} (a, a))
+      (let ((result1 computation)
+            (result2 computation))
+        (cons result1 result2)))
+    
+    ;; Should work with any effectful computation
+    ;; TODO: Test effect polymorphism
+    )
+  
+  (test "Effect constraints"
+    ;; Functions that require specific effects
+    (define (stateful-computation x)
+      #:constraint (State)
+      #:type (∀ a. a -> {State} a)
+      (let ((old-state (get)))
+        (put x)
+        old-state))
+    
+    ;; TODO: Test effect constraints
+    )
+  
+  (test "Effect inference with polymorphism"
+    ;; Inference should handle effect polymorphism correctly
+    ;; TODO: Test effect inference in polymorphic contexts
+    ))
+
+;; =============================================================================
+;; HANDLER ABSTRACTION AND REUSE
+;; =============================================================================
+
+(define-test-suite "Handler Abstraction and Reuse"
+  
+  (test "Parameterized handlers"
+    ;; Handlers that can be configured
+    (define (make-bounded-state-handler min-val max-val)
+      (lambda (initial-state computation)
+        (handle computation
+          (State
+            (get () k) => (k initial-state initial-state)
+            (put new-state k) =>
+            (let ((bounded-state (max min-val (min max-val new-state))))
+              (k () bounded-state)))
+          (return value final-state) => (list value final-state))))
+    
+    ;; TODO: Test parameterized handlers
+    ;; (define bounded-handler (make-bounded-state-handler 0 100))
+    ;; (assert-equal '(50 50) (bounded-handler 50 (lambda () (put 150) (get))))
+    )
+  
+  (test "Handler combinators"
+    ;; Functions for combining handlers
+    (define (combine-handlers handler1 handler2)
+      ;; TODO: Implement handler combination
+      )
+    
+    ;; TODO: Test handler combinators
+    )
+  
+  (test "Handler libraries"
+    ;; Reusable handler implementations
+    ;; TODO: Test standard handler libraries
+    ))
+
+;; =============================================================================
+;; PERFORMANCE AND OPTIMIZATION
+;; =============================================================================
+
+(define-test-suite "Handler Performance and Optimization"
+  
+  (test "Handler compilation optimization"
+    ;; Handlers should compile to efficient code
+    ;; TODO: Test that handlers don't add excessive overhead
+    )
+  
+  (test "Effect stack optimization"
+    ;; Deep effect stacks should be optimized
+    ;; TODO: Test with deeply nested handlers
+    )
+  
+  (test "Handler inlining"
+    ;; Simple handlers should be inlined
+    ;; TODO: Test handler inlining optimizations
+    ))
+
+;; =============================================================================
+;; ERROR HANDLING IN HANDLERS
+;; =============================================================================
+
+(define-test-suite "Error Handling in Handlers"
+  
+  (test "Handler failure recovery"
+    ;; Handlers should handle their own failures gracefully
+    ;; TODO: Test handler error recovery
+    )
+  
+  (test "Unhandled effect errors"
+    ;; Using effects without handlers should produce good errors
+    ;; TODO: Test unhandled effect error messages
+    )
+  
+  (test "Handler mismatch errors"
+    ;; Mismatched handlers and effects should be caught
+    ;; TODO: Test handler/effect compatibility checking
+    ))
+
+;; =============================================================================
+;; DEBUGGING AND INTROSPECTION
+;; =============================================================================
+
+(define-test-suite "Handler Debugging and Introspection"
+  
+  (test "Handler tracing"
+    ;; Handlers should be traceable for debugging
+    ;; TODO: Test handler execution tracing
+    )
+  
+  (test "Effect handler stack inspection"
+    ;; Should be able to inspect the handler stack
+    ;; TODO: Test handler stack introspection
+    )
+  
+  (test "Handler performance profiling"
+    ;; Profile handler performance
+    ;; TODO: Test handler profiling tools
+    ))
+
+;; =============================================================================
+;; INTEGRATION WITH OTHER FEATURES
+;; =============================================================================
+
+(define-test-suite "Handler Integration"
+  
+  (test "Handlers with type system"
+    ;; Handlers should integrate well with the type system
+    ;; TODO: Test typed handlers and effect types
+    )
+  
+  (test "Handlers with macros"
+    ;; Handler syntax can be implemented via macros
+    ;; TODO: Test macro-based handler syntax
+    )
+  
+  (test "Handlers with modules"
+    ;; Handlers should work across module boundaries
+    ;; TODO: Test handler import/export
+    ))
+
+;; =============================================================================
+;; REAL-WORLD HANDLER EXAMPLES
+;; =============================================================================
+
+(define-test-suite "Real-World Handler Examples"
+  
+  (test "Database transaction handler"
+    ;; Handler for database transactions
+    (define-effect Database
+      (query : String -> Any)
+      (transaction : (Unit -> Any) -> Any))
+    
+    (define (with-database-connection connection computation)
+      ;; TODO: Implement database handler
+      )
+    
+    ;; TODO: Test database transactions
+    )
+  
+  (test "HTTP request handler"
+    ;; Handler for HTTP requests
+    (define-effect HTTP
+      (get : String -> String)
+      (post : String String -> String))
+    
+    (define (with-http-client computation)
+      ;; TODO: Implement HTTP client handler
+      )
+    
+    ;; TODO: Test HTTP operations
+    )
+  
+  (test "Logging handler"
+    ;; Handler for structured logging
+    (define-effect Logging
+      (log : String String -> Unit))  ;; level, message
+    
+    (define (with-logger logger-config computation)
+      ;; TODO: Implement configurable logger
+      )
+    
+    ;; TODO: Test logging handler
+    ))
+
+;; =============================================================================
+;; CONCURRENCY AND HANDLERS
+;; =============================================================================
+
+(define-test-suite "Concurrency and Handlers"
+  
+  (test "Thread-safe handlers"
+    ;; Handlers should work correctly in concurrent contexts
+    ;; TODO: Test handler thread safety
+    )
+  
+  (test "Handler isolation"
+    ;; Each thread should have its own handler stack
+    ;; TODO: Test handler isolation between threads
+    )
+  
+  (test "Distributed handlers"
+    ;; Handlers that work across network boundaries
+    ;; TODO: Test distributed effect handling
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Effect Handler Definition")
+(run-test-suite "Effect Composition and Nesting")
+(run-test-suite "Advanced Handler Patterns")
+(run-test-suite "Effect Polymorphism")
+(run-test-suite "Handler Abstraction and Reuse")
+(run-test-suite "Handler Performance and Optimization")
+(run-test-suite "Error Handling in Handlers")
+(run-test-suite "Handler Debugging and Introspection")
+(run-test-suite "Handler Integration")
+(run-test-suite "Real-World Handler Examples")
+(run-test-suite "Concurrency and Handlers")
+
+(display "Effect handlers test completed.\n")
+(display "This test verifies algebraic effect handlers and effect management.\n")

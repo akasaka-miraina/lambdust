@@ -464,6 +464,17 @@ impl TypeMarshaller {
         self.read_value_from_buffer(buffer.c_type(), buffer, 0)
     }
 
+    /// Helper function to extract numeric value from literal
+    fn extract_numeric_value(literal: &Literal) -> Option<f64> {
+        match literal {
+            Literal::ExactInteger(i) => Some(*i as f64),
+            Literal::InexactReal(f) => Some(*f),
+            Literal::Rational { numerator, denominator } => Some(*numerator as f64 / *denominator as f64),
+            Literal::Complex { real, imaginary: _ } => Some(*real), // Use real part only
+            _ => None,
+        }
+    }
+
     /// Write a value to a buffer at the given offset
     fn write_value_to_buffer(&mut self, value: &Value, c_type: &CType, buffer: &mut CDataBuffer, offset: usize) 
         -> std::result::Result<(), ConversionError> {
@@ -479,44 +490,71 @@ impl TypeMarshaller {
             let ptr = buffer.as_mut_ptr().add(offset);
             
             match (value, c_type) {
-                (Value::Literal(Literal::Number(i)), CType::Int8) if i.fract() == 0.0  => {
-                    *(ptr as *mut i8) = *i as i8;
+                (Value::Literal(literal), CType::Int8) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    if val.fract() == 0.0 {
+                        *(ptr as *mut i8) = val as i8;
+                    } else {
+                        return Err(ConversionError::TypeMismatch {
+                            expected: c_type.clone(),
+                            actual: format!("{value:?}"),
+                        });
+                    }
                 }
-                (Value::Literal(Literal::Number(i)), CType::Int16) if i.fract() == 0.0  => {
-                    *(ptr as *mut i16) = *i as i16;
+                (Value::Literal(literal), CType::Int16) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    if val.fract() == 0.0 {
+                        *(ptr as *mut i16) = val as i16;
+                    } else {
+                        return Err(ConversionError::TypeMismatch {
+                            expected: c_type.clone(),
+                            actual: format!("{value:?}"),
+                        });
+                    }
                 }
-                (Value::Literal(Literal::Number(i)), CType::Int32) => {
-                    *(ptr as *mut i32) = *i as i32;
+                (Value::Literal(literal), CType::Int32) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut i32) = val as i32;
                 }
-                (Value::Literal(Literal::Number(i)), CType::Int64) => {
-                    *(ptr as *mut i64) = *i as i64;
+                (Value::Literal(literal), CType::Int64) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut i64) = val as i64;
                 }
-                (Value::Literal(Literal::Number(i)), CType::UInt8) => {
-                    *ptr = *i as u8;
+                (Value::Literal(literal), CType::UInt8) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *ptr = val as u8;
                 }
-                (Value::Literal(Literal::Number(i)), CType::UInt16) => {
-                    *(ptr as *mut u16) = *i as u16;
+                (Value::Literal(literal), CType::UInt16) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut u16) = val as u16;
                 }
-                (Value::Literal(Literal::Number(i)), CType::UInt32) => {
-                    *(ptr as *mut u32) = *i as u32;
+                (Value::Literal(literal), CType::UInt32) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut u32) = val as u32;
                 }
-                (Value::Literal(Literal::Number(i)), CType::UInt64) => {
-                    *(ptr as *mut u64) = *i as u64;
+                (Value::Literal(literal), CType::UInt64) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut u64) = val as u64;
                 }
-                (Value::Literal(Literal::Number(i)), CType::CInt) => {
-                    *(ptr as *mut libc::c_int) = *i as libc::c_int;
+                (Value::Literal(literal), CType::CInt) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut libc::c_int) = val as libc::c_int;
                 }
-                (Value::Literal(Literal::Number(i)), CType::CUInt) => {
-                    *(ptr as *mut libc::c_uint) = *i as libc::c_uint;
+                (Value::Literal(literal), CType::CUInt) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut libc::c_uint) = val as libc::c_uint;
                 }
-                (Value::Literal(Literal::Number(i)), CType::CSizeT) => {
-                    *(ptr as *mut libc::size_t) = *i as libc::size_t;
+                (Value::Literal(literal), CType::CSizeT) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut libc::size_t) = val as libc::size_t;
                 }
-                (Value::Literal(Literal::Number(f)), CType::Float)  => {
-                    *(ptr as *mut f32) = *f as f32;
+                (Value::Literal(literal), CType::Float) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut f32) = val as f32;
                 }
-                (Value::Literal(Literal::Number(f)), CType::Double)  => {
-                    *(ptr as *mut f64) = *f;
+                (Value::Literal(literal), CType::Double) if Self::extract_numeric_value(literal).is_some() => {
+                    let val = Self::extract_numeric_value(literal).unwrap();
+                    *(ptr as *mut f64) = val;
                 }
                 (Value::Literal(Literal::Boolean(b)), CType::Bool)  => {
                     *(ptr as *mut i32) = if *b { 1 } else { 0 };
@@ -557,19 +595,19 @@ impl TypeMarshaller {
             let ptr = buffer.as_ptr().add(offset);
             
             let value = match c_type {
-                CType::Int8 => Value::Literal(Literal::Number(*(ptr as *const i8) as f64)),
-                CType::Int16 => Value::Literal(Literal::Number(*(ptr as *const i16) as f64)),
-                CType::Int32 => Value::Literal(Literal::Number(*(ptr as *const i32) as f64)),
-                CType::Int64 => Value::Literal(Literal::Number(*(ptr as *const i64) as f64)),
-                CType::UInt8 => Value::Literal(Literal::Number(*ptr as f64)),
-                CType::UInt16 => Value::Literal(Literal::Number(*(ptr as *const u16) as f64)),
-                CType::UInt32 => Value::Literal(Literal::Number(*(ptr as *const u32) as f64)),
-                CType::UInt64 => Value::Literal(Literal::Number(*(ptr as *const u64) as f64)),
-                CType::CInt => Value::Literal(Literal::Number(*(ptr as *const libc::c_int) as f64)),
-                CType::CUInt => Value::Literal(Literal::Number(*(ptr as *const libc::c_uint) as f64)),
-                CType::CSizeT => Value::Literal(Literal::Number(*(ptr as *const libc::size_t) as f64)),
-                CType::Float => Value::Literal(Literal::Number(*(ptr as *const f32) as f64)),
-                CType::Double => Value::Literal(Literal::Number(*(ptr as *const f64))),
+                CType::Int8 => Value::Literal(Literal::InexactReal(*(ptr as *const i8) as f64)),
+                CType::Int16 => Value::Literal(Literal::InexactReal(*(ptr as *const i16) as f64)),
+                CType::Int32 => Value::Literal(Literal::InexactReal(*(ptr as *const i32) as f64)),
+                CType::Int64 => Value::Literal(Literal::InexactReal(*(ptr as *const i64) as f64)),
+                CType::UInt8 => Value::Literal(Literal::InexactReal(*ptr as f64)),
+                CType::UInt16 => Value::Literal(Literal::InexactReal(*(ptr as *const u16) as f64)),
+                CType::UInt32 => Value::Literal(Literal::InexactReal(*(ptr as *const u32) as f64)),
+                CType::UInt64 => Value::Literal(Literal::InexactReal(*(ptr as *const u64) as f64)),
+                CType::CInt => Value::Literal(Literal::InexactReal(*(ptr as *const libc::c_int) as f64)),
+                CType::CUInt => Value::Literal(Literal::InexactReal(*(ptr as *const libc::c_uint) as f64)),
+                CType::CSizeT => Value::Literal(Literal::InexactReal(*(ptr as *const libc::size_t) as f64)),
+                CType::Float => Value::Literal(Literal::InexactReal(*(ptr as *const f32) as f64)),
+                CType::Double => Value::Literal(Literal::InexactReal(*(ptr as *const f64))),
                 CType::Bool  => {
                     let int_val = *(ptr as *const i32);
                     Value::Literal(Literal::Boolean(int_val != 0))

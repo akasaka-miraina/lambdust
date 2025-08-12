@@ -47,9 +47,16 @@ simple_*.ldust
 simple_*.scm
 minimal_*.ldust
 debug_*.ldust
+debug_*.scm
 *_demo.scm
 *_demo.ldust
 *_test.ldust
+*_validation.scm
+nested_test.scm
+test[0-9].scm
+test[0-9][0-9].scm
+*debug
+*_debug
 final_compliance_test.ldust
 r7rs_compliance_test.ldust
 comprehensive_io_demo.ldust

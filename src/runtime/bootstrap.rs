@@ -518,6 +518,14 @@ impl MinimalPrimitivesRegistry {
 
 // ============= MINIMAL PRIMITIVE IMPLEMENTATIONS =============
 
+/// Helper function to extract integer values from literals
+fn extract_integer_value(value: &Value) -> Option<i64> {
+    match value {
+        Value::Literal(literal) => literal.to_i64(),
+        _ => None,
+    }
+}
+
 /// Addition primitive (+)
 fn primitive_add(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
@@ -526,11 +534,10 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
     
     let mut result = 0i64;
     for arg in args {
-        match arg {
-            Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => {
-                result += *n as i64;
-            }
-            _ => return Err(helpers::runtime_error_simple("+ expects numeric arguments")),
+        if let Some(n) = extract_integer_value(arg) {
+            result += n;
+        } else {
+            return Err(helpers::runtime_error_simple("+ expects numeric arguments"));
         }
     }
     Ok(Value::integer(result))
@@ -544,23 +551,24 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
     
     if args.len() == 1 {
         // Negation
-        match &args[0] {
-            Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => Ok(Value::integer(-(*n as i64))),
-            _ => Err(helpers::runtime_error_simple("- expects numeric arguments")),
+        if let Some(n) = extract_integer_value(&args[0]) {
+            Ok(Value::integer(-n))
+        } else {
+            Err(helpers::runtime_error_simple("- expects numeric arguments"))
         }
     } else {
         // Subtraction
-        let mut result = match &args[0] {
-            Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("- expects numeric arguments", None))),
+        let mut result = if let Some(n) = extract_integer_value(&args[0]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("- expects numeric arguments", None)));
         };
         
         for arg in &args[1..] {
-            match arg {
-                Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => {
-                    result -= *n as i64;
-                }
-                _ => return Err(Box::new(Error::runtime_error("- expects numeric arguments", None))),
+            if let Some(n) = extract_integer_value(arg) {
+                result -= n;
+            } else {
+                return Err(Box::new(Error::runtime_error("- expects numeric arguments", None)));
             }
         }
         Ok(Value::integer(result))
@@ -575,11 +583,10 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
     
     let mut result = 1i64;
     for arg in args {
-        match arg {
-            Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => {
-                result *= *n as i64;
-            }
-            _ => return Err(Box::new(Error::runtime_error("* expects numeric arguments", None))),
+        if let Some(n) = extract_integer_value(arg) {
+            result *= n;
+        } else {
+            return Err(Box::new(Error::runtime_error("* expects numeric arguments", None)));
         }
     }
     Ok(Value::integer(result))
@@ -591,20 +598,19 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error("= requires at least 2 arguments", None)));
     }
     
-    let first = match &args[0] {
-        Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-        _ => return Err(Box::new(Error::runtime_error("= expects numeric arguments", None))),
+    let first = if let Some(n) = extract_integer_value(&args[0]) {
+        n
+    } else {
+        return Err(Box::new(Error::runtime_error("= expects numeric arguments", None)));
     };
     
     for arg in &args[1..] {
-        match arg {
-            Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => {
-                let n_val = *n as i64;
-                if first != n_val {
-                    return Ok(Value::boolean(false));
-                }
+        if let Some(n_val) = extract_integer_value(arg) {
+            if first != n_val {
+                return Ok(Value::boolean(false));
             }
-            _ => return Err(Box::new(Error::runtime_error("= expects numeric arguments", None))),
+        } else {
+            return Err(Box::new(Error::runtime_error("= expects numeric arguments", None)));
         }
     }
     Ok(Value::boolean(true))
@@ -617,14 +623,16 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
     }
     
     for i in 0..args.len() - 1 {
-        let current = match &args[i] {
-            Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("< expects numeric arguments", None))),
+        let current = if let Some(n) = extract_integer_value(&args[i]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("< expects numeric arguments", None)));
         };
         
-        let next = match &args[i + 1] {
-            Value::Literal(crate::ast::Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("< expects numeric arguments", None))),
+        let next = if let Some(n) = extract_integer_value(&args[i + 1]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("< expects numeric arguments", None)));
         };
         
         if current >= next {
@@ -713,13 +721,15 @@ fn primitive_error(args: &[Value]) -> Result<Value> {
     Err(Error::runtime_error(message, None).boxed())
 }
 
-/// display primitive (simplified)
+/// display primitive (R7RS-compliant)
 fn primitive_display(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
         return Err(Box::new(Error::runtime_error("display requires 1 or 2 arguments", None)));
     }
     
-    println!("{}", args[0]);
+    // Use the R7RS-compliant display formatting method from Value
+    let output = args[0].display_string();
+    println!("{output}");
     Ok(Value::Unspecified)
 }
 
@@ -781,6 +791,29 @@ mod tests {
         
         let minimal_config = BootstrapConfig::minimal();
         assert!(minimal_config.essential_primitives.len() < config.essential_primitives.len());
+    }
+
+    #[test]
+    fn test_bootstrap_display_r7rs_compliance() {
+        // Test that the bootstrap display function formats strings without quotes
+        let test_string = Value::string("Hello World");
+        let result = test_string.display_string();
+        assert_eq!(result, "Hello World"); // Should NOT have quotes
+        
+        // Test characters without #\ prefix
+        let test_char = Value::Literal(crate::ast::Literal::Character('x'));
+        let result = test_char.display_string();
+        assert_eq!(result, "x"); // Should NOT have #\ prefix
+        
+        // Test numbers still format correctly
+        let test_number = Value::integer(42);
+        let result = test_number.display_string();
+        assert_eq!(result, "42");
+        
+        // Test booleans still format correctly
+        let test_bool = Value::boolean(true);
+        let result = test_bool.display_string();
+        assert_eq!(result, "#t");
     }
 
     #[test]

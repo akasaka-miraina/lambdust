@@ -150,11 +150,138 @@ impl Pattern {
                 }
             }
             
+            (Pattern::Identifier(name), Expr::Identifier(expr_name)) => {
+                if name == expr_name {
+                    Ok(())
+                } else {
+                    Err(Box::new(Error::macro_error(
+                        format!("Identifier mismatch: expected {name}, got {expr_name}"),
+                        expr.span,
+                    )))
+                }
+            }
+            
+            (Pattern::Keyword(name), Expr::Keyword(expr_name)) => {
+                if name == expr_name {
+                    Ok(())
+                } else {
+                    Err(Box::new(Error::macro_error(
+                        format!("Keyword mismatch: expected {name}, got {expr_name}"),
+                        expr.span,
+                    )))
+                }
+            }
+            
+            (Pattern::Nil, Expr::Literal(Literal::Nil)) => Ok(()),
+            
+            (Pattern::List(patterns), Expr::List(elements)) => {
+                self.match_list_patterns(patterns, elements, bindings)
+            }
+            
+            (Pattern::List(patterns), Expr::Application { operator, operands }) => {
+                let mut all_elements = vec![(**operator).clone()];
+                all_elements.extend(operands.iter().cloned());
+                self.match_list_patterns(patterns, &all_elements, bindings)
+            }
+            
+            (Pattern::Ellipsis { patterns, ellipsis_pattern, rest }, Expr::List(elements)) => {
+                self.match_ellipsis_pattern(patterns, ellipsis_pattern, rest.as_ref().map(|v| &**v), elements, bindings)
+            }
+            
+            (Pattern::Ellipsis { patterns, ellipsis_pattern, rest }, Expr::Application { operator, operands }) => {
+                let mut all_elements = vec![(**operator).clone()];
+                all_elements.extend(operands.iter().cloned());
+                self.match_ellipsis_pattern(patterns, ellipsis_pattern, rest.as_ref().map(|v| &**v), &all_elements, bindings)
+            }
+            
+            (Pattern::Pair { car, cdr }, Expr::Pair { car: expr_car, cdr: expr_cdr }) => {
+                car.match_expr_with_bindings(expr_car, bindings)?;
+                cdr.match_expr_with_bindings(expr_cdr, bindings)?;
+                Ok(())
+            }
+            
             _ => Err(Box::new(Error::macro_error(
                 format!("Pattern type mismatch: {self:?} vs {:?}", expr.inner),
                 expr.span,
             ))),
         }
+    }
+
+    /// Matches a list of patterns against a list of expressions.
+    fn match_list_patterns(
+        &self,
+        patterns: &[Pattern],
+        elements: &[Spanned<Expr>],
+        bindings: &mut PatternBindings,
+    ) -> Result<()> {
+        if patterns.len() != elements.len() {
+            return Err(Box::new(Error::macro_error(
+                format!("Length mismatch: pattern has {} elements, expression has {}", 
+                       patterns.len(), elements.len()),
+                crate::diagnostics::Span::new(0, 0),
+            )));
+        }
+        
+        for (pattern, element) in patterns.iter().zip(elements.iter()) {
+            pattern.match_expr_with_bindings(element, bindings)?;
+        }
+        Ok(())
+    }
+
+    /// Matches an ellipsis pattern against a list of expressions.
+    fn match_ellipsis_pattern(
+        &self,
+        fixed_patterns: &[Pattern],
+        ellipsis_pattern: &Pattern,
+        rest_pattern: Option<&Pattern>,
+        elements: &[Spanned<Expr>],
+        bindings: &mut PatternBindings,
+    ) -> Result<()> {
+        // Check minimum length
+        let min_length = fixed_patterns.len() + rest_pattern.map(|_| 1).unwrap_or(0);
+        if elements.len() < min_length {
+            return Err(Box::new(Error::macro_error(
+                format!("Not enough elements: need at least {min_length}, got {}", elements.len()),
+                crate::diagnostics::Span::new(0, 0),
+            )));
+        }
+        
+        // Match fixed patterns at the beginning
+        for (i, pattern) in fixed_patterns.iter().enumerate() {
+            pattern.match_expr_with_bindings(&elements[i], bindings)?;
+        }
+        
+        // Determine how many elements belong to the ellipsis
+        let rest_count = rest_pattern.map(|_| 1).unwrap_or(0);
+        let ellipsis_end = elements.len() - rest_count;
+        
+        // Match ellipsis pattern for each repetition
+        let mut ellipsis_matches = Vec::new();
+        for element in elements.iter().take(ellipsis_end).skip(fixed_patterns.len()) {
+            let mut ellipsis_bindings = PatternBindings::new();
+            ellipsis_pattern.match_expr_with_bindings(element, &mut ellipsis_bindings)?;
+            ellipsis_matches.push(element.clone());
+            
+            // Collect ellipsis variable bindings
+            for var in ellipsis_pattern.bound_variables() {
+                if let Some(expr) = ellipsis_bindings.get(&var) {
+                    if let Some(existing_list) = bindings.ellipsis_bindings.get_mut(&var) {
+                        existing_list.push(expr.clone());
+                    } else {
+                        bindings.bind_ellipsis(var, vec![expr.clone()]);
+                    }
+                }
+            }
+        }
+        
+        // Match rest pattern if present
+        if let Some(rest_pat) = rest_pattern {
+            if let Some(last_element) = elements.last() {
+                rest_pat.match_expr_with_bindings(last_element, bindings)?;
+            }
+        }
+        
+        Ok(())
     }
     
     /// Collects all variable names that would be bound by this pattern.
@@ -171,6 +298,103 @@ impl Pattern {
                 for pat in patterns {
                     pat.collect_variables(vars);
                 }
+            }
+            Pattern::Ellipsis { patterns, ellipsis_pattern, rest } => {
+                for pat in patterns {
+                    pat.collect_variables(vars);
+                }
+                ellipsis_pattern.collect_variables(vars);
+                if let Some(rest_pat) = rest {
+                    rest_pat.collect_variables(vars);
+                }
+            }
+            Pattern::Pair { car, cdr } => {
+                car.collect_variables(vars);
+                cdr.collect_variables(vars);
+            }
+            Pattern::Or(alternatives) => {
+                for alt in alternatives {
+                    alt.collect_variables(vars);
+                }
+            }
+            Pattern::And(conjuncts) => {
+                for conj in conjuncts {
+                    conj.collect_variables(vars);
+                }
+            }
+            Pattern::Not(sub_pattern) => {
+                sub_pattern.collect_variables(vars);
+            }
+            _ => {}
+        }
+    }
+
+    /// Computes the ellipsis depth of this pattern (how many nested ellipses).
+    pub fn ellipsis_depth(&self) -> usize {
+        match self {
+            Pattern::Ellipsis { ellipsis_pattern, .. } => {
+                1 + ellipsis_pattern.ellipsis_depth()
+            }
+            Pattern::List(patterns) => {
+                patterns.iter().map(|p| p.ellipsis_depth()).max().unwrap_or(0)
+            }
+            Pattern::Pair { car, cdr } => {
+                car.ellipsis_depth().max(cdr.ellipsis_depth())
+            }
+            Pattern::Or(alternatives) => {
+                alternatives.iter().map(|p| p.ellipsis_depth()).max().unwrap_or(0)
+            }
+            Pattern::And(conjuncts) => {
+                conjuncts.iter().map(|p| p.ellipsis_depth()).max().unwrap_or(0)
+            }
+            Pattern::Not(sub_pattern) => sub_pattern.ellipsis_depth(),
+            _ => 0,
+        }
+    }
+
+    /// SRFI-149: Computes the binding depths of all variables in this pattern
+    /// Returns a map of variable name to its ellipsis depth
+    pub fn variable_depths(&self) -> std::collections::HashMap<String, usize> {
+        let mut depths = std::collections::HashMap::new();
+        self.collect_variable_depths(&mut depths, 0);
+        depths
+    }
+
+    fn collect_variable_depths(&self, depths: &mut std::collections::HashMap<String, usize>, current_depth: usize) {
+        match self {
+            Pattern::Variable(name) => {
+                depths.insert(name.clone(), current_depth);
+            }
+            Pattern::List(patterns) => {
+                for pattern in patterns {
+                    pattern.collect_variable_depths(depths, current_depth);
+                }
+            }
+            Pattern::Ellipsis { patterns, ellipsis_pattern, rest } => {
+                for pattern in patterns {
+                    pattern.collect_variable_depths(depths, current_depth);
+                }
+                ellipsis_pattern.collect_variable_depths(depths, current_depth + 1);
+                if let Some(rest_pat) = rest {
+                    rest_pat.collect_variable_depths(depths, current_depth);
+                }
+            }
+            Pattern::Pair { car, cdr } => {
+                car.collect_variable_depths(depths, current_depth);
+                cdr.collect_variable_depths(depths, current_depth);
+            }
+            Pattern::Or(alternatives) => {
+                for alt in alternatives {
+                    alt.collect_variable_depths(depths, current_depth);
+                }
+            }
+            Pattern::And(conjuncts) => {
+                for conj in conjuncts {
+                    conj.collect_variable_depths(depths, current_depth);
+                }
+            }
+            Pattern::Not(sub_pattern) => {
+                sub_pattern.collect_variable_depths(depths, current_depth);
             }
             _ => {}
         }

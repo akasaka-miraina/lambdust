@@ -65,7 +65,7 @@ pub use module_system::*;
 // ModuleSystem Default implementation moved to module_system.rs
 
 /// Trait for objects that can provide module definitions.
-pub trait ModuleProvider {
+pub trait ModuleProvider: Send + Sync {
     /// Gets a module definition by ID.
     fn get_module(&self, id: &ModuleId) -> Result<Module>;
     

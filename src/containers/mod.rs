@@ -31,6 +31,9 @@ pub mod priority_queue;
 pub mod ordered_set;
 pub mod list_queue;
 pub mod random_access_list;
+pub mod set;
+pub mod bag;
+pub mod generator;
 pub mod comparator;
 pub mod benchmarks;
 
@@ -41,6 +44,9 @@ pub use priority_queue::{PriorityQueue, ThreadSafePriorityQueue};
 pub use ordered_set::{OrderedSet, ThreadSafeOrderedSet};
 pub use list_queue::{ListQueue, ThreadSafeListQueue};
 pub use random_access_list::{RandomAccessList, PersistentRandomAccessList, ThreadSafeRandomAccessList};
+pub use set::{Set, ThreadSafeSet};
+pub use bag::{Bag, ThreadSafeBag};
+pub use generator::{Generator, ThreadSafeGenerator};
 pub use comparator::{Comparator, HashComparator};
 pub use benchmarks::{ContainerBenchmarks, BenchmarkResult, run_quick_benchmark};
 
@@ -263,6 +269,7 @@ pub mod utils {
             Value::Nil => 3,
             Value::Unspecified => 4,
             Value::Pair(_, _) => 5,
+            Value::MutablePair(_, _) => 5,
             Value::Vector(_) => 6,
             Value::Hashtable(_) => 7,
             Value::Procedure(_) => 8,
@@ -284,14 +291,31 @@ pub mod utils {
             Value::OrderedSet(_) => 24,
             Value::ListQueue(_) => 25,
             Value::RandomAccessList(_) => 26,
+            Value::Set(_) => 27,
+            Value::Bag(_) => 28,
             // Concurrency types
-            Value::Future(_) => 27,
-            Value::Channel(_) => 28,
-            Value::Mutex(_) => 29,
-            Value::Semaphore(_) => 30,
-            Value::AtomicCounter(_) => 31,
-            Value::DistributedNode(_) => 32,
-            Value::Opaque(_) => 33,
+            Value::Future(_) => 29,
+            Value::Channel(_) => 30,
+            Value::Mutex(_) => 31,
+            Value::Semaphore(_) => 32,
+            Value::AtomicCounter(_) => 33,
+            Value::DistributedNode(_) => 34,
+            Value::MutableString(s) => {
+                match s.read() {
+                    Ok(chars) => {
+                        use std::collections::hash_map::DefaultHasher;
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = DefaultHasher::new();
+                        for ch in chars.iter() {
+                            ch.hash(&mut hasher);
+                        }
+                        35u8
+                    }
+                    Err(_) => 35, // Fallback for locked strings
+                }
+            }
+            Value::Generator(_) => 36,
+            Value::Opaque(_) => 37,
         }
     }
     
@@ -300,8 +324,11 @@ pub mod utils {
         use std::cmp::Ordering;
         
         match (a, b) {
-            (Literal::Number(n_a), Literal::Number(n_b)) => {
-                n_a.partial_cmp(n_b).unwrap_or(Ordering::Equal)
+            (a, b) if a.is_number() && b.is_number() => {
+                match (a.to_f64(), b.to_f64()) {
+                    (Some(n_a), Some(n_b)) => n_a.partial_cmp(&n_b).unwrap_or(Ordering::Equal),
+                    _ => Ordering::Equal
+                }
             }
             (Literal::String(s_a), Literal::String(s_b)) => s_a.cmp(s_b),
             (Literal::Character(c_a), Literal::Character(c_b)) => c_a.cmp(c_b),
@@ -376,7 +403,7 @@ pub mod utils {
     fn estimate_literal_memory(lit: &crate::ast::Literal) -> usize {
         use crate::ast::Literal;
         match lit {
-            Literal::Number(_) => std::mem::size_of::<f64>(),
+            Literal::ExactInteger(_) | Literal::InexactReal(_) | Literal::Number(_) => std::mem::size_of::<f64>(),
             Literal::String(s) => std::mem::size_of::<String>() + s.len(),
             Literal::Character(_) => std::mem::size_of::<char>(),
             Literal::Boolean(_) => std::mem::size_of::<bool>(),

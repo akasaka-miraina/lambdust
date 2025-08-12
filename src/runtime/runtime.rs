@@ -24,11 +24,20 @@ impl Runtime {
         // Create bootstrap integration
         let mut bootstrap = BootstrapIntegration::with_config(config)?;
         
-        // Run bootstrap process (this will populate the thread-local global environment)
-        let _global_env_manager = bootstrap.bootstrap()?;
+        // Run bootstrap process and get the bootstrapped global environment
+        let global_env_manager = bootstrap.bootstrap()?;
         
-        // Create evaluator (it will use the populated global environment)
-        let evaluator = Evaluator::new();
+        // Create evaluator with default global environment
+        let mut evaluator = Evaluator::new();
+        
+        // Copy all bindings from bootstrap environment to evaluator's environment
+        Self::merge_bootstrap_environment(&mut evaluator, &global_env_manager)?;
+        
+        // Force populate essential primitives one more time after evaluator creation
+        // to ensure they are not overridden during the evaluator initialization
+        use crate::eval::environment::global_environment;
+        let final_env = global_environment();
+        Self::populate_essential_primitives(&final_env)?;
         
         // Create module system
         let module_system = ModuleSystem::new().map_err(|e| {
@@ -60,9 +69,9 @@ impl Runtime {
     }
 
     /// Expands macros in a program.
-    pub fn expand_macros(&self, program: Program) -> Result<Program> {
-        // Placeholder - return unchanged for now
-        Ok(program)
+    pub fn expand_macros(&mut self, program: Program) -> Result<Program> {
+        // Use the evaluator's macro expander to expand macros in the program
+        self.evaluator.macro_expander_mut().expand_program(&program)
     }
 
     /// Type checks a program.
@@ -94,6 +103,124 @@ impl Runtime {
     /// Gets a mutable reference to the module system.
     pub fn module_system_mut(&mut self) -> &mut ModuleSystem {
         &mut self.module_system
+    }
+
+    /// Merges the bootstrap environment into the evaluator's global environment.
+    fn merge_bootstrap_environment(
+        evaluator: &mut Evaluator, 
+        global_env_manager: &super::GlobalEnvironmentManager
+    ) -> Result<()> {
+        use crate::eval::environment::global_environment;
+        
+        // Get the evaluator's global environment
+        let evaluator_env = global_environment();
+        
+        // Get the bootstrap environment
+        let bootstrap_env = global_env_manager.root_environment();
+        
+        // Force populate essential primitives after stdlib has been loaded
+        // This ensures our correct implementations override any problematic stdlib versions
+        Self::populate_essential_primitives(&evaluator_env)?;
+        
+        Ok(())
+    }
+    
+    /// Populates essential primitives that might be missing from the default environment.
+    fn populate_essential_primitives(env: &std::rc::Rc<crate::eval::Environment>) -> Result<()> {
+        use crate::eval::Value;
+        use crate::eval::value::{PrimitiveProcedure, PrimitiveImpl};
+        use crate::effects::Effect;
+        use std::sync::Arc;
+        
+        // Force define cons primitive (override any existing definition)
+        env.define("cons".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "cons".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(Self::primitive_cons),
+            effects: vec![Effect::Pure],
+        })));
+        
+        // Force define car primitive (override any existing definition)
+        env.define("car".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "car".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(Self::primitive_car),
+            effects: vec![Effect::Pure],
+        })));
+        
+        // Force define cdr primitive (override any existing definition)
+        env.define("cdr".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "cdr".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(Self::primitive_cdr),
+            effects: vec![Effect::Pure],
+        })));
+        
+        println!("DEBUG: Force defined car, cdr, cons primitives in runtime");
+        
+        Ok(())
+    }
+    
+    /// cons primitive implementation
+    fn primitive_cons(args: &[Value]) -> Result<Value> {
+        if args.len() != 2 {
+            return Err(Box::new(crate::diagnostics::Error::runtime_error(
+                format!("cons expects 2 arguments, got {}", args.len()),
+                None,
+            )));
+        }
+        Ok(Value::pair(args[0].clone(), args[1].clone()))
+    }
+    
+    /// car primitive implementation
+    fn primitive_car(args: &[Value]) -> Result<Value> {
+        println!("DEBUG: primitive_car called with {} args", args.len());
+        if !args.is_empty() {
+            println!("DEBUG: first arg is: {:?}", args[0]);
+        }
+        
+        if args.len() != 1 {
+            return Err(Box::new(crate::diagnostics::Error::runtime_error(
+                format!("car expects 1 argument, got {}", args.len()),
+                None,
+            )));
+        }
+        
+        match &args[0] {
+            Value::Pair(car, _) => {
+                let result = (**car).clone();
+                println!("DEBUG: primitive_car returning: {result:?}");
+                Ok(result)
+            }
+            _ => {
+                println!("DEBUG: primitive_car error - not a pair: {:?}", args[0]);
+                Err(Box::new(crate::diagnostics::Error::runtime_error(
+                    "car requires a pair".to_string(),
+                    None,
+                )))
+            }
+        }
+    }
+    
+    /// cdr primitive implementation
+    fn primitive_cdr(args: &[Value]) -> Result<Value> {
+        if args.len() != 1 {
+            return Err(Box::new(crate::diagnostics::Error::runtime_error(
+                format!("cdr expects 1 argument, got {}", args.len()),
+                None,
+            )));
+        }
+        
+        match &args[0] {
+            Value::Pair(_, cdr) => Ok((**cdr).clone()),
+            _ => Err(Box::new(crate::diagnostics::Error::runtime_error(
+                "cdr requires a pair".to_string(),
+                None,
+            ))),
+        }
     }
 }
 

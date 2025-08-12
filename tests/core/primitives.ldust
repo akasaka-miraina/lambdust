@@ -1,0 +1,350 @@
+#!/usr/bin/env lambdust
+;; Test file: Core Primitives
+;; Purpose: Test the 42 core primitives that bootstrap the entire Lambdust system
+;; These are the fundamental operations implemented in Rust that enable all Scheme functionality
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test))  ;; TODO: Need to implement test framework
+
+;; =============================================================================
+;; CORE ARITHMETIC PRIMITIVES
+;; =============================================================================
+
+(define-test-suite "Arithmetic Primitives"
+  
+  (test "Addition (+)"
+    (assert-equal 0 (+))
+    (assert-equal 5 (+ 5))
+    (assert-equal 15 (+ 5 10))
+    (assert-equal 15 (+ 1 2 3 4 5))
+    (assert-equal 7.5 (+ 2.5 5))
+    (assert-error 'type-error (+ 1 "string")))
+  
+  (test "Subtraction (-)"
+    (assert-equal -5 (- 5))
+    (assert-equal 5 (- 10 5))
+    (assert-equal -10 (- 1 2 3 6))
+    (assert-error 'arity-error (-)))
+  
+  (test "Multiplication (*)"
+    (assert-equal 1 (*))
+    (assert-equal 5 (* 5))
+    (assert-equal 50 (* 5 10))
+    (assert-equal 120 (* 1 2 3 4 5))
+    (assert-equal 0 (* 0 99999)))
+  
+  (test "Division (/)"
+    (assert-equal 1/5 (/ 5))
+    (assert-equal 2 (/ 10 5))
+    (assert-equal 1/6 (/ 1 2 3))
+    (assert-error 'division-by-zero (/ 1 0))
+    (assert-error 'arity-error (/))))
+
+;; =============================================================================
+;; COMPARISON PRIMITIVES  
+;; =============================================================================
+
+(define-test-suite "Comparison Primitives"
+  
+  (test "Numeric equality (=)"
+    (assert-true (=))
+    (assert-true (= 5))
+    (assert-true (= 5 5))
+    (assert-true (= 5 5 5))
+    (assert-false (= 5 6))
+    (assert-false (= 5 5 6))
+    (assert-true (= 2.0 2))
+    (assert-error 'type-error (= 5 "5")))
+  
+  (test "Less than (<)"
+    (assert-true (<))
+    (assert-true (< 5))
+    (assert-true (< 1 2))
+    (assert-true (< 1 2 3))
+    (assert-false (< 2 1))
+    (assert-false (< 1 2 1))
+    (assert-true (< 1.5 2)))
+  
+  (test "Less than or equal (<=)"
+    (assert-true (<=))
+    (assert-true (<= 5))
+    (assert-true (<= 1 2))
+    (assert-true (<= 1 1))
+    (assert-true (<= 1 1 2))
+    (assert-false (<= 2 1)))
+  
+  (test "Greater than (>)"
+    (assert-true (>))
+    (assert-true (> 5))
+    (assert-true (> 2 1))
+    (assert-true (> 3 2 1))
+    (assert-false (> 1 2)))
+  
+  (test "Greater than or equal (>=)"
+    (assert-true (>=))
+    (assert-true (>= 5))
+    (assert-true (>= 2 1))
+    (assert-true (>= 2 2))
+    (assert-true (>= 3 2 2))
+    (assert-false (>= 1 2))))
+
+;; =============================================================================
+;; LIST PRIMITIVES
+;; =============================================================================
+
+(define-test-suite "List Primitives"
+  
+  (test "Cons construction"
+    (assert-equal '(1 . 2) (cons 1 2))
+    (assert-equal '(1 2 3) (cons 1 '(2 3)))
+    (assert-equal '(1) (cons 1 '())))
+  
+  (test "Car extraction"
+    (assert-equal 1 (car '(1 2 3)))
+    (assert-equal 'a (car '(a . b)))
+    (assert-error 'type-error (car 42))
+    (assert-error 'type-error (car '())))
+  
+  (test "Cdr extraction"
+    (assert-equal '(2 3) (cdr '(1 2 3)))
+    (assert-equal 'b (cdr '(a . b)))
+    (assert-equal '() (cdr '(a)))
+    (assert-error 'type-error (cdr 42))
+    (assert-error 'type-error (cdr '())))
+  
+  (test "Null predicate"
+    (assert-true (null? '()))
+    (assert-false (null? '(1)))
+    (assert-false (null? 1))
+    (assert-false (null? #f)))
+  
+  (test "Pair predicate"
+    (assert-true (pair? '(1 . 2)))
+    (assert-true (pair? '(1 2 3)))
+    (assert-false (pair? '()))
+    (assert-false (pair? 42))
+    (assert-false (pair? "string"))))
+
+;; =============================================================================
+;; TYPE PREDICATE PRIMITIVES
+;; =============================================================================
+
+(define-test-suite "Type Predicate Primitives"
+  
+  (test "Number predicate"
+    (assert-true (number? 42))
+    (assert-true (number? 3.14))
+    (assert-true (number? -17))
+    (assert-true (number? 0))
+    (assert-true (number? 1/3))
+    (assert-false (number? "42"))
+    (assert-false (number? #f))
+    (assert-false (number? '())))
+  
+  (test "String predicate"
+    (assert-true (string? "hello"))
+    (assert-true (string? ""))
+    (assert-false (string? 42))
+    (assert-false (string? #\a))
+    (assert-false (string? 'hello)))
+  
+  (test "Character predicate"
+    (assert-true (char? #\a))
+    (assert-true (char? #\newline))
+    (assert-false (char? "a"))
+    (assert-false (char? 97))
+    (assert-false (char? 'a)))
+  
+  (test "Boolean predicate"
+    (assert-true (boolean? #t))
+    (assert-true (boolean? #f))
+    (assert-false (boolean? 1))
+    (assert-false (boolean? '()))
+    (assert-false (boolean? "true")))
+  
+  (test "Symbol predicate"
+    (assert-true (symbol? 'hello))
+    (assert-true (symbol? 'a))
+    (assert-false (symbol? "hello"))
+    (assert-false (symbol? #\a))
+    (assert-false (symbol? 42)))
+  
+  (test "Procedure predicate"
+    (assert-true (procedure? +))
+    (assert-true (procedure? (lambda (x) x)))
+    (assert-true (procedure? car))
+    (assert-false (procedure? 42))
+    (assert-false (procedure? '()))))
+
+;; =============================================================================
+;; EQUIVALENCE PRIMITIVES
+;; =============================================================================
+
+(define-test-suite "Equivalence Primitives"
+  
+  (test "Object identity (eq?)"
+    (assert-true (eq? 'a 'a))
+    (assert-true (eq? #t #t))
+    (assert-true (eq? #f #f))
+    (assert-true (eq? '() '()))
+    (assert-false (eq? 42 42))  ;; Numbers may not be eq?
+    (assert-false (eq? "hello" "hello"))  ;; Strings may not be eq?
+    (let ((x '(1 2)))
+      (assert-true (eq? x x))))
+  
+  (test "Structural equality (equal?)"
+    (assert-true (equal? 42 42))
+    (assert-true (equal? "hello" "hello"))
+    (assert-true (equal? '(1 2 3) '(1 2 3)))
+    (assert-true (equal? '(a (b c)) '(a (b c))))
+    (assert-false (equal? '(1 2) '(1 3)))
+    (assert-false (equal? 42 "42"))))
+
+;; =============================================================================
+;; CONTROL FLOW PRIMITIVES
+;; =============================================================================
+
+(define-test-suite "Control Flow Primitives"
+  
+  (test "Apply procedure"
+    (assert-equal 15 (apply + '(1 2 3 4 5)))
+    (assert-equal 6 (apply * 2 '(3)))
+    (assert-equal '(1 2 3) (apply list '(1 2 3)))
+    (assert-error 'type-error (apply 42 '(1 2))))
+  
+  (test "Call with current continuation (call/cc)"
+    ;; Basic continuation test
+    (assert-equal 5 (call/cc (lambda (k) 5)))
+    (assert-equal 42 (call/cc (lambda (k) (k 42) 999)))
+    
+    ;; Early return pattern
+    (define (find-first pred lst)
+      (call/cc (lambda (return)
+                 (for-each (lambda (x)
+                            (if (pred x)
+                                (return x)))
+                          lst)
+                 #f)))
+    ;; TODO: Requires for-each to be implemented
+    ))
+
+;; =============================================================================
+;; VECTOR PRIMITIVES  
+;; =============================================================================
+
+(define-test-suite "Vector Primitives"
+  
+  (test "Vector construction"
+    (assert-equal '#(1 2 3) (vector 1 2 3))
+    (assert-equal '#() (vector))
+    (assert-equal 3 (vector-length (vector 'a 'b 'c))))
+  
+  (test "Vector access"
+    (assert-equal 'b (vector-ref '#(a b c) 1))
+    (assert-equal 'a (vector-ref '#(a b c) 0))
+    (assert-error 'bounds-error (vector-ref '#(a b c) 5))
+    (assert-error 'bounds-error (vector-ref '#(a b c) -1)))
+  
+  (test "Vector modification"
+    (let ((v (vector 1 2 3)))
+      (vector-set! v 1 'changed)
+      (assert-equal 'changed (vector-ref v 1))
+      (assert-equal 1 (vector-ref v 0))
+      (assert-equal 3 (vector-ref v 2))))
+  
+  (test "Vector predicate"
+    (assert-true (vector? '#(1 2 3)))
+    (assert-true (vector? '#()))
+    (assert-false (vector? '(1 2 3)))
+    (assert-false (vector? "hello"))
+    (assert-false (vector? 42))))
+
+;; =============================================================================
+;; STRING PRIMITIVES
+;; =============================================================================
+
+(define-test-suite "String Primitives"
+  
+  (test "String construction"
+    (assert-equal "hello" (string #\h #\e #\l #\l #\o))
+    (assert-equal "" (string))
+    (assert-equal 5 (string-length "hello")))
+  
+  (test "String access"
+    (assert-equal #\h (string-ref "hello" 0))
+    (assert-equal #\o (string-ref "hello" 4))
+    (assert-error 'bounds-error (string-ref "hello" 5))
+    (assert-error 'bounds-error (string-ref "hello" -1)))
+  
+  (test "String modification"
+    (let ((s (string-copy "hello")))  ;; TODO: string-copy needs to be implemented
+      (string-set! s 0 #\H)
+      (assert-equal #\H (string-ref s 0)))))
+
+;; =============================================================================
+;; I/O PRIMITIVES (Basic)
+;; =============================================================================
+
+(define-test-suite "Basic I/O Primitives"
+  
+  (test "Display and write"
+    ;; These tests need to capture output
+    ;; TODO: Implement output capture for testing
+    (assert-true (procedure? display))
+    (assert-true (procedure? write))
+    (assert-true (procedure? newline)))
+  
+  (test "Read operations"
+    ;; TODO: Implement string input ports for testing
+    (assert-true (procedure? read))))
+
+;; =============================================================================
+;; ERROR HANDLING PRIMITIVES
+;; =============================================================================
+
+(define-test-suite "Error Handling Primitives"
+  
+  (test "Error raising"
+    (assert-error 'user-error (error "Test error"))
+    (assert-error 'user-error (error "Test error with" "arguments")))
+  
+  (test "Exception handling"
+    ;; TODO: guard or with-exception-handler tests
+    ;; These require the full exception system
+    ))
+
+;; =============================================================================
+;; RUNTIME METADATA PRIMITIVES
+;; =============================================================================
+
+(define-test-suite "Runtime Metadata Primitives"
+  
+  (test "Procedure information"
+    ;; TODO: These may not be implemented yet
+    ;; (assert-true (number? (procedure-arity +)))
+    )
+  
+  (test "Environment queries"
+    ;; TODO: Environment introspection primitives
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Arithmetic Primitives")
+(run-test-suite "Comparison Primitives")
+(run-test-suite "List Primitives")
+(run-test-suite "Type Predicate Primitives")
+(run-test-suite "Equivalence Primitives")
+(run-test-suite "Control Flow Primitives")
+(run-test-suite "Vector Primitives")
+(run-test-suite "String Primitives")
+(run-test-suite "Basic I/O Primitives")
+(run-test-suite "Error Handling Primitives")
+(run-test-suite "Runtime Metadata Primitives")
+
+;; Print summary
+(display "Core primitives test completed.\n")
+(display "This test verifies the 42 fundamental operations that bootstrap Lambdust.\n")

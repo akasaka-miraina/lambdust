@@ -20,6 +20,7 @@ pub fn promote_types(left: &NumericValue, right: &NumericValue) -> (NumericValue
         Rational => (promote_to_rational(left), promote_to_rational(right)),
         Real => (promote_to_real(left), promote_to_real(right)),
         Complex => (promote_to_complex(left), promote_to_complex(right)),
+        NumericType::Vector => (left.clone(), right.clone()), // Vectors are handled specially
     }
 }
 
@@ -36,6 +37,9 @@ pub fn promote_to_bigint(value: &NumericValue) -> NumericValue {
         }
         NumericValue::Complex(c) if c.imaginary == 0.0 && c.real.fract() == 0.0 && c.real.is_finite() => {
             NumericValue::BigInteger(BigInt::from_i64(c.real as i64))
+        }
+        NumericValue::Vector(v) => {
+            NumericValue::Vector(v.iter().map(promote_to_bigint).collect())
         }
         _ => value.clone(), // Cannot promote non-integer values
     }
@@ -66,6 +70,9 @@ pub fn promote_to_rational(value: &NumericValue) -> NumericValue {
         NumericValue::Complex(c) if c.imaginary == 0.0 => {
             promote_to_rational(&NumericValue::Real(c.real))
         }
+        NumericValue::Vector(v) => {
+            NumericValue::Vector(v.iter().map(promote_to_rational).collect())
+        }
         _ => value.clone(),
     }
 }
@@ -78,6 +85,9 @@ pub fn promote_to_real(value: &NumericValue) -> NumericValue {
         NumericValue::Rational(r) => NumericValue::Real(r.to_f64()),
         NumericValue::Real(_) => value.clone(),
         NumericValue::Complex(c) if c.imaginary == 0.0 => NumericValue::Real(c.real),
+        NumericValue::Vector(v) => {
+            NumericValue::Vector(v.iter().map(promote_to_real).collect())
+        }
         _ => value.clone(),
     }
 }
@@ -92,6 +102,9 @@ pub fn promote_to_complex(value: &NumericValue) -> NumericValue {
         NumericValue::Rational(r) => NumericValue::Complex(Complex::from_real(r.to_f64())),
         NumericValue::Real(r) => NumericValue::Complex(Complex::from_real(*r)),
         NumericValue::Complex(_) => value.clone(),
+        NumericValue::Vector(v) => {
+            NumericValue::Vector(v.iter().map(promote_to_complex).collect())
+        }
     }
 }
 
@@ -246,6 +259,9 @@ pub fn negate(value: &NumericValue) -> NumericValue {
         NumericValue::Rational(r) => NumericValue::Rational(-*r),
         NumericValue::Real(r) => NumericValue::Real(-r),
         NumericValue::Complex(c) => NumericValue::Complex(-*c),
+        NumericValue::Vector(v) => {
+            NumericValue::Vector(v.iter().map(negate).collect())
+        }
     }
 }
 
@@ -377,6 +393,9 @@ pub fn make_exact(value: &NumericValue) -> NumericValue {
             make_exact(&NumericValue::Real(c.real))
         }
         NumericValue::Complex(_) => value.clone(), // Cannot make complex exact in general
+        NumericValue::Vector(v) => {
+            NumericValue::Vector(v.iter().map(make_exact).collect())
+        }
     }
 }
 

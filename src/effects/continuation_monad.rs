@@ -44,7 +44,15 @@ impl ToValue for Value {
 impl FromValue for i32 {
     fn from_value(value: Value) -> Result<Self> {
         match value {
-            Value::Literal(Literal::Number(n)) => Ok(n as i32),
+            Value::Literal(Literal::ExactInteger(i)) => Ok(i as i32),
+            Value::Literal(Literal::InexactReal(f)) if f.fract() == 0.0 => Ok(f as i32),
+            Value::Literal(literal) if literal.is_number() => {
+                if let Some(f) = literal.to_f64() {
+                    Ok(f as i32)
+                } else {
+                    Err(Box::new(Error::type_error("Cannot convert number to i32", Span::new(0, 0))))
+                }
+            }
             _ => Err(Box::new(Error::type_error("Expected number", Span::new(0, 0)))),
         }
     }
@@ -52,7 +60,7 @@ impl FromValue for i32 {
 
 impl ToValue for i32 {
     fn to_value(self) -> Value {
-        Value::Literal(Literal::Number(self as f64))
+        Value::Literal(Literal::integer(self as i64))
     }
 }
 

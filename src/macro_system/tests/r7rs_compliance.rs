@@ -23,6 +23,8 @@ fn create_test_syntax_rules(literals: Vec<String>, rules: Vec<(Pattern, Template
         rules: rules.into_iter().map(|(pattern, template)| SyntaxRule { pattern, template }).collect(),
         name: Some("test-macro".to_string()),
         definition_env: Rc::new(Environment::new(None, 0)),
+        custom_ellipsis: None,
+        srfi_149_mode: false, // Use strict R7RS mode for compliance tests
     }
 }
 

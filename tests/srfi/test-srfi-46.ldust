@@ -1,0 +1,203 @@
+;; SRFI-46 Basic Syntax-rules Extensions Test Suite
+;;
+;; This test suite validates both SRFI-46 extensions:
+;; 1. Custom ellipsis identifiers 
+;; 2. Tail patterns (elements after ellipsis)
+
+(import (scheme base)
+        (srfi 46))
+
+;; Test infrastructure
+(define-syntax test-assert
+  (syntax-rules ()
+    ((test-assert name expr)
+     (begin
+       (display "Testing: ")
+       (display name)
+       (if expr
+           (display " ✓ PASSED")
+           (display " ✗ FAILED"))
+       (newline)))))
+
+(define-syntax test-equal
+  (syntax-rules ()
+    ((test-equal name expected actual)
+     (test-assert name (equal? expected actual)))))
+
+;; ============================================================================
+;; Test 1: Basic custom ellipsis functionality
+;; ============================================================================
+
+;; Test custom ellipsis with ::: instead of ...
+(define-syntax with-custom-ellipsis
+  (syntax-rules ::: ()
+    ((with-custom-ellipsis x :::)
+     (list x :::))))
+
+(test-equal "Custom ellipsis basic functionality"
+            '(1 2 3)
+            (with-custom-ellipsis 1 2 3))
+
+;; ============================================================================ 
+;; Test 2: Avoiding ellipsis conflicts
+;; ============================================================================
+
+;; Test where ... appears as data but ::: is the ellipsis
+(define-syntax ellipsis-as-data
+  (syntax-rules ::: (...)
+    ((ellipsis-as-data (x ::: y) ...)
+     (list (list x ::: '...) ...))))
+
+(test-equal "Ellipsis as literal data"
+            '((1 2 ...) (3 4 ...))
+            (ellipsis-as-data (1 2 a) (3 4 b)))
+
+;; ============================================================================
+;; Test 3: Basic tail patterns  
+;; ============================================================================
+
+;; Test tail pattern with standard ellipsis
+(define-syntax list-with-last
+  (syntax-rules ()
+    ((list-with-last first ... last)
+     (append (list first ...) (list 'LAST: last)))))
+
+(test-equal "Basic tail pattern"
+            '(a b c LAST: d)
+            (list-with-last a b c d))
+
+;; ============================================================================
+;; Test 4: Custom ellipsis + tail patterns
+;; ============================================================================
+
+;; Test combining custom ellipsis with tail patterns
+(define-syntax custom-tail
+  (syntax-rules +++ ()
+    ((custom-tail prefix +++ suffix)
+     (list 'prefix: (list prefix +++) 'suffix: suffix))))
+
+(test-equal "Custom ellipsis with tail pattern"
+            '(prefix: (1 2 3) suffix: last)
+            (custom-tail 1 2 3 last))
+
+;; ============================================================================
+;; Test 5: Complex nested patterns
+;; ============================================================================
+
+;; Test nested patterns with custom ellipsis
+(define-syntax nested-custom
+  (syntax-rules ;;; ()
+    ((nested-custom ((a b) ;;;) c)
+     (list (list a b) ;;; c))))
+
+(test-equal "Nested patterns with custom ellipsis"
+            '((1 2) (3 4) (5 6) final)
+            (nested-custom ((1 2) (3 4) (5 6)) final))
+
+;; ============================================================================
+;; Test 6: Multiple tail elements
+;; ============================================================================
+
+;; Test tail pattern with multiple elements after ellipsis
+(define-syntax multi-tail
+  (syntax-rules ()
+    ((multi-tail start ... middle end)
+     (list 'start: (list start ...)
+           'middle: middle  
+           'end: end))))
+
+(test-equal "Multiple tail elements"
+            '(start: (a b c) middle: x end: y)
+            (multi-tail a b c x y))
+
+;; ============================================================================
+;; Test 7: Hygienic properties with SRFI-46
+;; ============================================================================
+
+;; Test that custom ellipsis maintains hygiene
+(define-syntax hygienic-test
+  (syntax-rules *** ()
+    ((hygienic-test (var val) ***)
+     (let ((var val) ***)
+       (list var ***))))) 
+
+(test-equal "Hygienic properties with custom ellipsis"
+            '(1 2 3)
+            (hygienic-test (x 1) (y 2) (z 3)))
+
+;; ============================================================================
+;; Test 8: Backward compatibility
+;; ============================================================================
+
+;; Test that standard syntax-rules still works (backward compatibility)
+(define-syntax standard-syntax
+  (syntax-rules ()
+    ((standard-syntax x ...)
+     (list 'standard x ...))))
+
+(test-equal "Backward compatibility with standard syntax-rules"
+            '(standard a b c)
+            (standard-syntax a b c))
+
+;; ============================================================================
+;; Test 9: Edge cases
+;; ============================================================================
+
+;; Test empty ellipsis with custom identifier
+(define-syntax empty-custom
+  (syntax-rules @@@ ()
+    ((empty-custom x @@@)
+     (list x @@@))))
+
+(test-equal "Empty ellipsis with custom identifier"
+            '()
+            (empty-custom))
+
+;; Test single element with tail pattern
+(define-syntax single-tail
+  (syntax-rules ()
+    ((single-tail ... last)
+     (list 'elements: (list ...) 'last: last))))
+
+(test-equal "Single element with tail pattern"
+            '(elements: () last: only)
+            (single-tail only))
+
+;; ============================================================================
+;; Test 10: Real-world use case - Case-like macro
+;; ============================================================================
+
+;; Test a more realistic macro using SRFI-46 features
+(define-syntax case-with-guards
+  (syntax-rules ::: (else =>)
+    ((case-with-guards expr 
+       (val ::: guard => result) :::
+       (else default))
+     (cond
+       ((and (member expr (list val :::)) guard) result) :::
+       (else default)))))
+
+(define test-value 2)
+
+(test-equal "Real-world case-like macro"
+            'even
+            (case-with-guards test-value
+              (1 3 5 => (< test-value 6) => 'odd)
+              (2 4 6 => (< test-value 6) => 'even)  
+              (else 'large)))
+
+;; ============================================================================
+;; Run all tests
+;; ============================================================================
+
+(display "=== SRFI-46 Basic Syntax-rules Extensions Test Suite ===")
+(newline)
+(display "Testing custom ellipsis identifiers and tail patterns")
+(newline)
+(newline)
+
+;; All tests run via test-assert and test-equal macros above
+;; Results are displayed as each test executes
+
+(display "=== Test Suite Complete ===")
+(newline)

@@ -1,0 +1,459 @@
+#!/usr/bin/env lambdust
+;; Test file: Distributed Computing
+;; Purpose: Test distributed actors, remote communication, and fault tolerance
+;; Covers network transparency, failure detection, and distributed coordination
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust distributed)
+        (lambdust network))  ;; TODO: Implement distributed computing library
+
+;; =============================================================================
+;; BASIC DISTRIBUTED OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Basic Distributed Operations"
+  
+  (test "Node discovery and registration"
+    ;; TODO: Distributed system syntax needs to be implemented
+    (define local-node (make-node "node-1" "localhost" 8080))
+    (define node-registry (make-node-registry))
+    
+    ;; Register node
+    (register-node! node-registry local-node)
+    
+    ;; Discover nodes
+    (define discovered-nodes (discover-nodes node-registry))
+    (assert-equal 1 (length discovered-nodes))
+    (assert-equal "node-1" (node-name (car discovered-nodes))))
+  
+  (test "Remote actor spawning"
+    ;; Spawn actors on remote nodes
+    (define remote-node (connect-to-node "remote-host" 8081))
+    
+    (define-actor remote-counter
+      (state 0)
+      (on-message
+        [(increment) (set! state (+ state 1))]
+        [(get-value) (reply state)]))
+    
+    ;; Spawn actor on remote node
+    (define remote-actor (spawn-remote-actor remote-node remote-counter))
+    
+    ;; Send message to remote actor
+    (send-message remote-actor 'increment)
+    (send-message remote-actor 'increment)
+    
+    ;; Query remote actor state
+    ;; TODO: Test when remote spawning is implemented
+    ;; (assert-equal 2 (ask remote-actor 'get-value))
+    )
+  
+  (test "Location transparency"
+    ;; Local and remote actors should have same interface
+    (define-actor transparent-actor
+      (state "hello")
+      (on-message
+        [(get-greeting) (reply state)]
+        [(set-greeting msg) (set! state msg)]))
+    
+    (define local-actor (spawn-actor transparent-actor))
+    ;; TODO: Spawn remote version when available
+    ;; (define remote-actor (spawn-remote-actor remote-node transparent-actor))
+    
+    ;; Both should behave identically
+    (assert-equal "hello" (ask local-actor 'get-greeting))
+    ;; (assert-equal "hello" (ask remote-actor 'get-greeting))
+    
+    (send-message local-actor '(set-greeting "world"))
+    ;; (send-message remote-actor '(set-greeting "world"))
+    
+    (assert-equal "world" (ask local-actor 'get-greeting))
+    ;; (assert-equal "world" (ask remote-actor 'get-greeting))
+    ))
+
+;; =============================================================================
+;; DISTRIBUTED COMMUNICATION PATTERNS
+;; =============================================================================
+
+(define-test-suite "Distributed Communication Patterns"
+  
+  (test "Request-response across nodes"
+    ;; Synchronous communication between nodes
+    (define-actor echo-service
+      (state #f)
+      (on-message
+        [(echo message) (reply (string-append "Echo: " message))]))
+    
+    ;; TODO: Test cross-node communication when implemented
+    )
+  
+  (test "Publish-subscribe pattern"
+    ;; Distributed pub-sub messaging
+    (define message-bus (make-distributed-message-bus))
+    (define received-messages '())
+    
+    (define-actor subscriber
+      (state #f)
+      (on-message
+        [(news-update message)
+         (set! received-messages (cons message received-messages))]))
+    
+    (define subscriber-actor (spawn-actor subscriber))
+    
+    ;; Subscribe to topic
+    (subscribe! message-bus "news" subscriber-actor 'news-update)
+    
+    ;; Publish messages
+    (publish! message-bus "news" "Breaking news!")
+    (publish! message-bus "news" "Weather update")
+    
+    ;; TODO: Test when distributed pub-sub is implemented
+    ;; (sleep 100)
+    ;; (assert-equal 2 (length received-messages))
+    )
+  
+  (test "Distributed work queue"
+    ;; Work distribution across multiple nodes
+    (define work-queue (make-distributed-queue "work-queue"))
+    (define completed-work '())
+    
+    (define-actor worker
+      (state #f)
+      (on-message
+        [(work-item item)
+         (let ((result (process-work-item item)))
+           (set! completed-work (cons result completed-work)))]))
+    
+    (define (process-work-item item)
+      (string-append "processed-" item))
+    
+    ;; TODO: Test distributed work queue when implemented
+    ))
+
+;; =============================================================================
+;; FAULT TOLERANCE AND RECOVERY
+;; =============================================================================
+
+(define-test-suite "Fault Tolerance and Recovery"
+  
+  (test "Node failure detection"
+    ;; Detect when remote nodes become unavailable
+    (define node-monitor (make-node-monitor))
+    (define failed-nodes '())
+    
+    (define (on-node-failure node reason)
+      (set! failed-nodes (cons (list node reason) failed-nodes)))
+    
+    ;; Monitor nodes for failures
+    (monitor-node! node-monitor "remote-node-1" on-node-failure)
+    
+    ;; TODO: Simulate node failure and test detection
+    )
+  
+  (test "Actor migration on failure"
+    ;; Migrate actors when their host node fails
+    (define-actor migratable-actor
+      (state (list 'data 42))
+      (on-message
+        [(get-data) (reply state)]
+        [(set-data data) (set! state data)])
+      (on-migration
+        ;; Called when actor needs to migrate
+        (display "Actor migrating to new node\n")
+        state))  ;; Return state for migration
+    
+    ;; TODO: Test actor migration when implemented
+    )
+  
+  (test "Distributed supervision"
+    ;; Supervisors can manage actors across nodes
+    (define-distributed-supervisor multi-node-supervisor
+      (strategy one-for-one)
+      (nodes ("node-1" "node-2" "node-3"))
+      (children
+        (worker-1 worker-actor "node-1")
+        (worker-2 worker-actor "node-2")
+        (worker-3 worker-actor "node-3")))
+    
+    ;; TODO: Test distributed supervision when implemented
+    )
+  
+  (test "Network partition handling"
+    ;; Handle network partitions gracefully
+    ;; TODO: Test split-brain scenarios and recovery
+    ))
+
+;; =============================================================================
+;; DISTRIBUTED CONSENSUS
+;; =============================================================================
+
+(define-test-suite "Distributed Consensus"
+  
+  (test "Raft consensus algorithm"
+    ;; Basic Raft implementation for distributed consensus
+    (define raft-cluster (make-raft-cluster 
+                           '("node-1" "node-2" "node-3")))
+    
+    ;; TODO: Implement Raft consensus testing
+    ;; Test leader election, log replication, etc.
+    )
+  
+  (test "Byzantine fault tolerance"
+    ;; Handle malicious nodes in distributed system
+    ;; TODO: Implement BFT testing when available
+    )
+  
+  (test "Distributed locking"
+    ;; Distributed mutex implementation
+    (define distributed-lock (make-distributed-lock "resource-1"))
+    
+    (define (use-shared-resource)
+      (acquire-distributed-lock! distributed-lock)
+      (sleep 50)  ;; Use resource
+      (release-distributed-lock! distributed-lock))
+    
+    ;; TODO: Test distributed locking when implemented
+    ))
+
+;; =============================================================================
+;; DISTRIBUTED DATA STRUCTURES
+;; =============================================================================
+
+(define-test-suite "Distributed Data Structures"
+  
+  (test "Distributed hash table"
+    ;; DHT implementation for distributed storage
+    (define dht (make-distributed-hash-table '("node-1" "node-2" "node-3")))
+    
+    ;; Store values
+    (dht-put! dht "key-1" "value-1")
+    (dht-put! dht "key-2" "value-2")
+    
+    ;; Retrieve values
+    ;; TODO: Test when DHT is implemented
+    ;; (assert-equal "value-1" (dht-get dht "key-1"))
+    ;; (assert-equal "value-2" (dht-get dht "key-2"))
+    )
+  
+  (test "Distributed queue"
+    ;; Queue shared across multiple nodes
+    (define dist-queue (make-distributed-queue "shared-queue"))
+    
+    ;; Enqueue from different nodes
+    (distributed-enqueue! dist-queue "item-1")
+    (distributed-enqueue! dist-queue "item-2")
+    
+    ;; Dequeue should maintain FIFO order
+    ;; TODO: Test when distributed queue is implemented
+    ;; (assert-equal "item-1" (distributed-dequeue! dist-queue))
+    ;; (assert-equal "item-2" (distributed-dequeue! dist-queue))
+    )
+  
+  (test "Conflict-free replicated data types (CRDTs)"
+    ;; Data structures that can be merged without conflicts
+    (define grow-only-counter (make-g-counter '("replica-1" "replica-2")))
+    
+    ;; Increment on different replicas
+    (g-counter-increment! grow-only-counter "replica-1")
+    (g-counter-increment! grow-only-counter "replica-1")
+    (g-counter-increment! grow-only-counter "replica-2")
+    
+    ;; TODO: Test CRDT operations when implemented
+    ;; (assert-equal 3 (g-counter-value grow-only-counter))
+    ))
+
+;; =============================================================================
+;; DISTRIBUTED ALGORITHMS
+;; =============================================================================
+
+(define-test-suite "Distributed Algorithms"
+  
+  (test "Distributed map-reduce"
+    ;; Map-reduce computation across nodes
+    (define (word-count-mapper text)
+      (let ((words (string-split text #\space)))
+        (map (lambda (word) (cons word 1)) words)))
+    
+    (define (word-count-reducer word-count-pairs)
+      (fold (lambda (pair acc)
+              (let ((word (car pair))
+                    (count (cdr pair)))
+                (+ acc count)))
+            0
+            word-count-pairs))
+    
+    (define input-data '("hello world" "world of scheme" "hello scheme"))
+    
+    ;; TODO: Test distributed map-reduce when implemented
+    ;; (define result (distributed-map-reduce 
+    ;;                  word-count-mapper 
+    ;;                  word-count-reducer 
+    ;;                  input-data))
+    )
+  
+  (test "Distributed sorting"
+    ;; Sort large datasets across multiple nodes
+    (define unsorted-data (shuffle (iota 1000)))  ;; TODO: Implement shuffle
+    
+    ;; TODO: Test distributed sorting when implemented
+    ;; (define sorted-data (distributed-sort unsorted-data))
+    ;; (assert-equal (iota 1000) sorted-data)
+    )
+  
+  (test "Distributed graph algorithms"
+    ;; Graph algorithms on distributed graphs
+    ;; TODO: Implement distributed graph processing
+    ))
+
+;; =============================================================================
+;; LOAD BALANCING AND SCALING
+;; =============================================================================
+
+(define-test-suite "Load Balancing and Scaling"
+  
+  (test "Round-robin load balancing"
+    ;; Distribute work evenly across nodes
+    (define load-balancer (make-round-robin-balancer 
+                           '("node-1" "node-2" "node-3")))
+    
+    (define assignments '())
+    
+    ;; Assign 9 tasks
+    (let loop ((n 9))
+      (when (> n 0)
+        (set! assignments (cons (next-node load-balancer) assignments))
+        (loop (- n 1))))
+    
+    ;; TODO: Test load balancing when implemented
+    ;; Should distribute evenly: 3 tasks per node
+    )
+  
+  (test "Weighted load balancing"
+    ;; Distribute based on node capabilities
+    (define weighted-balancer 
+      (make-weighted-balancer 
+        '(("node-1" 1) ("node-2" 2) ("node-3" 3))))
+    
+    ;; TODO: Test weighted distribution when implemented
+    )
+  
+  (test "Auto-scaling based on load"
+    ;; Automatically add/remove nodes based on demand
+    (define auto-scaler (make-auto-scaler))
+    
+    ;; Configure scaling policies
+    (set-scaling-policy! auto-scaler
+      (lambda (current-load node-count)
+        (cond
+          ((> current-load 80) 'scale-up)
+          ((< current-load 20) 'scale-down)
+          (else 'no-change))))
+    
+    ;; TODO: Test auto-scaling when implemented
+    ))
+
+;; =============================================================================
+;; MONITORING AND OBSERVABILITY
+;; =============================================================================
+
+(define-test-suite "Distributed Monitoring and Observability"
+  
+  (test "Distributed tracing"
+    ;; Trace requests across multiple nodes
+    (define tracer (make-distributed-tracer))
+    
+    (define (traced-operation operation-name)
+      (with-trace tracer operation-name
+        (sleep 10)  ;; Simulate work
+        "operation-result"))
+    
+    ;; TODO: Test distributed tracing when implemented
+    )
+  
+  (test "Metrics collection"
+    ;; Collect metrics from all nodes
+    (define metrics-collector (make-metrics-collector))
+    
+    ;; Record metrics
+    (record-metric! metrics-collector "requests-processed" 42)
+    (record-metric! metrics-collector "average-response-time" 150)
+    
+    ;; TODO: Test metrics aggregation when implemented
+    )
+  
+  (test "Health checking"
+    ;; Monitor health of distributed system
+    (define health-monitor (make-health-monitor))
+    
+    ;; Add health checks
+    (add-health-check! health-monitor "database-connection"
+      (lambda () 
+        ;; TODO: Actual health check implementation
+        'healthy))
+    
+    ;; TODO: Test health monitoring when implemented
+    ))
+
+;; =============================================================================
+;; SECURITY IN DISTRIBUTED SYSTEMS
+;; =============================================================================
+
+(define-test-suite "Distributed Security"
+  
+  (test "Authentication across nodes"
+    ;; Secure authentication in distributed environment
+    (define auth-service (make-distributed-auth-service))
+    
+    ;; TODO: Test distributed authentication when implemented
+    )
+  
+  (test "Authorization and access control"
+    ;; Distributed authorization
+    ;; TODO: Test role-based access control across nodes
+    )
+  
+  (test "Secure communication"
+    ;; Encrypted communication between nodes
+    ;; TODO: Test TLS/SSL and certificate management
+    ))
+
+;; =============================================================================
+;; INTEGRATION WITH CLOUD SERVICES
+;; =============================================================================
+
+(define-test-suite "Cloud Integration"
+  
+  (test "Container orchestration"
+    ;; Integration with Kubernetes, Docker Swarm, etc.
+    ;; TODO: Test containerized deployment
+    )
+  
+  (test "Service discovery"
+    ;; Integration with service discovery systems
+    ;; TODO: Test Consul, etcd integration
+    )
+  
+  (test "Cloud storage integration"
+    ;; Integration with cloud storage services
+    ;; TODO: Test S3, Azure Blob, GCS integration
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Distributed Operations")
+(run-test-suite "Distributed Communication Patterns")
+(run-test-suite "Fault Tolerance and Recovery")
+(run-test-suite "Distributed Consensus")
+(run-test-suite "Distributed Data Structures")
+(run-test-suite "Distributed Algorithms")
+(run-test-suite "Load Balancing and Scaling")
+(run-test-suite "Distributed Monitoring and Observability")
+(run-test-suite "Distributed Security")
+(run-test-suite "Cloud Integration")
+
+(display "Distributed computing test completed.\n")
+(display "This test verifies distributed system capabilities and fault tolerance.\n")

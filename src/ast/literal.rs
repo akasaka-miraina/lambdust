@@ -7,13 +7,20 @@ use std::hash::{Hash, Hasher};
 /// Literal values in the Lambdust language.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Literal {
-    /// Numbers (integers, floats, rationals, complex)
+    /// Exact integer numbers (preserves exactness)
+    ExactInteger(i64),
+    
+    /// Inexact floating-point numbers
+    InexactReal(f64),
+    
+    /// Legacy number representation for backward compatibility
+    #[deprecated(note = "Use ExactInteger or InexactReal instead")]
     Number(f64),
     
     /// Rational numbers (exact fractions)
     Rational { numerator: i64, denominator: i64 },
     
-    /// Complex numbers
+    /// Complex numbers (can be exact or inexact depending on components)
     Complex { real: f64, imaginary: f64 },
     
     /// String literals
@@ -36,14 +43,23 @@ pub enum Literal {
 }
 
 impl Literal {
-    /// Creates a number literal from an integer.
+    /// Creates an exact integer literal.
     pub fn integer(value: i64) -> Self {
-        Self::Number(value as f64)
+        Self::ExactInteger(value)
     }
 
-    /// Creates a number literal from a float.
+    /// Creates an inexact real literal.
     pub fn float(value: f64) -> Self {
-        Self::Number(value)
+        Self::InexactReal(value)
+    }
+    
+    /// Creates a number literal - chooses exact or inexact based on value
+    pub fn number(value: f64) -> Self {
+        if value.fract() == 0.0 && value.is_finite() && value.abs() <= i64::MAX as f64 {
+            Self::ExactInteger(value as i64)
+        } else {
+            Self::InexactReal(value)
+        }
     }
 
     /// Creates a rational literal.
@@ -93,26 +109,46 @@ impl Literal {
     /// Returns true if this literal is a number.
     pub fn is_number(&self) -> bool {
         matches!(self, 
-            Literal::Number(_) | 
+            Literal::ExactInteger(_) | 
+            Literal::InexactReal(_) |
+            Literal::Number(_) |
             Literal::Rational { .. } | 
             Literal::Complex { .. }
         )
     }
 
-    /// Returns true if this literal is exact (rational).
+    /// Returns true if this literal is exact (integer or rational).
     pub fn is_exact(&self) -> bool {
-        matches!(self, Literal::Rational { .. })
+        match self {
+            Literal::ExactInteger(_) | Literal::Rational { .. } => true,
+            Literal::Number(n) => n.fract() == 0.0 && n.is_finite(),
+            Literal::Complex { real, imaginary } => {
+                // Complex is exact only if both parts are exact (represent as rationals)
+                real.fract() == 0.0 && imaginary.fract() == 0.0
+            }
+            _ => false,
+        }
     }
 
     /// Returns true if this literal is inexact (floating point).
     pub fn is_inexact(&self) -> bool {
-        matches!(self, Literal::Number(_) | Literal::Complex { .. })
+        match self {
+            Literal::InexactReal(_) => true,
+            Literal::Number(n) => n.fract() != 0.0 || !n.is_finite(),
+            Literal::Complex { real, imaginary } => {
+                // Complex is inexact if any part is inexact
+                real.fract() != 0.0 || imaginary.fract() != 0.0 || !real.is_finite() || !imaginary.is_finite()
+            }
+            _ => false,
+        }
     }
 
     /// Returns true if this literal is real (not complex).
     pub fn is_real(&self) -> bool {
         matches!(self, 
-            Literal::Number(_) | 
+            Literal::ExactInteger(_) |
+            Literal::InexactReal(_) | 
+            Literal::Number(_) |
             Literal::Rational { .. }
         ) || matches!(self, Literal::Complex { imaginary, .. } if *imaginary == 0.0)
     }
@@ -120,10 +156,12 @@ impl Literal {
     /// Returns true if this literal is an integer.
     pub fn is_integer(&self) -> bool {
         match self {
-            Literal::Number(n) => n.fract() == 0.0,
+            Literal::ExactInteger(_) => true,
+            Literal::InexactReal(n) => n.fract() == 0.0 && n.is_finite(),
+            Literal::Number(n) => n.fract() == 0.0 && n.is_finite(),
             Literal::Rational { denominator, .. } => *denominator == 1,
             Literal::Complex { real, imaginary } => {
-                *imaginary == 0.0 && real.fract() == 0.0
+                *imaginary == 0.0 && real.fract() == 0.0 && real.is_finite()
             }
             Literal::String(_) | Literal::Character(_) | Literal::Boolean(_) 
             | Literal::Bytevector(_) | Literal::Nil | Literal::Unspecified => false,
@@ -133,6 +171,8 @@ impl Literal {
     /// Converts this literal to a floating-point number if possible.
     pub fn to_f64(&self) -> Option<f64> {
         match self {
+            Literal::ExactInteger(n) => Some(*n as f64),
+            Literal::InexactReal(n) => Some(*n),
             Literal::Number(n) => Some(*n),
             Literal::Rational { numerator, denominator } => {
                 Some(*numerator as f64 / *denominator as f64)
@@ -145,10 +185,29 @@ impl Literal {
     /// Converts this literal to an integer if possible.
     pub fn to_i64(&self) -> Option<i64> {
         match self {
-            Literal::Number(n) if n.fract() == 0.0 => Some(*n as i64),
+            Literal::ExactInteger(n) => Some(*n),
+            Literal::InexactReal(n) if n.fract() == 0.0 && n.is_finite() => {
+                let i = *n as i64;
+                if i as f64 == *n { Some(i) } else { None }
+            }
+            Literal::Number(n) if n.fract() == 0.0 && n.is_finite() => {
+                let i = *n as i64;
+                if i as f64 == *n { Some(i) } else { None }
+            }
             Literal::Rational { numerator, denominator } if *denominator == 1 => Some(*numerator),
             _ => None,
         }
+    }
+
+    /// Converts this literal to a non-negative usize if possible.
+    pub fn to_usize(&self) -> Option<usize> {
+        self.to_i64().and_then(|i| {
+            if i >= 0 {
+                Some(i as usize)
+            } else {
+                None
+            }
+        })
     }
 
     /// Returns true if this literal is truthy in Scheme semantics.
@@ -160,13 +219,69 @@ impl Literal {
     pub fn is_falsy(&self) -> bool {
         matches!(self, Literal::Boolean(false))
     }
+
+    /// Helper: Extract numeric value as f64 for compatibility during migration
+    /// This allows existing code that pattern matches on `Number(n)` to work
+    pub fn as_numeric_f64(&self) -> Option<f64> {
+        match self {
+            Literal::ExactInteger(i) => Some(*i as f64),
+            Literal::InexactReal(f) => Some(*f),
+            Literal::Number(n) => Some(*n),
+            Literal::Rational { numerator, denominator } => {
+                Some(*numerator as f64 / *denominator as f64)
+            }
+            Literal::Complex { real, imaginary } if *imaginary == 0.0 => Some(*real),
+            _ => None,
+        }
+    }
+    
+    /// Helper: Check if this is any numeric literal (for pattern matching replacement)
+    pub fn is_any_numeric(&self) -> bool {
+        self.is_number()
+    }
+    
+    /// Convert from legacy f64 representation (for compatibility during migration)
+    #[deprecated(note = "Use integer() or float() instead")]
+    pub fn from_f64(value: f64) -> Self {
+        if value.fract() == 0.0 && value.is_finite() && value.abs() <= i64::MAX as f64 {
+            Self::ExactInteger(value as i64)
+        } else {
+            Self::InexactReal(value)
+        }
+    }
 }
 
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Literal::ExactInteger(n) => {
+                write!(f, "{n}")
+            }
+            Literal::InexactReal(n) => {
+                if n.is_infinite() {
+                    if n.is_sign_positive() {
+                        write!(f, "+inf.0")
+                    } else {
+                        write!(f, "-inf.0")
+                    }
+                } else if n.is_nan() {
+                    write!(f, "+nan.0")
+                } else if n.fract() == 0.0 {
+                    write!(f, "{}.0", *n as i64)
+                } else {
+                    write!(f, "{n}")
+                }
+            }
             Literal::Number(n) => {
-                if n.fract() == 0.0 {
+                if n.is_infinite() {
+                    if n.is_sign_positive() {
+                        write!(f, "+inf.0")
+                    } else {
+                        write!(f, "-inf.0")
+                    }
+                } else if n.is_nan() {
+                    write!(f, "+nan.0")
+                } else if n.fract() == 0.0 {
                     write!(f, "{}", *n as i64)
                 } else {
                     write!(f, "{n}")
@@ -257,43 +372,52 @@ fn gcd(a: u64, b: u64) -> u64 {
 impl Hash for Literal {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Literal::Number(n) => {
+            Literal::ExactInteger(n) => {
+                0u8.hash(state);
+                n.hash(state);
+            }
+            Literal::InexactReal(n) => {
                 // For floating point numbers, we use their bit representation
                 // This ensures that equal numbers have the same hash
-                0u8.hash(state);
+                1u8.hash(state);
+                n.to_bits().hash(state);
+            }
+            Literal::Number(n) => {
+                // Legacy number representation - use discriminant 10 to avoid conflicts
+                10u8.hash(state);
                 n.to_bits().hash(state);
             }
             Literal::Rational { numerator, denominator } => {
-                1u8.hash(state);
+                2u8.hash(state);
                 numerator.hash(state);
                 denominator.hash(state);
             }
             Literal::Complex { real, imaginary } => {
-                2u8.hash(state);
+                3u8.hash(state);
                 real.to_bits().hash(state);
                 imaginary.to_bits().hash(state);
             }
             Literal::String(s) => {
-                3u8.hash(state);
+                4u8.hash(state);
                 s.hash(state);
             }
             Literal::Character(c) => {
-                4u8.hash(state);
+                5u8.hash(state);
                 c.hash(state);
             }
             Literal::Boolean(b) => {
-                5u8.hash(state);
+                6u8.hash(state);
                 b.hash(state);
             }
             Literal::Bytevector(bv) => {
-                6u8.hash(state);
+                7u8.hash(state);
                 bv.hash(state);
             }
             Literal::Nil => {
-                7u8.hash(state);
+                8u8.hash(state);
             }
             Literal::Unspecified => {
-                8u8.hash(state);
+                9u8.hash(state);
             }
         }
     }
@@ -369,6 +493,7 @@ mod tests {
     fn test_display() {
         assert_eq!(format!("{}", Literal::integer(42)), "42");
         assert_eq!(format!("{}", Literal::float(3.05)), "3.05");
+        assert_eq!(format!("{}", Literal::float(3.0)), "3.0");
         assert_eq!(format!("{}", Literal::rational(3, 4)), "3/4");
         assert_eq!(format!("{}", Literal::complex(3.0, 4.0)), "3+4i");
         assert_eq!(format!("{}", Literal::complex(0.0, 1.0)), "i");
@@ -379,6 +504,11 @@ mod tests {
         assert_eq!(format!("{}", Literal::boolean(true)), "#t");
         assert_eq!(format!("{}", Literal::boolean(false)), "#f");
         assert_eq!(format!("{}", Literal::Nil), "()");
+        
+        // Special float values
+        assert_eq!(format!("{}", Literal::InexactReal(f64::INFINITY)), "+inf.0");
+        assert_eq!(format!("{}", Literal::InexactReal(f64::NEG_INFINITY)), "-inf.0");
+        assert_eq!(format!("{}", Literal::InexactReal(f64::NAN)), "+nan.0");
     }
 
     #[test]

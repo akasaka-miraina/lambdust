@@ -1,0 +1,483 @@
+#!/usr/bin/env lambdust
+;; Test file: Actor System
+;; Purpose: Test actor model implementation with message passing and supervision
+;; Covers actor creation, message sending, actor lifecycle, and supervision trees
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test)
+        (lambdust actors)
+        (lambdust concurrency))  ;; TODO: Implement actors library
+
+;; =============================================================================
+;; BASIC ACTOR OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Basic Actor Operations"
+  
+  (test "Actor creation and basic messaging"
+    ;; TODO: Actor syntax needs to be implemented
+    (define-actor simple-counter
+      (state 0)
+      (on-message
+        [(increment) (set! state (+ state 1))]
+        [(decrement) (set! state (- state 1))]
+        [(get-value) (reply state)]))
+    
+    (define counter-actor (spawn-actor simple-counter))
+    
+    ;; Send messages to the actor
+    (send-message counter-actor 'increment)
+    (send-message counter-actor 'increment)
+    (send-message counter-actor 'increment)
+    
+    ;; Query the actor state
+    (assert-equal 3 (ask counter-actor 'get-value))
+    
+    ;; Decrement and check
+    (send-message counter-actor 'decrement)
+    (assert-equal 2 (ask counter-actor 'get-value)))
+  
+  (test "Actor state management"
+    ;; Actors should maintain private state
+    (define-actor stateful-actor
+      (state (list 'items))
+      (on-message
+        [(add item) (set! state (cons item state))]
+        [(get-items) (reply state)]
+        [(clear) (set! state '())]))
+    
+    (define actor1 (spawn-actor stateful-actor))
+    (define actor2 (spawn-actor stateful-actor))
+    
+    ;; Each actor should have independent state
+    (send-message actor1 '(add apple))
+    (send-message actor2 '(add banana))
+    
+    (assert-equal '(apple) (ask actor1 'get-items))
+    (assert-equal '(banana) (ask actor2 'get-items)))
+  
+  (test "Actor message queuing"
+    ;; Messages should be processed in order
+    (define-actor sequence-recorder
+      (state '())
+      (on-message
+        [(record item) (set! state (append state (list item)))]
+        [(get-sequence) (reply state)]))
+    
+    (define recorder (spawn-actor sequence-recorder))
+    
+    ;; Send multiple messages quickly
+    (send-message recorder '(record 1))
+    (send-message recorder '(record 2))
+    (send-message recorder '(record 3))
+    (send-message recorder '(record 4))
+    
+    ;; Wait a bit for processing
+    (sleep 100)
+    
+    (assert-equal '(1 2 3 4) (ask recorder 'get-sequence))))
+
+;; =============================================================================
+;; ACTOR COMMUNICATION PATTERNS
+;; =============================================================================
+
+(define-test-suite "Actor Communication Patterns"
+  
+  (test "Request-reply pattern"
+    ;; Synchronous communication pattern
+    (define-actor echo-actor
+      (state #f)
+      (on-message
+        [(echo message) (reply message)]
+        [(ping) (reply 'pong)]))
+    
+    (define echo (spawn-actor echo-actor))
+    
+    (assert-equal 'hello (ask echo '(echo hello)))
+    (assert-equal 'world (ask echo '(echo world)))
+    (assert-equal 'pong (ask echo 'ping)))
+  
+  (test "Fire-and-forget pattern"
+    ;; Asynchronous messaging without reply
+    (define-actor logger-actor
+      (state '())
+      (on-message
+        [(log message) 
+         (set! state (cons message state))
+         (display (string-append "LOG: " (show message) "\n"))]
+        [(get-logs) (reply (reverse state))]))
+    
+    (define logger (spawn-actor logger-actor))
+    
+    ;; Send fire-and-forget messages
+    (send-message logger '(log "Starting application"))
+    (send-message logger '(log "Processing request"))
+    (send-message logger '(log "Request completed"))
+    
+    (sleep 50)  ;; Allow processing time
+    
+    (let ((logs (ask logger 'get-logs)))
+      (assert-equal 3 (length logs))))
+  
+  (test "Actor-to-actor communication"
+    ;; Actors sending messages to other actors
+    (define-actor forwarding-actor
+      (state #f)
+      (init (target-actor)
+        (set! state target-actor))
+      (on-message
+        [(forward message)
+         (send-message state message)]))
+    
+    (define-actor receiving-actor
+      (state '())
+      (on-message
+        [(receive item) (set! state (cons item state))]
+        [(get-received) (reply state)]))
+    
+    (define receiver (spawn-actor receiving-actor))
+    (define forwarder (spawn-actor forwarding-actor receiver))
+    
+    (send-message forwarder '(forward (receive hello)))
+    (send-message forwarder '(forward (receive world)))
+    
+    (sleep 50)
+    
+    (assert-equal '(world hello) (ask receiver 'get-received))))
+
+;; =============================================================================
+;; ACTOR LIFECYCLE MANAGEMENT
+;; =============================================================================
+
+(define-test-suite "Actor Lifecycle Management"
+  
+  (test "Actor initialization"
+    ;; Actors can have initialization parameters
+    (define-actor initialized-actor
+      (state #f)
+      (init (initial-value)
+        (set! state initial-value)
+        (display (string-append "Actor initialized with: " (show initial-value) "\n")))
+      (on-message
+        [(get-value) (reply state)]))
+    
+    (define actor1 (spawn-actor initialized-actor 42))
+    (define actor2 (spawn-actor initialized-actor "hello"))
+    
+    (assert-equal 42 (ask actor1 'get-value))
+    (assert-equal "hello" (ask actor2 'get-value)))
+  
+  (test "Actor termination"
+    ;; Actors can be terminated gracefully
+    (define-actor terminable-actor
+      (state 'running)
+      (on-message
+        [(get-status) (reply state)]
+        [(shutdown) 
+         (set! state 'terminating)
+         (terminate-self)])
+      (on-terminate
+        (display "Actor terminating gracefully\n")))
+    
+    (define actor (spawn-actor terminable-actor))
+    
+    (assert-equal 'running (ask actor 'get-status))
+    (send-message actor 'shutdown)
+    
+    ;; Wait for termination
+    (sleep 50)
+    
+    ;; Actor should be terminated
+    ;; TODO: Test that messages to terminated actors fail appropriately
+    )
+  
+  (test "Actor restart on failure"
+    ;; Actors can be restarted when they fail
+    (define-actor failing-actor
+      (state 0)
+      (on-message
+        [(increment) (set! state (+ state 1))]
+        [(get-count) (reply state)]
+        [(fail) (error "Actor failure")]
+        [(divide-by-zero) (/ 1 0)])
+      (on-restart
+        (display "Actor restarting\n")
+        (set! state 0)))
+    
+    (define actor (spawn-actor failing-actor))
+    
+    (send-message actor 'increment)
+    (send-message actor 'increment)
+    (assert-equal 2 (ask actor 'get-count))
+    
+    ;; Cause actor to fail
+    (send-message actor 'fail)
+    (sleep 50)
+    
+    ;; Actor should be restarted with fresh state
+    ;; TODO: Test restart behavior when supervisor is implemented
+    ))
+
+;; =============================================================================
+;; SUPERVISION TREES
+;; =============================================================================
+
+(define-test-suite "Supervision Trees"
+  
+  (test "Supervisor creation and child management"
+    ;; Supervisors manage child actors
+    (define-supervisor simple-supervisor
+      (strategy one-for-one)  ;; Restart strategy
+      (children
+        (worker-1 worker-actor)
+        (worker-2 worker-actor)))
+    
+    (define supervisor (spawn-supervisor simple-supervisor))
+    
+    ;; TODO: Test supervisor child management when implemented
+    )
+  
+  (test "One-for-one restart strategy"
+    ;; When one child fails, only that child is restarted
+    ;; TODO: Implement supervision strategies
+    )
+  
+  (test "One-for-all restart strategy"
+    ;; When one child fails, all children are restarted
+    ;; TODO: Implement supervision strategies
+    )
+  
+  (test "Supervisor hierarchy"
+    ;; Supervisors can supervise other supervisors
+    ;; TODO: Test nested supervision trees
+    ))
+
+;; =============================================================================
+;; ACTOR SYSTEM FEATURES
+;; =============================================================================
+
+(define-test-suite "Actor System Features"
+  
+  (test "Actor system initialization"
+    ;; Actor systems manage all actors
+    (define system (make-actor-system "test-system"))
+    
+    ;; TODO: Test actor system lifecycle
+    )
+  
+  (test "Actor discovery and naming"
+    ;; Actors can be found by name
+    (define-actor named-actor
+      (state #f)
+      (on-message
+        [(get-name) (reply (actor-name self))]))
+    
+    (define actor (spawn-named-actor "my-actor" named-actor))
+    
+    (let ((found-actor (find-actor "my-actor")))
+      (assert-equal "my-actor" (ask found-actor 'get-name))))
+  
+  (test "Actor monitoring and watching"
+    ;; Actors can watch other actors for termination
+    (define-actor watcher-actor
+      (state '())
+      (init (target)
+        (watch-actor target))
+      (on-message
+        [(actor-terminated actor reason)
+         (set! state (cons (list actor reason) state))]
+        [(get-terminations) (reply state)]))
+    
+    (define target (spawn-actor simple-counter))
+    (define watcher (spawn-actor watcher-actor target))
+    
+    (terminate-actor target 'shutdown)
+    (sleep 50)
+    
+    (let ((terminations (ask watcher 'get-terminations)))
+      (assert-equal 1 (length terminations)))))
+
+;; =============================================================================
+;; CONCURRENT ACTOR OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Concurrent Actor Operations"
+  
+  (test "Multiple actors concurrent access"
+    ;; Many actors accessing shared resources
+    (define-actor shared-counter-actor
+      (state 0)
+      (on-message
+        [(increment) (set! state (+ state 1))]
+        [(get-value) (reply state)]))
+    
+    (define shared-counter (spawn-actor shared-counter-actor))
+    
+    ;; Spawn multiple actors that increment the counter
+    (define incrementer-actors
+      (map (lambda (i)
+             (spawn-actor 
+               (define-actor incrementer
+                 (state #f)
+                 (init (counter-ref)
+                   (set! state counter-ref))
+                 (on-message
+                   [(do-work)
+                    (let loop ((n 10))
+                      (when (> n 0)
+                        (send-message state 'increment)
+                        (loop (- n 1))))]))))
+           (iota 5)))
+    
+    ;; Start all incrementers
+    (for-each (lambda (actor) (send-message actor 'do-work)) incrementer-actors)
+    
+    ;; Wait for completion
+    (sleep 200)
+    
+    ;; Should have incremented 50 times (5 actors * 10 increments each)
+    (assert-equal 50 (ask shared-counter 'get-value)))
+  
+  (test "Actor message ordering under concurrency"
+    ;; Messages from same sender should maintain order
+    ;; TODO: Test message ordering guarantees
+    )
+  
+  (test "Actor deadlock prevention"
+    ;; Actors should not deadlock when sending to each other
+    ;; TODO: Implement deadlock detection tests
+    ))
+
+;; =============================================================================
+;; ACTOR PERFORMANCE AND SCALABILITY
+;; =============================================================================
+
+(define-test-suite "Actor Performance and Scalability"
+  
+  (test "High-throughput messaging"
+    ;; Test actor performance with many messages
+    (define-actor throughput-actor
+      (state 0)
+      (on-message
+        [(count) (set! state (+ state 1))]
+        [(get-count) (reply state)]))
+    
+    (define actor (spawn-actor throughput-actor))
+    
+    ;; Send many messages
+    (let ((message-count 1000))
+      (let loop ((n message-count))
+        (when (> n 0)
+          (send-message actor 'count)
+          (loop (- n 1))))
+      
+      ;; Wait for processing
+      (sleep 100)
+      
+      (assert-equal message-count (ask actor 'get-count))))
+  
+  (test "Actor system scalability"
+    ;; Test with many actors
+    (let ((actor-count 100))
+      (define actors
+        (map (lambda (i)
+               (spawn-actor simple-counter))
+             (iota actor-count)))
+      
+      ;; Send messages to all actors
+      (for-each (lambda (actor)
+                  (send-message actor 'increment))
+                actors)
+      
+      (sleep 100)
+      
+      ;; All actors should have incremented
+      (for-each (lambda (actor)
+                  (assert-equal 1 (ask actor 'get-value)))
+                actors))
+    
+    ;; TODO: Test memory usage and cleanup
+    )
+  
+  (test "Actor garbage collection"
+    ;; Unused actors should be garbage collected
+    ;; TODO: Test actor lifecycle and cleanup
+    ))
+
+;; =============================================================================
+;; ERROR HANDLING AND RESILIENCE
+;; =============================================================================
+
+(define-test-suite "Actor Error Handling and Resilience"
+  
+  (test "Actor error isolation"
+    ;; Errors in one actor shouldn't affect others
+    (define-actor error-prone-actor
+      (state 'ok)
+      (on-message
+        [(cause-error) (error "Something went wrong")]
+        [(get-status) (reply state)]))
+    
+    (define-actor stable-actor
+      (state 'stable)
+      (on-message
+        [(get-status) (reply state)]))
+    
+    (define error-actor (spawn-actor error-prone-actor))
+    (define stable-actor-ref (spawn-actor stable-actor))
+    
+    ;; Cause error in one actor
+    (send-message error-actor 'cause-error)
+    (sleep 50)
+    
+    ;; Other actor should be unaffected
+    (assert-equal 'stable (ask stable-actor-ref 'get-status)))
+  
+  (test "Actor system resilience"
+    ;; Actor system should continue operating despite actor failures
+    ;; TODO: Test system-wide resilience
+    )
+  
+  (test "Actor supervision and recovery"
+    ;; Supervisors should handle actor failures gracefully
+    ;; TODO: Test supervision tree recovery
+    ))
+
+;; =============================================================================
+;; DISTRIBUTED ACTORS
+;; =============================================================================
+
+(define-test-suite "Distributed Actors"
+  
+  (test "Remote actor communication"
+    ;; Actors on different nodes should communicate
+    ;; TODO: Implement distributed actor system
+    )
+  
+  (test "Network failure handling"
+    ;; Handle network partitions and failures
+    ;; TODO: Test network resilience
+    )
+  
+  (test "Actor location transparency"
+    ;; Local and remote actors should have same interface
+    ;; TODO: Test location transparency
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Actor Operations")
+(run-test-suite "Actor Communication Patterns")
+(run-test-suite "Actor Lifecycle Management")
+(run-test-suite "Supervision Trees")
+(run-test-suite "Actor System Features")
+(run-test-suite "Concurrent Actor Operations")
+(run-test-suite "Actor Performance and Scalability")
+(run-test-suite "Actor Error Handling and Resilience")
+(run-test-suite "Distributed Actors")
+
+(display "Actor system test completed.\n")
+(display "This test verifies actor model implementation and message passing.\n")

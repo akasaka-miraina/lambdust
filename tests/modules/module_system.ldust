@@ -1,0 +1,496 @@
+#!/usr/bin/env lambdust
+;; Test file: Module System
+;; Purpose: Test R7RS library system, module loading, and dependency management
+;; Covers define-library, import/export, and module resolution
+
+(import (scheme base)
+        (scheme write)
+        (scheme eval)
+        (lambdust test)
+        (lambdust modules))  ;; TODO: Implement module system library
+
+;; =============================================================================
+;; BASIC MODULE OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Basic Module Operations"
+  
+  (test "Simple library definition"
+    ;; TODO: Test library definition syntax
+    ;; This would typically be in a separate file
+    '(define-library (test math-utils)
+       (export square cube add-1)
+       (import (scheme base))
+       
+       (begin
+         (define (square x) (* x x))
+         (define (cube x) (* x x x))
+         (define (add-1 x) (+ x 1))))
+    
+    ;; TODO: Test that library can be loaded
+    ;; (import (test math-utils))
+    ;; (assert-equal 25 (square 5))
+    ;; (assert-equal 125 (cube 5))
+    ;; (assert-equal 6 (add-1 5))
+    )
+  
+  (test "Import with renaming"
+    ;; Test import with rename clause
+    '(define-library (test renamed-imports)
+       (export test-function)
+       (import (scheme base)
+               (rename (test math-utils)
+                       (square my-square)
+                       (add-1 increment)))
+       
+       (begin
+         (define (test-function x)
+           (my-square (increment x)))))
+    
+    ;; TODO: Test renamed imports when implemented
+    ;; (import (test renamed-imports))
+    ;; (assert-equal 36 (test-function 5))  ;; (5+1)^2 = 36
+    )
+  
+  (test "Selective imports"
+    ;; Import only specific bindings
+    '(define-library (test selective-imports)
+       (export test-selective)
+       (import (scheme base)
+               (only (test math-utils) square cube))
+       
+       (begin
+         (define (test-selective x)
+           (+ (square x) (cube x)))))
+    
+    ;; TODO: Test selective imports when implemented
+    ;; (import (test selective-imports))
+    ;; (assert-equal 150 (test-selective 5))  ;; 25 + 125 = 150
+    ))
+
+;; =============================================================================
+;; EXPORT SPECIFICATIONS
+;; =============================================================================
+
+(define-test-suite "Export Specifications"
+  
+  (test "Simple exports"
+    ;; Basic export list
+    '(define-library (test simple-exports)
+       (export func-1 func-2 var-1)
+       (import (scheme base))
+       
+       (begin
+         (define func-1 (lambda (x) x))
+         (define func-2 (lambda (x y) (+ x y)))
+         (define var-1 42)))
+    
+    ;; TODO: Test simple exports when implemented
+    )
+  
+  (test "Export with renaming"
+    ;; Rename exports for external use
+    '(define-library (test renamed-exports)
+       (export (rename internal-func external-func)
+               (rename internal-var external-var))
+       (import (scheme base))
+       
+       (begin
+         (define internal-func (lambda (x) (* x 2)))
+         (define internal-var "internal")))
+    
+    ;; TODO: Test export renaming when implemented
+    )
+  
+  (test "Re-exports from other modules"
+    ;; Export bindings from imported modules
+    '(define-library (test re-exports)
+       (export (rename car first)
+               (rename cdr rest)
+               my-length)
+       (import (scheme base))
+       
+       (begin
+         (define (my-length lst)
+           (if (null? lst) 0 (+ 1 (my-length (cdr lst)))))))
+    
+    ;; TODO: Test re-exports when implemented
+    ))
+
+;; =============================================================================
+;; IMPORT SPECIFICATIONS
+;; =============================================================================
+
+(define-test-suite "Import Specifications"
+  
+  (test "Standard library imports"
+    ;; Test importing standard R7RS libraries
+    '(define-library (test standard-imports)
+       (export test-std-functions)
+       (import (scheme base)
+               (scheme char)
+               (scheme file)
+               (scheme write))
+       
+       (begin
+         (define (test-std-functions)
+           (and (procedure? char-upcase)
+                (procedure? with-input-from-file)
+                (procedure? write)))))
+    
+    ;; TODO: Test standard library imports
+    )
+  
+  (test "Prefix imports"
+    ;; Import with prefix to avoid naming conflicts
+    '(define-library (test prefix-imports)
+       (export test-prefixed)
+       (import (scheme base)
+               (prefix (test math-utils) math:))
+       
+       (begin
+         (define (test-prefixed x)
+           (math:square (math:add-1 x)))))
+    
+    ;; TODO: Test prefix imports when implemented
+    )
+  
+  (test "Except imports"
+    ;; Import all except specific bindings
+    '(define-library (test except-imports)
+       (export test-except)
+       (import (scheme base)
+               (except (test math-utils) cube))
+       
+       (begin
+         (define (test-except x)
+           ;; cube should not be available
+           (square (add-1 x)))))
+    
+    ;; TODO: Test except imports when implemented
+    ))
+
+;; =============================================================================
+;; MODULE DEPENDENCIES
+;; =============================================================================
+
+(define-test-suite "Module Dependencies"
+  
+  (test "Linear dependencies"
+    ;; A imports B, B imports C
+    '(define-library (test module-c)
+       (export c-function)
+       (import (scheme base))
+       (begin (define (c-function) "from-c")))
+    
+    '(define-library (test module-b)
+       (export b-function)
+       (import (scheme base) (test module-c))
+       (begin (define (b-function) (string-append "from-b-" (c-function)))))
+    
+    '(define-library (test module-a)
+       (export a-function)
+       (import (scheme base) (test module-b))
+       (begin (define (a-function) (string-append "from-a-" (b-function)))))
+    
+    ;; TODO: Test dependency chain when implemented
+    ;; (import (test module-a))
+    ;; (assert-equal "from-a-from-b-from-c" (a-function))
+    )
+  
+  (test "Diamond dependencies"
+    ;; A imports B and C, both B and C import D
+    '(define-library (test module-d)
+       (export d-value)
+       (import (scheme base))
+       (begin (define d-value "shared")))
+    
+    '(define-library (test module-b-diamond)
+       (export b-with-d)
+       (import (scheme base) (test module-d))
+       (begin (define (b-with-d) (string-append "b-" d-value))))
+    
+    '(define-library (test module-c-diamond)
+       (export c-with-d)
+       (import (scheme base) (test module-d))
+       (begin (define (c-with-d) (string-append "c-" d-value))))
+    
+    '(define-library (test module-a-diamond)
+       (export combined)
+       (import (scheme base) 
+               (test module-b-diamond) 
+               (test module-c-diamond))
+       (begin (define (combined) (string-append (b-with-d) "-" (c-with-d)))))
+    
+    ;; TODO: Test diamond dependencies when implemented
+    ;; (import (test module-a-diamond))
+    ;; (assert-equal "b-shared-c-shared" (combined))
+    )
+  
+  (test "Circular dependency detection"
+    ;; Should detect and handle circular dependencies
+    ;; TODO: Test circular dependency error handling
+    ))
+
+;; =============================================================================
+;; MODULE LOADING AND CACHING
+;; =============================================================================
+
+(define-test-suite "Module Loading and Caching"
+  
+  (test "Module load path resolution"
+    ;; Test how modules are found and loaded
+    ;; TODO: Test module path resolution
+    )
+  
+  (test "Module caching"
+    ;; Modules should only be loaded once
+    (define load-count 0)
+    
+    '(define-library (test cached-module)
+       (export get-load-count)
+       (import (scheme base))
+       (begin
+         (set! load-count (+ load-count 1))
+         (define (get-load-count) load-count)))
+    
+    ;; TODO: Test that multiple imports don't reload
+    ;; (import (test cached-module))
+    ;; (define first-count (get-load-count))
+    ;; (import (test cached-module))  ;; Should not reload
+    ;; (define second-count (get-load-count))
+    ;; (assert-equal first-count second-count)
+    )
+  
+  (test "Module compilation and caching"
+    ;; Compiled modules should be cached
+    ;; TODO: Test bytecode caching when available
+    ))
+
+;; =============================================================================
+;; DYNAMIC MODULE OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Dynamic Module Operations"
+  
+  (test "Runtime module loading"
+    ;; Load modules at runtime using eval
+    ;; TODO: This requires (scheme eval) and environment operations
+    ;; (define env (environment '(scheme base) '(test math-utils)))
+    ;; (define result (eval '(square 7) env))
+    ;; (assert-equal 49 result)
+    )
+  
+  (test "Module introspection"
+    ;; Examine module exports and imports at runtime
+    ;; TODO: Test module metadata access
+    )
+  
+  (test "Conditional imports"
+    ;; Import modules based on runtime conditions
+    ;; TODO: Test conditional module loading
+    ))
+
+;; =============================================================================
+;; MACRO EXPORTS AND IMPORTS
+;; =============================================================================
+
+(define-test-suite "Macro Exports and Imports"
+  
+  (test "Exporting macros"
+    ;; Macros should be exportable like procedures
+    '(define-library (test macro-exports)
+       (export when-not debug-print)
+       (import (scheme base))
+       
+       (begin
+         (define-syntax when-not
+           (syntax-rules ()
+             ((_ condition body ...)
+              (if (not condition) (begin body ...)))))
+         
+         (define-syntax debug-print
+           (syntax-rules ()
+             ((_ expr)
+              (begin
+                (display "DEBUG: ")
+                (write 'expr)
+                (display " = ")
+                (write expr)
+                (newline)
+                expr))))))
+    
+    ;; TODO: Test macro imports when implemented
+    ;; (import (test macro-exports))
+    ;; (when-not #f (display "This should print\n"))
+    ;; (define x (debug-print (+ 2 3)))
+    ;; (assert-equal 5 x)
+    )
+  
+  (test "Macro hygiene across modules"
+    ;; Macros should maintain hygiene across module boundaries
+    '(define-library (test hygienic-macros)
+       (export let-with-temp)
+       (import (scheme base))
+       
+       (begin
+         (define-syntax let-with-temp
+           (syntax-rules ()
+             ((_ ((var val) ...) body ...)
+              (let ((temp 'module-temp)
+                    (var val) ...)
+                body ...))))))
+    
+    ;; TODO: Test macro hygiene when implemented
+    ;; (import (test hygienic-macros))
+    ;; (define temp 'user-temp)
+    ;; (define result 
+    ;;   (let-with-temp ((x 42)) 
+    ;;     (list x temp)))
+    ;; (assert-equal '(42 user-temp) result)  ;; User temp should be preserved
+    ))
+
+;; =============================================================================
+;; MODULE SYSTEM INTEGRATION
+;; =============================================================================
+
+(define-test-suite "Module System Integration"
+  
+  (test "Integration with REPL"
+    ;; Test that modules work correctly in REPL environment
+    ;; TODO: Test REPL module loading
+    )
+  
+  (test "Integration with file loading"
+    ;; Test loading modules from files
+    ;; TODO: Test file-based module loading
+    )
+  
+  (test "Integration with package managers"
+    ;; Test integration with external package systems
+    ;; TODO: Test package management integration
+    ))
+
+;; =============================================================================
+;; ERROR HANDLING AND DIAGNOSTICS
+;; =============================================================================
+
+(define-test-suite "Module Error Handling"
+  
+  (test "Import error handling"
+    ;; Test errors when importing non-existent modules
+    ;; TODO: Test import error messages
+    ;; (assert-error 'module-not-found (import (non-existent module)))
+    )
+  
+  (test "Export error handling"
+    ;; Test errors when exporting non-existent bindings
+    ;; TODO: Test export error messages
+    )
+  
+  (test "Circular dependency errors"
+    ;; Test detection of circular dependencies
+    ;; TODO: Test circular dependency error reporting
+    )
+  
+  (test "Version conflicts"
+    ;; Test handling of version conflicts between modules
+    ;; TODO: Test version conflict resolution
+    ))
+
+;; =============================================================================
+;; PERFORMANCE AND OPTIMIZATION
+;; =============================================================================
+
+(define-test-suite "Module System Performance"
+  
+  (test "Fast module loading"
+    ;; Modules should load efficiently
+    ;; TODO: Test module loading performance
+    )
+  
+  (test "Minimal runtime overhead"
+    ;; Module system shouldn't add significant runtime cost
+    ;; TODO: Test runtime overhead measurement
+    )
+  
+  (test "Incremental compilation"
+    ;; Only modified modules should be recompiled
+    ;; TODO: Test incremental compilation
+    ))
+
+;; =============================================================================
+;; REAL-WORLD MODULE EXAMPLES
+;; =============================================================================
+
+(define-test-suite "Real-World Module Examples"
+  
+  (test "Standard library structure"
+    ;; Test that standard libraries follow proper structure
+    ;; TODO: Verify R7RS-large library organization
+    )
+  
+  (test "Application module organization"
+    ;; Example of how applications might organize modules
+    '(define-library (myapp config)
+       (export app-name version debug-mode?)
+       (import (scheme base))
+       (begin
+         (define app-name "My Lambdust App")
+         (define version "1.0.0")
+         (define debug-mode? #t)))
+    
+    '(define-library (myapp utils)
+       (export string-utils list-utils)
+       (import (scheme base))
+       (begin
+         (define string-utils
+           (lambda (op)
+             (case op
+               ((reverse) string-reverse)  ;; TODO: Define string-reverse
+               (else (error "Unknown string operation")))))
+         
+         (define list-utils
+           (lambda (op)
+             (case op
+               ((flatten) list-flatten)    ;; TODO: Define list-flatten
+               (else (error "Unknown list operation")))))))
+    
+    '(define-library (myapp main)
+       (export run-app)
+       (import (scheme base)
+               (myapp config)
+               (myapp utils))
+       (begin
+         (define (run-app)
+           (display (string-append app-name " v" version))
+           (newline)
+           (when debug-mode?
+             (display "Debug mode enabled\n")))))
+    
+    ;; TODO: Test application module structure
+    )
+  
+  (test "Third-party library integration"
+    ;; Test integration with external libraries
+    ;; TODO: Test external library loading
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Module Operations")
+(run-test-suite "Export Specifications")
+(run-test-suite "Import Specifications")
+(run-test-suite "Module Dependencies")
+(run-test-suite "Module Loading and Caching")
+(run-test-suite "Dynamic Module Operations")
+(run-test-suite "Macro Exports and Imports")
+(run-test-suite "Module System Integration")
+(run-test-suite "Module Error Handling")
+(run-test-suite "Module System Performance")
+(run-test-suite "Real-World Module Examples")
+
+(display "Module system test completed.\n")
+(display "This test verifies R7RS library system and module management.\n")
