@@ -629,7 +629,8 @@ impl CacheStats {
 mod tests {
     use super::*;
     use crate::ast::Literal;
-    use crate::jit::{CodeMetadata, FunctionSignature, MemoryLayout, CompilationTier};
+    use crate::jit::CompilationTier;
+    use crate::jit::code_generator::{CodeMetadata, FunctionSignature, MemoryLayout, SchemeType, MemoryRequirements};
     
     #[test]
     fn test_cache_config_default() {
@@ -695,7 +696,7 @@ mod tests {
             memory_layout: MemoryLayout {
                 stack_frame_size: 64,
                 gc_roots: Vec::new(),
-                memory_requirements: crate::jit::MemoryRequirements {
+                memory_requirements: MemoryRequirements {
                     stack_bytes: 64,
                     heap_bytes: 0,
                     temp_bytes: 32,

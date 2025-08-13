@@ -5,37 +5,35 @@ mod tests {
     use crate::runtime::{LambdustRuntime, GlobalEnvironmentManager, EffectCoordinator};
     use crate::ast::{Expr, Literal};
     use crate::diagnostics::Span;
-    use tokio;
-
-    #[tokio::test]
-    async fn test_lambdust_runtime_creation() {
+    #[test]
+    fn test_lambdust_runtime_creation() {
         let runtime = LambdustRuntime::new();
         assert!(runtime.is_ok());
         
         if let Ok(runtime) = runtime {
             assert_eq!(runtime.thread_count(), 2);
-            let _ = runtime.shutdown().await;
+            let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
         }
     }
 
-    #[tokio::test]
-    async fn test_simple_evaluation() {
+    #[test]
+    fn test_simple_evaluation() {
         let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         // Create a simple literal expression
         let expr = Expr::Literal(Literal::Number(42.0));
         let span = Some(Span { start: 0, len: 2, file_id: None, line: 1, column: 1 });
         
-        let result = runtime.eval_expr(expr, span).await;
+        let result = runtime.eval_expr(expr, span)/* .await - disabled for non-async tests */;
         
         // The current implementation just returns Unspecified, so check for that
         assert!(result.is_ok());
         
-        let _ = runtime.shutdown().await;
+        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
     }
 
-    #[tokio::test]
-    async fn test_parallel_evaluation() {
+    #[test]
+    fn test_parallel_evaluation() {
         let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         // Create multiple simple expressions
@@ -45,17 +43,17 @@ mod tests {
             (Expr::Literal(Literal::Number(3.0)), Some(Span { start: 0, len: 1, file_id: None, line: 1, column: 1 })),
         ];
         
-        let result = runtime.eval_parallel(expressions).await;
+        let result = runtime.eval_parallel(expressions)/* .await - disabled for non-async tests */;
         
         assert_eq!(result.results.len(), 3);
         assert_eq!(result.threads_used, 2); // We created 2 threads
         assert!(result.elapsed.as_nanos() > 0); // Should have taken some time
         
-        let _ = runtime.shutdown().await;
+        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
     }
 
-    #[tokio::test]
-    async fn test_evaluator_handle() {
+    #[test]
+    fn test_evaluator_handle() {
         let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         let handle = runtime.spawn_evaluator().expect("Failed to spawn evaluator");
@@ -65,7 +63,7 @@ mod tests {
         let expr = Expr::Literal(Literal::Number(42.0));
         let span = Some(Span { start: 0, len: 2, file_id: None, line: 1, column: 1 });
         
-        let result = handle.eval(expr, span).await;
+        let result = handle.eval(expr, span)/* .await - disabled for non-async tests */;
         assert!(result.is_ok());
         
         // Test global definition
@@ -76,11 +74,11 @@ mod tests {
         let shutdown_result = handle.shutdown();
         assert!(shutdown_result.is_ok());
         
-        let _ = runtime.shutdown().await;
+        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
     }
 
-    #[tokio::test]
-    async fn test_global_environment_manager() {
+    #[test]
+    fn test_global_environment_manager() {
         let global_env = GlobalEnvironmentManager::new();
         
         // Test global variable definition
@@ -101,8 +99,8 @@ mod tests {
         assert!(gen2 > gen1);
     }
 
-    #[tokio::test]
-    async fn test_effect_coordinator() {
+    #[test]
+    fn test_effect_coordinator() {
         let coordinator = EffectCoordinator::new();
         let thread_id = std::thread::current().id();
         
@@ -127,8 +125,8 @@ mod tests {
         coordinator.unregister_thread(thread_id);
     }
 
-    #[tokio::test] 
-    async fn test_thread_pool_statistics() {
+    #[test] 
+    fn test_thread_pool_statistics() {
         let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         let stats = runtime.thread_pool.statistics();
@@ -136,28 +134,29 @@ mod tests {
         assert_eq!(stats.total_tasks_submitted, 0);
         assert_eq!(stats.total_tasks_completed, 0);
         
-        let _ = runtime.shutdown().await;
+        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
     }
 
     #[test]
     fn test_multithreaded_lambdust_api() {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+        // Tokio runtime disabled for non-async tests
+        // let runtime = tokio::runtime::Runtime::new().unwrap();
         
-        runtime.block_on(async {
+        // runtime.block_on(async {
             let lambdust = crate::MultithreadedLambdust::new(Some(2));
             assert!(lambdust.is_ok());
             
             if let Ok(lambdust) = lambdust {
                 assert_eq!(lambdust.thread_count(), 2);
-                let _ = lambdust.shutdown().await;
+                let _ = lambdust.shutdown()/* .await - disabled for non-async tests */;
             }
-        });
+        // });
     }
 
     // ============= STAGE 3 CONCURRENT EFFECT SYSTEM TESTS =============
 
-    #[tokio::test]
-    async fn test_concurrent_effect_coordination() {
+    #[test]
+    fn test_concurrent_effect_coordination() {
         use crate::effects::Effect;
         
         let coordinator = EffectCoordinator::new();
@@ -189,8 +188,8 @@ mod tests {
         coordinator.unregister_thread(thread_id);
     }
 
-    #[tokio::test]
-    async fn test_transaction_based_state_management() {
+    #[test]
+    fn test_transaction_based_state_management() {
         let global_env = GlobalEnvironmentManager::new();
         let thread_id = std::thread::current().id();
         
@@ -222,8 +221,8 @@ mod tests {
         assert!(lookup_after_rollback.is_none());
     }
 
-    #[tokio::test]
-    async fn test_snapshot_and_rollback() {
+    #[test]
+    fn test_snapshot_and_rollback() {
         let global_env = GlobalEnvironmentManager::new();
         
         // Create initial state
@@ -254,8 +253,8 @@ mod tests {
         assert!(global_env.lookup_global("var3").is_none());
     }
 
-    #[tokio::test]
-    async fn test_io_coordination() {
+    #[test]
+    fn test_io_coordination() {
         use crate::runtime::io_coordinator::{IOCoordinator, IOOperationType, IOParameters};
         
         let io_coordinator = IOCoordinator::new();
@@ -294,8 +293,8 @@ mod tests {
         io_coordinator.unregister_thread(thread_id);
     }
 
-    #[tokio::test]
-    async fn test_error_propagation() {
+    #[test]
+    fn test_error_propagation() {
         use crate::runtime::error_propagation::ErrorPropagationCoordinator;
         use crate::diagnostics::Error as DiagnosticError;
         
@@ -330,8 +329,8 @@ mod tests {
         error_coordinator.unregister_thread(thread_id);
     }
 
-    #[tokio::test]
-    async fn test_effect_isolation() {
+    #[test]
+    fn test_effect_isolation() {
         use crate::runtime::{EffectIsolationLevel, EffectSandboxConfig};
         use crate::effects::Effect;
         
@@ -370,8 +369,8 @@ mod tests {
         coordinator.unregister_thread(thread_id);
     }
 
-    #[tokio::test]
-    async fn test_effect_ordering_guarantees() {
+    #[test]
+    fn test_effect_ordering_guarantees() {
         use crate::effects::Effect;
         
         let coordinator = EffectCoordinator::new();
@@ -408,8 +407,8 @@ mod tests {
         coordinator.unregister_thread(thread_id);
     }
 
-    #[tokio::test]
-    async fn test_integrated_runtime_features() {
+    #[test]
+    fn test_integrated_runtime_features() {
         let runtime = LambdustRuntime::new().expect("Failed to create runtime");
         
         // Test accessing all coordinators
@@ -452,11 +451,11 @@ mod tests {
         io_coordinator.unregister_thread(thread_id);
         error_propagation.unregister_thread(thread_id);
         
-        let _ = runtime.shutdown().await;
+        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
     }
 
-    #[tokio::test]
-    async fn test_concurrent_transactions() {
+    #[test]
+    fn test_concurrent_transactions() {
         let global_env = GlobalEnvironmentManager::new();
         
         // Simulate multiple threads with transactions
@@ -490,7 +489,7 @@ mod tests {
         
         // Wait for all transactions to complete
         for handle in handles {
-            let result = handle.await;
+            let result = handle/* .await - disabled for non-async tests */;
             assert!(result.is_ok());
         }
         

@@ -650,6 +650,7 @@ mod tests {
     use super::*;
     use crate::ast::Literal;
     use crate::jit::ExecutionProfile;
+    use crate::jit::code_generator::SchemeType;
     
     #[test]
     fn test_pgo_config_default() {
@@ -675,7 +676,7 @@ mod tests {
     #[test]
     fn test_type_observation() {
         let observation = TypeObservation {
-            type_info: crate::jit::SchemeType::Integer,
+            type_info: SchemeType::Integer,
             frequency: 100,
             percentage: 0.85,
         };

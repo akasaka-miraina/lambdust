@@ -638,7 +638,8 @@ impl OptimizationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::jit::{ExecutionProfile, NativeCode, CodeMetadata, FunctionSignature, MemoryLayout};
+    use crate::jit::{ExecutionProfile, NativeCode};
+    use crate::jit::code_generator::{CodeMetadata, FunctionSignature, MemoryLayout};
     
     #[test]
     fn test_optimization_levels() {

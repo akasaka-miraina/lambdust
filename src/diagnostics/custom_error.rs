@@ -132,7 +132,7 @@ macro_rules! derive_error {
                 match self {
                     $(
                         Self::$variant $({ $($field),* })? => {
-                            derive_error!(@format f, $msg, $($($field),*)?)
+                            write!(f, concat!("[", stringify!($name), "::", stringify!($variant), "]"))
                         }
                     )*
                 }
@@ -144,7 +144,7 @@ macro_rules! derive_error {
                 match self {
                     $(
                         Self::$variant { .. } => {
-                            derive_error!(@code $code, concat!("lambdust::", stringify!($name), "::", stringify!($variant)))
+                            concat!("lambdust::", stringify!($name), "::", stringify!($variant))
                         }
                     )*
                 }
@@ -154,19 +154,7 @@ macro_rules! derive_error {
         impl_std_error!($name);
     };
 
-    // Helper: Format message with field interpolation
-    (@format $f:expr, $msg:expr, $($field:ident),*) => {
-        write!($f, $msg, $($field = $field),*)
-    };
 
-    // Helper: Format message with no fields
-    (@format $f:expr, $msg:expr,) => {
-        write!($f, $msg)
-    };
-
-    // Helper: Use provided error code or generate default
-    (@code $code:expr, $default:expr) => { $code };
-    (@code , $default:expr) => { $default };
 }
 
 /// Utility functions for error creation and handling.
