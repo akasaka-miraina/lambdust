@@ -226,6 +226,12 @@ fn primitive_apply(args: &[Value]) -> Result<Value> {
             match &prim.implementation {
                 PrimitiveImpl::RustFn(func) => func(&final_args),
                 PrimitiveImpl::Native(func) => func(&final_args),
+                PrimitiveImpl::EvaluatorIntegrated(_) => {
+                    Err(Box::new(DiagnosticError::runtime_error(
+                        "apply to EvaluatorIntegrated functions requires evaluator integration (not yet implemented)".to_string(),
+                        None,
+                    )))
+                }
                 PrimitiveImpl::ForeignFn { .. } => {
                     Err(Box::new(DiagnosticError::runtime_error(
                         "apply to foreign functions not yet implemented".to_string(),

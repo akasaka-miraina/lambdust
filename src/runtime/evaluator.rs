@@ -326,6 +326,12 @@ impl MultithreadedEvaluator {
                     crate::eval::value::PrimitiveImpl::Native(f) => {
                         f(&args)
                     }
+                    crate::eval::value::PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        Err(crate::diagnostics::Error::runtime_error(
+                            "EvaluatorIntegrated primitives not supported in multithreaded evaluator".to_string(),
+                            Some(span),
+                        ).boxed())
+                    }
                     crate::eval::value::PrimitiveImpl::ForeignFn { .. } => {
                         Err(crate::diagnostics::Error::runtime_error(
                             "FFI not yet implemented in multithreaded evaluator".to_string(),

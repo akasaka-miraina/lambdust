@@ -6,10 +6,9 @@
 //! - Reduced string allocations
 //! - Better cache locality
 
-use super::{Token, TokenKind, Lexer};
+use super::{Token, TokenKind, Lexer, InternalLexer};
 use crate::diagnostics::{Error, Result, Span};
 use crate::utils::{InternedString, StringInterner, memory_pool::global_pools};
-use logos::Logos;
 use std::sync::Arc;
 
 /// Optimized lexer that uses string interning and memory pooling.
@@ -99,36 +98,20 @@ impl<'a> OptimizedLexer<'a> {
     pub fn tokenize_optimized(&mut self) -> Result<Vec<OptimizedToken>> {
         let tokens = global_pools::get_token_vec().take();
         let mut optimized_tokens = Vec::with_capacity(tokens.capacity());
-        let mut lex = TokenKind::lexer(self.source);
+        
+        // Use internal lexer instead of logos
+        let mut internal_lexer = InternalLexer::new(self.source, self.filename);
+        let regular_tokens = internal_lexer.tokenize()?;
 
-        while let Some(token_result) = lex.next() {
-            let span = lex.span();
-            let span = Span::new(span.start, span.len());
-
-            match token_result {
-                Ok(kind) => {
-                    // Skip comments but preserve newlines
-                    if matches!(kind, TokenKind::LineComment | TokenKind::BlockComment) {
-                        continue;
-                    }
-
-                    let text = &self.source[span.start..span.end()];
-                    let optimized_token = self.create_optimized_token(kind, span, text);
-                    optimized_tokens.push(optimized_token);
-                }
-                Err(()) => {
-                    let text = &self.source[span.start..span.end()];
-                    return Err(Box::new(Error::lex_error(
-                        format!("Unexpected character: '{text}'"),
-                        span,
-                    )))
-                }
+        for token in regular_tokens {
+            // Skip comments
+            if matches!(token.kind, TokenKind::LineComment | TokenKind::BlockComment) {
+                continue;
             }
-        }
 
-        // Add EOF token
-        let eof_span = Span::new(self.source.len(), 0);
-        optimized_tokens.push(OptimizedToken::with_raw(TokenKind::Eof, eof_span, String::new()));
+            let optimized_token = self.create_optimized_token(token.kind, token.span, &token.text);
+            optimized_tokens.push(optimized_token);
+        }
 
         Ok(optimized_tokens)
     }

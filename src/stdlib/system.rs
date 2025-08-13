@@ -220,12 +220,16 @@ pub fn primitive_exit(args: &[Value]) -> Result<Value> {
             Value::Literal(crate::ast::Literal::Boolean(true)) => 0,
             // #f means failure (1)
             Value::Literal(crate::ast::Literal::Boolean(false)) => 1,
-            // Number exit code (could be integer or float)
-            Value::Literal(crate::ast::Literal::Number(n)) => {
-                // Clamp to valid exit code range (0-255 on most systems)
-                (*n as i64).clamp(0, 255) as i32
+            // Number exit code (any numeric literal)
+            Value::Literal(literal) if literal.is_number() => {
+                if let Some(n) = literal.to_f64() {
+                    // Clamp to valid exit code range (0-255 on most systems)
+                    (n as i64).clamp(0, 255) as i32
+                } else {
+                    0 // Default to success if conversion fails
+                }
             }
-            // Rational numbers get converted to integer
+            // Keep old rational case for safety, though it should be caught above
             Value::Literal(crate::ast::Literal::Rational { numerator, denominator }) => {
                 let value = (*numerator as f64 / *denominator as f64) as i64;
                 value.clamp(0, 255) as i32
@@ -259,8 +263,12 @@ pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
         match &args[0] {
             Value::Literal(crate::ast::Literal::Boolean(true)) => 0,
             Value::Literal(crate::ast::Literal::Boolean(false)) => 1,
-            Value::Literal(crate::ast::Literal::Number(n)) => {
-                (*n as i64).clamp(0, 255) as i32
+            Value::Literal(literal) if literal.is_number() => {
+                if let Some(n) = literal.to_f64() {
+                    (n as i64).clamp(0, 255) as i32
+                } else {
+                    0
+                }
             }
             Value::Literal(crate::ast::Literal::Rational { numerator, denominator }) => {
                 let value = (*numerator as f64 / *denominator as f64) as i64;

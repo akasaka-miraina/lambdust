@@ -480,7 +480,13 @@ impl AstTransformer {
             (LiteralPattern::Any, _) => Ok(true),
             (LiteralPattern::Boolean(expected), Literal::Boolean(actual)) => Ok(expected == actual),
             (LiteralPattern::Character(expected), Literal::Character(actual)) => Ok(expected == actual),
-            (LiteralPattern::NumberRange { min, max }, Literal::Number(n)) => {
+            (LiteralPattern::NumberRange { min, max }, Literal::ExactInteger(n)) => {
+                let n = *n as f64;
+                let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
+                let max_ok = n <= max.unwrap_or(f64::INFINITY);
+                Ok(min_ok && max_ok)
+            }
+            (LiteralPattern::NumberRange { min, max }, Literal::InexactReal(n)) => {
                 let n = *n;
                 let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
                 let max_ok = n <= max.unwrap_or(f64::INFINITY);
@@ -632,7 +638,8 @@ impl TemplateSystem {
     fn value_to_string(&self, value: &Value) -> String {
         match value {
             Value::Literal(Literal::String(s)) => s.clone(),
-            Value::Literal(Literal::Number(n)) => n.to_string(),
+            Value::Literal(Literal::ExactInteger(n)) => n.to_string(),
+            Value::Literal(Literal::InexactReal(n)) => n.to_string(),
             Value::Literal(Literal::Boolean(b)) => if *b { "#t".to_string() } else { "#f".to_string() },
             Value::Symbol(sym) => crate::utils::symbol_name(*sym).unwrap_or_else(|| format!("symbol-{}", sym.0)),
             _ => format!("{value}"),

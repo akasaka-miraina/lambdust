@@ -29,8 +29,11 @@ impl Default for FfiInterface {
     }
 }
 
+#[cfg(not(feature = "ffi"))]
 impl FfiInterface {
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self { 
+        Self 
+    }
     
     pub fn load_function(
         &self,
@@ -38,7 +41,7 @@ impl FfiInterface {
         _function_name: &str,
         _signature: crate::ffi::safety::FunctionSignature,
     ) -> std::result::Result<(), LibffiError> {
-        Err(LibffiError)
+        Err(LibffiError::LibraryError("FFI not available".to_string()))
     }
     
     pub fn call(
@@ -46,18 +49,29 @@ impl FfiInterface {
         _function_name: &str,
         _args: &[crate::eval::Value],
     ) -> std::result::Result<crate::eval::Value, LibffiError> {
-        Err(LibffiError)
+        Err(LibffiError::CallFailed {
+            function: "unknown".to_string(),
+            reason: "FFI not available".to_string(),
+        })
     }
 }
 
 #[cfg(not(feature = "ffi"))]
 #[derive(Debug, Clone)]
-pub struct LibffiError;
+pub enum LibffiError {
+    LibraryError(String),
+    CallFailed { function: String, reason: String },
+}
 
 #[cfg(not(feature = "ffi"))]
 impl std::fmt::Display for LibffiError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "FFI not available")
+        match self {
+            LibffiError::LibraryError(msg) => write!(f, "Library error: {msg}"),
+            LibffiError::CallFailed { function, reason } => {
+                write!(f, "Call failed for '{function}': {reason}")
+            }
+        }
     }
 }
 
@@ -726,7 +740,7 @@ fn ffi_call(args: &[Value]) -> Result<Value> {
 
     // Implementation would call the actual FFI function
     // For now, return a placeholder
-    Ok(Value::Literal(Literal::Number(0.0)))
+    Ok(Value::Literal(Literal::float(0.0)))
 }
 
 /// Implementation of (ffi-define-struct name . fields)
@@ -746,7 +760,7 @@ fn ffi_sizeof(args: &[Value]) -> Result<Value> {
     }
 
     // Implementation would return the size of the type
-    Ok(Value::Literal(Literal::Number(4.0))) // Placeholder
+    Ok(Value::Literal(Literal::float(4.0))) // Placeholder
 }
 
 /// Implementation of (ffi-null? ptr)

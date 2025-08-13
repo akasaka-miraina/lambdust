@@ -39,8 +39,40 @@ pub enum MinimalPrimitiveCategory {
     Symbols,
     /// Arithmetic operations
     Arithmetic,
+    /// Bitwise operations (SRFI-151)
+    Bitwise,
     /// System interface
     System,
+}
+
+/// Helper function to extract numeric values from literals in primitive operations
+fn extract_numeric_f64(value: &Value) -> Option<f64> {
+    match value {
+        Value::Literal(literal) => literal.to_f64(),
+        _ => None,
+    }
+}
+
+/// Helper function to extract integer values from literals in primitive operations
+fn extract_numeric_i64(value: &Value) -> Option<i64> {
+    match value {
+        Value::Literal(literal) => literal.to_i64(),
+        _ => None,
+    }
+}
+
+/// Helper function to extract exact integer values for bitwise operations
+fn extract_exact_integer(value: &Value) -> Option<i64> {
+    match value {
+        Value::Literal(literal) => {
+            if literal.is_exact() && literal.is_integer() {
+                literal.to_i64()
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Registry of minimal primitives organized by category
@@ -500,6 +532,87 @@ impl MinimalPrimitiveRegistry {
             r7rs_required: true,
         });
 
+        // ============= BITWISE PRIMITIVES =============
+        self.register(MinimalPrimitive {
+            name: "%bitwise-and".to_string(),
+            category: MinimalPrimitiveCategory::Bitwise,
+            implementation: primitive_bitwise_and,
+            arity_min: 0,
+            arity_max: None,
+            documentation: "Bitwise AND operation on exact integers".to_string(),
+            r7rs_required: false,
+        });
+
+        self.register(MinimalPrimitive {
+            name: "%bitwise-ior".to_string(),
+            category: MinimalPrimitiveCategory::Bitwise,
+            implementation: primitive_bitwise_ior,
+            arity_min: 0,
+            arity_max: None,
+            documentation: "Bitwise inclusive OR operation on exact integers".to_string(),
+            r7rs_required: false,
+        });
+
+        self.register(MinimalPrimitive {
+            name: "%bitwise-xor".to_string(),
+            category: MinimalPrimitiveCategory::Bitwise,
+            implementation: primitive_bitwise_xor,
+            arity_min: 0,
+            arity_max: None,
+            documentation: "Bitwise exclusive OR operation on exact integers".to_string(),
+            r7rs_required: false,
+        });
+
+        self.register(MinimalPrimitive {
+            name: "%bitwise-not".to_string(),
+            category: MinimalPrimitiveCategory::Bitwise,
+            implementation: primitive_bitwise_not,
+            arity_min: 1,
+            arity_max: Some(1),
+            documentation: "Bitwise NOT operation on exact integer".to_string(),
+            r7rs_required: false,
+        });
+
+        self.register(MinimalPrimitive {
+            name: "%arithmetic-shift".to_string(),
+            category: MinimalPrimitiveCategory::Bitwise,
+            implementation: primitive_arithmetic_shift,
+            arity_min: 2,
+            arity_max: Some(2),
+            documentation: "Arithmetic shift of exact integer by count positions".to_string(),
+            r7rs_required: false,
+        });
+
+        self.register(MinimalPrimitive {
+            name: "%bit-count".to_string(),
+            category: MinimalPrimitiveCategory::Bitwise,
+            implementation: primitive_bit_count,
+            arity_min: 1,
+            arity_max: Some(1),
+            documentation: "Count number of 1 bits in exact integer's two's complement representation".to_string(),
+            r7rs_required: false,
+        });
+
+        self.register(MinimalPrimitive {
+            name: "%integer-length".to_string(),
+            category: MinimalPrimitiveCategory::Bitwise,
+            implementation: primitive_integer_length,
+            arity_min: 1,
+            arity_max: Some(1),
+            documentation: "Find minimum bits needed to represent exact integer in two's complement".to_string(),
+            r7rs_required: false,
+        });
+
+        self.register(MinimalPrimitive {
+            name: "%first-set-bit".to_string(),
+            category: MinimalPrimitiveCategory::Bitwise,
+            implementation: primitive_first_set_bit,
+            arity_min: 1,
+            arity_max: Some(1),
+            documentation: "Find position of first set bit (rightmost 1) in exact integer".to_string(),
+            r7rs_required: false,
+        });
+
         // ============= SYSTEM PRIMITIVES =============
         self.register(MinimalPrimitive {
             name: "%error".to_string(),
@@ -670,8 +783,8 @@ fn primitive_number_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
         return Err(Box::new(Error::runtime_error("number? requires exactly 1 argument".to_string(), None)));
     }
-    let is_number = matches!(args[0], 
-        Value::Literal(Literal::Number(_))
+    let is_number = matches!(&args[0], 
+        Value::Literal(literal) if literal.is_number()
     );
     Ok(Value::boolean(is_number))
 }
@@ -763,14 +876,19 @@ fn primitive_string_ref(args: &[Value]) -> Result<Value> {
     }
     
     match (&args[0], &args[1]) {
-        (Value::Literal(Literal::String(s)), Value::Literal(Literal::Number(i))) if i.fract() == 0.0 => {
-            if *i < 0.0 || *i as usize >= s.len() {
-                return Err(Box::new(Error::runtime_error("string-ref index out of bounds".to_string(), None)));
-            }
-            if let Some(ch) = s.chars().nth(*i as usize) {
-                Ok(Value::Literal(Literal::Character(ch)))
+        (Value::Literal(Literal::String(s)), Value::Literal(literal)) if literal.is_number() => {
+            if let Some(i_f64) = literal.to_f64() {
+                if i_f64 < 0.0 || i_f64.fract() != 0.0 || i_f64 as usize >= s.len() {
+                    return Err(Box::new(Error::runtime_error("string-ref index out of bounds".to_string(), None)));
+                }
+                let i = i_f64 as usize;
+                if let Some(ch) = s.chars().nth(i) {
+                    Ok(Value::Literal(Literal::Character(ch)))
+                } else {
+                    Err(Box::new(Error::runtime_error("string-ref index invalid".to_string(), None)))
+                }
             } else {
-                Err(Box::new(Error::runtime_error("string-ref index invalid".to_string(), None)))
+                Err(Box::new(Error::runtime_error("string-ref expects integer index".to_string(), None)))
             }
         }
         _ => Err(Box::new(Error::runtime_error("string-ref expects string and integer".to_string(), None))),
@@ -787,7 +905,17 @@ fn primitive_make_string(args: &[Value]) -> Result<Value> {
     }
     
     let length = match &args[0] {
-        Value::Literal(Literal::Number(n)) if n.fract() == 0.0 && *n >= 0.0 => *n as usize,
+        Value::Literal(literal) if literal.is_number() => {
+            if let Some(n) = literal.to_f64() {
+                if n.fract() == 0.0 && n >= 0.0 {
+                    n as usize
+                } else {
+                    return Err(Box::new(Error::runtime_error("make-string expects non-negative integer length".to_string(), None)));
+                }
+            } else {
+                return Err(Box::new(Error::runtime_error("make-string expects non-negative integer length".to_string(), None)));
+            }
+        }
         _ => return Err(Box::new(Error::runtime_error("make-string expects non-negative integer length".to_string(), None))),
     };
     
@@ -825,12 +953,13 @@ fn primitive_vector_ref(args: &[Value]) -> Result<Value> {
     }
     
     match (&args[0], &args[1]) {
-        (Value::Vector(vec), Value::Literal(Literal::Number(i))) if i.fract() == 0.0 => {
+        (Value::Vector(vec), value) if extract_numeric_i64(value).is_some() => {
+            let i = extract_numeric_i64(value).unwrap();
             let vec_guard = vec.read().map_err(|_| Error::runtime_error("Failed to read vector".to_string(), None))?;
-            if *i < 0.0 || *i as usize >= vec_guard.len() {
+            if i < 0 || i as usize >= vec_guard.len() {
                 return Err(Box::new(Error::runtime_error("vector-ref index out of bounds".to_string(), None)));
             }
-            Ok(vec_guard[*i as usize].clone())
+            Ok(vec_guard[i as usize].clone())
         }
         _ => Err(Box::new(Error::runtime_error("vector-ref expects vector and integer".to_string(), None))),
     }
@@ -842,12 +971,13 @@ fn primitive_vector_set(args: &[Value]) -> Result<Value> {
     }
     
     match (&args[0], &args[1]) {
-        (Value::Vector(vec), Value::Literal(Literal::Number(i))) if i.fract() == 0.0 => {
+        (Value::Vector(vec), value) if extract_numeric_i64(value).is_some() => {
+            let i = extract_numeric_i64(value).unwrap();
             let mut vec_guard = vec.write().map_err(|_| Error::runtime_error("Failed to write vector".to_string(), None))?;
-            if *i < 0.0 || *i as usize >= vec_guard.len() {
+            if i < 0 || i as usize >= vec_guard.len() {
                 return Err(Box::new(Error::runtime_error("vector-set! index out of bounds".to_string(), None)));
             }
-            vec_guard[*i as usize] = args[2].clone();
+            vec_guard[i as usize] = args[2].clone();
             Ok(Value::Unspecified)
         }
         _ => Err(Box::new(Error::runtime_error("vector-set! expects vector and integer".to_string(), None))),
@@ -860,7 +990,14 @@ fn primitive_make_vector(args: &[Value]) -> Result<Value> {
     }
     
     let length = match &args[0] {
-        Value::Literal(Literal::Number(n)) if n.fract() == 0.0 && *n >= 0.0 => *n as usize,
+        value if extract_numeric_i64(value).is_some() => {
+            let n = extract_numeric_i64(value).unwrap();
+            if n >= 0 {
+                n as usize
+            } else {
+                return Err(Box::new(Error::runtime_error("make-vector expects non-negative integer length".to_string(), None)));
+            }
+        }
         _ => return Err(Box::new(Error::runtime_error("make-vector expects non-negative integer length".to_string(), None))),
     };
     
@@ -916,9 +1053,10 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
     
     let mut result = 0i64;
     for arg in args {
-        match arg {
-            Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => result += *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("+ expects numeric arguments".to_string(), None))),
+        if let Some(n) = extract_numeric_i64(arg) {
+            result += n;
+        } else {
+            return Err(Box::new(Error::runtime_error("+ expects numeric arguments".to_string(), None)));
         }
     }
     Ok(Value::integer(result))
@@ -930,20 +1068,23 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
     }
     
     if args.len() == 1 {
-        match &args[0] {
-            Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => Ok(Value::integer(-(*n as i64))),
-            _ => Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None))),
+        if let Some(n) = extract_numeric_i64(&args[0]) {
+            Ok(Value::integer(-n))
+        } else {
+            Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None)))
         }
     } else {
-        let mut result = match &args[0] {
-            Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None))),
+        let mut result = if let Some(n) = extract_numeric_i64(&args[0]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None)));
         };
         
         for arg in &args[1..] {
-            match arg {
-                Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => result -= *n as i64,
-                _ => return Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None))),
+            if let Some(n) = extract_numeric_i64(arg) {
+                result -= n;
+            } else {
+                return Err(Box::new(Error::runtime_error("- expects numeric arguments".to_string(), None)));
             }
         }
         Ok(Value::integer(result))
@@ -957,9 +1098,10 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
     
     let mut result = 1i64;
     for arg in args {
-        match arg {
-            Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => result *= *n as i64,
-            _ => return Err(Box::new(Error::runtime_error("* expects numeric arguments".to_string(), None))),
+        if let Some(n) = extract_numeric_i64(arg) {
+            result *= n;
+        } else {
+            return Err(Box::new(Error::runtime_error("* expects numeric arguments".to_string(), None)));
         }
     }
     Ok(Value::integer(result))
@@ -971,30 +1113,29 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
     }
     
     if args.len() == 1 {
-        match &args[0] {
-            Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => {
-                if *n == 0.0 {
-                    return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
-                }
-                Ok(Value::number(1.0 / *n))
+        if let Some(n) = extract_numeric_f64(&args[0]) {
+            if n == 0.0 {
+                return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
             }
-            _ => Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None))),
+            Ok(Value::number(1.0 / n))
+        } else {
+            Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None)))
         }
     } else {
-        let mut result = match &args[0] {
-            Value::Literal(Literal::Number(n)) => *n,
-            _ => return Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None))),
+        let mut result = if let Some(n) = extract_numeric_f64(&args[0]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None)));
         };
         
         for arg in &args[1..] {
-            match arg {
-                Value::Literal(Literal::Number(n)) => {
-                    if *n == 0.0 {
-                        return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
-                    }
-                    result /= *n;
+            if let Some(n) = extract_numeric_f64(arg) {
+                if n == 0.0 {
+                    return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
                 }
-                _ => return Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None))),
+                result /= n;
+            } else {
+                return Err(Box::new(Error::runtime_error("/ expects numeric arguments".to_string(), None)));
             }
         }
         Ok(Value::number(result))
@@ -1006,17 +1147,17 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
         return Err(Box::new(Error::runtime_error("= requires at least 2 arguments".to_string(), None)));
     }
     
-    let first_val = match &args[0] {
-        Value::Literal(Literal::Number(n)) => *n,
-        Value::Literal(Literal::Number(r)) => *r,
-        _ => return Err(Box::new(Error::runtime_error("= expects numeric arguments".to_string(), None))),
+    let first_val = if let Some(n) = extract_numeric_f64(&args[0]) {
+        n
+    } else {
+        return Err(Box::new(Error::runtime_error("= expects numeric arguments".to_string(), None)));
     };
     
     for arg in &args[1..] {
-        let val = match arg {
-            Value::Literal(Literal::Number(n)) => *n,
-            Value::Literal(Literal::Number(r)) => *r,
-            _ => return Err(Box::new(Error::runtime_error("= expects numeric arguments".to_string(), None))),
+        let val = if let Some(n) = extract_numeric_f64(arg) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("= expects numeric arguments".to_string(), None)));
         };
         
         if (first_val - val).abs() > f64::EPSILON {
@@ -1032,16 +1173,16 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
     }
     
     for i in 0..args.len() - 1 {
-        let current = match &args[i] {
-            Value::Literal(Literal::Number(n)) => *n,
-            Value::Literal(Literal::Number(r)) => *r,
-            _ => return Err(Box::new(Error::runtime_error("< expects numeric arguments".to_string(), None))),
+        let current = if let Some(n) = extract_numeric_f64(&args[i]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("< expects numeric arguments".to_string(), None)));
         };
         
-        let next = match &args[i + 1] {
-            Value::Literal(Literal::Number(n)) => *n,
-            Value::Literal(Literal::Number(r)) => *r,
-            _ => return Err(Box::new(Error::runtime_error("< expects numeric arguments".to_string(), None))),
+        let next = if let Some(n) = extract_numeric_f64(&args[i + 1]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("< expects numeric arguments".to_string(), None)));
         };
         
         if current >= next {
@@ -1057,16 +1198,16 @@ fn primitive_greater_than(args: &[Value]) -> Result<Value> {
     }
     
     for i in 0..args.len() - 1 {
-        let current = match &args[i] {
-            Value::Literal(Literal::Number(n)) => *n,
-            Value::Literal(Literal::Number(r)) => *r,
-            _ => return Err(Box::new(Error::runtime_error("> expects numeric arguments".to_string(), None))),
+        let current = if let Some(n) = extract_numeric_f64(&args[i]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("> expects numeric arguments".to_string(), None)));
         };
         
-        let next = match &args[i + 1] {
-            Value::Literal(Literal::Number(n)) => *n,
-            Value::Literal(Literal::Number(r)) => *r,
-            _ => return Err(Box::new(Error::runtime_error("> expects numeric arguments".to_string(), None))),
+        let next = if let Some(n) = extract_numeric_f64(&args[i + 1]) {
+            n
+        } else {
+            return Err(Box::new(Error::runtime_error("> expects numeric arguments".to_string(), None)));
         };
         
         if current <= next {
@@ -1094,6 +1235,242 @@ fn primitive_gc(_args: &[Value]) -> Result<Value> {
     // Force garbage collection if available
     // In Rust, we can't force GC, but we can suggest it
     Ok(Value::Unspecified)
+}
+
+// Bitwise primitives (SRFI-151)
+fn primitive_bitwise_and(args: &[Value]) -> Result<Value> {
+    // bitwise-and with no arguments returns -1 (all bits set)
+    if args.is_empty() {
+        return Ok(Value::integer(-1));
+    }
+    
+    let mut result = -1i64; // Identity element for AND (all bits set)
+    for arg in args {
+        if let Some(n) = extract_exact_integer(arg) {
+            result &= n;
+        } else {
+            return Err(Box::new(Error::runtime_error(
+                "bitwise-and expects exact integer arguments".to_string(), 
+                None
+            )));
+        }
+    }
+    Ok(Value::integer(result))
+}
+
+fn primitive_bitwise_ior(args: &[Value]) -> Result<Value> {
+    // bitwise-ior with no arguments returns 0 (no bits set)
+    if args.is_empty() {
+        return Ok(Value::integer(0));
+    }
+    
+    let mut result = 0i64; // Identity element for OR (no bits set)
+    for arg in args {
+        if let Some(n) = extract_exact_integer(arg) {
+            result |= n;
+        } else {
+            return Err(Box::new(Error::runtime_error(
+                "bitwise-ior expects exact integer arguments".to_string(), 
+                None
+            )));
+        }
+    }
+    Ok(Value::integer(result))
+}
+
+fn primitive_bitwise_xor(args: &[Value]) -> Result<Value> {
+    // bitwise-xor with no arguments returns 0 (identity element for XOR)
+    if args.is_empty() {
+        return Ok(Value::integer(0));
+    }
+    
+    let mut result = 0i64; // Identity element for XOR (no bits set)
+    for arg in args {
+        if let Some(n) = extract_exact_integer(arg) {
+            result ^= n;
+        } else {
+            return Err(Box::new(Error::runtime_error(
+                "bitwise-xor expects exact integer arguments".to_string(), 
+                None
+            )));
+        }
+    }
+    Ok(Value::integer(result))
+}
+
+fn primitive_bitwise_not(args: &[Value]) -> Result<Value> {
+    if args.len() != 1 {
+        return Err(Box::new(Error::runtime_error(
+            "bitwise-not requires exactly 1 argument".to_string(), 
+            None
+        )));
+    }
+    
+    if let Some(n) = extract_exact_integer(&args[0]) {
+        Ok(Value::integer(!n))
+    } else {
+        Err(Box::new(Error::runtime_error(
+            "bitwise-not expects an exact integer argument".to_string(), 
+            None
+        )))
+    }
+}
+
+fn primitive_arithmetic_shift(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(Error::runtime_error(
+            "arithmetic-shift requires exactly 2 arguments".to_string(), 
+            None
+        )));
+    }
+    
+    let n = if let Some(val) = extract_exact_integer(&args[0]) {
+        val
+    } else {
+        return Err(Box::new(Error::runtime_error(
+            "arithmetic-shift expects an exact integer as first argument".to_string(), 
+            None
+        )));
+    };
+    
+    let count = if let Some(val) = extract_exact_integer(&args[1]) {
+        val
+    } else {
+        return Err(Box::new(Error::runtime_error(
+            "arithmetic-shift expects an exact integer as second argument".to_string(), 
+            None
+        )));
+    };
+    
+    // Limit shift count to prevent overflow
+    if count.abs() >= 64 {
+        if count > 0 {
+            // Left shift by large amount - result depends on sign
+            if n == 0 {
+                Ok(Value::integer(0))
+            } else if n > 0 {
+                Ok(Value::integer(i64::MAX))
+            } else {
+                Ok(Value::integer(i64::MIN))
+            }
+        } else {
+            // Right shift by large amount - result is 0 or -1
+            if n >= 0 {
+                Ok(Value::integer(0))
+            } else {
+                Ok(Value::integer(-1))
+            }
+        }
+    } else if count >= 0 {
+        // Left shift (positive count)
+        // Check for overflow
+        match n.checked_shl(count as u32) {
+            Some(result) => Ok(Value::integer(result)),
+            None => {
+                // Overflow - return appropriate extreme value
+                if n >= 0 {
+                    Ok(Value::integer(i64::MAX))
+                } else {
+                    Ok(Value::integer(i64::MIN))
+                }
+            }
+        }
+    } else {
+        // Right shift (negative count)
+        Ok(Value::integer(n >> (-count as u32)))
+    }
+}
+
+fn primitive_bit_count(args: &[Value]) -> Result<Value> {
+    if args.len() != 1 {
+        return Err(Box::new(Error::runtime_error(
+            "bit-count requires exactly 1 argument".to_string(), 
+            None
+        )));
+    }
+    
+    if let Some(n) = extract_exact_integer(&args[0]) {
+        let count = if n >= 0 {
+            // For non-negative integers, count the 1 bits directly
+            n.count_ones() as i64
+        } else {
+            // For negative integers in two's complement, 
+            // bit-count returns the count of 0 bits in the absolute value
+            // This is equivalent to: (bitwidth - popcount(abs(n)))
+            // For SRFI-151, this is defined as the number of 1 bits that would 
+            // be needed in the two's complement representation
+            64 - ((!n).count_ones() as i64)
+        };
+        Ok(Value::integer(count))
+    } else {
+        Err(Box::new(Error::runtime_error(
+            "bit-count expects an exact integer argument".to_string(), 
+            None
+        )))
+    }
+}
+
+fn primitive_integer_length(args: &[Value]) -> Result<Value> {
+    if args.len() != 1 {
+        return Err(Box::new(Error::runtime_error(
+            "integer-length requires exactly 1 argument".to_string(), 
+            None
+        )));
+    }
+    
+    if let Some(n) = extract_exact_integer(&args[0]) {
+        let length = if n == 0 {
+            // Special case: integer-length of 0 is 0
+            0
+        } else if n > 0 {
+            // For positive integers, find the position of the most significant bit
+            // This is equivalent to floor(log2(n)) + 1
+            64 - n.leading_zeros() as i64
+        } else {
+            // For negative integers, integer-length is the number of bits needed
+            // to represent the number in two's complement form.
+            // This is equivalent to the integer-length of -(n+1) 
+            // (the positive number with the same bit pattern)
+            let abs_minus_one = (-n - 1) as u64;
+            if abs_minus_one == 0 {
+                1 // Special case for -1
+            } else {
+                64 - abs_minus_one.leading_zeros() as i64
+            }
+        };
+        Ok(Value::integer(length))
+    } else {
+        Err(Box::new(Error::runtime_error(
+            "integer-length expects an exact integer argument".to_string(), 
+            None
+        )))
+    }
+}
+
+fn primitive_first_set_bit(args: &[Value]) -> Result<Value> {
+    if args.len() != 1 {
+        return Err(Box::new(Error::runtime_error(
+            "first-set-bit requires exactly 1 argument".to_string(), 
+            None
+        )));
+    }
+    
+    if let Some(n) = extract_exact_integer(&args[0]) {
+        let position = if n == 0 {
+            // Special case: first-set-bit of 0 is -1 (no bits set)
+            -1
+        } else {
+            // Find the position of the rightmost set bit (0-indexed)
+            // trailing_zeros() gives us exactly what we need
+            n.trailing_zeros() as i64
+        };
+        Ok(Value::integer(position))
+    } else {
+        Err(Box::new(Error::runtime_error(
+            "first-set-bit expects an exact integer argument".to_string(), 
+            None
+        )))
+    }
 }
 
 impl Default for MinimalPrimitiveRegistry {
@@ -1162,5 +1539,104 @@ mod tests {
         assert!(r7rs_prims.iter().any(|p| p.name == "%cons"));
         assert!(r7rs_prims.iter().any(|p| p.name == "%car"));
         assert!(r7rs_prims.iter().any(|p| p.name == "%+"));
+    }
+
+    #[test]
+    fn test_bitwise_primitives() {
+        // Test bitwise-and
+        let args = vec![Value::integer(5), Value::integer(3)]; // 101 & 011 = 001
+        let result = primitive_bitwise_and(&args).unwrap();
+        assert_eq!(result, Value::integer(1));
+
+        // Test bitwise-and with no args (identity: -1)
+        let result = primitive_bitwise_and(&[]).unwrap();
+        assert_eq!(result, Value::integer(-1));
+
+        // Test bitwise-ior
+        let args = vec![Value::integer(5), Value::integer(3)]; // 101 | 011 = 111
+        let result = primitive_bitwise_ior(&args).unwrap();
+        assert_eq!(result, Value::integer(7));
+
+        // Test bitwise-ior with no args (identity: 0)
+        let result = primitive_bitwise_ior(&[]).unwrap();
+        assert_eq!(result, Value::integer(0));
+
+        // Test bitwise-xor
+        let args = vec![Value::integer(5), Value::integer(3)]; // 101 ^ 011 = 110
+        let result = primitive_bitwise_xor(&args).unwrap();
+        assert_eq!(result, Value::integer(6));
+
+        // Test bitwise-not
+        let args = vec![Value::integer(5)]; // ~5 = -6 in two's complement
+        let result = primitive_bitwise_not(&args).unwrap();
+        assert_eq!(result, Value::integer(-6));
+    }
+
+    #[test]
+    fn test_arithmetic_shift() {
+        // Test left shift
+        let args = vec![Value::integer(5), Value::integer(2)]; // 5 << 2 = 20
+        let result = primitive_arithmetic_shift(&args).unwrap();
+        assert_eq!(result, Value::integer(20));
+
+        // Test right shift
+        let args = vec![Value::integer(20), Value::integer(-2)]; // 20 >> 2 = 5
+        let result = primitive_arithmetic_shift(&args).unwrap();
+        assert_eq!(result, Value::integer(5));
+
+        // Test right shift with negative number
+        let args = vec![Value::integer(-8), Value::integer(-2)]; // -8 >> 2 = -2
+        let result = primitive_arithmetic_shift(&args).unwrap();
+        assert_eq!(result, Value::integer(-2));
+    }
+
+    #[test]
+    fn test_bit_analysis_primitives() {
+        // Test bit-count
+        let args = vec![Value::integer(7)]; // 111 has 3 bits set
+        let result = primitive_bit_count(&args).unwrap();
+        assert_eq!(result, Value::integer(3));
+
+        // Test bit-count with zero
+        let args = vec![Value::integer(0)];
+        let result = primitive_bit_count(&args).unwrap();
+        assert_eq!(result, Value::integer(0));
+
+        // Test integer-length
+        let args = vec![Value::integer(7)]; // 111 requires 3 bits
+        let result = primitive_integer_length(&args).unwrap();
+        assert_eq!(result, Value::integer(3));
+
+        // Test integer-length with zero
+        let args = vec![Value::integer(0)];
+        let result = primitive_integer_length(&args).unwrap();
+        assert_eq!(result, Value::integer(0));
+
+        // Test first-set-bit
+        let args = vec![Value::integer(8)]; // 1000, first set bit at position 3
+        let result = primitive_first_set_bit(&args).unwrap();
+        assert_eq!(result, Value::integer(3));
+
+        // Test first-set-bit with zero
+        let args = vec![Value::integer(0)];
+        let result = primitive_first_set_bit(&args).unwrap();
+        assert_eq!(result, Value::integer(-1));
+    }
+
+    #[test]
+    fn test_bitwise_category() {
+        let registry = MinimalPrimitiveRegistry::new();
+        let bitwise_prims = registry.primitives_in_category(&MinimalPrimitiveCategory::Bitwise);
+        
+        // Ensure we have all 8 bitwise primitives
+        assert_eq!(bitwise_prims.len(), 8);
+        assert!(bitwise_prims.iter().any(|p| p.name == "%bitwise-and"));
+        assert!(bitwise_prims.iter().any(|p| p.name == "%bitwise-ior"));
+        assert!(bitwise_prims.iter().any(|p| p.name == "%bitwise-xor"));
+        assert!(bitwise_prims.iter().any(|p| p.name == "%bitwise-not"));
+        assert!(bitwise_prims.iter().any(|p| p.name == "%arithmetic-shift"));
+        assert!(bitwise_prims.iter().any(|p| p.name == "%bit-count"));
+        assert!(bitwise_prims.iter().any(|p| p.name == "%integer-length"));
+        assert!(bitwise_prims.iter().any(|p| p.name == "%first-set-bit"));
     }
 }

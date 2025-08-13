@@ -44,27 +44,26 @@ impl TypeScheme {
             .collect();
         
         // Substitute in the type
-        self.substitute_vars(&self.type_, &fresh_vars)
+        Self::substitute_vars(&self.type_, &fresh_vars)
     }
     
-    #[allow(clippy::only_used_in_recursion)]
-    fn substitute_vars(&self, type_: &Type, subst: &HashMap<TypeVar, Type>) -> Type {
+    fn substitute_vars(type_: &Type, subst: &HashMap<TypeVar, Type>) -> Type {
         match type_ {
             Type::Variable(var) => {
                 subst.get(var).cloned().unwrap_or_else(|| type_.clone())
             }
             Type::Pair(a, b) => {
                 Type::pair(
-                    self.substitute_vars(a, subst),
-                    self.substitute_vars(b, subst),
+                    Self::substitute_vars(a, subst),
+                    Self::substitute_vars(b, subst),
                 )
             }
-            Type::List(t) => Type::list(self.substitute_vars(t, subst)),
-            Type::Vector(t) => Type::vector(self.substitute_vars(t, subst)),
+            Type::List(t) => Type::list(Self::substitute_vars(t, subst)),
+            Type::Vector(t) => Type::vector(Self::substitute_vars(t, subst)),
             Type::Function { params, return_type } => {
                 Type::function(
-                    params.iter().map(|p| self.substitute_vars(p, subst)).collect(),
-                    self.substitute_vars(return_type, subst),
+                    params.iter().map(|p| Self::substitute_vars(p, subst)).collect(),
+                    Self::substitute_vars(return_type, subst),
                 )
             }
             // Handle other cases as needed

@@ -16,14 +16,15 @@ use std::hash::{Hash, Hasher};
 macro_rules! bind_primitive {
     ($env:expr, $name:expr, $arity_min:expr, $arity_max:expr, $implementation:expr, $effects:expr) => {
         let proc = Arc::new(PrimitiveProcedure {
-            name: $name.to_string(),
+            name: $name.to_owned(),
             arity_min: $arity_min,
             arity_max: $arity_max,
             implementation: PrimitiveImpl::RustFn($implementation),
             effects: $effects,
         });
-        $env.define($name.to_string(), Value::Primitive(proc.clone()));
-        $env.define(format!("builtin:{}", $name), Value::Primitive(proc));
+        let name_owned = $name.to_owned();
+        $env.define(name_owned.clone(), Value::Primitive(proc.clone()));
+        $env.define(format!("builtin:{}", name_owned), Value::Primitive(proc));
     };
 }
 
@@ -236,8 +237,8 @@ pub fn primitive_make_string(args: &[Value]) -> Result<Value> {
         ' ' // Default fill character (space)
     };
     
-    let result = fill_char.to_string().repeat(length as usize);
-    Ok(Value::string(result))
+    // R7RS-small specifies that make-string creates mutable strings
+    Ok(Value::mutable_string_filled(length as usize, fill_char))
 }
 
 /// string constructor from characters
@@ -261,8 +262,14 @@ pub fn primitive_string_length(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    let s = extract_string(&args[0], "string-length")?;
-    Ok(Value::integer(s.chars().count() as i64))
+    let length = args[0].string_length().ok_or_else(|| {
+        DiagnosticError::runtime_error(
+            "string-length requires a string argument".to_string(),
+            None,
+        )
+    })?;
+    
+    Ok(Value::integer(length as i64))
 }
 
 /// string-copy procedure
@@ -364,7 +371,6 @@ pub fn primitive_string_ref(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    let s = extract_string(&args[0], "string-ref")?;
     let index = args[1].as_integer().ok_or_else(|| {
         DiagnosticError::runtime_error(
             "string-ref index must be an integer".to_string(),
@@ -372,16 +378,43 @@ pub fn primitive_string_ref(args: &[Value]) -> Result<Value> {
         )
     })? as usize;
     
-    let chars: Vec<char> = s.chars().collect();
-    
-    if index >= chars.len() {
-        return Err(Box::new(DiagnosticError::runtime_error(
-            "string-ref index out of bounds".to_string(),
-            None,
-        )));
+    match &args[0] {
+        Value::Literal(crate::ast::Literal::String(s)) => {
+            let chars: Vec<char> = s.chars().collect();
+            
+            if index >= chars.len() {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    "string-ref index out of bounds".to_string(),
+                    None,
+                )));
+            }
+            
+            Ok(Value::Literal(crate::ast::Literal::Character(chars[index])))
+        }
+        Value::MutableString(chars_arc) => {
+            let chars = chars_arc.read().map_err(|_| {
+                DiagnosticError::runtime_error(
+                    "string-ref failed to acquire read lock on string".to_string(),
+                    None,
+                )
+            })?;
+            
+            if index >= chars.len() {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    "string-ref index out of bounds".to_string(),
+                    None,
+                )));
+            }
+            
+            Ok(Value::Literal(crate::ast::Literal::Character(chars[index])))
+        }
+        _ => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "string-ref first argument must be a string".to_string(),
+                None,
+            )))
+        }
     }
-    
-    Ok(Value::Literal(crate::ast::Literal::Character(chars[index])))
 }
 
 /// string-set! procedure (mutation)
@@ -393,12 +426,57 @@ fn primitive_string_set(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    // Note: In a full implementation, this would require mutable string support
-    // For now, we return an error indicating this operation is not supported
-    Err(Box::new(DiagnosticError::runtime_error(
-        "string-set! requires mutable string support (not yet implemented)".to_string(),
-        None,
-    )))
+    let string_val = &args[0];
+    let index = args[1].as_integer().ok_or_else(|| {
+        DiagnosticError::runtime_error(
+            "string-set! index must be an integer".to_string(),
+            None,
+        )
+    })? as usize;
+    
+    let new_char = match &args[2] {
+        Value::Literal(crate::ast::Literal::Character(ch)) => *ch,
+        _ => {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                "string-set! third argument must be a character".to_string(),
+                None,
+            )))
+        }
+    };
+    
+    match string_val {
+        Value::MutableString(chars_arc) => {
+            let mut chars = chars_arc.write().map_err(|_| {
+                DiagnosticError::runtime_error(
+                    "string-set! failed to acquire write lock on string".to_string(),
+                    None,
+                )
+            })?;
+            
+            if index >= chars.len() {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("string-set! index {} out of bounds for string of length {}", 
+                            index, chars.len()),
+                    None,
+                )));
+            }
+            
+            chars[index] = new_char;
+            Ok(Value::Unspecified)
+        }
+        Value::Literal(crate::ast::Literal::String(_)) => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "string-set! can only be used with mutable strings".to_string(),
+                None,
+            )))
+        }
+        _ => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "string-set! first argument must be a string".to_string(),
+                None,
+            )))
+        }
+    }
 }
 
 // ============= STRING COMPARISON IMPLEMENTATIONS =============
@@ -412,10 +490,10 @@ pub fn primitive_string_equal(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    let first = extract_string(&args[0], "string=?")?;
+    let first = extract_string_owned(&args[0], "string=?")?;
     
     for arg in &args[1..] {
-        let s = extract_string(arg, "string=?")?;
+        let s = extract_string_owned(arg, "string=?")?;
         if first != s {
             return Ok(Value::boolean(false));
         }
@@ -434,8 +512,8 @@ pub fn primitive_string_less(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let s1 = extract_string(&window[0], "string<?")?;
-        let s2 = extract_string(&window[1], "string<?")?;
+        let s1 = extract_string_owned(&window[0], "string<?")?;
+        let s2 = extract_string_owned(&window[1], "string<?")?;
         if s1 >= s2 {
             return Ok(Value::boolean(false));
         }
@@ -454,8 +532,8 @@ pub fn primitive_string_greater(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let s1 = extract_string(&window[0], "string>?")?;
-        let s2 = extract_string(&window[1], "string>?")?;
+        let s1 = extract_string_owned(&window[0], "string>?")?;
+        let s2 = extract_string_owned(&window[1], "string>?")?;
         if s1 <= s2 {
             return Ok(Value::boolean(false));
         }
@@ -474,8 +552,8 @@ pub fn primitive_string_less_equal(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let s1 = extract_string(&window[0], "string<=?")?;
-        let s2 = extract_string(&window[1], "string<=?")?;
+        let s1 = extract_string_owned(&window[0], "string<=?")?;
+        let s2 = extract_string_owned(&window[1], "string<=?")?;
         if s1 > s2 {
             return Ok(Value::boolean(false));
         }
@@ -494,8 +572,8 @@ pub fn primitive_string_greater_equal(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let s1 = extract_string(&window[0], "string>=?")?;
-        let s2 = extract_string(&window[1], "string>=?")?;
+        let s1 = extract_string_owned(&window[0], "string>=?")?;
+        let s2 = extract_string_owned(&window[1], "string>=?")?;
         if s1 < s2 {
             return Ok(Value::boolean(false));
         }
@@ -513,10 +591,10 @@ pub fn primitive_string_ci_equal(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    let first = extract_string(&args[0], "string-ci=?")?.to_lowercase();
+    let first = extract_string_owned(&args[0], "string-ci=?")?.to_lowercase();
     
     for arg in &args[1..] {
-        let s = extract_string(arg, "string-ci=?")?.to_lowercase();
+        let s = extract_string_owned(arg, "string-ci=?")?.to_lowercase();
         if first != s {
             return Ok(Value::boolean(false));
         }
@@ -534,8 +612,8 @@ pub fn primitive_string_ci_less(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let s1 = extract_string(&window[0], "string-ci<?")?.to_lowercase();
-        let s2 = extract_string(&window[1], "string-ci<?")?.to_lowercase();
+        let s1 = extract_string_owned(&window[0], "string-ci<?")?.to_lowercase();
+        let s2 = extract_string_owned(&window[1], "string-ci<?")?.to_lowercase();
         if s1 >= s2 {
             return Ok(Value::boolean(false));
         }
@@ -553,8 +631,8 @@ pub fn primitive_string_ci_greater(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let s1 = extract_string(&window[0], "string-ci>?")?.to_lowercase();
-        let s2 = extract_string(&window[1], "string-ci>?")?.to_lowercase();
+        let s1 = extract_string_owned(&window[0], "string-ci>?")?.to_lowercase();
+        let s2 = extract_string_owned(&window[1], "string-ci>?")?.to_lowercase();
         if s1 <= s2 {
             return Ok(Value::boolean(false));
         }
@@ -572,8 +650,8 @@ pub fn primitive_string_ci_less_equal(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let s1 = extract_string(&window[0], "string-ci<=?")?.to_lowercase();
-        let s2 = extract_string(&window[1], "string-ci<=?")?.to_lowercase();
+        let s1 = extract_string_owned(&window[0], "string-ci<=?")?.to_lowercase();
+        let s2 = extract_string_owned(&window[1], "string-ci<=?")?.to_lowercase();
         if s1 > s2 {
             return Ok(Value::boolean(false));
         }
@@ -591,8 +669,8 @@ pub fn primitive_string_ci_greater_equal(args: &[Value]) -> Result<Value> {
     }
     
     for window in args.windows(2) {
-        let s1 = extract_string(&window[0], "string-ci>=?")?.to_lowercase();
-        let s2 = extract_string(&window[1], "string-ci>=?")?.to_lowercase();
+        let s1 = extract_string_owned(&window[0], "string-ci>=?")?.to_lowercase();
+        let s2 = extract_string_owned(&window[1], "string-ci>=?")?.to_lowercase();
         if s1 < s2 {
             return Ok(Value::boolean(false));
         }
@@ -608,8 +686,8 @@ pub fn primitive_string_append(args: &[Value]) -> Result<Value> {
     let mut result = String::new();
     
     for arg in args {
-        let s = extract_string(arg, "string-append")?;
-        result.push_str(s);
+        let s = extract_string_owned(arg, "string-append")?;
+        result.push_str(&s);
     }
     
     Ok(Value::string(result))
@@ -624,7 +702,7 @@ pub fn primitive_substring(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    let s = extract_string(&args[0], "substring")?;
+    let s = extract_string_owned(&args[0], "substring")?;
     let start = args[1].as_integer().ok_or_else(|| {
         DiagnosticError::runtime_error(
             "substring start index must be an integer".to_string(),
@@ -662,11 +740,95 @@ fn primitive_string_fill(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    // Note: In a full implementation, this would require mutable string support
-    Err(Box::new(DiagnosticError::runtime_error(
-        "string-fill! requires mutable string support (not yet implemented)".to_string(),
-        None,
-    )))
+    let string_val = &args[0];
+    let fill_char = match &args[1] {
+        Value::Literal(crate::ast::Literal::Character(ch)) => *ch,
+        _ => {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                "string-fill! second argument must be a character".to_string(),
+                None,
+            )))
+        }
+    };
+    
+    // Optional start index (defaults to 0)
+    let start_idx = if args.len() > 2 {
+        args[2].as_integer().ok_or_else(|| {
+            DiagnosticError::runtime_error(
+                "string-fill! start index must be an integer".to_string(),
+                None,
+            )
+        })? as usize
+    } else {
+        0
+    };
+    
+    match string_val {
+        Value::MutableString(chars_arc) => {
+            let mut chars = chars_arc.write().map_err(|_| {
+                DiagnosticError::runtime_error(
+                    "string-fill! failed to acquire write lock on string".to_string(),
+                    None,
+                )
+            })?;
+            
+            let string_len = chars.len();
+            
+            // Optional end index (defaults to string length)
+            let end_idx = if args.len() > 3 {
+                let end = args[3].as_integer().ok_or_else(|| {
+                    DiagnosticError::runtime_error(
+                        "string-fill! end index must be an integer".to_string(),
+                        None,
+                    )
+                })? as usize;
+                
+                if end > string_len {
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        format!("string-fill! end index {end} out of bounds for string of length {string_len}"),
+                        None,
+                    )));
+                }
+                end
+            } else {
+                string_len
+            };
+            
+            // Validate indices
+            if start_idx > string_len {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("string-fill! start index {start_idx} out of bounds for string of length {string_len}"),
+                    None,
+                )));
+            }
+            
+            if start_idx > end_idx {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    "string-fill! start index must not be greater than end index".to_string(),
+                    None,
+                )));
+            }
+            
+            // Fill the range with the character
+            for i in start_idx..end_idx {
+                chars[i] = fill_char;
+            }
+            
+            Ok(Value::Unspecified)
+        }
+        Value::Literal(crate::ast::Literal::String(_)) => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "string-fill! can only be used with mutable strings".to_string(),
+                None,
+            )))
+        }
+        _ => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "string-fill! first argument must be a string".to_string(),
+                None,
+            )))
+        }
+    }
 }
 
 /// string-copy! procedure (mutation)
@@ -980,9 +1142,19 @@ fn primitive_utf8_to_string(args: &[Value]) -> Result<Value> {
 
 // ============= HELPER FUNCTIONS =============
 
-/// Extracts a string from a Value.
+/// Extracts a string from a Value (returns a reference to immutable strings only).
 fn extract_string<'a>(value: &'a Value, operation: &str) -> Result<&'a str> {
     value.as_string().ok_or_else(|| {
+        Box::new(DiagnosticError::runtime_error(
+            format!("{operation} requires string arguments"),
+            None,
+        ))
+    })
+}
+
+/// Extracts a string from a Value as an owned String (works with both mutable and immutable strings).
+fn extract_string_owned(value: &Value, operation: &str) -> Result<String> {
+    value.as_string_owned().ok_or_else(|| {
         Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires string arguments"),
             None,
@@ -1065,6 +1237,12 @@ fn primitive_string_for_each(args: &[Value]) -> Result<Value> {
                         // Call the function but ignore the result (for-each is for side effects)
                         func(&char_args)?;
                     },
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "string-for-each with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    },
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "string-for-each with foreign functions not yet implemented".to_string(),
@@ -1143,6 +1321,12 @@ fn primitive_string_map(args: &[Value]) -> Result<Value> {
                 let result = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&char_args)?,
                     PrimitiveImpl::Native(func) => func(&char_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "string-map with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "string-map with foreign functions not yet implemented".to_string(),
@@ -1530,6 +1714,12 @@ pub fn primitive_string_tabulate(args: &[Value]) -> Result<Value> {
                 let ch_val = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&index_arg)?,
                     PrimitiveImpl::Native(func) => func(&index_arg)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "string-tabulate with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "string-tabulate with foreign functions not yet implemented".to_string(),
@@ -2998,5 +3188,225 @@ mod tests {
         let result = primitive_string_map(&args);
         
         assert!(result.is_err());
+    }
+
+    // ============= R7RS-SMALL MUTABLE STRING TESTS =============
+
+    #[test]
+    fn test_make_string_mutable() {
+        // Test make-string creates mutable strings
+        let args = vec![Value::integer(5), Value::Literal(crate::ast::Literal::Character('x'))];
+        let result = primitive_make_string(&args).unwrap();
+        
+        // Should be a mutable string
+        assert!(result.is_mutable_string());
+        assert_eq!(result.string_length(), Some(5));
+        assert_eq!(result.as_string_owned(), Some("xxxxx".to_string()));
+    }
+
+    #[test]
+    fn test_make_string_default_fill() {
+        // Test make-string with default fill character (space)
+        let args = vec![Value::integer(3)];
+        let result = primitive_make_string(&args).unwrap();
+        
+        assert!(result.is_mutable_string());
+        assert_eq!(result.string_length(), Some(3));
+        assert_eq!(result.as_string_owned(), Some("   ".to_string()));
+    }
+
+    #[test]
+    fn test_string_set() {
+        // Test string-set! on mutable string
+        let mut_str = Value::mutable_string("hello");
+        let args = vec![
+            mut_str.clone(),
+            Value::integer(1),
+            Value::Literal(crate::ast::Literal::Character('a'))
+        ];
+        
+        let result = primitive_string_set(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that the string was modified
+        assert_eq!(mut_str.as_string_owned(), Some("hallo".to_string()));
+    }
+
+    #[test]
+    fn test_string_set_immutable_error() {
+        // Test string-set! on immutable string should fail
+        let immut_str = Value::string("hello");
+        let args = vec![
+            immut_str,
+            Value::integer(1),
+            Value::Literal(crate::ast::Literal::Character('a'))
+        ];
+        
+        let result = primitive_string_set(&args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_string_set_bounds_error() {
+        // Test string-set! with out-of-bounds index
+        let mut_str = Value::mutable_string("hi");
+        let args = vec![
+            mut_str,
+            Value::integer(5), // Out of bounds
+            Value::Literal(crate::ast::Literal::Character('a'))
+        ];
+        
+        let result = primitive_string_set(&args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_string_fill() {
+        // Test string-fill! on mutable string
+        let mut_str = Value::mutable_string("hello");
+        let args = vec![
+            mut_str.clone(),
+            Value::Literal(crate::ast::Literal::Character('z'))
+        ];
+        
+        let result = primitive_string_fill(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that the string was filled
+        assert_eq!(mut_str.as_string_owned(), Some("zzzzz".to_string()));
+    }
+
+    #[test]
+    fn test_string_fill_partial() {
+        // Test string-fill! with start and end indices
+        let mut_str = Value::mutable_string("hello");
+        let args = vec![
+            mut_str.clone(),
+            Value::Literal(crate::ast::Literal::Character('x')),
+            Value::integer(1), // start
+            Value::integer(4)  // end
+        ];
+        
+        let result = primitive_string_fill(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Should be "hxxxo"
+        assert_eq!(mut_str.as_string_owned(), Some("hxxxo".to_string()));
+    }
+
+    #[test]
+    fn test_string_fill_immutable_error() {
+        // Test string-fill! on immutable string should fail
+        let immut_str = Value::string("hello");
+        let args = vec![
+            immut_str,
+            Value::Literal(crate::ast::Literal::Character('x'))
+        ];
+        
+        let result = primitive_string_fill(&args);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_string_ref_mutable() {
+        // Test string-ref works with mutable strings
+        let mut_str = Value::mutable_string("hello");
+        let args = vec![mut_str, Value::integer(2)];
+        
+        let result = primitive_string_ref(&args).unwrap();
+        assert_eq!(result, Value::Literal(crate::ast::Literal::Character('l')));
+    }
+
+    #[test]
+    fn test_string_length_mutable() {
+        // Test string-length works with mutable strings
+        let mut_str = Value::mutable_string("test");
+        let args = vec![mut_str];
+        
+        let result = primitive_string_length(&args).unwrap();
+        assert_eq!(result, Value::integer(4));
+    }
+
+    #[test]
+    fn test_string_comparison_mixed() {
+        // Test string comparison between mutable and immutable strings
+        let immut_str = Value::string("hello");
+        let mut_str = Value::mutable_string("hello");
+        
+        // Test equality
+        let args = vec![immut_str.clone(), mut_str.clone()];
+        let result = primitive_string_equal(&args).unwrap();
+        assert_eq!(result, Value::boolean(true));
+        
+        // Test inequality
+        let mut_str2 = Value::mutable_string("world");
+        let args = vec![immut_str, mut_str2];
+        let result = primitive_string_less(&args).unwrap();
+        assert_eq!(result, Value::boolean(true));
+    }
+
+    #[test]
+    fn test_string_append_mixed() {
+        // Test string-append with mixed mutable and immutable strings
+        let immut_str = Value::string("hello");
+        let mut_str = Value::mutable_string(" world");
+        
+        let args = vec![immut_str, mut_str];
+        let result = primitive_string_append(&args).unwrap();
+        
+        assert_eq!(result, Value::string("hello world"));
+        assert!(result.is_immutable_string()); // Result should be immutable
+    }
+
+    #[test]
+    fn test_substring_mutable() {
+        // Test substring works with mutable strings
+        let mut_str = Value::mutable_string("hello world");
+        let args = vec![mut_str, Value::integer(6), Value::integer(11)];
+        
+        let result = primitive_substring(&args).unwrap();
+        assert_eq!(result, Value::string("world"));
+        assert!(result.is_immutable_string()); // Result should be immutable
+    }
+
+    #[test]
+    fn test_r7rs_small_string_predicates() {
+        // Test string? predicate works with both string types
+        let immut_str = Value::string("test");
+        let mut_str = Value::mutable_string("test");
+        let not_str = Value::integer(42);
+        
+        assert_eq!(primitive_string_p(&vec![immut_str]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_string_p(&vec![mut_str]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_string_p(&vec![not_str]).unwrap(), Value::boolean(false));
+    }
+
+    #[test]
+    fn test_error_handling_comprehensive() {
+        // Test comprehensive error handling for all functions
+        
+        // Wrong argument count for make-string
+        assert!(primitive_make_string(&vec![]).is_err());
+        assert!(primitive_make_string(&vec![Value::integer(1), Value::Literal(crate::ast::Literal::Character('x')), Value::integer(2)]).is_err());
+        
+        // Non-integer length for make-string
+        assert!(primitive_make_string(&vec![Value::string("not-a-number")]).is_err());
+        
+        // Negative length for make-string
+        assert!(primitive_make_string(&vec![Value::integer(-1)]).is_err());
+        
+        // Wrong argument count for string-set!
+        assert!(primitive_string_set(&vec![]).is_err());
+        assert!(primitive_string_set(&vec![Value::mutable_string("test")]).is_err());
+        
+        // Wrong argument types for string-set!
+        assert!(primitive_string_set(&vec![
+            Value::integer(42),
+            Value::integer(0),
+            Value::Literal(crate::ast::Literal::Character('a'))
+        ]).is_err());
+        
+        // Wrong argument count for string-fill!
+        assert!(primitive_string_fill(&vec![Value::mutable_string("test")]).is_err());
     }
 }

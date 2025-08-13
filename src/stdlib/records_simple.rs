@@ -170,7 +170,16 @@ fn primitive_make_record(args: &[Value]) -> Result<Value> {
     
     // Extract record type ID
     let type_id = match &args[0] {
-        Value::Literal(crate::ast::Literal::Number(n)) => *n as u64,
+        Value::Literal(literal) if literal.is_number() => {
+            if let Some(n) = literal.to_f64() {
+                n as u64
+            } else {
+                return Err(Box::new(Error::runtime_error(
+                    "make-record expects a numeric type ID as first argument".to_string(),
+                    None,
+                )));
+            }
+        }
         _ => return Err(Box::new(Error::runtime_error(
             "make-record expects a numeric type ID as first argument".to_string(),
             None,
@@ -221,7 +230,16 @@ fn primitive_record_field_ref(args: &[Value]) -> Result<Value> {
     };
     
     let index = match &args[1] {
-        Value::Literal(crate::ast::Literal::Number(n)) => *n as usize,
+        Value::Literal(literal) if literal.is_number() => {
+            if let Some(n) = literal.to_f64() {
+                n as usize
+            } else {
+                return Err(Box::new(Error::runtime_error(
+                    "record-field-ref expects a numeric index as second argument".to_string(),
+                    None,
+                )));
+            }
+        }
         _ => return Err(Box::new(Error::runtime_error(
             "record-field-ref expects a numeric index as second argument".to_string(),
             None,
@@ -259,7 +277,16 @@ fn primitive_record_field_set(args: &[Value]) -> Result<Value> {
     };
     
     let index = match &args[1] {
-        Value::Literal(crate::ast::Literal::Number(n)) => *n as usize,
+        Value::Literal(literal) if literal.is_number() => {
+            if let Some(n) = literal.to_f64() {
+                n as usize
+            } else {
+                return Err(Box::new(Error::runtime_error(
+                    "record-field-set! expects a numeric index as second argument".to_string(),
+                    None,
+                )));
+            }
+        }
         _ => return Err(Box::new(Error::runtime_error(
             "record-field-set! expects a numeric index as second argument".to_string(),
             None,

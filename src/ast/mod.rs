@@ -61,6 +61,15 @@ pub enum Expr {
     /// Quote expression: (quote <datum>) or '<datum>
     Quote(Box<Spanned<Expr>>),
 
+    /// Quasiquote expression: (quasiquote <datum>) or `<datum>
+    Quasiquote(Box<Spanned<Expr>>),
+
+    /// Unquote expression: (unquote <datum>) or ,<datum>
+    Unquote(Box<Spanned<Expr>>),
+
+    /// Unquote-splicing expression: (unquote-splicing <datum>) or ,@<datum>
+    UnquoteSplicing(Box<Spanned<Expr>>),
+
     /// Lambda expression: (lambda <formals> <body>)
     Lambda {
         formals: Formals,
@@ -229,6 +238,9 @@ impl Expr {
         matches!(
             self,
             Expr::Quote(_)
+                | Expr::Quasiquote(_)
+                | Expr::Unquote(_)
+                | Expr::UnquoteSplicing(_)
                 | Expr::Lambda { .. }
                 | Expr::If { .. }
                 | Expr::Define { .. }
@@ -282,6 +294,9 @@ impl fmt::Display for Expr {
                 write!(f, ")")
             }
             Expr::Quote(expr) => write!(f, "'{}", expr.inner),
+            Expr::Quasiquote(expr) => write!(f, "`{}", expr.inner),
+            Expr::Unquote(expr) => write!(f, ",{}", expr.inner),
+            Expr::UnquoteSplicing(expr) => write!(f, ",@{}", expr.inner),
             Expr::Lambda { formals, body, .. } => {
                 write!(f, "(lambda {formals} ")?;
                 for (i, expr) in body.iter().enumerate() {

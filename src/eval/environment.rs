@@ -81,9 +81,9 @@ fn create_global_environment() -> Rc<Environment> {
     let env = Rc::new(Environment::new(None, 0));
     
     // Add basic values first - these are essential and should never fail
-    env.define("true".to_string(), Value::t());
-    env.define("false".to_string(), Value::f());
-    env.define("null".to_string(), Value::Nil);
+    env.define("true".to_owned(), Value::t());
+    env.define("false".to_owned(), Value::f());
+    env.define("null".to_owned(), Value::Nil);
     
     // Add R7RS-small special forms as identifiers for macro expansion
     // These are needed for macro templates to reference basic syntax
@@ -117,23 +117,23 @@ fn bind_special_forms_as_identifiers(env: &Rc<Environment>) {
     
     for &form_name in &special_forms {
         // Create a special syntax value that indicates this is a special form identifier
-        let symbol_id = intern_symbol(form_name.to_string());
+        let symbol_id = intern_symbol(form_name.to_owned());
         let syntax_value = Value::Symbol(symbol_id);
-        env.define(form_name.to_string(), syntax_value);
+        env.define(form_name.to_owned(), syntax_value);
     }
     
     // Also bind some essential procedures that macros might need to reference
     // These will be overwritten by actual implementations later if they exist
-    env.define("apply".to_string(), Value::Symbol(intern_symbol("apply".to_string())));
-    env.define("list".to_string(), Value::Symbol(intern_symbol("list".to_string())));
-    env.define("cons".to_string(), Value::Symbol(intern_symbol("cons".to_string())));
-    env.define("car".to_string(), Value::Symbol(intern_symbol("car".to_string())));
-    env.define("cdr".to_string(), Value::Symbol(intern_symbol("cdr".to_string())));
-    env.define("null?".to_string(), Value::Symbol(intern_symbol("null?".to_string())));
-    env.define("length".to_string(), Value::Symbol(intern_symbol("length".to_string())));
-    env.define("error".to_string(), Value::Symbol(intern_symbol("error".to_string())));
-    env.define("not".to_string(), Value::Symbol(intern_symbol("not".to_string())));
-    env.define("memv".to_string(), Value::Symbol(intern_symbol("memv".to_string())));
+    env.define("apply".to_owned(), Value::Symbol(intern_symbol("apply".to_owned())));
+    env.define("list".to_owned(), Value::Symbol(intern_symbol("list".to_owned())));
+    env.define("cons".to_owned(), Value::Symbol(intern_symbol("cons".to_owned())));
+    env.define("car".to_owned(), Value::Symbol(intern_symbol("car".to_owned())));
+    env.define("cdr".to_owned(), Value::Symbol(intern_symbol("cdr".to_owned())));
+    env.define("null?".to_owned(), Value::Symbol(intern_symbol("null?".to_owned())));
+    env.define("length".to_owned(), Value::Symbol(intern_symbol("length".to_owned())));
+    env.define("error".to_owned(), Value::Symbol(intern_symbol("error".to_owned())));
+    env.define("not".to_owned(), Value::Symbol(intern_symbol("not".to_owned())));
+    env.define("memv".to_owned(), Value::Symbol(intern_symbol("memv".to_owned())));
 }
 
 
@@ -164,7 +164,7 @@ pub fn primitive_add(args: &[Value]) -> Result<Value> {
 fn primitive_subtract(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Err(Box::new(Error::runtime_error(
-            "- requires at least one argument".to_string(),
+            "- requires at least one argument",
             None,
         )));
     }
@@ -228,7 +228,7 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
 fn primitive_divide(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
         return Err(Box::new(Error::runtime_error(
-            "/ requires at least one argument".to_string(),
+            "/ requires at least one argument",
             None,
         )));
     }
@@ -238,7 +238,7 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
         match args[0].as_number() {
             Some(n) => {
                 if n == 0.0 {
-                    Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)))
+                    Err(Box::new(Error::runtime_error("Division by zero", None)))
                 } else {
                     Ok(Value::number(1.0 / n))
                 }
@@ -262,7 +262,7 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
             match arg.as_number() {
                 Some(n) => {
                     if n == 0.0 {
-                        return Err(Box::new(Error::runtime_error("Division by zero".to_string(), None)));
+                        return Err(Box::new(Error::runtime_error("Division by zero", None)));
                     }
                     result /= n;
                 }
@@ -282,7 +282,7 @@ fn primitive_divide(args: &[Value]) -> Result<Value> {
 fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
         return Err(Box::new(Error::runtime_error(
-            "= requires at least two arguments".to_string(),
+            "= requires at least two arguments",
             None,
         )));
     }
@@ -317,7 +317,7 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
 fn primitive_less_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
         return Err(Box::new(Error::runtime_error(
-            "< requires at least two arguments".to_string(),
+            "< requires at least two arguments",
             None,
         )));
     }
@@ -352,7 +352,7 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
 fn primitive_greater_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
         return Err(Box::new(Error::runtime_error(
-            "> requires at least two arguments".to_string(),
+            "> requires at least two arguments",
             None,
         )));
     }
@@ -549,7 +549,7 @@ fn primitive_newline(args: &[Value]) -> Result<Value> {
 fn primitive_less_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
         return Err(Box::new(Error::runtime_error(
-            "<= requires at least two arguments".to_string(),
+            "<= requires at least two arguments",
             None,
         )));
     }
@@ -579,7 +579,7 @@ fn primitive_less_equal(args: &[Value]) -> Result<Value> {
 fn primitive_greater_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
         return Err(Box::new(Error::runtime_error(
-            ">= requires at least two arguments".to_string(),
+            ">= requires at least two arguments",
             None,
         )));
     }

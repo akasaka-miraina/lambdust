@@ -1,6 +1,6 @@
 [package]
 name = "lambdust"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Mitsuki Akasaka <m.akasaka@miraina-step.co.jp>"]
 description = "A Scheme dialect with gradual typing and effect systems"
@@ -18,21 +18,13 @@ name = "lambdust"
 path = "src/main.rs"
 
 [[bin]]
-name = "scheme-comparison"
-path = "src/bin/scheme_comparison.rs"
-
-[[bin]]
-name = "native-benchmark-runner"
-path = "src/bin/native_benchmark_runner.rs"
-
-[[bin]]
 name = "performance-monitor"
 path = "src/bin/performance_monitor.rs"
 
 [dependencies]
 # Core parsing and lexing
-nom = "7.1"
-logos = "0.14"
+# nom = "7.1" # 廃止済み (2025年8月12日) - 内製parser combinatorに移行
+# logos = "0.14"  # 廃止済み (2025年8月12日) - 内製lexerに移行
 
 # Date and time for reporting
 chrono = { version = "0.4", features = ["serde"] }
@@ -73,15 +65,16 @@ crossbeam = "0.8" # For channels and concurrent data structures
 num_cpus = "1.16" # For detecting CPU count
 
 # Error handling and diagnostics
-thiserror = "1.0"
-miette = { version = "7.0", features = ["fancy"] }
+# thiserror = "1.0" # 廃止済み (2025年8月12日) - 内製カスタムエラーシステムに移行
+# miette = { version = "7.0", features = ["fancy"] } # 廃止済み (2025年8月12日) - 内製軽量診断システムに移行
 ariadne = "0.4"                                    # Beautiful error reporting
+log = "0.4"                                        # Logging for parser benchmarking
 
 # FFI and interop
 libloading = "0.8"
 dlopen2 = "0.7"
 libc = "0.2"                                  # C standard library bindings
-libffi = { version = "3.2", optional = true } # Foreign Function Interface for C interop
+libffi = { version = "3.2", optional = true, features = ["system"] } # Foreign Function Interface for C interop
 cc = { version = "1.0", optional = true }     # C compiler integration
 
 # Performance and optimization
@@ -89,7 +82,7 @@ criterion = { version = "0.5", optional = true }
 flame = { version = "0.2", optional = true }
 
 # CLI and utilities
-clap = { version = "4.4", features = ["derive"] }
+# clap = { version = "4.4", features = ["derive"] } # 廃止済み (2025年8月12日) - 内製軽量CLI parserに移行
 rustyline = { version = "13.0", optional = true } # REPL readline support
 colored = { version = "2.0", optional = true }
 dirs = { version = "5.0", optional = true }
@@ -130,6 +123,7 @@ ring = "0.17" # Cryptography
 rustls = { version = "0.23", features = [
     "std",
 ], optional = true } # TLS implementation
+tokio-rustls = { version = "0.26", optional = true } # Async TLS for tokio
 webpki-roots = { version = "0.26", optional = true } # Root certificates
 
 # Development and testing
@@ -138,9 +132,11 @@ rand = "0.8"                                    # For random test data generatio
 futures = "0.3"                                 # For futures utilities in tests
 
 # Text processing
-regex = "1.10"
+# regex = "1.10" # 廃止済み (2025年8月12日) - 内製軽量正規表現エンジンに移行
 unicode-normalization = "0.1"
 unicode-segmentation = "1.10"
+icu_collator = { version = "1.4", optional = true } # Unicode collation for text processing
+icu_locid = { version = "1.4", optional = true } # ICU locale support
 lru = "0.12"
 
 # Numeric traits for monad implementations
@@ -160,21 +156,31 @@ rand = "0.8"                                                 # Random testing ut
 futures = "0.3"                                              # Futures utilities for async tests
 
 [features]
-default = ["repl", "async", "advanced-io"]
-repl = ["dep:rustyline", "dep:colored", "dep:dirs"]
+# Lightweight default configuration for minimal binary size
+default = ["minimal-repl"]
+
+# REPL configurations
+minimal-repl = ["dep:colored"]  # Lightweight REPL with basic colors
+repl = ["minimal-repl", "dep:rustyline", "dep:dirs"]  # Full-featured REPL
 enhanced-repl = [
-    "dep:reedline",
+    "repl",
+    "dep:reedline", 
     "dep:nu-ansi-term",
     "dep:crossterm",
     "dep:syntect",
-    "dep:colored",
-    "dep:dirs",
 ]
-async = ["tokio", "tokio-util"]
-advanced-io = ["async", "rustls", "webpki-roots", "nix", "winapi"]
-text-processing = []
+
+# Runtime configurations  
+async-runtime = ["tokio", "tokio-util"]  # Async runtime (heavy dependency)
+network-io = ["async-runtime", "rustls", "tokio-rustls", "webpki-roots"]  # Network I/O
+platform-extensions = ["unix-extensions", "windows-extensions"]  # Platform-specific APIs
+
+# Legacy compatibility (opt-in only)
+async = ["async-runtime"]  # Backward compatibility
+advanced-io = ["network-io", "platform-extensions"]  # Backward compatibility
+text-processing = ["icu_collator", "icu_locid"]
 compression = ["flate2", "zstd", "lz4_flex"]
-tls = ["rustls", "webpki-roots"]
+tls = ["rustls", "tokio-rustls", "webpki-roots"]
 unix-extensions = ["nix"]
 windows-extensions = ["winapi"]
 benchmarks = ["criterion", "flame"]
@@ -182,6 +188,8 @@ property-testing = ["proptest"]
 multithreaded-tests = ["async", "tokio/test-util"]
 ffi = ["libffi", "cc"] # FFI support
 jit = [] # Future JIT compilation support
+simd-benchmarks = ["benchmarks"] # SIMD optimization benchmarking
+# internal-parser = [] # 廃止済み (2025年8月12日) - nom互換レイヤー削除により不要
 
 # Benchmark configuration
 [[bench]]

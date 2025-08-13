@@ -7,7 +7,8 @@ use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
 use std::sync::Arc;
-use regex::Regex;
+// use regex::Regex; // Replaced with internal engine
+use crate::regex::compat::LightRegex;
 use std::fmt;
 use unicode_segmentation::UnicodeSegmentation;
 // regex = "1.10"
@@ -72,7 +73,7 @@ pub struct TextBuilder {
 /// Regular expression engine for text operations
 #[derive(Debug)]
 pub struct TextRegex {
-    regex: Regex,
+    regex: LightRegex,
     pattern: String,
     flags: RegexFlags,
 }
@@ -89,7 +90,7 @@ pub struct RegexFlags {
 impl TextRegex {
     /// Creates a new regex from a pattern.
     pub fn new(pattern: &str) -> Result<Self> {
-        let regex = Regex::new(pattern).map_err(|e| {
+        let regex = LightRegex::new(pattern).map_err(|e| {
             Box::new(DiagnosticError::runtime_error(
                 format!("Invalid regex pattern: {e}"),
                 None,
@@ -151,7 +152,7 @@ impl TextRegex {
     pub fn replace_all(&self, text: &Text, replacement: &Text) -> Text {
         let text_str = text.as_string();
         let replacement_str = replacement.as_string();
-        let result = self.regex.replace_all(&text_str, replacement_str);
+        let result = self.regex.replace_all(&text_str, &replacement_str);
         Text::from_string(result.to_string())
     }
 }

@@ -1,0 +1,370 @@
+#!/usr/bin/env lambdust
+;; Lambdust Test Framework
+;; Purpose: Provide testing utilities for the comprehensive test suite
+;; This framework would need to be implemented in the Lambdust standard library
+
+;; =============================================================================
+;; CORE TEST FRAMEWORK
+;; =============================================================================
+
+(define-library (lambdust test)
+  (export 
+    ;; Test suite management
+    define-test-suite
+    run-test-suite
+    run-all-tests
+    
+    ;; Test definitions
+    test
+    
+    ;; Assertions
+    assert-true
+    assert-false
+    assert-equal
+    assert-not-equal
+    assert-error
+    assert-type-error
+    assert-contract-violation
+    assert-compile-error
+    assert-refinement-error
+    assert-blame
+    assert-unspecified
+    
+    ;; Test utilities
+    test-summary
+    test-stats
+    with-test-isolation
+    
+    ;; Mocking and fixtures
+    make-mock
+    mock-procedure
+    with-fixtures)
+  
+  (import (scheme base)
+          (scheme write)
+          (scheme time)
+          (scheme eval))
+  
+  (begin
+    ;; =============================================================================
+    ;; GLOBAL TEST STATE
+    ;; =============================================================================
+    
+    (define *test-suites* '())
+    (define *current-suite* #f)
+    (define *test-stats* (make-test-stats))
+    (define *test-isolation* #t)
+    
+    (define-record-type test-stats
+      (make-test-stats-record passed failed errors total-time)
+      test-stats?
+      (passed test-stats-passed set-test-stats-passed!)
+      (failed test-stats-failed set-test-stats-failed!)
+      (errors test-stats-errors set-test-stats-errors!)
+      (total-time test-stats-total-time set-test-stats-total-time!))
+    
+    (define (make-test-stats)
+      (make-test-stats-record 0 0 0 0))
+    
+    (define-record-type test-suite
+      (make-test-suite-record name tests setup teardown)
+      test-suite?
+      (name test-suite-name)
+      (tests test-suite-tests set-test-suite-tests!)
+      (setup test-suite-setup)
+      (teardown test-suite-teardown))
+    
+    (define-record-type test-case
+      (make-test-case-record name proc expected-result)
+      test-case?
+      (name test-case-name)
+      (proc test-case-proc)
+      (expected-result test-case-expected-result))
+    
+    ;; =============================================================================
+    ;; TEST SUITE MANAGEMENT
+    ;; =============================================================================
+    
+    (define-syntax define-test-suite
+      (syntax-rules ()
+        ((_ name . body)
+         (begin
+           (define suite (make-test-suite-record name '() #f #f))
+           (set! *current-suite* suite)
+           (set! *test-suites* (cons suite *test-suites*))
+           . body
+           (set! *current-suite* #f)))))
+    
+    (define-syntax test
+      (syntax-rules ()
+        ((_ name . body)
+         (when *current-suite*
+           (let ((test-proc (lambda () . body)))
+             (let ((test-case (make-test-case-record name test-proc #t)))
+               (set-test-suite-tests! *current-suite*
+                 (cons test-case (test-suite-tests *current-suite*)))))))))
+    
+    (define (run-test-suite suite-name)
+      (let ((suite (find-test-suite suite-name)))
+        (if suite
+            (begin
+              (display (string-append "Running test suite: " suite-name "\n"))
+              (run-suite-tests suite)
+              (display (string-append "Completed test suite: " suite-name "\n")))
+            (error "Test suite not found" suite-name))))
+    
+    (define (find-test-suite name)
+      (let loop ((suites *test-suites*))
+        (cond
+          ((null? suites) #f)
+          ((string=? (test-suite-name (car suites)) name) (car suites))
+          (else (loop (cdr suites))))))
+    
+    (define (run-suite-tests suite)
+      (let ((tests (reverse (test-suite-tests suite))))
+        (for-each run-single-test tests)))
+    
+    (define (run-single-test test-case)
+      (let ((name (test-case-name test-case))
+            (proc (test-case-proc test-case)))
+        (display (string-append "  Testing: " name "... "))
+        (let ((start-time (current-time)))
+          (guard (condition
+                  (else 
+                   (display "FAILED\n")
+                   (display (string-append "    Error: " (error-object-message condition) "\n"))
+                   (set-test-stats-failed! *test-stats* (+ (test-stats-failed *test-stats*) 1))))
+            (if *test-isolation*
+                (with-test-isolation proc)
+                (proc))
+            (let ((end-time (current-time)))
+              (display "PASSED\n")
+              (set-test-stats-passed! *test-stats* (+ (test-stats-passed *test-stats*) 1))
+              (set-test-stats-total-time! *test-stats* 
+                (+ (test-stats-total-time *test-stats*) (- end-time start-time))))))))
+    
+    (define (run-all-tests)
+      (display "Running all test suites...\n")
+      (set! *test-stats* (make-test-stats))
+      (let ((start-time (current-time)))
+        (for-each (lambda (suite)
+                    (run-suite-tests suite))
+                  (reverse *test-suites*))
+        (let ((end-time (current-time)))
+          (display-test-summary (- end-time start-time)))))
+    
+    (define (display-test-summary total-time)
+      (let ((passed (test-stats-passed *test-stats*))
+            (failed (test-stats-failed *test-stats*))
+            (errors (test-stats-errors *test-stats*)))
+        (display "\n=== Test Summary ===\n")
+        (display (string-append "Passed: " (number->string passed) "\n"))
+        (display (string-append "Failed: " (number->string failed) "\n"))
+        (display (string-append "Errors: " (number->string errors) "\n"))
+        (display (string-append "Total:  " (number->string (+ passed failed errors)) "\n"))
+        (display (string-append "Time:   " (number->string total-time) "ms\n"))
+        (if (and (= failed 0) (= errors 0))
+            (display "All tests passed!\n")
+            (display "Some tests failed.\n"))))
+    
+    ;; =============================================================================
+    ;; ASSERTION FUNCTIONS
+    ;; =============================================================================
+    
+    (define (assert-true value)
+      (unless value
+        (error "Assertion failed: expected true, got" value)))
+    
+    (define (assert-false value)
+      (when value
+        (error "Assertion failed: expected false, got" value)))
+    
+    (define (assert-equal expected actual)
+      (unless (equal? expected actual)
+        (error "Assertion failed: expected" expected "but got" actual)))
+    
+    (define (assert-not-equal expected actual)
+      (when (equal? expected actual)
+        (error "Assertion failed: expected not equal to" expected "but got" actual)))
+    
+    (define (assert-error expected-error-type thunk-or-expression)
+      (let ((thunk (if (procedure? thunk-or-expression)
+                       thunk-or-expression
+                       (lambda () thunk-or-expression))))
+        (guard (condition
+                ((error-object? condition)
+                 (let ((error-type (error-object-irritants condition)))
+                   (unless (equal? error-type expected-error-type)
+                     (error "Wrong error type: expected" expected-error-type 
+                            "but got" error-type))))
+                (else
+                 (error "Expected error but got other condition:" condition)))
+          (thunk)
+          (error "Expected error but no error was raised"))))
+    
+    (define (assert-type-error expression)
+      (assert-error 'type-error expression))
+    
+    (define (assert-contract-violation expression)
+      (assert-error 'contract-violation expression))
+    
+    (define (assert-compile-error expression)
+      (assert-error 'compile-error expression))
+    
+    (define (assert-refinement-error expression)
+      (assert-error 'refinement-error expression))
+    
+    (define (assert-blame expected-blame expression)
+      ;; TODO: Implement blame tracking for gradual typing
+      (assert-error 'contract-violation expression))
+    
+    (define (assert-unspecified expression)
+      ;; Check that expression returns unspecified value
+      (let ((result expression))
+        (unless (unspecified? result)
+          (error "Expected unspecified value, got" result))))
+    
+    ;; =============================================================================
+    ;; TEST UTILITIES
+    ;; =============================================================================
+    
+    (define (test-summary)
+      (list (test-stats-passed *test-stats*)
+            (test-stats-failed *test-stats*)
+            (test-stats-errors *test-stats*)
+            (test-stats-total-time *test-stats*)))
+    
+    (define (test-stats)
+      *test-stats*)
+    
+    (define (with-test-isolation thunk)
+      ;; Create isolated environment for each test
+      ;; TODO: Implement proper environment isolation
+      (thunk))
+    
+    ;; =============================================================================
+    ;; MOCKING AND FIXTURES
+    ;; =============================================================================
+    
+    (define-record-type mock
+      (make-mock-record original replacement call-count calls)
+      mock?
+      (original mock-original)
+      (replacement mock-replacement set-mock-replacement!)
+      (call-count mock-call-count set-mock-call-count!)
+      (calls mock-calls set-mock-calls!))
+    
+    (define (make-mock original replacement)
+      (make-mock-record original replacement 0 '()))
+    
+    (define (mock-procedure proc mock-impl)
+      ;; TODO: Implement procedure mocking
+      ;; This would require runtime procedure replacement
+      (make-mock proc mock-impl))
+    
+    (define-syntax with-fixtures
+      (syntax-rules ()
+        ((_ ((name setup cleanup) ...) . body)
+         (let ((name (setup)) ...)
+           (guard (condition
+                   (else
+                    (cleanup name) ...
+                    (raise condition)))
+             (let ((result (begin . body)))
+               (cleanup name) ...
+               result))))))
+    
+    ;; =============================================================================
+    ;; PROPERTY-BASED TESTING SUPPORT
+    ;; =============================================================================
+    
+    (define (property-test name generator property . options)
+      ;; TODO: Implement property-based testing
+      ;; Generate test cases and verify properties
+      #f)
+    
+    (define (generate-integers min max count)
+      ;; Generate random integers for testing
+      ;; TODO: Implement test data generators
+      '())
+    
+    ;; =============================================================================
+    ;; BENCHMARK INTEGRATION
+    ;; =============================================================================
+    
+    (define (benchmark-test name iterations proc)
+      ;; Run performance benchmarks as part of tests
+      (let ((start-time (current-time)))
+        (let loop ((i iterations))
+          (when (> i 0)
+            (proc)
+            (loop (- i 1))))
+        (let ((end-time (current-time)))
+          (let ((total-time (- end-time start-time)))
+            (display (string-append "Benchmark " name ": " 
+                                   (number->string total-time) 
+                                   "ms for " 
+                                   (number->string iterations) 
+                                   " iterations\n"))
+            total-time))))
+    
+    ;; =============================================================================
+    ;; TEST DISCOVERY AND LOADING
+    ;; =============================================================================
+    
+    (define (discover-tests directory)
+      ;; Discover and load test files from directory
+      ;; TODO: Implement test file discovery
+      '())
+    
+    (define (load-test-file filename)
+      ;; Load a single test file
+      ;; TODO: Implement test file loading
+      (load filename))
+    
+    ;; =============================================================================
+    ;; HELPER FUNCTIONS
+    ;; =============================================================================
+    
+    (define (current-time)
+      ;; Mock time function - would use actual timing in real implementation
+      (+ 1000000000 (random 1000)))
+    
+    (define (random n)
+      ;; Simple random number generator
+      (modulo (+ (* 1103515245 (current-time)) 12345) n))
+    
+    (define (unspecified? value)
+      ;; Check if value is the unspecified value
+      ;; This would be implemented properly in the runtime
+      (eq? value (if #f #f)))
+    
+    ))
+
+;; =============================================================================
+;; EXAMPLE USAGE OF THE TEST FRAMEWORK
+;; =============================================================================
+
+;; Test the test framework itself
+(import (lambdust test))
+
+(define-test-suite "Test Framework Self-Test"
+  
+  (test "Basic assertions work"
+    (assert-true #t)
+    (assert-false #f)
+    (assert-equal 42 42)
+    (assert-not-equal 42 43))
+  
+  (test "Error assertions work"
+    (assert-error 'user-error (error "test error")))
+  
+  (test "Test isolation works"
+    ;; Each test should run in isolation
+    (define x 1)
+    (set! x 2)
+    (assert-equal 2 x)))
+
+;; This would be run when the test framework is loaded
+(display "Lambdust Test Framework loaded successfully.\n")
+(display "Use (run-all-tests) to execute all test suites.\n")

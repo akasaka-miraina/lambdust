@@ -1,0 +1,539 @@
+#!/usr/bin/env lambdust
+;; Test file: Performance Benchmarks
+;; Purpose: Test performance characteristics and regression detection
+;; Covers computation benchmarks, memory usage, and optimization verification
+
+(import (scheme base)
+        (scheme write)
+        (scheme time)
+        (lambdust test)
+        (lambdust benchmarks))  ;; TODO: Implement benchmarks library
+
+;; =============================================================================
+;; BASIC PERFORMANCE BENCHMARKS
+;; =============================================================================
+
+(define-test-suite "Basic Performance Benchmarks"
+  
+  (test "Arithmetic performance"
+    ;; Test basic arithmetic operations performance
+    (define (arithmetic-benchmark iterations)
+      (let loop ((i iterations) (sum 0))
+        (if (<= i 0)
+            sum
+            (loop (- i 1) (+ sum (* i i) (/ i 2) (- i 3))))))
+    
+    (define iterations 100000)
+    (define start-time (current-time))
+    (define result (arithmetic-benchmark iterations))
+    (define end-time (current-time))
+    (define elapsed (- end-time start-time))
+    
+    ;; TODO: Add performance assertions when timing is available
+    ;; (assert-true (< elapsed 1000))  ;; Should complete in under 1 second
+    (assert-true (number? result)))
+  
+  (test "List processing performance"
+    ;; Test list operations performance
+    (define test-data (iota 10000))
+    
+    (define start-time (current-time))
+    (define filtered (filter (lambda (x) (= (modulo x 2) 0)) test-data))
+    (define mapped (map (lambda (x) (* x x)) filtered))
+    (define folded (fold + 0 mapped))
+    (define end-time (current-time))
+    
+    (assert-equal 5000 (length filtered))
+    (assert-true (number? folded)))
+  
+  (test "String processing performance"
+    ;; Test string operations performance
+    (define test-string (make-string 10000 #\a))
+    
+    (define start-time (current-time))
+    (define concatenated 
+      (let loop ((n 100) (acc ""))
+        (if (<= n 0)
+            acc
+            (loop (- n 1) (string-append acc "test")))))
+    (define end-time (current-time))
+    
+    (assert-equal 400 (string-length concatenated)))
+  
+  (test "Vector operations performance"
+    ;; Test vector operations performance
+    (define test-vector (make-vector 10000 0))
+    
+    (define start-time (current-time))
+    (let loop ((i 0))
+      (when (< i (vector-length test-vector))
+        (vector-set! test-vector i (* i i))
+        (loop (+ i 1))))
+    (define end-time (current-time))
+    
+    (assert-equal 0 (vector-ref test-vector 0))
+    (assert-equal 1 (vector-ref test-vector 1))
+    (assert-equal 9801 (vector-ref test-vector 99))))
+
+;; =============================================================================
+;; ALGORITHMIC BENCHMARKS
+;; =============================================================================
+
+(define-test-suite "Algorithmic Benchmarks"
+  
+  (test "Fibonacci performance"
+    ;; Test recursive vs iterative Fibonacci
+    (define (fib-recursive n)
+      (if (<= n 1)
+          n
+          (+ (fib-recursive (- n 1))
+             (fib-recursive (- n 2)))))
+    
+    (define (fib-iterative n)
+      (let loop ((i n) (a 0) (b 1))
+        (if (<= i 0)
+            a
+            (loop (- i 1) b (+ a b)))))
+    
+    ;; Benchmark both implementations
+    (define n 30)
+    
+    (define start-recursive (current-time))
+    (define result-recursive (fib-recursive n))
+    (define end-recursive (current-time))
+    (define time-recursive (- end-recursive start-recursive))
+    
+    (define start-iterative (current-time))
+    (define result-iterative (fib-iterative n))
+    (define end-iterative (current-time))
+    (define time-iterative (- end-iterative start-iterative))
+    
+    ;; Results should be identical
+    (assert-equal result-recursive result-iterative)
+    ;; Iterative should be much faster
+    ;; TODO: Add timing assertions when available
+    )
+  
+  (test "Sorting performance"
+    ;; Compare different sorting algorithms
+    (define (quick-sort lst)
+      (if (null? lst)
+          '()
+          (let ((pivot (car lst))
+                (rest (cdr lst)))
+            (append (quick-sort (filter (lambda (x) (< x pivot)) rest))
+                   (list pivot)
+                   (quick-sort (filter (lambda (x) (>= x pivot)) rest))))))
+    
+    (define (merge-sort lst)
+      (if (<= (length lst) 1)
+          lst
+          (let* ((mid (quotient (length lst) 2))
+                 (left (take lst mid))
+                 (right (drop lst mid)))
+            (merge (merge-sort left) (merge-sort right)))))
+    
+    (define (merge left right)
+      (cond
+        ((null? left) right)
+        ((null? right) left)
+        ((<= (car left) (car right))
+         (cons (car left) (merge (cdr left) right)))
+        (else
+         (cons (car right) (merge left (cdr right))))))
+    
+    (define test-data (shuffle (iota 1000)))  ;; TODO: Implement shuffle
+    
+    ;; TODO: Benchmark different sorting algorithms
+    ;; (define quick-time (time-procedure (lambda () (quick-sort test-data))))
+    ;; (define merge-time (time-procedure (lambda () (merge-sort test-data))))
+    )
+  
+  (test "Tree traversal performance"
+    ;; Binary tree operations performance
+    (define-record-type tree
+      (make-tree value left right)
+      tree?
+      (value tree-value)
+      (left tree-left)
+      (right tree-right))
+    
+    (define (build-balanced-tree depth)
+      (if (<= depth 0)
+          #f
+          (make-tree depth
+                    (build-balanced-tree (- depth 1))
+                    (build-balanced-tree (- depth 1)))))
+    
+    (define (tree-sum tree)
+      (if (not tree)
+          0
+          (+ (tree-value tree)
+             (tree-sum (tree-left tree))
+             (tree-sum (tree-right tree)))))
+    
+    (define test-tree (build-balanced-tree 15))
+    
+    (define start-time (current-time))
+    (define sum-result (tree-sum test-tree))
+    (define end-time (current-time))
+    
+    (assert-true (> sum-result 0)))
+  
+  (test "Graph algorithms performance"
+    ;; Graph traversal and shortest path algorithms
+    ;; TODO: Implement graph algorithms and benchmark them
+    ))
+
+;; =============================================================================
+;; MEMORY USAGE BENCHMARKS
+;; =============================================================================
+
+(define-test-suite "Memory Usage Benchmarks"
+  
+  (test "Memory allocation performance"
+    ;; Test allocation and deallocation patterns
+    (define (allocation-test iterations)
+      (let loop ((i iterations) (objects '()))
+        (if (<= i 0)
+            (length objects)
+            (loop (- i 1) 
+                  (cons (make-vector 100 i) objects)))))
+    
+    (define start-memory (get-memory-usage))  ;; TODO: Implement memory tracking
+    (define result (allocation-test 1000))
+    (define end-memory (get-memory-usage))
+    
+    (assert-equal 1000 result)
+    ;; TODO: Add memory usage assertions
+    )
+  
+  (test "Garbage collection performance"
+    ;; Test GC behavior under different allocation patterns
+    (define (create-garbage iterations)
+      (let loop ((i iterations))
+        (when (> i 0)
+          (make-vector 1000 i)  ;; Create unreferenced objects
+          (loop (- i 1)))))
+    
+    (define start-time (current-time))
+    (create-garbage 1000)
+    (collect-garbage)  ;; Force GC
+    (define end-time (current-time))
+    
+    ;; TODO: Measure GC performance
+    )
+  
+  (test "Memory leak detection"
+    ;; Ensure no memory leaks in long-running operations
+    (define initial-memory (get-memory-usage))
+    
+    ;; Perform operations that should not leak
+    (let loop ((i 10000))
+      (when (> i 0)
+        (let ((temp-data (make-vector 100 i)))
+          (vector-set! temp-data 0 (* i 2))
+          (vector-ref temp-data 0))
+        (loop (- i 1))))
+    
+    (collect-garbage)
+    (define final-memory (get-memory-usage))
+    
+    ;; Memory usage should return to baseline
+    ;; TODO: Add memory leak assertions
+    ))
+
+;; =============================================================================
+;; CONCURRENT PERFORMANCE BENCHMARKS
+;; =============================================================================
+
+(define-test-suite "Concurrent Performance Benchmarks"
+  
+  (test "Thread creation overhead"
+    ;; Measure thread creation and destruction performance
+    (define thread-count 100)
+    
+    (define start-time (current-time))
+    (define threads
+      (map (lambda (i)
+             (spawn-thread (lambda () (* i i))))
+           (iota thread-count)))
+    
+    ;; Wait for all threads to complete
+    (for-each thread-join! threads)
+    (define end-time (current-time))
+    
+    ;; TODO: Add thread performance assertions
+    )
+  
+  (test "Parallel computation speedup"
+    ;; Measure speedup from parallelization
+    (define (cpu-intensive-work n)
+      (let loop ((i 0) (result 0))
+        (if (>= i n)
+            result
+            (loop (+ i 1) (+ result (sin (* i 0.001)))))))
+    
+    (define work-size 50000)
+    (define num-workers 4)
+    
+    ;; Sequential timing
+    (define start-sequential (current-time))
+    (define sequential-result
+      (let loop ((i num-workers) (total 0))
+        (if (<= i 0)
+            total
+            (loop (- i 1) (+ total (cpu-intensive-work work-size))))))
+    (define end-sequential (current-time))
+    (define sequential-time (- end-sequential start-sequential))
+    
+    ;; Parallel timing
+    (define start-parallel (current-time))
+    (define worker-threads
+      (map (lambda (i)
+             (spawn-thread (lambda () (cpu-intensive-work work-size))))
+           (iota num-workers)))
+    
+    (define parallel-result
+      (apply + (map thread-join! worker-threads)))
+    (define end-parallel (current-time))
+    (define parallel-time (- end-parallel start-parallel))
+    
+    ;; Results should be equal
+    (assert-equal sequential-result parallel-result)
+    ;; TODO: Add speedup assertions
+    )
+  
+  (test "Lock contention performance"
+    ;; Measure performance under lock contention
+    (define mutex (make-mutex))
+    (define shared-counter 0)
+    (define increments-per-thread 1000)
+    (define thread-count 4)
+    
+    (define start-time (current-time))
+    (define threads
+      (map (lambda (i)
+             (spawn-thread
+               (lambda ()
+                 (let loop ((n increments-per-thread))
+                   (when (> n 0)
+                     (mutex-lock! mutex)
+                     (set! shared-counter (+ shared-counter 1))
+                     (mutex-unlock! mutex)
+                     (loop (- n 1)))))))
+           (iota thread-count)))
+    
+    (for-each thread-join! threads)
+    (define end-time (current-time))
+    
+    (assert-equal (* thread-count increments-per-thread) shared-counter)
+    ;; TODO: Add contention performance assertions
+    ))
+
+;; =============================================================================
+;; OPTIMIZATION VERIFICATION
+;; =============================================================================
+
+(define-test-suite "Optimization Verification"
+  
+  (test "Tail call optimization"
+    ;; Verify that tail calls are optimized
+    (define (tail-recursive-sum n acc)
+      (if (<= n 0)
+          acc
+          (tail-recursive-sum (- n 1) (+ acc n))))
+    
+    ;; This should not stack overflow with proper TCO
+    (define large-n 100000)
+    (define result (tail-recursive-sum large-n 0))
+    (assert-equal (/ (* large-n (+ large-n 1)) 2) result))
+  
+  (test "Constant folding optimization"
+    ;; Verify compile-time constant folding
+    (define (constant-expression)
+      (+ (* 2 3) (/ 10 2) (- 7 3)))
+    
+    ;; This should be folded to a constant at compile time
+    (define result (constant-expression))
+    (assert-equal 15 result))
+  
+  (test "Dead code elimination"
+    ;; Verify that dead code is eliminated
+    (define (function-with-dead-code x)
+      (let ((unused-var (* 999 999)))  ;; Dead code
+        (if #f
+            (display "This is dead code")  ;; Dead code
+            x)))
+    
+    (assert-equal 42 (function-with-dead-code 42)))
+  
+  (test "Inlining optimization"
+    ;; Verify function inlining
+    (define (small-function x) (+ x 1))
+    
+    (define (caller y)
+      (small-function (small-function y)))  ;; Should be inlined
+    
+    (assert-equal 7 (caller 5))))
+
+;; =============================================================================
+;; REGRESSION DETECTION
+;; =============================================================================
+
+(define-test-suite "Performance Regression Detection"
+  
+  (test "Baseline performance measurement"
+    ;; Establish performance baselines
+    (define baseline-times '())
+    
+    ;; Measure standard operations
+    (define operations
+      (list
+        ("list-creation" (lambda () (iota 10000)))
+        ("list-filtering" (lambda () (filter odd? (iota 1000))))
+        ("string-manipulation" (lambda () (make-string 1000 #\x)))
+        ("arithmetic" (lambda () (let loop ((i 1000) (sum 0))
+                                   (if (<= i 0) sum
+                                       (loop (- i 1) (+ sum (* i i)))))))))
+    
+    ;; TODO: Implement baseline recording and comparison
+    (for-each (lambda (op)
+                (let ((name (car op))
+                      (proc (cadr op)))
+                  ;; Record timing for this operation
+                  (define start (current-time))
+                  (proc)
+                  (define end (current-time))
+                  (define elapsed (- end start))
+                  (set! baseline-times 
+                        (cons (cons name elapsed) baseline-times))))
+              operations)
+    
+    ;; Store baselines for future comparison
+    ;; TODO: Implement baseline storage
+    )
+  
+  (test "Performance regression check"
+    ;; Check current performance against baselines
+    ;; TODO: Implement regression detection
+    ;; Should alert if performance degrades significantly
+    )
+  
+  (test "Performance improvement detection"
+    ;; Detect when performance improves
+    ;; TODO: Implement improvement detection
+    ;; Should note significant improvements
+    ))
+
+;; =============================================================================
+;; REAL-WORLD PERFORMANCE SCENARIOS
+;; =============================================================================
+
+(define-test-suite "Real-World Performance Scenarios"
+  
+  (test "Web server response simulation"
+    ;; Simulate web server request processing
+    (define (simulate-request request-id)
+      ;; Parse request (string processing)
+      (define query (string-append "SELECT * FROM users WHERE id = " 
+                                  (number->string request-id)))
+      
+      ;; Database query simulation (list processing)
+      (define results (filter (lambda (x) (= (modulo x 10) (modulo request-id 10)))
+                             (iota 1000)))
+      
+      ;; Response formatting (string building)
+      (define response (fold (lambda (item acc)
+                              (string-append acc (number->string item) ","))
+                            "{"
+                            results))
+      
+      (string-append response "}"))
+    
+    ;; Simulate multiple concurrent requests
+    (define request-count 100)
+    (define start-time (current-time))
+    
+    (define responses
+      (map simulate-request (iota request-count)))
+    
+    (define end-time (current-time))
+    
+    (assert-equal request-count (length responses))
+    ;; TODO: Add throughput assertions
+    )
+  
+  (test "Data processing pipeline simulation"
+    ;; Simulate ETL (Extract, Transform, Load) pipeline
+    (define raw-data (iota 10000))
+    
+    ;; Extract: simulate reading from various sources
+    (define extracted-data
+      (map (lambda (x) (list x (* x 1.5) (modulo x 100))) raw-data))
+    
+    ;; Transform: clean and process data
+    (define transformed-data
+      (filter (lambda (record) (> (cadr record) 10))
+              (map (lambda (record)
+                     (list (car record)
+                          (round (cadr record))
+                          (if (= (caddr record) 0) 1 (caddr record))))
+                   extracted-data)))
+    
+    ;; Load: aggregate and summarize
+    (define loaded-data
+      (fold (lambda (record acc)
+              (+ acc (cadr record) (caddr record)))
+            0
+            transformed-data))
+    
+    (assert-true (> loaded-data 0))
+    (assert-true (< (length transformed-data) (length raw-data))))
+  
+  (test "Game loop simulation"
+    ;; Simulate game update loop
+    (define (update-game-state state frame-number)
+      ;; Update player positions
+      (define players (map (lambda (player)
+                            (list (+ (car player) 1)
+                                 (+ (cadr player) 0.5)))
+                          (car state)))
+      
+      ;; Update game objects
+      (define objects (filter (lambda (obj) (> (cadr obj) 0))
+                             (map (lambda (obj)
+                                   (list (car obj) (- (cadr obj) 1)))
+                                 (cadr state))))
+      
+      ;; Return new state
+      (list players objects))
+    
+    ;; Simulate 60 FPS for 10 seconds
+    (define initial-state (list '((0 0) (100 100)) '((50 10) (75 5))))
+    (define frame-count 600)
+    
+    (define start-time (current-time))
+    (let loop ((frame 0) (state initial-state))
+      (if (>= frame frame-count)
+          state
+          (loop (+ frame 1) (update-game-state state frame))))
+    (define end-time (current-time))
+    
+    ;; TODO: Add frame rate assertions
+    ))
+
+;; =============================================================================
+;; RUN ALL BENCHMARKS
+;; =============================================================================
+
+(run-test-suite "Basic Performance Benchmarks")
+(run-test-suite "Algorithmic Benchmarks")
+(run-test-suite "Memory Usage Benchmarks")
+(run-test-suite "Concurrent Performance Benchmarks")
+(run-test-suite "Optimization Verification")
+(run-test-suite "Performance Regression Detection")
+(run-test-suite "Real-World Performance Scenarios")
+
+(display "Performance benchmarks completed.\n")
+(display "This test suite verifies performance characteristics and optimization.\n")

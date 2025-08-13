@@ -769,7 +769,10 @@ impl R7RSIntegration {
         // In a real implementation, this would perform sophisticated type checking
         match (static_type, dynamic_value) {
             (Type::Dynamic, _) => Ok(true),
-            (Type::Number, Value::Literal(crate::ast::Literal::Number(_))) => Ok(true),
+            (Type::Number, Value::Literal(crate::ast::Literal::ExactInteger(_))) => Ok(true),
+            (Type::Number, Value::Literal(crate::ast::Literal::InexactReal(_))) => Ok(true),
+            (Type::Number, Value::Literal(crate::ast::Literal::Rational { .. })) => Ok(true),
+            (Type::Number, Value::Literal(crate::ast::Literal::Complex { .. })) => Ok(true),
             (Type::String, Value::Literal(crate::ast::Literal::String(_))) => Ok(true),
             (Type::Boolean, Value::Literal(crate::ast::Literal::Boolean(_))) => Ok(true),
             (Type::Symbol, Value::Symbol(_)) => Ok(true),

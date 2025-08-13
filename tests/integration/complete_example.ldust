@@ -1,0 +1,504 @@
+#!/usr/bin/env lambdust
+;; Test file: Complete Integration Example
+;; Purpose: Test comprehensive integration of all Lambdust features
+;; Covers a realistic application using types, effects, concurrency, and more
+
+(import (scheme base)
+        (scheme write)
+        (scheme file)
+        (lambdust test)
+        (lambdust types)
+        (lambdust effects)
+        (lambdust actors)
+        (lambdust stm)
+        (lambdust modules))
+
+;; =============================================================================
+;; COMPLETE APPLICATION: DISTRIBUTED TASK PROCESSING SYSTEM
+;; =============================================================================
+
+(define-test-suite "Distributed Task Processing System"
+  
+  (test "Task management with algebraic data types"
+    ;; Define task types using ADTs
+    (define-type TaskStatus
+      Pending
+      Running
+      (Completed Any)
+      (Failed String))
+    
+    (define-type Priority
+      Low
+      Medium
+      High
+      Critical)
+    
+    (define-type Task
+      (Task String           ;; task-id
+            String           ;; description
+            Priority         ;; priority
+            TaskStatus       ;; status
+            (List Any)))     ;; dependencies
+    
+    ;; Task creation and manipulation
+    (define task-1 
+      (Task "task-001" 
+            "Process user data" 
+            High 
+            Pending 
+            '()))
+    
+    (define task-2 
+      (Task "task-002" 
+            "Generate report" 
+            Medium 
+            Pending 
+            '("task-001")))
+    
+    ;; Pattern matching on tasks
+    (define (task-priority task)
+      (match task
+        [(Task _ _ priority _ _) priority]))
+    
+    (define (task-ready? task completed-tasks)
+      (match task
+        [(Task _ _ _ _ dependencies)
+         (all (lambda (dep-id) (member dep-id completed-tasks))
+              dependencies)]))
+    
+    (assert-equal High (task-priority task-1))
+    (assert-true (task-ready? task-1 '()))
+    (assert-false (task-ready? task-2 '())))
+  
+  (test "Type-safe task queue with gradual typing"
+    ;; Start with dynamic typing, add contracts progressively
+    (define (create-task-queue) '())
+    
+    (define (enqueue-task queue task)
+      #:contract (-> (List Task) Task (List Task))
+      (append queue (list task)))
+    
+    (define (dequeue-task queue)
+      #:contract (-> (List Task) (Maybe Task))
+      (if (null? queue)
+          Nothing
+          (Just (car queue))))
+    
+    (define (filter-by-priority queue priority)
+      #:type (-> (List Task) Priority (List Task))
+      (filter (lambda (task)
+                (equal? (task-priority task) priority))
+              queue))
+    
+    ;; Test queue operations
+    (define empty-queue (create-task-queue))
+    (define queue-1 (enqueue-task empty-queue task-1))
+    (define queue-2 (enqueue-task queue-1 task-2))
+    
+    (assert-equal 2 (length queue-2))
+    (assert-equal (Just task-1) (dequeue-task queue-2)))
+  
+  (test "Effect-aware task execution"
+    ;; Define effects for task processing
+    (define-effect TaskEffect
+      (log-message : String -> Unit)
+      (update-status : String TaskStatus -> Unit)
+      (load-data : String -> Any)
+      (save-result : String Any -> Unit))
+    
+    ;; Task processor with effects
+    (define (process-task task)
+      #:effects (TaskEffect IO)
+      (match task
+        [(Task id description priority status dependencies)
+         (log-message (string-append "Starting task: " id))
+         (update-status id Running)
+         
+         ;; Simulate task processing
+         (let ((input-data (load-data id)))
+           (let ((result (perform-computation input-data)))
+             (save-result id result)
+             (update-status id (Completed result))
+             (log-message (string-append "Completed task: " id))
+             result))]))
+    
+    (define (perform-computation data)
+      ;; Pure computation - no effects
+      #:pure #t
+      (if (string? data)
+          (string-length data)
+          42))
+    
+    ;; Effect handlers for task processing
+    (define (with-task-logging computation)
+      (handle computation
+        (TaskEffect
+          (log-message msg k) => 
+          (begin
+            (display (string-append "[LOG] " msg "\n"))
+            (k () #f))
+          
+          (update-status id status k) =>
+          (begin
+            (display (string-append "[STATUS] " id " -> " (show status) "\n"))
+            (k () #f))
+          
+          (load-data id k) =>
+          (k (string-append "data-for-" id) #f)
+          
+          (save-result id result k) =>
+          (begin
+            (display (string-append "[SAVE] " id " = " (show result) "\n"))
+            (k () #f)))
+        
+        (return value) => value))
+    
+    ;; TODO: Test when effect handlers are implemented
+    ;; (define result (with-task-logging (process-task task-1)))
+    ;; (assert-true (number? result))
+    ))
+
+;; =============================================================================
+;; CONCURRENT TASK PROCESSING WITH ACTORS
+;; =============================================================================
+
+(define-test-suite "Concurrent Task Processing"
+  
+  (test "Actor-based task distribution"
+    ;; Task manager actor
+    (define-actor task-manager
+      (state (make-task-queue))
+      
+      (on-message
+        [(submit-task task)
+         (set! state (enqueue-task state task))
+         (display (string-append "Task submitted: " (task-id task) "\n"))]
+        
+        [(request-task worker-id)
+         (let ((maybe-task (dequeue-task state)))
+           (match maybe-task
+             [Nothing 
+              (reply 'no-tasks)]
+             [(Just task)
+              (set! state (cdr state))  ;; Remove from queue
+              (reply task)]))]
+        
+        [(get-queue-size)
+         (reply (length state))]))
+    
+    ;; Worker actor
+    (define-actor task-worker
+      (state (list 'worker-id 'status 'idle))
+      
+      (init (worker-id manager)
+        (set! state (list worker-id manager 'idle)))
+      
+      (on-message
+        [(start-work)
+         (let ((worker-id (car state))
+               (manager (cadr state)))
+           (set! state (list worker-id manager 'working))
+           (let ((task-response (ask manager (list 'request-task worker-id))))
+             (if (equal? task-response 'no-tasks)
+                 (begin
+                   (set! state (list worker-id manager 'idle))
+                   (reply 'no-work))
+                 (begin
+                   ;; Process the task
+                   (let ((result (simulate-task-processing task-response)))
+                     (set! state (list worker-id manager 'idle))
+                     (reply (list 'completed result)))))))]
+        
+        [(get-status) (reply (caddr state))]))
+    
+    (define (simulate-task-processing task)
+      ;; Simulate work by sleeping briefly
+      (sleep 10)
+      (string-append "processed-" (task-id task)))
+    
+    ;; TODO: Test actor system when implemented
+    ;; (define manager (spawn-actor task-manager))
+    ;; (define worker1 (spawn-actor task-worker "worker-1" manager))
+    ;; (define worker2 (spawn-actor task-worker "worker-2" manager))
+    
+    ;; Submit tasks and verify processing
+    ;; (send-message manager (list 'submit-task task-1))
+    ;; (send-message manager (list 'submit-task task-2))
+    ;; (assert-equal 2 (ask manager 'get-queue-size))
+    )
+  
+  (test "STM-based shared state management"
+    ;; Use STM for managing shared task statistics
+    (define task-stats-pending (new-tvar 0))
+    (define task-stats-running (new-tvar 0))
+    (define task-stats-completed (new-tvar 0))
+    (define task-stats-failed (new-tvar 0))
+    
+    (define (update-task-stats old-status new-status)
+      (atomically
+        ;; Decrement old status counter
+        (match old-status
+          [Pending (modify-tvar task-stats-pending (lambda (x) (- x 1)))]
+          [Running (modify-tvar task-stats-running (lambda (x) (- x 1)))]
+          [(Completed _) (modify-tvar task-stats-completed (lambda (x) (- x 1)))]
+          [(Failed _) (modify-tvar task-stats-failed (lambda (x) (- x 1)))])
+        
+        ;; Increment new status counter
+        (match new-status
+          [Pending (modify-tvar task-stats-pending (lambda (x) (+ x 1)))]
+          [Running (modify-tvar task-stats-running (lambda (x) (+ x 1)))]
+          [(Completed _) (modify-tvar task-stats-completed (lambda (x) (+ x 1)))]
+          [(Failed _) (modify-tvar task-stats-failed (lambda (x) (+ x 1)))])))
+    
+    (define (get-total-tasks)
+      (atomically
+        (+ (read-tvar task-stats-pending)
+           (read-tvar task-stats-running)
+           (read-tvar task-stats-completed)
+           (read-tvar task-stats-failed))))
+    
+    ;; TODO: Test STM operations when implemented
+    ;; (update-task-stats Pending Running)
+    ;; (update-task-stats Running (Completed "result"))
+    ;; (assert-equal 1 (get-total-tasks))
+    ))
+
+;; =============================================================================
+;; DISTRIBUTED SYSTEM INTEGRATION
+;; =============================================================================
+
+(define-test-suite "Distributed System Integration"
+  
+  (test "Remote task execution"
+    ;; Distribute tasks across multiple nodes
+    (define node-registry (make-node-registry))
+    (define local-node (make-node "local" "localhost" 8080))
+    (define remote-node (make-node "remote" "worker-1" 8081))
+    
+    (register-node! node-registry local-node)
+    (register-node! node-registry remote-node)
+    
+    ;; Task distribution strategy
+    (define (select-node-for-task task nodes)
+      (match (task-priority task)
+        [Critical (find-node-by-name nodes "local")]
+        [High (find-node-by-name nodes "local")]
+        [Medium (round-robin-select nodes)]
+        [Low (least-loaded-node nodes)]))
+    
+    ;; TODO: Test distributed task execution
+    )
+  
+  (test "Fault tolerance and recovery"
+    ;; Handle node failures gracefully
+    (define fault-tolerant-task-manager
+      (make-fault-tolerant-manager
+        (list "node-1" "node-2" "node-3")
+        (lambda (failed-node tasks)
+          ;; Redistribute tasks from failed node
+          (redistribute-tasks tasks (active-nodes)))))
+    
+    ;; TODO: Test fault tolerance mechanisms
+    )
+  
+  (test "Load balancing and scaling"
+    ;; Automatically scale based on workload
+    (define auto-scaler 
+      (make-auto-scaler
+        (lambda (queue-size active-workers)
+          (cond
+            ((> queue-size (* active-workers 10)) 'scale-up)
+            ((< queue-size (* active-workers 2)) 'scale-down)
+            (else 'maintain)))))
+    
+    ;; TODO: Test auto-scaling behavior
+    ))
+
+;; =============================================================================
+;; PERFORMANCE AND MONITORING INTEGRATION
+;; =============================================================================
+
+(define-test-suite "Performance and Monitoring"
+  
+  (test "Real-time metrics collection"
+    ;; Collect and aggregate performance metrics
+    (define metrics-collector (make-metrics-collector))
+    
+    (define (record-task-metrics task start-time end-time)
+      (let ((duration (- end-time start-time))
+            (task-id (task-id task)))
+        (record-metric! metrics-collector 
+                       (string-append "task.duration." task-id) 
+                       duration)
+        (record-metric! metrics-collector "tasks.processed" 1)
+        (when (> duration 1000)  ;; Slow task threshold
+          (record-metric! metrics-collector "tasks.slow" 1))))
+    
+    ;; Aggregated metrics
+    (define (get-performance-summary)
+      (let ((total-tasks (get-metric metrics-collector "tasks.processed"))
+            (slow-tasks (get-metric metrics-collector "tasks.slow"))
+            (avg-duration (get-average-metric metrics-collector "task.duration")))
+        (list total-tasks slow-tasks avg-duration)))
+    
+    ;; TODO: Test metrics collection
+    )
+  
+  (test "Distributed tracing integration"
+    ;; Trace requests across the distributed system
+    (define tracer (make-distributed-tracer))
+    
+    (define (trace-task-processing task)
+      (with-trace tracer (string-append "process-" (task-id task))
+        (with-span tracer "load-dependencies"
+          ;; Load task dependencies
+          (load-task-dependencies task))
+        
+        (with-span tracer "execute-task"
+          ;; Execute the actual task
+          (execute-task-logic task))
+        
+        (with-span tracer "save-results"
+          ;; Save task results
+          (save-task-results task))))
+    
+    ;; TODO: Test distributed tracing
+    )
+  
+  (test "Health monitoring and alerting"
+    ;; Monitor system health and send alerts
+    (define health-monitor (make-health-monitor))
+    
+    (add-health-check! health-monitor "task-queue-size"
+      (lambda () 
+        (let ((size (get-queue-size)))
+          (if (< size 1000) 'healthy 'unhealthy))))
+    
+    (add-health-check! health-monitor "worker-availability"
+      (lambda ()
+        (let ((active-workers (count-active-workers)))
+          (if (>= active-workers 2) 'healthy 'unhealthy))))
+    
+    ;; TODO: Test health monitoring
+    ))
+
+;; =============================================================================
+;; COMPREHENSIVE INTEGRATION TEST
+;; =============================================================================
+
+(define-test-suite "End-to-End Integration Test"
+  
+  (test "Complete workflow simulation"
+    ;; Simulate a complete task processing workflow
+    
+    ;; 1. Initialize system components
+    (define task-queue (create-task-queue))
+    (define worker-pool (create-worker-pool 4))
+    (define metrics (make-metrics-collector))
+    (define node-registry (make-node-registry))
+    
+    ;; 2. Create sample tasks with various priorities
+    (define sample-tasks
+      (list (Task "web-scrape-1" "Scrape product data" High Pending '())
+            (Task "data-clean-1" "Clean scraped data" Medium Pending '("web-scrape-1"))
+            (Task "report-gen-1" "Generate daily report" Low Pending '("data-clean-1"))
+            (Task "email-send-1" "Send report email" Medium Pending '("report-gen-1"))
+            (Task "backup-db-1" "Backup database" Critical Pending '())))
+    
+    ;; 3. Submit tasks to the system
+    (for-each (lambda (task)
+                (enqueue-task task-queue task)
+                (record-metric! metrics "tasks.submitted" 1))
+              sample-tasks)
+    
+    ;; 4. Process tasks with dependency resolution
+    (define (process-all-tasks)
+      (let ((completed-tasks '()))
+        (let loop ()
+          (let ((ready-tasks (filter (lambda (task)
+                                      (task-ready? task completed-tasks))
+                                    (queue->list task-queue))))
+            (unless (null? ready-tasks)
+              ;; Process ready tasks
+              (for-each (lambda (task)
+                          (let ((start-time (current-time)))
+                            ;; Simulate task processing
+                            (sleep (+ 10 (* (random 20) 10)))
+                            (let ((end-time (current-time)))
+                              (set! completed-tasks 
+                                    (cons (task-id task) completed-tasks))
+                              (record-task-metrics task start-time end-time))))
+                        ready-tasks)
+              ;; Continue processing
+              (loop))))))
+    
+    ;; 5. Execute the workflow
+    (define start-time (current-time))
+    (process-all-tasks)
+    (define end-time (current-time))
+    (define total-time (- end-time start-time))
+    
+    ;; 6. Verify results
+    (assert-equal (length sample-tasks) 
+                  (get-metric metrics "tasks.processed"))
+    
+    ;; 7. Performance assertions
+    (assert-true (> total-time 0))
+    (assert-true (< total-time 10000))  ;; Should complete in reasonable time
+    
+    ;; 8. Clean up resources
+    (shutdown-worker-pool worker-pool)
+    (close-metrics-collector metrics)
+    
+    (display "Complete integration test passed!\n")))
+
+;; =============================================================================
+;; HELPER FUNCTIONS (Mocked for Testing)
+;; =============================================================================
+
+;; TODO: These would be implemented in their respective modules
+
+(define (task-id task)
+  (match task [(Task id _ _ _ _) id]))
+
+(define (make-task-queue) '())
+
+(define (queue->list queue) queue)
+
+(define (all predicate lst)
+  (if (null? lst)
+      #t
+      (and (predicate (car lst))
+           (all predicate (cdr lst)))))
+
+(define (random n) 
+  (modulo (current-time) n))
+
+(define (sleep ms) 
+  ;; Mock sleep function
+  #f)
+
+(define (current-time)
+  ;; Mock time function  
+  (+ 1000000000 (random 100000)))
+
+(define (show value)
+  ;; Mock show function
+  (cond
+    ((string? value) value)
+    ((number? value) (number->string value))
+    ((symbol? value) (symbol->string value))
+    (else "object")))
+
+;; =============================================================================
+;; RUN INTEGRATION TESTS
+;; =============================================================================
+
+(run-test-suite "Distributed Task Processing System")
+(run-test-suite "Concurrent Task Processing")
+(run-test-suite "Distributed System Integration")  
+(run-test-suite "Performance and Monitoring")
+(run-test-suite "End-to-End Integration Test")
+
+(display "Complete integration example test finished.\n")
+(display "This demonstrates the integration of all major Lambdust features.\n")

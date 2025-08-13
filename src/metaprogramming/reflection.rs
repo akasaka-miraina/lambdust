@@ -55,6 +55,12 @@ pub enum TypeInfo {
     ListQueue,
     /// Random access list type
     RandomAccessList,
+    /// Set type  
+    Set,
+    /// Bag (multiset) type
+    Bag,
+    /// Generator type (SRFI-121)
+    Generator,
     
     /// Procedure types
     /// User-defined procedure type
@@ -281,7 +287,7 @@ impl ObjectInspector {
 
         let type_info = match value {
             Value::Literal(Literal::Boolean(_)) => TypeInfo::Boolean,
-            Value::Literal(Literal::Number(_)) => TypeInfo::Number,
+            Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::InexactReal(_)) | Value::Literal(Literal::Number(_)) => TypeInfo::Number,
             Value::Literal(Literal::Rational { .. }) => TypeInfo::Number,
             Value::Literal(Literal::Complex { .. }) => TypeInfo::Number,
             Value::Literal(Literal::String(_)) => TypeInfo::String,
@@ -294,6 +300,7 @@ impl ObjectInspector {
             Value::Nil => TypeInfo::Nil,
             Value::Unspecified => TypeInfo::Unspecified,
             Value::Pair(_, _) => TypeInfo::Pair,
+            Value::MutablePair(_, _) => TypeInfo::Pair,
             Value::Vector(_) => TypeInfo::Vector,
             Value::Hashtable(_) => TypeInfo::Hashtable,
             Value::AdvancedHashTable(_) => TypeInfo::AdvancedHashTable,
@@ -382,43 +389,57 @@ impl ObjectInspector {
                 }
             }
             
-            // Concurrency types
+            // Concurrency types (only available with async-runtime)
+            #[cfg(feature = "async-runtime")]
             Value::Future(_future) => {
                 TypeInfo::Future {
                     status: "pending".to_string(), // Placeholder - would check actual status
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::Channel(_channel) => {
                 TypeInfo::Channel {
                     capacity: None, // Placeholder - would extract actual capacity
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::Mutex(_mutex) => {
                 TypeInfo::Mutex {
                     locked: false, // Placeholder - would check actual state
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::Semaphore(_semaphore) => {
                 TypeInfo::Semaphore {
                     permits: 0, // Placeholder - would extract actual permits
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::AtomicCounter(_counter) => {
                 TypeInfo::AtomicCounter {
                     value: 0, // Placeholder - would extract actual value
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_node) => {
                 TypeInfo::DistributedNode {
                     node_id: "unknown".to_string(), // Placeholder - would extract actual node ID
                 }
             }
             
+            Value::MutableString(_) => TypeInfo::String,
+
+            Value::Set(_) => TypeInfo::Set,
+
+            Value::Bag(_) => TypeInfo::Bag,
+
+            Value::Generator(_) => TypeInfo::Generator,
+
             Value::Opaque(_opaque) => {
                 TypeInfo::Opaque {
                     type_name: "opaque".to_string(), // Placeholder - would extract actual type name
@@ -542,7 +563,7 @@ impl TypeInspector {
     pub fn get_type_name(&self, value: &Value) -> String {
         match value {
             Value::Literal(Literal::Boolean(_)) => "boolean".to_string(),
-            Value::Literal(Literal::Number(_)) => "number".to_string(),
+            Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::InexactReal(_)) => "number".to_string(),
             Value::Literal(Literal::String(_)) => "string".to_string(),
             Value::Literal(Literal::Character(_)) => "character".to_string(),
             Value::Symbol(_) => "symbol".to_string(),
@@ -583,7 +604,10 @@ impl TypeInspector {
 
         // Attempt automatic conversions
         match (value, target_type) {
-            (Value::Literal(Literal::Number(n)), "string") => {
+            (Value::Literal(Literal::ExactInteger(n)), "string") => {
+                Ok(Value::string(n.to_string()))
+            }
+            (Value::Literal(Literal::InexactReal(n)), "string") => {
                 Ok(Value::string(n.to_string()))
             }
             (Value::Literal(Literal::String(s)), "number") => {

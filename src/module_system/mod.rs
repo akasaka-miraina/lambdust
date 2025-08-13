@@ -40,32 +40,8 @@ pub use import_spec::*;
 pub use export_spec::*;
 pub use module_system::*;
 
-// ModuleId moved to module_id.rs
-
-// ModuleNamespace moved to module_id.rs
-
-// Module moved to module.rs
-
-// ModuleSource moved to module.rs
-
-// ModuleMetadata moved to module_metadata.rs
-
-// ImportSpec moved to import_spec.rs
-
-// ImportConfig moved to import_spec.rs
-
-// ExportSpec moved to export_spec.rs
-
-// ExportConfig moved to export_spec.rs
-
-// ModuleSystem moved to module_system.rs
-
-// ModuleSystem implementations moved to module_system.rs
-
-// ModuleSystem Default implementation moved to module_system.rs
-
 /// Trait for objects that can provide module definitions.
-pub trait ModuleProvider {
+pub trait ModuleProvider: Send + Sync {
     /// Gets a module definition by ID.
     fn get_module(&self, id: &ModuleId) -> Result<Module>;
     

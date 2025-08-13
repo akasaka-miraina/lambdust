@@ -976,23 +976,15 @@ impl Parser {
 
     /// Parses a define-library form: (define-library <name> <library-declaration>*)
     pub fn parse_define_library_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
-        println!("Debug: parse_define_library_form called");
         self.with_context("define-library form", |parser| {
-            println!("Debug: About to parse library name");
             // Parse library name (a list of identifiers/numbers)
             parser.consume(&TokenKind::LeftParen, "Expected opening parenthesis for library name")?;
             parser.skip_whitespace();
             
             let mut name_parts = Vec::new();
             while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
-                if parser.check(&TokenKind::Identifier) {
+                if parser.check(&TokenKind::Identifier) || parser.check(&TokenKind::IntegerNumber) {
                     let name = parser.current_token().text.clone();
-                    println!("Debug: Found library name part: {name}");
-                    name_parts.push(name);
-                    parser.advance();
-                } else if parser.check(&TokenKind::IntegerNumber) {
-                    let name = parser.current_token().text.clone();
-                    println!("Debug: Found library name part (number): {name}");
                     name_parts.push(name);
                     parser.advance();
                 } else {
@@ -1019,9 +1011,7 @@ impl Parser {
             let mut exports = Vec::new();
             let mut body = Vec::new();
             
-            println!("Debug: About to parse library declarations");
             while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
-                println!("Debug: Parsing library declaration, current token: {:?}", parser.current_token());
                 // Parse each library declaration
                 if parser.check(&TokenKind::LeftParen) {
                     let declaration_start_span = parser.current_span();
@@ -1030,7 +1020,6 @@ impl Parser {
                     
                     if parser.check(&TokenKind::Identifier) {
                         let keyword = parser.current_token().text.clone();
-                        println!("Debug: Found library declaration keyword: {keyword}");
                         parser.advance();
                         parser.skip_whitespace();
                         
@@ -1077,7 +1066,6 @@ impl Parser {
                         )))
                     }
                 } else {
-                    println!("Debug: Expected library declaration but found: {:?}", parser.current_token());
                     return Err(Box::new(Error::parse_error(
                         "Expected library declaration (list starting with identifier)",
                         parser.current_span(),

@@ -669,13 +669,20 @@ impl ProceduralMacro {
             }
 
             AdvancedPattern::Range { min, max, inclusive: _ } => {
-                if let Expr::Literal(crate::ast::Literal::Number(n)) = &expr.inner {
-                    let n = *n;
-                    let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
-                    let max_ok = n <= max.unwrap_or(f64::INFINITY);
-                    Ok(min_ok && max_ok)
-                } else {
-                    Ok(false)
+                match &expr.inner {
+                    Expr::Literal(crate::ast::Literal::ExactInteger(n)) => {
+                        let n = *n as f64;
+                        let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
+                        let max_ok = n <= max.unwrap_or(f64::INFINITY);
+                        Ok(min_ok && max_ok)
+                    }
+                    Expr::Literal(crate::ast::Literal::InexactReal(n)) => {
+                        let n = *n;
+                        let min_ok = min.unwrap_or(f64::NEG_INFINITY) <= n;
+                        let max_ok = n <= max.unwrap_or(f64::INFINITY);
+                        Ok(min_ok && max_ok)
+                    }
+                    _ => Ok(false)
                 }
             }
 
@@ -754,8 +761,10 @@ impl ProceduralMacro {
     /// Compares two values using an operator.
     fn compare_values(&self, left: &Value, right: &Value, op: &ComparisonOp) -> Result<bool> {
         match (left, right) {
-            (Value::Literal(crate::ast::Literal::Number(a)), 
-             Value::Literal(crate::ast::Literal::Number(b))) => {
+            (Value::Literal(crate::ast::Literal::ExactInteger(a)), 
+             Value::Literal(crate::ast::Literal::ExactInteger(b))) => {
+                let a = *a as f64;
+                let b = *b as f64;
                 match op {
                     ComparisonOp::Equal => Ok((a - b).abs() < f64::EPSILON),
                     ComparisonOp::NotEqual => Ok((a - b).abs() >= f64::EPSILON),
@@ -763,6 +772,41 @@ impl ProceduralMacro {
                     ComparisonOp::LessEqual => Ok(a <= b),
                     ComparisonOp::GreaterThan => Ok(a > b),
                     ComparisonOp::GreaterEqual => Ok(a >= b),
+                }
+            }
+            (Value::Literal(crate::ast::Literal::InexactReal(a)), 
+             Value::Literal(crate::ast::Literal::InexactReal(b))) => {
+                match op {
+                    ComparisonOp::Equal => Ok((a - b).abs() < f64::EPSILON),
+                    ComparisonOp::NotEqual => Ok((a - b).abs() >= f64::EPSILON),
+                    ComparisonOp::LessThan => Ok(a < b),
+                    ComparisonOp::LessEqual => Ok(a <= b),
+                    ComparisonOp::GreaterThan => Ok(a > b),
+                    ComparisonOp::GreaterEqual => Ok(a >= b),
+                }
+            }
+            (Value::Literal(crate::ast::Literal::ExactInteger(a)), 
+             Value::Literal(crate::ast::Literal::InexactReal(b))) => {
+                let a = *a as f64;
+                match op {
+                    ComparisonOp::Equal => Ok((a - *b).abs() < f64::EPSILON),
+                    ComparisonOp::NotEqual => Ok((a - *b).abs() >= f64::EPSILON),
+                    ComparisonOp::LessThan => Ok(a < *b),
+                    ComparisonOp::LessEqual => Ok(a <= *b),
+                    ComparisonOp::GreaterThan => Ok(a > *b),
+                    ComparisonOp::GreaterEqual => Ok(a >= *b),
+                }
+            }
+            (Value::Literal(crate::ast::Literal::InexactReal(a)), 
+             Value::Literal(crate::ast::Literal::ExactInteger(b))) => {
+                let b = *b as f64;
+                match op {
+                    ComparisonOp::Equal => Ok((*a - b).abs() < f64::EPSILON),
+                    ComparisonOp::NotEqual => Ok((*a - b).abs() >= f64::EPSILON),
+                    ComparisonOp::LessThan => Ok(*a < b),
+                    ComparisonOp::LessEqual => Ok(*a <= b),
+                    ComparisonOp::GreaterThan => Ok(*a > b),
+                    ComparisonOp::GreaterEqual => Ok(*a >= b),
                 }
             }
             _ => {

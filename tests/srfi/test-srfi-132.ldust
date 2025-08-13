@@ -1,0 +1,426 @@
+#!/usr/bin/env lambdust
+;; Test file: SRFI-132 Sort Libraries
+;; Purpose: Comprehensive test suite for SRFI-132 sorting procedures
+;; Tests all sorting algorithms, stability guarantees, and edge cases
+
+(import (scheme base)
+        (scheme write)
+        (scheme vector)
+        (srfi 128)   ; Comparators
+        (srfi 132)   ; Sort Libraries
+        (lambdust test))
+
+;; =============================================================================
+;; BASIC FUNCTIONALITY TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Basic List Sorting"
+  
+  (test "list-sort with default number comparator"
+    (assert-equal '(1 2 3 4 5) 
+                  (list-sort number-comparator '(3 1 4 1 5 9 2 6 5)))
+    (assert-equal '() 
+                  (list-sort number-comparator '()))
+    (assert-equal '(42) 
+                  (list-sort number-comparator '(42))))
+  
+  (test "list-stable-sort preserves order of equal elements"
+    ;; Test with pairs where second element indicates original order
+    (define pairs '((3 . a) (1 . b) (4 . c) (1 . d) (5 . e)))
+    (define cmp (make-comparator pair? 
+                                (lambda (a b) (= (car a) (car b)))
+                                (lambda (a b) (- (car a) (car b)))))
+    (define sorted (list-stable-sort cmp pairs))
+    (assert-equal '((1 . b) (1 . d) (3 . a) (4 . c) (5 . e)) sorted))
+  
+  (test "list-sort! modifies list in place"
+    (define test-list (list 5 2 8 1 9))
+    (define result (list-sort! number-comparator test-list))
+    (assert-equal '(1 2 5 8 9) result)
+    (assert-equal '(1 2 5 8 9) test-list))  ; Original list modified
+  
+  (test "list-stable-sort! modifies list with stability"
+    (define test-pairs (list '(3 . a) '(1 . b) '(1 . c)))
+    (define cmp (make-comparator pair? 
+                                (lambda (a b) (= (car a) (car b)))
+                                (lambda (a b) (- (car a) (car b)))))
+    (list-stable-sort! cmp test-pairs)
+    (assert-equal '((1 . b) (1 . c) (3 . a)) test-pairs)))
+
+(define-test-suite "SRFI-132 Basic Vector Sorting"
+  
+  (test "vector-sort creates new sorted vector"
+    (define original #(3 1 4 1 5 9 2 6 5))
+    (define sorted (vector-sort number-comparator original))
+    (assert-equal #(1 1 2 3 4 5 5 6 9) sorted)
+    (assert-equal #(3 1 4 1 5 9 2 6 5) original))  ; Original unchanged
+  
+  (test "vector-stable-sort maintains stability"
+    (define pairs #((3 . a) (1 . b) (4 . c) (1 . d) (5 . e)))
+    (define cmp (make-comparator pair? 
+                                (lambda (a b) (= (car a) (car b)))
+                                (lambda (a b) (- (car a) (car b)))))
+    (define sorted (vector-stable-sort cmp pairs))
+    (assert-equal #((1 . b) (1 . d) (3 . a) (4 . c) (5 . e)) sorted))
+  
+  (test "vector-sort! modifies vector in place"
+    (define test-vec (vector 5 2 8 1 9))
+    (vector-sort! number-comparator test-vec)
+    (assert-equal #(1 2 5 8 9) test-vec))
+  
+  (test "vector-stable-sort! modifies with stability"
+    (define test-pairs (vector '(3 . a) '(1 . b) '(1 . c)))
+    (define cmp (make-comparator pair? 
+                                (lambda (a b) (= (car a) (car b)))
+                                (lambda (a b) (- (car a) (car b)))))
+    (vector-stable-sort! cmp test-pairs)
+    (assert-equal #((1 . b) (1 . c) (3 . a)) test-pairs)))
+
+;; =============================================================================
+;; RANGE-BASED VECTOR SORTING TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Vector Range Sorting"
+  
+  (test "vector-sort with start/end arguments"
+    (define vec #(1 5 3 2 4 6))
+    (define result (vector-sort number-comparator vec 1 4))
+    (assert-equal #(2 3 5) result))
+  
+  (test "vector-sort! with range arguments"
+    (define vec (vector 1 5 3 2 4 6))
+    (vector-sort! number-comparator vec 1 4)
+    (assert-equal #(1 2 3 5 4 6) vec))  ; Only middle section sorted
+  
+  (test "vector-stable-sort with range"
+    (define pairs #((9 . x) (3 . a) (1 . b) (1 . c) (2 . d) (7 . y)))
+    (define cmp (make-comparator pair? 
+                                (lambda (a b) (= (car a) (car b)))
+                                (lambda (a b) (- (car a) (car b)))))
+    (define result (vector-stable-sort cmp pairs 1 5))
+    (assert-equal #((1 . b) (1 . c) (2 . d) (3 . a)) result)))
+
+;; =============================================================================
+;; MERGE OPERATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Merge Operations"
+  
+  (test "list-merge combines sorted lists"
+    (define merged (list-merge number-comparator '(1 3 5) '(2 4 6)))
+    (assert-equal '(1 2 3 4 5 6) merged))
+  
+  (test "list-merge preserves stability"
+    (define list1 '((1 . a) (3 . b)))
+    (define list2 '((1 . c) (3 . d)))
+    (define cmp (make-comparator pair? 
+                                (lambda (a b) (= (car a) (car b)))
+                                (lambda (a b) (- (car a) (car b)))))
+    (define merged (list-merge cmp list1 list2))
+    (assert-equal '((1 . a) (1 . c) (3 . b) (3 . d)) merged))
+  
+  (test "list-merge! destructive merge"
+    (define list1 (list 1 3 5))
+    (define list2 (list 2 4 6))
+    (define merged (list-merge! number-comparator list1 list2))
+    (assert-equal '(1 2 3 4 5 6) merged))
+  
+  (test "vector-merge combines sorted vectors"
+    (define vec1 #(1 3 5))
+    (define vec2 #(2 4 6))
+    (define merged (vector-merge number-comparator vec1 vec2))
+    (assert-equal #(1 2 3 4 5 6) merged))
+  
+  (test "vector-merge! destructive merge"
+    (define target (make-vector 6))
+    (define vec1 #(1 3 5))
+    (define vec2 #(2 4 6))
+    (vector-merge! number-comparator target vec1 vec2)
+    (assert-equal #(1 2 3 4 5 6) target)))
+
+;; =============================================================================
+;; SORTED PREDICATE TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Sorted Predicates"
+  
+  (test "list-sorted? detects sorted lists"
+    (assert-true (list-sorted? number-comparator '()))
+    (assert-true (list-sorted? number-comparator '(42)))
+    (assert-true (list-sorted? number-comparator '(1 2 3 4 5)))
+    (assert-true (list-sorted? number-comparator '(1 1 2 2 3)))
+    (assert-false (list-sorted? number-comparator '(3 1 4))))
+  
+  (test "vector-sorted? detects sorted vectors"
+    (assert-true (vector-sorted? number-comparator #()))
+    (assert-true (vector-sorted? number-comparator #(42)))
+    (assert-true (vector-sorted? number-comparator #(1 2 3 4 5)))
+    (assert-true (vector-sorted? number-comparator #(1 1 2 2 3)))
+    (assert-false (vector-sorted? number-comparator #(3 1 4))))
+  
+  (test "vector-sorted? with range"
+    (define vec #(5 1 2 3 4 9))
+    (assert-false (vector-sorted? number-comparator vec))
+    (assert-true (vector-sorted? number-comparator vec 1 5))))
+
+;; =============================================================================
+;; DUPLICATE DELETION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Duplicate Deletion"
+  
+  (test "list-delete-neighbor-dups removes adjacent duplicates"
+    (assert-equal '(1 2 3 2 1) 
+                  (list-delete-neighbor-dups number-comparator '(1 1 2 3 3 3 2 1 1)))
+    (assert-equal '() 
+                  (list-delete-neighbor-dups number-comparator '()))
+    (assert-equal '(42) 
+                  (list-delete-neighbor-dups number-comparator '(42 42 42))))
+  
+  (test "list-delete-neighbor-dups! destructive version"
+    (define test-list (list 1 1 2 3 3 2))
+    (define result (list-delete-neighbor-dups! number-comparator test-list))
+    (assert-equal '(1 2 3 2) result))
+  
+  (test "vector-delete-neighbor-dups removes adjacent duplicates"
+    (assert-equal #(1 2 3 2 1) 
+                  (vector-delete-neighbor-dups number-comparator #(1 1 2 3 3 3 2 1 1)))
+    (assert-equal #() 
+                  (vector-delete-neighbor-dups number-comparator #()))
+    (assert-equal #(42) 
+                  (vector-delete-neighbor-dups number-comparator #(42 42 42))))
+  
+  (test "vector-delete-neighbor-dups! destructive version"
+    (define test-vec (vector 1 1 2 3 3 2))
+    (vector-delete-neighbor-dups! number-comparator test-vec)
+    ;; Note: destructive version can't resize vector, just compacts
+    (assert-equal #(1 2 3 2 3 2) test-vec)))
+
+;; =============================================================================
+;; ADVANCED PROCEDURES TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Advanced Procedures"
+  
+  (test "vector-find-median sorts and finds median"
+    (define vec #(3 1 4 1 5 9 2 6 5))
+    (define sorted (vector-find-median number-comparator vec))
+    (assert-equal #(1 1 2 3 4 5 5 6 9) sorted))
+  
+  (test "vector-find-median! sorts in place"
+    (define vec (vector 3 1 4 1 5))
+    (vector-find-median! number-comparator vec)
+    (assert-equal #(1 1 3 4 5) vec))
+  
+  (test "vector-select! finds kth smallest element"
+    (define vec (vector 3 1 4 1 5 9 2 6 5))
+    (assert-equal 1 (vector-select! number-comparator vec 0))
+    (assert-equal 1 (vector-select! number-comparator vec 1))
+    (assert-equal 2 (vector-select! number-comparator vec 2))
+    (assert-equal 3 (vector-select! number-comparator vec 3)))
+  
+  (test "vector-separate! partitions around kth element"
+    (define vec (vector 3 1 4 1 5 9 2 6 5))
+    (vector-separate! number-comparator vec 4)  ; Find 5th smallest (index 4)
+    ;; After separation, all elements <= kth should be before position k
+    (let ((kth-element (vector-ref vec 4)))
+      (assert-true (>= kth-element 4))  ; 5th smallest should be >= 4
+      (assert-true (<= kth-element 5))))) ; and <= 5
+
+;; =============================================================================
+;; STABILITY GUARANTEE TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Stability Guarantees"
+  
+  (test "stable sorting preserves relative order of equal elements"
+    ;; Create list where equal elements have distinguishable markers
+    (define test-data '((1 . first) (3 . a) (1 . second) (2 . x) (1 . third)))
+    (define cmp (make-comparator pair? 
+                                (lambda (a b) (= (car a) (car b)))
+                                (lambda (a b) (- (car a) (car b)))))
+    
+    ;; Test list stable sort
+    (define list-sorted (list-stable-sort cmp test-data))
+    (assert-equal '((1 . first) (1 . second) (1 . third) (2 . x) (3 . a)) list-sorted)
+    
+    ;; Test vector stable sort
+    (define vec-sorted (vector-stable-sort cmp (list->vector test-data)))
+    (assert-equal #((1 . first) (1 . second) (1 . third) (2 . x) (3 . a)) vec-sorted))
+  
+  (test "merge operations preserve stability"
+    (define list1 '((1 . a) (2 . a) (3 . a)))
+    (define list2 '((1 . b) (2 . b) (3 . b)))
+    (define cmp (make-comparator pair? 
+                                (lambda (a b) (= (car a) (car b)))
+                                (lambda (a b) (- (car a) (car b)))))
+    
+    ;; First list should come first for equal elements
+    (define merged (list-merge cmp list1 list2))
+    (assert-equal '((1 . a) (1 . b) (2 . a) (2 . b) (3 . a) (3 . b)) merged)))
+
+;; =============================================================================
+;; EDGE CASE TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Edge Cases"
+  
+  (test "empty collection handling"
+    (assert-equal '() (list-sort number-comparator '()))
+    (assert-equal '() (list-stable-sort number-comparator '()))
+    (assert-equal #() (vector-sort number-comparator #()))
+    (assert-equal #() (vector-stable-sort number-comparator #())))
+  
+  (test "single element collections"
+    (assert-equal '(42) (list-sort number-comparator '(42)))
+    (assert-equal #(42) (vector-sort number-comparator #(42))))
+  
+  (test "already sorted collections"
+    (assert-equal '(1 2 3 4 5) (list-sort number-comparator '(1 2 3 4 5)))
+    (assert-equal #(1 2 3 4 5) (vector-sort number-comparator #(1 2 3 4 5))))
+  
+  (test "reverse sorted collections"
+    (assert-equal '(1 2 3 4 5) (list-sort number-comparator '(5 4 3 2 1)))
+    (assert-equal #(1 2 3 4 5) (vector-sort number-comparator #(5 4 3 2 1))))
+  
+  (test "all equal elements"
+    (assert-equal '(5 5 5 5 5) (list-sort number-comparator '(5 5 5 5 5)))
+    (assert-equal #(5 5 5 5 5) (vector-sort number-comparator #(5 5 5 5 5))))
+  
+  (test "range edge cases for vectors"
+    (define vec #(3 1 4 1 5))
+    ;; Sort empty range
+    (assert-equal #() (vector-sort number-comparator vec 2 2))
+    ;; Sort single element range
+    (assert-equal #(4) (vector-sort number-comparator vec 2 3))
+    ;; Sort full range
+    (assert-equal #(1 1 3 4 5) (vector-sort number-comparator vec 0 5))))
+
+;; =============================================================================
+;; PERFORMANCE CHARACTERISTIC TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Performance Characteristics"
+  
+  (test "small collection insertion sort threshold"
+    ;; Test that small collections use efficient algorithms
+    (define small-list (list 5 2 8 1 9 3 7 4 6))  ; 9 elements
+    (define small-vec (vector 5 2 8 1 9 3 7 4 6))
+    
+    ;; Should work efficiently for small collections
+    (assert-equal '(1 2 3 4 5 6 7 8 9) (list-sort number-comparator small-list))
+    (assert-equal #(1 2 3 4 5 6 7 8 9) (vector-sort number-comparator small-vec)))
+  
+  (test "larger collection merge/quicksort"
+    ;; Test with larger collection to trigger merge sort / quicksort
+    (define large-list (list 15 8 23 4 42 16 7 31 12 19 28 3 33 9 25 11 37 2 18 
+                            29 6 35 14 21 40 1 24 36 13 30 5 38 17 26 10 39 20 
+                            34 22 27 32 41))
+    
+    (define sorted-result (list-sort number-comparator large-list))
+    (assert-true (list-sorted? number-comparator sorted-result))
+    (assert-equal (length large-list) (length sorted-result))))
+
+;; =============================================================================
+;; COMPARATOR INTEGRATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Comparator Integration"
+  
+  (test "custom comparator with sorting"
+    ;; Sort strings by length, then alphabetically
+    (define length-then-alpha
+      (make-comparator string?
+                      string=?
+                      (lambda (a b)
+                        (let ((len-cmp (- (string-length a) (string-length b))))
+                          (if (= len-cmp 0)
+                              (if (string<? a b) -1 (if (string=? a b) 0 1))
+                              len-cmp)))))
+    
+    (define strings '("cat" "elephant" "dog" "a" "bird" "ant"))
+    (define sorted (list-sort length-then-alpha strings))
+    (assert-equal '("a" "ant" "cat" "dog" "bird" "elephant") sorted))
+  
+  (test "built-in comparators work correctly"
+    ;; Test various built-in comparators
+    (assert-equal '(#f #t) (list-sort boolean-comparator '(#t #f)))
+    (assert-equal '(#\a #\b #\c) (list-sort char-comparator '(#\c #\a #\b)))
+    (assert-equal '("apple" "banana" "cherry") 
+                  (list-sort string-comparator '("cherry" "apple" "banana"))))
+  
+  (test "error handling for invalid comparators"
+    ;; Test that procedures check for ordered comparators
+    (define non-ordered-cmp (make-comparator number? =))  ; No comparison function
+    
+    (assert-error (list-sort non-ordered-cmp '(1 2 3)))
+    (assert-error (vector-sort non-ordered-cmp #(1 2 3)))))
+
+;; =============================================================================
+;; COMPREHENSIVE INTEGRATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-132 Integration Tests"
+  
+  (test "sorting pipeline with all operations"
+    ;; Create test data with duplicates
+    (define test-data '(5 2 8 2 1 9 5 3 7 1 4 6 2))
+    
+    ;; Sort, then remove duplicates
+    (define sorted (list-sort number-comparator test-data))
+    (assert-true (list-sorted? number-comparator sorted))
+    
+    (define deduped (list-delete-neighbor-dups number-comparator sorted))
+    (assert-equal '(1 2 3 4 5 6 7 8 9) deduped))
+  
+  (test "vector and list operations produce same results"
+    (define test-data '(3 1 4 1 5 9 2 6 5 3))
+    (define test-vec (list->vector test-data))
+    
+    ;; Compare list and vector sorting results
+    (define list-sorted (list-sort number-comparator test-data))
+    (define vec-sorted (vector->list (vector-sort number-comparator test-vec)))
+    (assert-equal list-sorted vec-sorted)
+    
+    ;; Compare stable sorting results
+    (define list-stable (list-stable-sort number-comparator test-data))
+    (define vec-stable (vector->list (vector-stable-sort number-comparator test-vec)))
+    (assert-equal list-stable vec-stable))
+  
+  (test "merge and sort consistency"
+    ;; Split list, sort parts, merge - should equal direct sort
+    (define test-data '(8 3 5 1 9 2 7 4 6))
+    (define part1 '(8 3 5 1))
+    (define part2 '(9 2 7 4 6))
+    
+    (define sorted1 (list-sort number-comparator part1))
+    (define sorted2 (list-sort number-comparator part2))
+    (define merged (list-merge number-comparator sorted1 sorted2))
+    (define direct-sorted (list-sort number-comparator test-data))
+    
+    (assert-equal direct-sorted merged)))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(define (run-srfi-132-tests)
+  (run-test-suite "SRFI-132 Basic List Sorting")
+  (run-test-suite "SRFI-132 Basic Vector Sorting")
+  (run-test-suite "SRFI-132 Vector Range Sorting")
+  (run-test-suite "SRFI-132 Merge Operations")
+  (run-test-suite "SRFI-132 Sorted Predicates")
+  (run-test-suite "SRFI-132 Duplicate Deletion")
+  (run-test-suite "SRFI-132 Advanced Procedures")
+  (run-test-suite "SRFI-132 Stability Guarantees")
+  (run-test-suite "SRFI-132 Edge Cases")
+  (run-test-suite "SRFI-132 Performance Characteristics")
+  (run-test-suite "SRFI-132 Comparator Integration")
+  (run-test-suite "SRFI-132 Integration Tests")
+  
+  (display "\n=== SRFI-132 Sort Libraries Test Suite Complete ===\n")
+  (test-summary))
+
+;; Run tests if this file is executed directly
+(when (and (defined? 'command-line) (not (null? (command-line))))
+  (run-srfi-132-tests))

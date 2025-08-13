@@ -21,6 +21,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::rc::Rc;
 use async_trait::async_trait;
+#[cfg(feature = "async-runtime")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Unified effect handler registry that manages all effect types.
@@ -779,6 +780,7 @@ mod tests {
         assert!(handlers.contains(&"maybe".to_string()));
     }
     
+    #[cfg(feature = "async-runtime")]
     #[tokio::test]
     async fn test_io_handler() {
         let handler = MonadicIOHandler::new();
@@ -798,6 +800,7 @@ mod tests {
         }
     }
     
+    #[cfg(feature = "async-runtime")]
     #[tokio::test]
     async fn test_state_handler() {
         let handler = MonadicStateHandler::new();

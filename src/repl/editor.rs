@@ -95,7 +95,7 @@ impl EnhancedEditor {
         
         loop {
             let sig = self.editor.read_line(&prompt)
-                .map_err(|e| Error::io_error(format!("Failed to read line: {}", e)))?;
+                .map_err(|e| Error::io_error(format!("Failed to read line: {e}")))?;
 
             match sig {
                 Signal::Success(buffer) => {
@@ -322,26 +322,26 @@ impl LambdustPrompt {
 
 #[cfg(feature = "enhanced-repl")]
 impl Prompt for LambdustPrompt {
-    fn render_prompt_left(&self) -> std::borrow::Cow<str> {
+    fn render_prompt_left(&self) -> std::borrow::Cow<'_, str> {
         self.prompt_text.as_str().into()
     }
 
-    fn render_prompt_right(&self) -> std::borrow::Cow<str> {
+    fn render_prompt_right(&self) -> std::borrow::Cow<'_, str> {
         "".into()
     }
 
-    fn render_prompt_indicator(&self, _edit_mode: PromptEditMode) -> std::borrow::Cow<str> {
+    fn render_prompt_indicator(&self, _edit_mode: PromptEditMode) -> std::borrow::Cow<'_, str> {
         " ".into()
     }
 
-    fn render_prompt_multiline_indicator(&self) -> std::borrow::Cow<str> {
+    fn render_prompt_multiline_indicator(&self) -> std::borrow::Cow<'_, str> {
         "... ".into()
     }
 
     fn render_prompt_history_search_indicator(
         &self,
         _history_search: PromptHistorySearch,
-    ) -> std::borrow::Cow<str> {
+    ) -> std::borrow::Cow<'_, str> {
         "(search) ".into()
     }
 }

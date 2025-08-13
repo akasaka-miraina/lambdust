@@ -38,32 +38,38 @@ pub fn create_list_bindings(env: &Arc<ThreadSafeEnvironment>) {
 
 /// Binds basic list construction and deconstruction operations.
 fn bind_basic_list_operations(env: &Arc<ThreadSafeEnvironment>) {
-    // cons
-    env.define("cons".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "cons".to_string(),
-        arity_min: 2,
-        arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_cons),
-        effects: vec![Effect::Pure],
-    })));
+    // cons - only define if not already present (preserves bootstrap primitives)
+    if env.lookup("cons").is_none() {
+        env.define("cons".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "cons".to_string(),
+            arity_min: 2,
+            arity_max: Some(2),
+            implementation: PrimitiveImpl::RustFn(primitive_cons),
+            effects: vec![Effect::Pure],
+        })));
+    }
     
-    // car
-    env.define("car".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "car".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_car),
-        effects: vec![Effect::Pure],
-    })));
+    // car - only define if not already present (preserves bootstrap primitives)
+    if env.lookup("car").is_none() {
+        env.define("car".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "car".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_car),
+            effects: vec![Effect::Pure],
+        })));
+    }
     
-    // cdr
-    env.define("cdr".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
-        name: "cdr".to_string(),
-        arity_min: 1,
-        arity_max: Some(1),
-        implementation: PrimitiveImpl::RustFn(primitive_cdr),
-        effects: vec![Effect::Pure],
-    })));
+    // cdr - only define if not already present (preserves bootstrap primitives)
+    if env.lookup("cdr").is_none() {
+        env.define("cdr".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "cdr".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(primitive_cdr),
+            effects: vec![Effect::Pure],
+        })));
+    }
     
     // list
     env.define("list".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
@@ -259,7 +265,7 @@ fn bind_higher_order_functions(env: &Arc<ThreadSafeEnvironment>) {
         name: "map".to_string(),
         arity_min: 2,
         arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_map),
+        implementation: PrimitiveImpl::EvaluatorIntegrated(evaluator_map),
         effects: vec![Effect::Pure], // May call user functions with effects
     })));
     
@@ -268,7 +274,7 @@ fn bind_higher_order_functions(env: &Arc<ThreadSafeEnvironment>) {
         name: "for-each".to_string(),
         arity_min: 2,
         arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_for_each),
+        implementation: PrimitiveImpl::EvaluatorIntegrated(evaluator_for_each),
         effects: vec![Effect::State], // For side effects
     })));
     
@@ -277,7 +283,7 @@ fn bind_higher_order_functions(env: &Arc<ThreadSafeEnvironment>) {
         name: "filter".to_string(),
         arity_min: 2,
         arity_max: Some(2),
-        implementation: PrimitiveImpl::RustFn(primitive_filter),
+        implementation: PrimitiveImpl::EvaluatorIntegrated(evaluator_filter),
         effects: vec![Effect::Pure],
     })));
     
@@ -286,7 +292,7 @@ fn bind_higher_order_functions(env: &Arc<ThreadSafeEnvironment>) {
         name: "fold-left".to_string(),
         arity_min: 3,
         arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_fold_left),
+        implementation: PrimitiveImpl::EvaluatorIntegrated(evaluator_fold_left),
         effects: vec![Effect::Pure],
     })));
     
@@ -295,7 +301,7 @@ fn bind_higher_order_functions(env: &Arc<ThreadSafeEnvironment>) {
         name: "fold-right".to_string(),
         arity_min: 3,
         arity_max: None,
-        implementation: PrimitiveImpl::RustFn(primitive_fold_right),
+        implementation: PrimitiveImpl::EvaluatorIntegrated(evaluator_fold_right),
         effects: vec![Effect::Pure],
     })));
     
@@ -409,6 +415,16 @@ fn primitive_car(args: &[Value]) -> Result<Value> {
     
     match &args[0] {
         Value::Pair(car, _) => Ok((**car).clone()),
+        Value::MutablePair(car_ref, _) => {
+            if let Ok(car) = car_ref.read() {
+                Ok(car.clone())
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "car failed to acquire read lock".to_string(),
+                    None,
+                )))
+            }
+        }
         _ => Err(Box::new(DiagnosticError::runtime_error(
             "car requires a pair".to_string(),
             None,
@@ -427,6 +443,16 @@ fn primitive_cdr(args: &[Value]) -> Result<Value> {
     
     match &args[0] {
         Value::Pair(_, cdr) => Ok((**cdr).clone()),
+        Value::MutablePair(_, cdr_ref) => {
+            if let Ok(cdr) = cdr_ref.read() {
+                Ok(cdr.clone())
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "cdr failed to acquire read lock".to_string(),
+                    None,
+                )))
+            }
+        }
         _ => Err(Box::new(DiagnosticError::runtime_error(
             "cdr requires a pair".to_string(),
             None,
@@ -600,6 +626,24 @@ fn primitive_list_ref(args: &[Value]) -> Result<Value> {
                 current = cdr;
                 i += 1;
             }
+            Value::MutablePair(_, cdr_ref) => {
+                // For mutable pairs, we need to use a different approach
+                // since we can't hold references. Use as_list for simplicity.
+                if let Some(list_values) = args[0].as_list() {
+                    if index as usize >= list_values.len() {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "list-ref index out of bounds".to_string(),
+                            None,
+                        )));
+                    }
+                    return Ok(list_values[index as usize].clone());
+                } else {
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        "list-ref requires a proper list".to_string(),
+                        None,
+                    )));
+                }
+            }
             _ => {
                 return Err(Box::new(DiagnosticError::runtime_error(
                     "list-ref index out of bounds".to_string(),
@@ -611,6 +655,16 @@ fn primitive_list_ref(args: &[Value]) -> Result<Value> {
     
     match current {
         Value::Pair(car, _) => Ok((**car).clone()),
+        Value::MutablePair(car_ref, _) => {
+            if let Ok(car) = car_ref.read() {
+                Ok(car.clone())
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "list-ref failed to acquire read lock".to_string(),
+                    None,
+                )))
+            }
+        }
         _ => Err(Box::new(DiagnosticError::runtime_error(
             "list-ref index out of bounds".to_string(),
             None,
@@ -682,6 +736,25 @@ fn primitive_length(args: &[Value]) -> Result<Value> {
             Value::Pair(_, cdr) => {
                 current = cdr;
                 length += 1;
+            }
+            Value::MutablePair(_, cdr_ref) => {
+                if let Ok(cdr) = cdr_ref.read() {
+                    // For mutable pairs, we need to use as_list for simplicity
+                    // since we can't hold references across iterations
+                    if let Some(list) = args[0].as_list() {
+                        return Ok(Value::integer(list.len() as i64));
+                    } else {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "length requires a proper list".to_string(),
+                            None,
+                        )));
+                    }
+                } else {
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        "length failed to acquire read lock".to_string(),
+                        None,
+                    )));
+                }
             }
             _ => {
                 return Err(Box::new(DiagnosticError::runtime_error(
@@ -758,11 +831,31 @@ fn primitive_set_car(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    // Note: This would require mutable pair support in a full implementation
-    Err(Box::new(DiagnosticError::runtime_error(
-        "set-car! requires mutable pair support (not yet implemented)".to_string(),
-        None,
-    )))
+    match &args[0] {
+        Value::MutablePair(car_ref, _) => {
+            if let Ok(mut car) = car_ref.write() {
+                *car = args[1].clone();
+                Ok(Value::Unspecified)
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "set-car! failed to acquire write lock".to_string(),
+                    None,
+                )))
+            }
+        }
+        Value::Pair(_, _) => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "set-car! requires a mutable pair (immutable pair given)".to_string(),
+                None,
+            )))
+        }
+        _ => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "set-car! requires a pair".to_string(),
+                None,
+            )))
+        }
+    }
 }
 
 /// set-cdr! procedure (mutation)
@@ -774,11 +867,31 @@ fn primitive_set_cdr(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    // Note: This would require mutable pair support in a full implementation
-    Err(Box::new(DiagnosticError::runtime_error(
-        "set-cdr! requires mutable pair support (not yet implemented)".to_string(),
-        None,
-    )))
+    match &args[0] {
+        Value::MutablePair(_, cdr_ref) => {
+            if let Ok(mut cdr) = cdr_ref.write() {
+                *cdr = args[1].clone();
+                Ok(Value::Unspecified)
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "set-cdr! failed to acquire write lock".to_string(),
+                    None,
+                )))
+            }
+        }
+        Value::Pair(_, _) => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "set-cdr! requires a mutable pair (immutable pair given)".to_string(),
+                None,
+            )))
+        }
+        _ => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "set-cdr! requires a pair".to_string(),
+                None,
+            )))
+        }
+    }
 }
 
 /// list-set! procedure (mutation)
@@ -790,11 +903,83 @@ fn primitive_list_set(args: &[Value]) -> Result<Value> {
         )));
     }
     
-    // Note: This would require mutable pair support in a full implementation
-    Err(Box::new(DiagnosticError::runtime_error(
-        "list-set! requires mutable pair support (not yet implemented)".to_string(),
-        None,
-    )))
+    let index = args[1].as_integer().ok_or_else(|| {
+        DiagnosticError::runtime_error(
+            "list-set! index must be a non-negative integer".to_string(),
+            None,
+        )
+    })?;
+    
+    if index < 0 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "list-set! index must be non-negative".to_string(),
+            None,
+        )));
+    }
+    
+    let mut current = &args[0];
+    let mut steps_remaining = index;
+    
+    // Navigate to the target pair
+    while steps_remaining > 0 {
+        match current {
+            Value::MutablePair(_, cdr_ref) => {
+                if let Ok(cdr) = cdr_ref.read() {
+                    let cdr_clone = cdr.clone();
+                    drop(cdr); // Release the lock
+                    match cdr_clone {
+                        Value::MutablePair(_, _) | Value::Pair(_, _) => {
+                            // We need to continue with a reference, but we can't store it
+                            // This is a limitation of our approach - we'll need to navigate again
+                            return set_list_element(&args[0], index, args[2].clone());
+                        }
+                        _ => {
+                            return Err(Box::new(DiagnosticError::runtime_error(
+                                "list-set! index out of bounds".to_string(),
+                                None,
+                            )));
+                        }
+                    }
+                } else {
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        "list-set! failed to acquire read lock".to_string(),
+                        None,
+                    )));
+                }
+            }
+            Value::Pair(_, cdr) => {
+                current = cdr;
+                steps_remaining -= 1;
+            }
+            _ => {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    "list-set! index out of bounds".to_string(),
+                    None,
+                )));
+            }
+        }
+    }
+    
+    // Set the car of the current pair
+    match current {
+        Value::MutablePair(car_ref, _) => {
+            if let Ok(mut car) = car_ref.write() {
+                *car = args[2].clone();
+                Ok(Value::Unspecified)
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "list-set! failed to acquire write lock".to_string(),
+                    None,
+                )))
+            }
+        }
+        _ => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "list-set! requires a mutable list".to_string(),
+                None,
+            )))
+        }
+    }
 }
 
 /// list-copy procedure
@@ -808,6 +993,51 @@ fn primitive_list_copy(args: &[Value]) -> Result<Value> {
     
     // For now, we'll do a shallow copy by reconstructing the list
     copy_list(&args[0])
+}
+
+/// Helper function to set an element in a list by index
+fn set_list_element(list: &Value, index: i64, value: Value) -> Result<Value> {
+    if index == 0 {
+        match list {
+            Value::MutablePair(car_ref, _) => {
+                if let Ok(mut car) = car_ref.write() {
+                    *car = value;
+                    Ok(Value::Unspecified)
+                } else {
+                    Err(Box::new(DiagnosticError::runtime_error(
+                        "set-list-element failed to acquire write lock".to_string(),
+                        None,
+                    )))
+                }
+            }
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                "set-list-element requires a mutable list".to_string(),
+                None,
+            )))
+        }
+    } else {
+        match list {
+            Value::MutablePair(_, cdr_ref) => {
+                if let Ok(cdr) = cdr_ref.read() {
+                    let cdr_clone = cdr.clone();
+                    drop(cdr); // Release the lock
+                    set_list_element(&cdr_clone, index - 1, value)
+                } else {
+                    Err(Box::new(DiagnosticError::runtime_error(
+                        "set-list-element failed to acquire read lock".to_string(),
+                        None,
+                    )))
+                }
+            }
+            Value::Pair(_, cdr) => {
+                set_list_element(cdr, index - 1, value)
+            }
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                "set-list-element index out of bounds".to_string(),
+                None,
+            )))
+        }
+    }
 }
 
 // ============= HIGHER-ORDER FUNCTION IMPLEMENTATIONS =============
@@ -868,6 +1098,12 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
                 let result = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "map with EvaluatorIntegrated functions requires evaluator access (not yet implemented)".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "map with foreign functions not yet implemented".to_string(),
@@ -949,6 +1185,12 @@ fn primitive_for_each(args: &[Value]) -> Result<Value> {
                         // Call the function but ignore the result (for-each is for side effects)
                         func(&proc_args)?;
                     },
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "for-each with EvaluatorIntegrated functions requires evaluator access (not yet implemented)".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "for-each with foreign functions not yet implemented".to_string(),
@@ -1010,6 +1252,12 @@ fn primitive_filter(args: &[Value]) -> Result<Value> {
                 let result = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "filter with EvaluatorIntegrated functions requires evaluator access (not yet implemented)".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "filter with foreign functions not yet implemented".to_string(),
@@ -1091,6 +1339,12 @@ fn primitive_fold_left(args: &[Value]) -> Result<Value> {
                 accumulator = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "fold-left with EvaluatorIntegrated functions requires evaluator access (not yet implemented)".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "fold-left with foreign functions not yet implemented".to_string(),
@@ -1166,6 +1420,12 @@ fn primitive_fold_right(args: &[Value]) -> Result<Value> {
                 accumulator = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "fold-right with EvaluatorIntegrated functions requires evaluator access (not yet implemented)".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "fold-right with foreign functions not yet implemented".to_string(),
@@ -1732,6 +1992,12 @@ fn srfi1_take_while(args: &[Value]) -> Result<Value> {
                 let pred_result = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "take-while with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "take-while with foreign functions not yet implemented".to_string(),
@@ -1788,7 +2054,13 @@ fn srfi1_drop_while(args: &[Value]) -> Result<Value> {
                     Value::Primitive(prim) => {
                         let pred_result = match &prim.implementation {
                             PrimitiveImpl::RustFn(func) => func(&proc_args)?,
-                        PrimitiveImpl::Native(func) => func(&proc_args)?,
+                            PrimitiveImpl::Native(func) => func(&proc_args)?,
+                            PrimitiveImpl::EvaluatorIntegrated(_) => {
+                                return Err(Box::new(DiagnosticError::runtime_error(
+                                    "drop-while with evaluator-integrated functions requires evaluator access".to_string(),
+                                    None,
+                                )));
+                            }
                             PrimitiveImpl::ForeignFn { .. } => {
                                 return Err(Box::new(DiagnosticError::runtime_error(
                                     "drop-while with foreign functions not yet implemented".to_string(),
@@ -1984,6 +2256,12 @@ fn srfi1_fold(args: &[Value]) -> Result<Value> {
                 accumulator = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "fold with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "fold with foreign functions not yet implemented".to_string(),
@@ -2056,6 +2334,12 @@ fn srfi1_fold_right(args: &[Value]) -> Result<Value> {
                 accumulator = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "fold-right with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "fold-right with foreign functions not yet implemented".to_string(),
@@ -2121,6 +2405,12 @@ fn srfi1_reduce(args: &[Value]) -> Result<Value> {
                 accumulator = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "reduce with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "reduce with foreign functions not yet implemented".to_string(),
@@ -2186,6 +2476,12 @@ fn srfi1_reduce_right(args: &[Value]) -> Result<Value> {
                 accumulator = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "reduce-right with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "reduce-right with foreign functions not yet implemented".to_string(),
@@ -2375,6 +2671,12 @@ fn srfi1_list_equal(args: &[Value]) -> Result<Value> {
                     let result = match &prim.implementation {
                         PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                         PrimitiveImpl::Native(func) => func(&proc_args)?,
+                        PrimitiveImpl::EvaluatorIntegrated(_) => {
+                            return Err(Box::new(DiagnosticError::runtime_error(
+                                "list= with evaluator-integrated functions requires evaluator access".to_string(),
+                                None,
+                            )));
+                        }
                         PrimitiveImpl::ForeignFn { .. } => {
                             return Err(Box::new(DiagnosticError::runtime_error(
                                 "list= with foreign functions not yet implemented".to_string(),
@@ -3151,5 +3453,468 @@ mod tests {
             Value::pair(Value::string("c"), Value::integer(3)),
         ]);
         assert_eq!(result, expected);
+    }
+}
+
+// ============= EVALUATOR-INTEGRATED HIGHER-ORDER FUNCTIONS =============
+
+/// Apply any procedure (primitive or user-defined) with evaluator integration
+fn apply_procedure_with_evaluator(
+    evaluator: &mut crate::eval::evaluator::Evaluator,
+    procedure: &Value,
+    args: &[Value],
+) -> crate::diagnostics::Result<Value> {
+    use crate::eval::evaluator::EvalStep;
+    use crate::diagnostics::Error;
+    
+    // Start with the initial procedure application
+    let mut step = evaluator.apply_procedure(procedure.clone(), args.to_vec(), None);
+    
+    // Run the trampoline loop to handle all evaluation steps
+    loop {
+        step = match step {
+            EvalStep::Return(value) => return Ok(value),
+            EvalStep::Error(error) => return Err(Box::new(error)),
+            EvalStep::Continue { expr, env } => {
+                // Continue evaluation with the given expression and environment
+                evaluator.eval_step(&expr, env)
+            }
+            EvalStep::TailCall { procedure: proc, args: tail_args, location } => {
+                // Handle tail call by applying the procedure
+                evaluator.apply_procedure(proc, tail_args, location)
+            }
+            EvalStep::CallContinuation { continuation, value } => {
+                // Handle continuation call
+                evaluator.call_continuation(continuation, value)
+            }
+            EvalStep::NonLocalJump { value, target_stack_depth: _ } => {
+                // Non-local jump immediately returns the value
+                return Ok(value);
+            }
+        };
+    }
+}
+
+/// Evaluator-integrated map function
+fn evaluator_map(evaluator: &mut crate::eval::evaluator::Evaluator, args: &[Value]) -> crate::diagnostics::Result<Value> {
+    use crate::diagnostics::Error as DiagnosticError;
+    
+    if args.len() < 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "map requires at least 2 arguments".to_string(),
+            None,
+        )));
+    }
+    
+    let procedure = &args[0];
+    
+    // Verify the first argument is callable
+    if !procedure.is_procedure() {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "map first argument must be a procedure".to_string(),
+            None,
+        )));
+    }
+    
+    // Convert all list arguments to vectors for parallel iteration
+    let mut list_data = Vec::new();
+    let mut min_length = usize::MAX;
+    
+    for (i, arg) in args.iter().enumerate().skip(1) {
+        if let Some(list_values) = arg.as_list() {
+            let length = list_values.len();
+            if length < min_length {
+                min_length = length;
+            }
+            list_data.push(list_values);
+        } else {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                format!("map argument {} must be a list", i + 1),
+                None,
+            )));
+        }
+    }
+    
+    // If any list is empty, return empty list
+    if min_length == 0 || min_length == usize::MAX {
+        return Ok(Value::Nil);
+    }
+    
+    // Apply procedure to each element across all lists
+    let mut results = Vec::new();
+    for i in 0..min_length {
+        let mut proc_args = Vec::new();
+        for list in &list_data {
+            proc_args.push(list[i].clone());
+        }
+        
+        // Apply the procedure using evaluator integration
+        let result = apply_procedure_with_evaluator(evaluator, procedure, &proc_args)?;
+        results.push(result);
+    }
+    
+    Ok(Value::list(results))
+}
+
+/// Evaluator-integrated filter function
+fn evaluator_filter(evaluator: &mut crate::eval::evaluator::Evaluator, args: &[Value]) -> crate::diagnostics::Result<Value> {
+    use crate::diagnostics::Error as DiagnosticError;
+    
+    if args.len() != 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("filter expects 2 arguments, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let predicate = &args[0];
+    let list_arg = &args[1];
+    
+    // Verify the first argument is callable
+    if !predicate.is_procedure() {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "filter first argument must be a procedure".to_string(),
+            None,
+        )));
+    }
+    
+    // Convert list argument to vector
+    let list_values = list_arg.as_list().ok_or_else(|| {
+        Box::new(DiagnosticError::runtime_error(
+            "filter requires a proper list".to_string(),
+            None,
+        ))
+    })?;
+    
+    // Apply predicate to each element
+    let mut filtered = Vec::new();
+    for element in list_values {
+        let proc_args = vec![element.clone()];
+        
+        // Apply the predicate using evaluator integration
+        let result = apply_procedure_with_evaluator(evaluator, predicate, &proc_args)?;
+        
+        // Check if result is truthy
+        if result.is_truthy() {
+            filtered.push(element);
+        }
+    }
+    
+    Ok(Value::list(filtered))
+}
+
+/// Evaluator-integrated fold-left function
+fn evaluator_fold_left(evaluator: &mut crate::eval::evaluator::Evaluator, args: &[Value]) -> crate::diagnostics::Result<Value> {
+    use crate::diagnostics::Error as DiagnosticError;
+    
+    if args.len() < 3 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "fold-left requires at least 3 arguments".to_string(),
+            None,
+        )));
+    }
+    
+    let procedure = &args[0];
+    let mut accumulator = args[1].clone();
+    
+    // Verify the first argument is callable
+    if !procedure.is_procedure() {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "fold-left first argument must be a procedure".to_string(),
+            None,
+        )));
+    }
+    
+    // Convert all list arguments to vectors for parallel iteration
+    let mut list_data = Vec::new();
+    let mut min_length = usize::MAX;
+    
+    for (i, arg) in args.iter().enumerate().skip(2) {
+        if let Some(list_values) = arg.as_list() {
+            let length = list_values.len();
+            if length < min_length {
+                min_length = length;
+            }
+            list_data.push(list_values);
+        } else {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                format!("fold-left argument {} must be a proper list", i + 1),
+                None,
+            )));
+        }
+    }
+    
+    // If any list is empty, return accumulator immediately
+    if min_length == 0 || min_length == usize::MAX {
+        return Ok(accumulator);
+    }
+    
+    // Apply procedure to accumulator and each position across all lists
+    for i in 0..min_length {
+        let mut proc_args = vec![accumulator];
+        for list in &list_data {
+            proc_args.push(list[i].clone());
+        }
+        
+        // Apply the procedure using evaluator integration
+        accumulator = apply_procedure_with_evaluator(evaluator, procedure, &proc_args)?;
+    }
+    
+    Ok(accumulator)
+}
+
+/// Evaluator-integrated fold-right function
+fn evaluator_fold_right(evaluator: &mut crate::eval::evaluator::Evaluator, args: &[Value]) -> crate::diagnostics::Result<Value> {
+    use crate::diagnostics::Error as DiagnosticError;
+    
+    if args.len() < 3 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "fold-right requires at least 3 arguments".to_string(),
+            None,
+        )));
+    }
+    
+    let procedure = &args[0];
+    let mut accumulator = args[1].clone();
+    
+    // Verify the first argument is callable
+    if !procedure.is_procedure() {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "fold-right first argument must be a procedure".to_string(),
+            None,
+        )));
+    }
+    
+    // Convert all list arguments to vectors for parallel iteration
+    let mut list_data = Vec::new();
+    let mut min_length = usize::MAX;
+    
+    for (i, arg) in args.iter().enumerate().skip(2) {
+        if let Some(list_values) = arg.as_list() {
+            let length = list_values.len();
+            if length < min_length {
+                min_length = length;
+            }
+            list_data.push(list_values);
+        } else {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                format!("fold-right argument {} must be a proper list", i + 1),
+                None,
+            )));
+        }
+    }
+    
+    // If any list is empty, return accumulator immediately
+    if min_length == 0 || min_length == usize::MAX {
+        return Ok(accumulator);
+    }
+    
+    // Apply procedure from right to left (reverse order)
+    for i in (0..min_length).rev() {
+        let mut proc_args = Vec::new();
+        for list in &list_data {
+            proc_args.push(list[i].clone());
+        }
+        proc_args.push(accumulator);
+        
+        // Apply the procedure using evaluator integration
+        accumulator = apply_procedure_with_evaluator(evaluator, procedure, &proc_args)?;
+    }
+    
+    Ok(accumulator)
+}
+
+/// Evaluator-integrated for-each function
+fn evaluator_for_each(evaluator: &mut crate::eval::evaluator::Evaluator, args: &[Value]) -> crate::diagnostics::Result<Value> {
+    use crate::diagnostics::Error as DiagnosticError;
+    
+    if args.len() < 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "for-each requires at least 2 arguments".to_string(),
+            None,
+        )));
+    }
+    
+    let procedure = &args[0];
+    
+    // Verify the first argument is callable
+    if !procedure.is_procedure() {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "for-each first argument must be a procedure".to_string(),
+            None,
+        )));
+    }
+    
+    // Convert all list arguments to vectors for parallel iteration
+    let mut list_data = Vec::new();
+    let mut min_length = usize::MAX;
+    
+    for (i, arg) in args.iter().enumerate().skip(1) {
+        if let Some(list_values) = arg.as_list() {
+            let length = list_values.len();
+            if length < min_length {
+                min_length = length;
+            }
+            list_data.push(list_values);
+        } else {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                format!("for-each argument {} must be a list", i + 1),
+                None,
+            )));
+        }
+    }
+    
+    // If any list is empty, return unspecified immediately
+    if min_length == 0 || min_length == usize::MAX {
+        return Ok(Value::Unspecified);
+    }
+    
+    // Apply procedure to each element across all lists (for side effects)
+    for i in 0..min_length {
+        let mut proc_args = Vec::new();
+        for list in &list_data {
+            proc_args.push(list[i].clone());
+        }
+        
+        // Apply the procedure using evaluator integration (ignore result)
+        let _result = apply_procedure_with_evaluator(evaluator, procedure, &proc_args)?;
+    }
+    
+    // for-each returns unspecified
+    Ok(Value::Unspecified)
+}
+
+#[cfg(test)]
+mod mutable_pair_tests {
+    use super::*;
+
+    #[test]
+    fn test_mutable_pair_creation() {
+        let pair = Value::mutable_pair(Value::integer(1), Value::integer(2));
+        
+        // Test that mutable pairs are recognized as pairs
+        assert!(pair.is_pair());
+        assert_eq!(primitive_pair_p(&[pair]).unwrap(), Value::boolean(true));
+    }
+
+    #[test]
+    fn test_mutable_pair_car_cdr() {
+        let pair = Value::mutable_pair(Value::integer(42), Value::string("hello"));
+        
+        let car_result = primitive_car(&[pair.clone()]).unwrap();
+        assert_eq!(car_result, Value::integer(42));
+        
+        let cdr_result = primitive_cdr(&[pair]).unwrap();
+        assert_eq!(cdr_result, Value::string("hello"));
+    }
+
+    #[test]
+    fn test_set_car() {
+        let pair = Value::mutable_pair(Value::integer(1), Value::integer(2));
+        
+        // Set the car to a new value
+        let result = primitive_set_car(&[pair.clone(), Value::string("new")]).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that the car was changed
+        let car_result = primitive_car(&[pair]).unwrap();
+        assert_eq!(car_result, Value::string("new"));
+    }
+
+    #[test]
+    fn test_set_cdr() {
+        let pair = Value::mutable_pair(Value::integer(1), Value::integer(2));
+        
+        // Set the cdr to a new value
+        let result = primitive_set_cdr(&[pair.clone(), Value::string("new")]).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that the cdr was changed
+        let cdr_result = primitive_cdr(&[pair]).unwrap();
+        assert_eq!(cdr_result, Value::string("new"));
+    }
+
+    #[test]
+    fn test_list_set() {
+        // Create a mutable list: (a b c)
+        let mut_list = Value::mutable_pair(
+            Value::string("a"),
+            Value::mutable_pair(
+                Value::string("b"), 
+                Value::mutable_pair(
+                    Value::string("c"), 
+                    Value::Nil
+                )
+            )
+        );
+        
+        // Set element at index 1 to "modified"
+        let result = primitive_list_set(&[mut_list.clone(), Value::integer(1), Value::string("modified")]).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that the list was modified
+        let elem1 = primitive_list_ref(&[mut_list, Value::integer(1)]).unwrap();
+        assert_eq!(elem1, Value::string("modified"));
+    }
+
+    #[test]
+    fn test_mutable_list_length() {
+        // Create a mutable list
+        let mut_list = Value::mutable_pair(
+            Value::integer(1),
+            Value::mutable_pair(
+                Value::integer(2), 
+                Value::mutable_pair(
+                    Value::integer(3), 
+                    Value::Nil
+                )
+            )
+        );
+        
+        let length = primitive_length(&[mut_list]).unwrap();
+        assert_eq!(length, Value::integer(3));
+    }
+
+    #[test]
+    fn test_immutable_pair_mutation_errors() {
+        let immutable_pair = Value::pair(Value::integer(1), Value::integer(2));
+        
+        // Try to mutate an immutable pair - should fail
+        assert!(primitive_set_car(&[immutable_pair.clone(), Value::string("new")]).is_err());
+        assert!(primitive_set_cdr(&[immutable_pair, Value::string("new")]).is_err());
+    }
+
+    #[test] 
+    fn test_list_set_errors() {
+        let mut_list = Value::mutable_pair(Value::integer(1), Value::Nil);
+        
+        // Test negative index
+        assert!(primitive_list_set(&[mut_list.clone(), Value::integer(-1), Value::string("x")]).is_err());
+        
+        // Test out of bounds
+        assert!(primitive_list_set(&[mut_list, Value::integer(5), Value::string("x")]).is_err());
+        
+        // Test non-integer index
+        assert!(primitive_list_set(&[Value::Nil, Value::string("bad"), Value::string("x")]).is_err());
+    }
+}
+
+#[cfg(test)]
+mod evaluator_integration_tests {
+    use super::*;
+    use crate::eval::evaluator::Evaluator;
+    use std::sync::Arc;
+
+    #[test]
+    fn test_evaluator_integration_compiles() {
+        // Basic compilation test to verify our evaluator integration functions compile
+        let _map_func = evaluator_map as fn(&mut Evaluator, &[Value]) -> crate::diagnostics::Result<Value>;
+        let _filter_func = evaluator_filter as fn(&mut Evaluator, &[Value]) -> crate::diagnostics::Result<Value>;
+        let _fold_left_func = evaluator_fold_left as fn(&mut Evaluator, &[Value]) -> crate::diagnostics::Result<Value>;
+        let _fold_right_func = evaluator_fold_right as fn(&mut Evaluator, &[Value]) -> crate::diagnostics::Result<Value>;
+        let _for_each_func = evaluator_for_each as fn(&mut Evaluator, &[Value]) -> crate::diagnostics::Result<Value>;
+        
+        // The test passes if compilation succeeds
+        assert!(true);
     }
 }

@@ -26,6 +26,9 @@ pub trait Visitor {
             Expr::Keyword(name) => self.visit_keyword(name),
             Expr::List(elements) => self.visit_list(elements),
             Expr::Quote(expr) => self.visit_quote(expr),
+            Expr::Quasiquote(expr) => self.visit_quasiquote(expr),
+            Expr::Unquote(expr) => self.visit_unquote(expr),
+            Expr::UnquoteSplicing(expr) => self.visit_unquote_splicing(expr),
             Expr::Lambda { formals, metadata, body } => {
                 self.visit_lambda(formals, metadata, body)
             }
@@ -84,6 +87,9 @@ pub trait Visitor {
     fn visit_identifier(&mut self, name: &str) -> Self::Output;
     fn visit_keyword(&mut self, name: &str) -> Self::Output;
     fn visit_quote(&mut self, expr: &Spanned<Expr>) -> Self::Output;
+    fn visit_quasiquote(&mut self, expr: &Spanned<Expr>) -> Self::Output;
+    fn visit_unquote(&mut self, expr: &Spanned<Expr>) -> Self::Output;
+    fn visit_unquote_splicing(&mut self, expr: &Spanned<Expr>) -> Self::Output;
     
     fn visit_lambda(
         &mut self,
@@ -225,6 +231,24 @@ impl Visitor for NodeCounter {
 
     fn visit_quote(&mut self, expr: &Spanned<Expr>) {
         self.quotes += 1;
+        self.total += 1;
+        self.visit_expr(expr);
+    }
+
+    fn visit_quasiquote(&mut self, expr: &Spanned<Expr>) {
+        self.quotes += 1; // Count quasiquote as a quote variant
+        self.total += 1;
+        self.visit_expr(expr);
+    }
+
+    fn visit_unquote(&mut self, expr: &Spanned<Expr>) {
+        self.quotes += 1; // Count unquote as a quote variant
+        self.total += 1;
+        self.visit_expr(expr);
+    }
+
+    fn visit_unquote_splicing(&mut self, expr: &Spanned<Expr>) {
+        self.quotes += 1; // Count unquote-splicing as a quote variant
         self.total += 1;
         self.visit_expr(expr);
     }

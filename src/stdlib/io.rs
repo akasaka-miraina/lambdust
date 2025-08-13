@@ -233,6 +233,42 @@ fn bind_file_operations(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_close_output_port),
         effects: vec![Effect::IO],
     })));
+    
+    // with-input-from-file
+    env.define("with-input-from-file".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "with-input-from-file".to_string(),
+        arity_min: 2,
+        arity_max: Some(2),
+        implementation: PrimitiveImpl::RustFn(primitive_with_input_from_file),
+        effects: vec![Effect::IO],
+    })));
+    
+    // with-output-to-file
+    env.define("with-output-to-file".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "with-output-to-file".to_string(),
+        arity_min: 2,
+        arity_max: Some(2),
+        implementation: PrimitiveImpl::RustFn(primitive_with_output_to_file),
+        effects: vec![Effect::IO],
+    })));
+    
+    // call-with-input-file
+    env.define("call-with-input-file".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "call-with-input-file".to_string(),
+        arity_min: 2,
+        arity_max: Some(2),
+        implementation: PrimitiveImpl::RustFn(primitive_call_with_input_file),
+        effects: vec![Effect::IO],
+    })));
+    
+    // call-with-output-file
+    env.define("call-with-output-file".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "call-with-output-file".to_string(),
+        arity_min: 2,
+        arity_max: Some(2),
+        implementation: PrimitiveImpl::RustFn(primitive_call_with_output_file),
+        effects: vec![Effect::IO],
+    })));
 }
 
 // ============= R7RS SECTION 6.13.4: STRING AND BYTEVECTOR PORTS =============
@@ -815,6 +851,182 @@ pub fn primitive_close_output_port(args: &[Value]) -> Result<Value> {
             None,
         ))),
     }
+}
+
+// === R7RS File Operation Procedures ===
+
+pub fn primitive_with_input_from_file(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("with-input-from-file expects 2 arguments, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let filename = extract_string(&args[0], "with-input-from-file")?;
+    let thunk = args[1].clone();
+    
+    // Open input file - Port will handle the actual file opening
+    let port = Port::new_file_input(filename.clone(), false);
+    let port_value = Value::Port(Arc::new(port));
+    
+    // Get current input port parameter object
+    let current_input_param = current_ports::get_parameter_objects().0;
+    
+    // Temporarily bind the file port as current input port using ParameterBinding
+    if let Value::Parameter(param) = &current_input_param {
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert(param.id(), port_value);
+        
+        // Use parameter binding framework for proper parameterization
+        crate::eval::parameter::ParameterBinding::with_bindings(bindings, || {
+            // For now, return an error indicating this needs evaluator support
+            // The proper implementation would evaluate the thunk in the parameterized context
+            Err(Box::new(DiagnosticError::runtime_error(
+                "with-input-from-file: requires evaluator support (not yet implemented in primitive context)".to_string(),
+                None,
+            )))
+        })
+    } else {
+        Err(Box::new(DiagnosticError::runtime_error(
+            "with-input-from-file: internal error - current input port is not a parameter".to_string(),
+            None,
+        )))
+    }
+}
+
+pub fn primitive_with_output_to_file(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("with-output-to-file expects 2 arguments, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let filename = extract_string(&args[0], "with-output-to-file")?;
+    let thunk = args[1].clone();
+    
+    // Open output file - Port will handle the actual file creation
+    let port = Port::new_file_output(filename.clone(), false);
+    let port_value = Value::Port(Arc::new(port));
+    
+    // Get current output port parameter object
+    let current_output_param = current_ports::get_parameter_objects().1;
+    
+    // Temporarily bind the file port as current output port using ParameterBinding
+    if let Value::Parameter(param) = &current_output_param {
+        let mut bindings = std::collections::HashMap::new();
+        bindings.insert(param.id(), port_value);
+        
+        // Use parameter binding framework for proper parameterization
+        crate::eval::parameter::ParameterBinding::with_bindings(bindings, || {
+            // For now, return an error indicating this needs evaluator support
+            // The proper implementation would evaluate the thunk in the parameterized context
+            Err(Box::new(DiagnosticError::runtime_error(
+                "with-output-to-file: requires evaluator support (not yet implemented in primitive context)".to_string(),
+                None,
+            )))
+        })
+    } else {
+        Err(Box::new(DiagnosticError::runtime_error(
+            "with-output-to-file: internal error - current output port is not a parameter".to_string(),
+            None,
+        )))
+    }
+}
+
+pub fn primitive_call_with_input_file(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-input-file expects 2 arguments, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let filename = extract_string(&args[0], "call-with-input-file")?;
+    let proc = args[1].clone();
+    
+    // Open input file - Port will handle the actual file opening
+    let port = Port::new_file_input(filename.clone(), false);
+    let port_value = Value::Port(Arc::new(port));
+    
+    // Call procedure with the port
+    let result = match &proc {
+        Value::Procedure(_procedure) => {
+            // Procedure calls require evaluator support
+            Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-input-file: procedure calls require evaluator support (not yet implemented in primitive context)".to_string(),
+                None,
+            )))
+        },
+        Value::Primitive(prim) => {
+            match &prim.implementation {
+                crate::eval::value::PrimitiveImpl::RustFn(f) => f(&[port_value.clone()]),
+                _ => Err(Box::new(DiagnosticError::runtime_error(
+                    "call-with-input-file: unsupported primitive type".to_string(),
+                    None,
+                ))),
+            }
+        },
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            "call-with-input-file: second argument must be a procedure".to_string(),
+            None,
+        ))),
+    };
+    
+    // Close the port
+    if let Value::Port(port) = &port_value {
+        port.close();
+    }
+    
+    result
+}
+
+pub fn primitive_call_with_output_file(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-output-file expects 2 arguments, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let filename = extract_string(&args[0], "call-with-output-file")?;
+    let proc = args[1].clone();
+    
+    // Open output file - Port will handle the actual file creation
+    let port = Port::new_file_output(filename.clone(), false);
+    let port_value = Value::Port(Arc::new(port));
+    
+    // Call procedure with the port
+    let result = match &proc {
+        Value::Procedure(_procedure) => {
+            // Procedure calls require evaluator support
+            Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-output-file: procedure calls require evaluator support (not yet implemented in primitive context)".to_string(),
+                None,
+            )))
+        },
+        Value::Primitive(prim) => {
+            match &prim.implementation {
+                crate::eval::value::PrimitiveImpl::RustFn(f) => f(&[port_value.clone()]),
+                _ => Err(Box::new(DiagnosticError::runtime_error(
+                    "call-with-output-file: unsupported primitive type".to_string(),
+                    None,
+                ))),
+            }
+        },
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            "call-with-output-file: second argument must be a procedure".to_string(),
+            None,
+        ))),
+    };
+    
+    // Close the port
+    if let Value::Port(port) = &port_value {
+        port.close();
+    }
+    
+    result
 }
 
 // === String Ports ===
@@ -1793,22 +2005,225 @@ fn is_eof_value(value: &Value) -> bool {
     }
 }
 
-/// Converts an expression to a value (placeholder implementation).
-fn expr_to_value(_expr: crate::ast::Expr) -> Result<Value> {
-    // This would need proper implementation based on the AST structure
-    Err(Box::new(DiagnosticError::runtime_error(
-        "expr_to_value not yet implemented".to_string(),
-        None,
-    )))
+/// Converts an expression to a value.
+fn expr_to_value(expr: crate::ast::Expr) -> Result<Value> {
+    match expr {
+        crate::ast::Expr::Literal(lit) => Ok(Value::Literal(lit)),
+        crate::ast::Expr::Identifier(name) | crate::ast::Expr::Symbol(name) => Ok(Value::symbol_from_str(name)),
+        crate::ast::Expr::Quote(quoted) => {
+            // Convert quoted expression to its value representation
+            match quoted.inner {
+                crate::ast::Expr::Literal(lit) => Ok(Value::Literal(lit)),
+                crate::ast::Expr::Identifier(name) | crate::ast::Expr::Symbol(name) => Ok(Value::symbol_from_str(name)),
+                crate::ast::Expr::List(elements) => {
+                    // Convert list elements recursively
+                    let mut values = Vec::new();
+                    for elem in elements {
+                        values.push(expr_to_value(elem.inner)?);
+                    }
+                    Ok(Value::list(values))
+                }
+                other => expr_to_value(other), // Recurse for other types
+            }
+        }
+        crate::ast::Expr::List(elements) => {
+            let mut values = Vec::new();
+            for elem in elements {
+                values.push(expr_to_value(elem.inner)?);
+            }
+            Ok(Value::list(values))
+        }
+        crate::ast::Expr::Application { .. } |
+        crate::ast::Expr::If { .. } |
+        crate::ast::Expr::Let { .. } |
+        crate::ast::Expr::LetStar { .. } |
+        crate::ast::Expr::LetRec { .. } |
+        crate::ast::Expr::Lambda { .. } |
+        crate::ast::Expr::CaseLambda { .. } |
+        crate::ast::Expr::Define { .. } |
+        crate::ast::Expr::DefineSyntax { .. } |
+        crate::ast::Expr::Begin { .. } |
+        crate::ast::Expr::Set { .. } |
+        crate::ast::Expr::Cond { .. } |
+        crate::ast::Expr::Case { .. } |
+        crate::ast::Expr::And { .. } |
+        crate::ast::Expr::Or { .. } |
+        crate::ast::Expr::CallCC { .. } |
+        crate::ast::Expr::SyntaxRules { .. } |
+        crate::ast::Expr::Parameterize { .. } |
+        crate::ast::Expr::Guard { .. } |
+        crate::ast::Expr::Keyword(_) |
+        crate::ast::Expr::Quasiquote(_) |
+        crate::ast::Expr::Unquote(_) |
+        crate::ast::Expr::UnquoteSplicing(_) |
+        crate::ast::Expr::Primitive { .. } |
+        crate::ast::Expr::TypeAnnotation { .. } |
+        crate::ast::Expr::Import { .. } |
+        crate::ast::Expr::DefineLibrary { .. } |
+        crate::ast::Expr::Pair { .. } |
+        crate::ast::Expr::When { .. } |
+        crate::ast::Expr::Unless { .. } => {
+            // These require evaluation, which we can't do in this context
+            Err(Box::new(DiagnosticError::runtime_error(
+                "read: complex expressions require evaluation".to_string(),
+                None,
+            )))
+        }
+    }
 }
 
 /// Reads text from a port for parsing.
-fn read_text_from_port(_port: &Port) -> Result<Option<String>> {
-    // Placeholder implementation
-    Err(Box::new(DiagnosticError::runtime_error(
-        "read_text_from_port not yet implemented".to_string(),
-        None,
-    )))
+fn read_text_from_port(port: &Port) -> Result<Option<String>> {
+    match &port.implementation {
+        PortImpl::String { content, position } => {
+            let content_guard = content.read().unwrap();
+            let mut pos_guard = position.write().unwrap();
+            
+            if *pos_guard >= content_guard.len() {
+                return Ok(None); // EOF
+            }
+            
+            // Find the next complete S-expression
+            let remaining = &content_guard[*pos_guard..];
+            
+            // Simple S-expression boundary detection
+            // For a complete implementation, this would need proper parsing
+            if let Some(end) = find_sexp_boundary(remaining) {
+                let text = remaining[..end].trim().to_string();
+                *pos_guard += end;
+                // Skip whitespace after the expression
+                while *pos_guard < content_guard.len() && content_guard.chars().nth(*pos_guard).is_some_and(|c| c.is_whitespace()) {
+                    *pos_guard += 1;
+                }
+                Ok(Some(text))
+            } else {
+                // Read everything remaining as one expression attempt
+                let text = remaining.trim().to_string();
+                *pos_guard = content_guard.len();
+                if text.is_empty() {
+                    Ok(None)
+                } else {
+                    Ok(Some(text))
+                }
+            }
+        }
+        PortImpl::Standard(StandardPort::Stdin) => {
+            // For stdin, read a line
+            use std::io::{self, BufRead};
+            let stdin = io::stdin();
+            let mut handle = stdin.lock();
+            let mut line = String::new();
+            match handle.read_line(&mut line) {
+                Ok(0) => Ok(None), // EOF
+                Ok(_) => Ok(Some(line.trim().to_string())),
+                Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                    format!("Error reading from stdin: {e}"),
+                    None,
+                ))),
+            }
+        }
+        PortImpl::File { handle, .. } => {
+            // For file ports, this would require implementing proper file reading
+            use std::io::{BufRead, BufReader};
+            
+            if let Some(file_handle) = handle.write().unwrap().as_mut() {
+                match file_handle {
+                    PortFileHandle::TextReader(reader) => {
+                        let mut line = String::new();
+                        match reader.read_line(&mut line) {
+                            Ok(0) => Ok(None), // EOF
+                            Ok(_) => Ok(Some(line.trim().to_string())),
+                            Err(e) => Err(Box::new(DiagnosticError::runtime_error(
+                                format!("Error reading from file: {e}"),
+                                None,
+                            ))),
+                        }
+                    }
+                    _ => Err(Box::new(DiagnosticError::runtime_error(
+                        "Invalid file handle for text reading".to_string(),
+                        None,
+                    ))),
+                }
+            } else {
+                Err(Box::new(DiagnosticError::runtime_error(
+                    "File handle not initialized".to_string(),
+                    None,
+                )))
+            }
+        }
+        _ => Err(Box::new(DiagnosticError::runtime_error(
+            "read_text_from_port: unsupported port type".to_string(),
+            None,
+        ))),
+    }
+}
+
+/// Simple S-expression boundary detection.
+/// This is a simplified version - a full implementation would need proper parsing.
+fn find_sexp_boundary(text: &str) -> Option<usize> {
+    let mut depth = 0;
+    let mut in_string = false;
+    let mut escape_next = false;
+    let mut chars = text.char_indices().peekable();
+    let mut start_found = false;
+    
+    while let Some((i, ch)) = chars.next() {
+        if escape_next {
+            escape_next = false;
+            continue;
+        }
+        
+        if in_string {
+            match ch {
+                '\\' => escape_next = true,
+                '"' => in_string = false,
+                _ => {}
+            }
+            continue;
+        }
+        
+        match ch {
+            '"' => in_string = true,
+            '(' | '[' => {
+                depth += 1;
+                start_found = true;
+            }
+            ')' | ']' => {
+                depth -= 1;
+                if start_found && depth == 0 {
+                    return Some(i + ch.len_utf8());
+                }
+            }
+            ch if ch.is_whitespace() => {
+                if start_found && depth == 0 {
+                    return Some(i);
+                }
+            }
+            _ => {
+                if !start_found {
+                    start_found = true;
+                    // For atoms, find the next whitespace or delimiter
+                    if depth == 0 {
+                        let mut j = i + ch.len_utf8();
+                        for (k, next_ch) in chars {
+                            match next_ch {
+                                '(' | ')' | '[' | ']' | '"' => return Some(k),
+                                ch if ch.is_whitespace() => return Some(k),
+                                _ => j = k + next_ch.len_utf8(),
+                            }
+                        }
+                        return Some(j);
+                    }
+                }
+            }
+        }
+    }
+    
+    if start_found && depth == 0 {
+        Some(text.len())
+    } else {
+        None
+    }
 }
 
 /// Reads a character from a port.
@@ -1822,12 +2237,16 @@ fn read_char_from_port(port: &Port, peek: bool) -> Result<Value> {
                 return Ok(eof_value());
             }
             
-            let ch = content_guard.chars().nth(*pos_guard).unwrap_or('\0');
-            if !peek {
-                *pos_guard += 1;
+            // Get character at current byte position
+            let remaining = &content_guard[*pos_guard..];
+            if let Some(ch) = remaining.chars().next() {
+                if !peek {
+                    *pos_guard += ch.len_utf8();
+                }
+                Ok(Value::Literal(crate::ast::Literal::Character(ch)))
+            } else {
+                Ok(eof_value())
             }
-            
-            Ok(Value::Literal(crate::ast::Literal::Character(ch)))
         }
         _ => Err(Box::new(DiagnosticError::runtime_error(
             "read-char: unsupported port type".to_string(),
@@ -2023,11 +2442,7 @@ fn write_bytevector_to_port(port: &Port, bytes: &[u8]) -> Result<()> {
 
 /// Formats a value for display (without quotes for strings).
 fn display_value(value: &Value) -> String {
-    match value {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
-        Value::Literal(crate::ast::Literal::Character(c)) => c.to_string(),
-        _ => format!("{value}"),
-    }
+    value.display_string()
 }
 
 #[cfg(test)]
@@ -2064,5 +2479,444 @@ mod tests {
         let args = vec![Value::integer(42)];
         let result = primitive_eof_object_p(&args).unwrap();
         assert_eq!(result, Value::boolean(false));
+    }
+    
+    #[test]
+    fn test_display_value_r7rs_compliance() {
+        // Test that display_value returns strings without quotes (R7RS compliance)
+        let string_value = Value::string("Hello World");
+        let result = display_value(&string_value);
+        assert_eq!(result, "Hello World"); // Should NOT have quotes
+        
+        // Test that characters are displayed without the #\ prefix
+        let char_value = Value::Literal(crate::ast::Literal::Character('x'));
+        let result = display_value(&char_value);
+        assert_eq!(result, "x"); // Should NOT have #\ prefix
+        
+        // Test that other values still use Display format
+        let number_value = Value::integer(42);
+        let result = display_value(&number_value);
+        assert_eq!(result, "42");
+    }
+
+    #[test]
+    fn test_primitive_display_function() {
+        use std::sync::{Arc, RwLock};
+        use crate::eval::value::{Port, PortImpl};
+        
+        // Create a string output port to capture display output
+        let output_port = Arc::new(Port::new_string_output());
+        
+        // Test displaying a string (should NOT have quotes)
+        let string_value = Value::string("Hello World");
+        let args = vec![string_value, Value::Port(output_port.clone())];
+        let result = primitive_display(&args);
+        assert!(result.is_ok());
+        
+        // Check the output captured in the string port
+        if let PortImpl::String { content, .. } = &output_port.implementation {
+            let captured = content.read().unwrap();
+            assert_eq!(*captured, "Hello World"); // Should NOT have quotes
+        } else {
+            panic!("Expected string port");
+        }
+    }
+    
+    #[test]
+    fn test_display_vs_write_r7rs_compliance() {
+        use std::sync::Arc;
+        use crate::eval::value::{Port, PortImpl};
+        
+        // Test display: strings WITHOUT quotes, characters WITHOUT #\ prefix
+        let display_port = Arc::new(Port::new_string_output());
+        let string_value = Value::string("Hello World");
+        let char_value = Value::Literal(crate::ast::Literal::Character('x'));
+        
+        // Test display string
+        let result = primitive_display(&[string_value.clone(), Value::Port(display_port.clone())]);
+        assert!(result.is_ok());
+        
+        // Test display character
+        let result = primitive_display(&[char_value.clone(), Value::Port(display_port.clone())]);
+        assert!(result.is_ok());
+        
+        if let PortImpl::String { content, .. } = &display_port.implementation {
+            let captured = content.read().unwrap();
+            assert_eq!(*captured, "Hello Worldx"); // String without quotes, char without #\
+        } else {
+            panic!("Expected string port");
+        }
+        
+        // Test write: strings WITH quotes, characters WITH #\ prefix
+        let write_port = Arc::new(Port::new_string_output());
+        
+        let result = primitive_write(&[string_value, Value::Port(write_port.clone())]);
+        assert!(result.is_ok());
+        
+        let result = primitive_write(&[char_value, Value::Port(write_port.clone())]);
+        assert!(result.is_ok());
+        
+        if let PortImpl::String { content, .. } = &write_port.implementation {
+            let captured = content.read().unwrap();
+            assert_eq!(*captured, "\"Hello World\"#\\x"); // String with quotes, char with #\
+        } else {
+            panic!("Expected string port");
+        }
+    }
+
+    #[test]
+    fn test_r7rs_string_port_complete_workflow() {
+        // This test verifies the complete R7RS-small string port workflow
+        
+        // Test 1: Create output string port and write to it
+        let out_port = Arc::new(Port::new_string_output());
+        let out_port_value = Value::Port(out_port.clone());
+        
+        // Write some content
+        assert!(primitive_write(&[Value::string("hello"), out_port_value.clone()]).is_ok());
+        assert!(primitive_write_char(&[Value::Literal(crate::ast::Literal::Character(' ')), out_port_value.clone()]).is_ok());
+        assert!(primitive_write(&[Value::string("world"), out_port_value.clone()]).is_ok());
+        
+        // Get the output string
+        let result = primitive_get_output_string(&[out_port_value.clone()]).unwrap();
+        assert_eq!(result.as_string().unwrap(), "\"hello\" \"world\"");
+        
+        // Test 2: Create input string port and read from it  
+        let input_content = "abc";
+        let in_port = Arc::new(Port::new_string_input(input_content.to_string()));
+        let in_port_value = Value::Port(in_port.clone());
+        
+        // Read characters one by one
+        let ch1 = primitive_read_char(&[in_port_value.clone()]).unwrap();
+        assert_eq!(ch1, Value::Literal(crate::ast::Literal::Character('a')));
+        
+        let ch2 = primitive_peek_char(&[in_port_value.clone()]).unwrap();
+        assert_eq!(ch2, Value::Literal(crate::ast::Literal::Character('b')));
+        
+        let ch3 = primitive_read_char(&[in_port_value.clone()]).unwrap();
+        assert_eq!(ch3, Value::Literal(crate::ast::Literal::Character('b')));
+        
+        let ch4 = primitive_read_char(&[in_port_value.clone()]).unwrap();
+        assert_eq!(ch4, Value::Literal(crate::ast::Literal::Character('c')));
+        
+        // Next read should return EOF
+        let eof = primitive_read_char(&[in_port_value.clone()]).unwrap();
+        assert!(is_eof_value(&eof));
+    }
+
+    #[test]
+    fn test_r7rs_port_predicates() {
+        // Test all R7RS-small port predicates
+        
+        let string_in_port = Value::Port(Arc::new(Port::new_string_input("test".to_string())));
+        let string_out_port = Value::Port(Arc::new(Port::new_string_output()));
+        let bytevector_in_port = Value::Port(Arc::new(Port::new_bytevector_input(vec![1, 2, 3])));
+        let non_port = Value::integer(42);
+        
+        // port?
+        assert_eq!(primitive_port_p(&[string_in_port.clone()]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_port_p(&[non_port.clone()]).unwrap(), Value::boolean(false));
+        
+        // input-port?
+        assert_eq!(primitive_input_port_p(&[string_in_port.clone()]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_input_port_p(&[string_out_port.clone()]).unwrap(), Value::boolean(false));
+        
+        // output-port?
+        assert_eq!(primitive_output_port_p(&[string_out_port.clone()]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_output_port_p(&[string_in_port.clone()]).unwrap(), Value::boolean(false));
+        
+        // textual-port?
+        assert_eq!(primitive_textual_port_p(&[string_in_port.clone()]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_textual_port_p(&[bytevector_in_port.clone()]).unwrap(), Value::boolean(false));
+        
+        // binary-port?
+        assert_eq!(primitive_binary_port_p(&[bytevector_in_port.clone()]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_binary_port_p(&[string_in_port.clone()]).unwrap(), Value::boolean(false));
+    }
+
+    #[test]
+    fn test_r7rs_character_io_operations() {
+        // Test R7RS-small character I/O operations
+        
+        let test_string = "Hello\nWorld!";
+        let in_port = Value::Port(Arc::new(Port::new_string_input(test_string.to_string())));
+        
+        // Read individual characters
+        assert_eq!(primitive_read_char(&[in_port.clone()]).unwrap(), 
+                  Value::Literal(crate::ast::Literal::Character('H')));
+        assert_eq!(primitive_read_char(&[in_port.clone()]).unwrap(), 
+                  Value::Literal(crate::ast::Literal::Character('e')));
+        
+        // Test peek (doesn't advance position)
+        let peeked = primitive_peek_char(&[in_port.clone()]).unwrap();
+        let read = primitive_read_char(&[in_port.clone()]).unwrap();
+        assert_eq!(peeked, read);
+        assert_eq!(read, Value::Literal(crate::ast::Literal::Character('l')));
+        
+        // Test char-ready? (should always be true in our implementation)
+        assert_eq!(primitive_char_ready_p(&[in_port.clone()]).unwrap(), Value::boolean(true));
+        
+        // Test read-line - read remaining characters to reach newline
+        let _remaining_chars = primitive_read_char(&[in_port.clone()]).unwrap(); // 'l'
+        let _remaining_chars = primitive_read_char(&[in_port.clone()]).unwrap(); // 'o'
+        let _remaining_chars = primitive_read_char(&[in_port.clone()]).unwrap(); // '\n'
+        let line = primitive_read_line(&[in_port.clone()]).unwrap();
+        assert_eq!(line.as_string().unwrap(), "World!");
+    }
+
+    #[test]
+    fn test_r7rs_string_io_operations() {
+        // Test R7RS-small string I/O operations
+        
+        let test_string = "The quick brown fox";
+        let in_port = Value::Port(Arc::new(Port::new_string_input(test_string.to_string())));
+        
+        // Test read-string
+        let result = primitive_read_string(&[Value::integer(3), in_port.clone()]).unwrap();
+        assert_eq!(result.as_string().unwrap(), "The");
+        
+        let result = primitive_read_string(&[Value::integer(6), in_port.clone()]).unwrap(); 
+        assert_eq!(result.as_string().unwrap(), " quick");
+        
+        // Test write-string to output port
+        let out_port = Value::Port(Arc::new(Port::new_string_output()));
+        
+        primitive_write_string(&[Value::string("Testing"), out_port.clone()]).unwrap();
+        primitive_write_string(&[Value::string(" 123"), out_port.clone(), Value::integer(0), Value::integer(4)]).unwrap();
+        
+        let result = primitive_get_output_string(&[out_port.clone()]).unwrap();
+        assert_eq!(result.as_string().unwrap(), "Testing 123");
+    }
+
+    #[test]
+    fn test_exact_r7rs_small_example() {
+        // This test demonstrates the exact example from your requirements
+        
+        // Example 1: (define out (open-output-string))
+        //           (write "hello" out)
+        //           (write-char #\space out)
+        //           (write "world" out)
+        //           (get-output-string out) ; → "\"hello\" \"world\""
+        
+        let out = Arc::new(Port::new_string_output());
+        let out_port_value = Value::Port(out.clone());
+        
+        primitive_write(&[Value::string("hello"), out_port_value.clone()]).unwrap();
+        primitive_write_char(&[Value::Literal(crate::ast::Literal::Character(' ')), out_port_value.clone()]).unwrap();
+        primitive_write(&[Value::string("world"), out_port_value.clone()]).unwrap();
+        
+        let result = primitive_get_output_string(&[out_port_value]).unwrap();
+        assert_eq!(result.as_string().unwrap(), "\"hello\" \"world\"");
+        
+        // Example 2: (define in (open-input-string "abc"))
+        //           (read-char in)     ; → #\a
+        //           (peek-char in)     ; → #\b  
+        //           (read-char in)     ; → #\b
+        
+        let in_port = Value::Port(Arc::new(Port::new_string_input("abc".to_string())));
+        
+        let ch1 = primitive_read_char(&[in_port.clone()]).unwrap();
+        assert_eq!(ch1, Value::Literal(crate::ast::Literal::Character('a')));
+        
+        let ch2_peek = primitive_peek_char(&[in_port.clone()]).unwrap();
+        assert_eq!(ch2_peek, Value::Literal(crate::ast::Literal::Character('b')));
+        
+        let ch2_read = primitive_read_char(&[in_port.clone()]).unwrap();
+        assert_eq!(ch2_read, Value::Literal(crate::ast::Literal::Character('b')));
+        
+        // Verify peek didn't advance position
+        assert_eq!(ch2_peek, ch2_read);
+    }
+
+    #[test] 
+    fn test_call_with_input_file_bindings() {
+        // Test that call-with-input-file procedure binding exists and has correct arity
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_file_operations(&env);
+        
+        let proc = env.lookup("call-with-input-file").unwrap();
+        if let Value::Primitive(prim) = proc {
+            assert_eq!(prim.name, "call-with-input-file");
+            assert_eq!(prim.arity_min, 2);
+            assert_eq!(prim.arity_max, Some(2));
+        } else {
+            panic!("call-with-input-file should be a primitive procedure");
+        }
+    }
+
+    #[test]
+    fn test_call_with_output_file_bindings() {
+        // Test that call-with-output-file procedure binding exists and has correct arity
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_file_operations(&env);
+        
+        let proc = env.lookup("call-with-output-file").unwrap();
+        if let Value::Primitive(prim) = proc {
+            assert_eq!(prim.name, "call-with-output-file");
+            assert_eq!(prim.arity_min, 2);
+            assert_eq!(prim.arity_max, Some(2));
+        } else {
+            panic!("call-with-output-file should be a primitive procedure");
+        }
+    }
+
+    #[test]
+    fn test_with_input_from_file_bindings() {
+        // Test that with-input-from-file procedure binding exists and has correct arity
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_file_operations(&env);
+        
+        let proc = env.lookup("with-input-from-file").unwrap();
+        if let Value::Primitive(prim) = proc {
+            assert_eq!(prim.name, "with-input-from-file");
+            assert_eq!(prim.arity_min, 2);
+            assert_eq!(prim.arity_max, Some(2));
+        } else {
+            panic!("with-input-from-file should be a primitive procedure");
+        }
+    }
+
+    #[test]
+    fn test_with_output_to_file_bindings() {
+        // Test that with-output-to-file procedure binding exists and has correct arity
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_file_operations(&env);
+        
+        let proc = env.lookup("with-output-to-file").unwrap();
+        if let Value::Primitive(prim) = proc {
+            assert_eq!(prim.name, "with-output-to-file");
+            assert_eq!(prim.arity_min, 2);
+            assert_eq!(prim.arity_max, Some(2));
+        } else {
+            panic!("with-output-to-file should be a primitive procedure");
+        }
+    }
+
+    #[test]
+    fn test_call_with_input_file_error_handling() {
+        // Test error handling for wrong number of arguments
+        let result = primitive_call_with_input_file(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 2 arguments"));
+
+        let result = primitive_call_with_input_file(&[Value::string("test.txt")]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 2 arguments"));
+
+        // Test error handling for non-string filename
+        let result = primitive_call_with_input_file(&[
+            Value::integer(42),
+            Value::string("dummy_procedure")
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("requires string arguments"));
+    }
+
+    #[test]
+    fn test_call_with_output_file_error_handling() {
+        // Test error handling for wrong number of arguments
+        let result = primitive_call_with_output_file(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 2 arguments"));
+
+        // Test error handling for non-string filename
+        let result = primitive_call_with_output_file(&[
+            Value::integer(42),
+            Value::string("dummy_procedure")
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("requires string arguments"));
+    }
+
+    #[test]
+    fn test_with_input_from_file_error_handling() {
+        // Test error handling for wrong number of arguments
+        let result = primitive_with_input_from_file(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 2 arguments"));
+
+        // Test error handling for non-string filename
+        let result = primitive_with_input_from_file(&[
+            Value::integer(42),
+            Value::string("dummy_thunk")
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("requires string arguments"));
+    }
+
+    #[test]
+    fn test_with_output_to_file_error_handling() {
+        // Test error handling for wrong number of arguments
+        let result = primitive_with_output_to_file(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 2 arguments"));
+
+        // Test error handling for non-string filename
+        let result = primitive_with_output_to_file(&[
+            Value::integer(42),
+            Value::string("dummy_thunk")
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("requires string arguments"));
+    }
+
+    #[test]
+    fn test_file_operations_require_evaluator_support() {
+        // Test that procedures requiring evaluator support fail appropriately
+        use std::collections::HashMap;
+        use crate::ast::Formals;
+        
+        // Create a user-defined procedure that would require evaluator support
+        let dummy_procedure = crate::eval::value::Procedure {
+            formals: Formals::Fixed(vec![]),
+            body: vec![], // Empty body
+            environment: Arc::new(ThreadSafeEnvironment::new(None, 0)),
+            name: Some("dummy".to_string()),
+            metadata: HashMap::new(),
+            source: None,
+        };
+        
+        let proc_value = Value::Procedure(Arc::new(dummy_procedure));
+        
+        let result = primitive_call_with_input_file(&[
+            Value::string("/tmp/test.txt"),
+            proc_value
+        ]);
+        
+        // Should fail because user-defined procedures require evaluator support
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("procedure calls require evaluator support"));
+    }
+
+    #[test]
+    fn test_all_r7rs_file_operations_bound() {
+        // Verify that all required R7RS-small file operations are properly bound
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_file_operations(&env);
+        
+        let required_procedures = [
+            "open-input-file",
+            "open-output-file", 
+            "close-port",
+            "close-input-port",
+            "close-output-port",
+            "with-input-from-file",
+            "with-output-to-file",
+            "call-with-input-file",
+            "call-with-output-file",
+        ];
+        
+        for proc_name in &required_procedures {
+            let value = env.lookup(proc_name);
+            assert!(value.is_some(), "Procedure {} should be bound", proc_name);
+            
+            if let Some(Value::Primitive(prim)) = value {
+                assert_eq!(prim.name, *proc_name);
+                // All these procedures should take at least 1 argument
+                assert!(prim.arity_min >= 1);
+            } else {
+                panic!("Procedure {} should be a primitive", proc_name);
+            }
+        }
     }
 }

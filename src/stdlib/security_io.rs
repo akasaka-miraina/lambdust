@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 use std::sync::LazyLock;
 
-#[cfg(unix)]
+#[cfg(all(unix, feature = "advanced-io"))]
 use nix::unistd::{chroot, chdir};
 #[cfg(unix)]
 /// Security policy for I/O operations
@@ -279,7 +279,7 @@ impl SecurityManager {
     }
     
     pub fn enable_sandbox(&mut self, chroot_path: Option<PathBuf>) -> Result<()> {
-        #[cfg(unix)]
+        #[cfg(all(unix, feature = "advanced-io"))]
         {
             if let Some(ref path) = chroot_path {
                 // Change to chroot directory first
@@ -302,6 +302,19 @@ impl SecurityManager {
             }
             
             self.sandbox_active = true;
+            Ok(())
+        }
+        
+        // Fallback for Unix systems without advanced-io feature - sandbox is not available
+        #[cfg(all(unix, not(feature = "advanced-io")))]
+        {
+            if chroot_path.is_some() {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    "Sandboxing with chroot requires 'advanced-io' feature".to_string(),
+                    None,
+                )));
+            }
+            self.sandbox_active = false;
             Ok(())
         }
         

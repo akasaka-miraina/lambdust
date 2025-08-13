@@ -291,23 +291,17 @@ impl SchemeLibraryLoader {
     /// Compiles a Scheme library from source.
     pub fn compile_library(&self, id: &ModuleId, source_path: Option<&Path>) -> Result<CompiledSchemeLibrary> {
         let start = SystemTime::now();
-        println!("Debug: compile_library called for module ID: {id:?}");
-        println!("Debug: source_path: {source_path:?}");
         
         // Read source code
         let (source_code, source_mtime) = if let Some(path) = source_path {
-            println!("Debug: Reading source file: {}", path.display());
             let code = fs::read_to_string(path).map_err(|e| {
                 Error::io_error(format!("Failed to read library source {}: {}", path.display(), e))
             })?;
-            println!("Debug: Source code read (length: {} chars):", code.len());
-            println!("Debug: Source code content: {code:?}");
             let mtime = fs::metadata(path)
                 .and_then(|m| m.modified())
                 .unwrap_or_else(|_| SystemTime::now());
             (code, mtime)
         } else {
-            println!("Debug: No source path provided for module: {id:?}");
             return Err(Box::new(Error::from(ModuleError::NotFound(id.clone()))));
         };
 
@@ -315,24 +309,20 @@ impl SchemeLibraryLoader {
         let context = self.create_compilation_context(id.clone())?;
         
         // Parse the source code
-        println!("Debug: Starting to parse source code for module: {id:?}");
         let mut lexer = Lexer::new(&source_code, Some("<library>"));
         let tokens = lexer.tokenize().map_err(|e| {
-            println!("Debug: Lexing error in {}: {}", id.components.join("/"), e);
             Error::parse_error(format!("Lexing error in {}: {}", id.components.join("/"), e), Span::new(0, 0))
         })?;
-        println!("Debug: Tokenization successful, token count: {}", tokens.len());
 
         let mut parser = Parser::new(tokens);
-        let mut exprs = Vec::new();
-        while !parser.is_at_end() {
-            let expr = parser.parse_expression().map_err(|e| {
-                println!("Debug: Parsing error in {}: {}", id.components.join("/"), e);
-                Error::parse_error(format!("Parsing error in {}: {}", id.components.join("/"), e), Span::new(0, 0))
-            })?;
-            exprs.push(expr.inner); // Extract the inner Expr from Spanned<Expr>
-        }
-        println!("Debug: Parsing successful, expression count: {}", exprs.len());
+        
+        // Parse as a complete program rather than individual expressions
+        // This allows proper context-sensitive parsing of dots in parameter lists
+        let program = parser.parse().map_err(|e| {
+            Error::parse_error(format!("Parsing error in {}: {}", id.components.join("/"), e), Span::new(0, 0))
+        })?;
+        
+        let exprs: Vec<Expr> = program.expressions.into_iter().map(|spanned| spanned.inner).collect();
 
         // Compile the module
         let module = self.compile_module_expressions(id, exprs, &context)?;
@@ -368,6 +358,10 @@ impl SchemeLibraryLoader {
         for primitive_name in &self.bootstrap_config.essential_primitives {
             if let Some(primitive_value) = environment.lookup(primitive_name) {
                 available_primitives.insert(primitive_name.clone(), primitive_value);
+            } else {
+                // Primitive not found - this is expected during bootstrap
+                // Skip rather than erroring
+                continue;
             }
         }
 
@@ -533,8 +527,6 @@ impl SchemeLibraryLoader {
 
     /// Finds the source file for a library.
     fn find_library_source(&self, id: &ModuleId) -> Result<Option<PathBuf>> {
-        println!("Debug: find_library_source called for module ID: {id:?}");
-        
         // For SRFI modules, use the numeric part as filename (e.g., "41.scm")
         let filename = match id.namespace {
             ModuleNamespace::SRFI if id.components.len() >= 2 => {
@@ -542,7 +534,6 @@ impl SchemeLibraryLoader {
             }
             _ => format!("{}.scm", id.components.join("-"))
         };
-        println!("Debug: Constructed filename: {filename}");
         
         // Handle file namespace specially
         if id.namespace == ModuleNamespace::File && !id.components.is_empty() {
@@ -558,16 +549,10 @@ impl SchemeLibraryLoader {
                 ModuleNamespace::User => "user",
                 ModuleNamespace::File => return Ok(Some(PathBuf::from(&id.components[0]))),
             };
-            println!("Debug: Using library resolver, subdir: {subdir}, filename: {filename}");
             
             if let Ok(library_path) = resolver.resolve_library_file(subdir, &filename) {
-                println!("Debug: Library resolver found path: {}", library_path.display());
                 return Ok(Some(library_path));
-            } else {
-                println!("Debug: Library resolver could not find file");
             }
-        } else {
-            println!("Debug: No library resolver available");
         }
         
         // Fallback to old search method
@@ -580,28 +565,20 @@ impl SchemeLibraryLoader {
         };
 
         // Search in configured paths
-        println!("Debug: Searching in configured paths, count: {}", self.search_paths.len());
         for search_path in &self.search_paths {
             let full_path = search_path.join(subdir).join(&filename);
-            println!("Debug: Checking path: {}", full_path.display());
             if full_path.exists() {
-                println!("Debug: Found library at: {}", full_path.display());
                 return Ok(Some(full_path));
             }
         }
 
         // Try direct filename in search paths
-        println!("Debug: Trying direct filename in search paths");
         for search_path in &self.search_paths {
             let direct_path = search_path.join(&filename);
-            println!("Debug: Checking direct path: {}", direct_path.display());
             if direct_path.exists() {
-                println!("Debug: Found library at direct path: {}", direct_path.display());
                 return Ok(Some(direct_path));
             }
         }
-
-        println!("Debug: No library source found for module: {id:?}");
         Ok(None)
     }
 
@@ -685,8 +662,12 @@ impl SchemeLibraryLoader {
                 for component in components {
                     match &component.inner {
                         Expr::Identifier(name) => module_parts.push(name.clone()),
-                        Expr::Literal(crate::ast::Literal::Number(n)) => {
-                            module_parts.push(n.to_string().split('.').next().unwrap_or("0").to_string());
+                        Expr::Literal(literal) if literal.is_number() => {
+                            if let Some(n) = literal.to_f64() {
+                                module_parts.push(n.to_string().split('.').next().unwrap_or("0").to_string());
+                            } else {
+                                module_parts.push("0".to_string());
+                            }
                         }
                         _ => return Err(Box::new(Error::parse_error(
                             "Import library name components must be identifiers or numbers",
@@ -733,13 +714,23 @@ impl SchemeLibraryLoader {
         &self,
         export_expr: &crate::diagnostics::Spanned<Expr>,
         exports: &mut HashMap<String, Value>,
-        _context: &CompilationContext,
+        context: &CompilationContext,
     ) -> Result<()> {
         match &export_expr.inner {
             Expr::Identifier(name) => {
-                // Simple export - check if it's defined locally
-                // For now, create a placeholder value since we're processing exports before definitions
-                exports.insert(name.clone(), Value::Unspecified);
+                // Simple export - try to get the actual value from environment or primitives
+                let value = if let Some(primitive_value) = context.available_primitives.get(name) {
+                    // Found in primitives - this is the common case for R7RS standard library exports
+                    primitive_value.clone()
+                } else if let Some(env_value) = context.environment.lookup(name) {
+                    // Found in environment
+                    env_value
+                } else {
+                    // Not found - could be defined later in the module body
+                    // For now, mark as unspecified
+                    Value::Unspecified
+                };
+                exports.insert(name.clone(), value);
                 Ok(())
             }
             Expr::List(components) => {
@@ -752,8 +743,15 @@ impl SchemeLibraryLoader {
                                 if components.len() == 3 {
                                     if let (Expr::Identifier(local), Expr::Identifier(exported)) = 
                                         (&components[1].inner, &components[2].inner) {
-                                        exports.insert(exported.clone(), Value::Unspecified);
-                                        // TODO: Implement proper rename logic
+                                        // Look up the local name and export under the new name
+                                        let value = if let Some(primitive_value) = context.available_primitives.get(local) {
+                                            primitive_value.clone()
+                                        } else if let Some(env_value) = context.environment.lookup(local) {
+                                            env_value
+                                        } else {
+                                            Value::Unspecified
+                                        };
+                                        exports.insert(exported.clone(), value);
                                     }
                                 }
                             }
@@ -837,26 +835,11 @@ impl BootstrapConfig {
                 // Essential system functions
                 "error".to_string(), "current-second".to_string(),
             ],
-            core_libraries: vec![
-                ModuleId { 
-                    components: vec!["base".to_string()], 
-                    namespace: ModuleNamespace::R7RS 
-                },
-            ],
-            load_order: vec![
-                ModuleId { 
-                    components: vec!["base".to_string()], 
-                    namespace: ModuleNamespace::R7RS 
-                },
-                ModuleId { 
-                    components: vec!["string".to_string()], 
-                    namespace: ModuleNamespace::Builtin 
-                },
-                ModuleId { 
-                    components: vec!["list".to_string()], 
-                    namespace: ModuleNamespace::Builtin 
-                },
-            ],
+            // TEMPORARY FIX: Remove core libraries from bootstrap to prevent circular dependencies
+            // The library loader will attempt to load (scheme base) but we need the primitives 
+            // to be available first. Libraries should be loaded on-demand via import statements.
+            core_libraries: vec![],
+            load_order: vec![],
             lazy_loading: true,
             bootstrap_timeout: Duration::from_secs(30),
         }

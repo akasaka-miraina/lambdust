@@ -89,3 +89,63 @@ impl Default for ErrorContext {
         Self::new()
     }
 }
+
+/// Convenient error creation helpers to reduce boilerplate.
+pub mod helpers {
+    use super::*;
+    use crate::diagnostics::Span;
+
+    /// Creates a boxed runtime error with optional span.
+    #[inline]
+    pub fn runtime_error(message: impl Into<String>, span: Option<Span>) -> Box<Error> {
+        Box::new(Error::runtime_error(message.into(), span))
+    }
+
+    /// Creates a boxed runtime error without span.
+    #[inline]
+    pub fn runtime_error_simple(message: impl Into<String>) -> Box<Error> {
+        Box::new(Error::runtime_error(message.into(), None))
+    }
+
+    /// Creates a boxed IO error.
+    #[inline]
+    pub fn io_error(message: impl Into<String>) -> Box<Error> {
+        Box::new(Error::io_error(message.into()))
+    }
+
+    /// Creates a boxed internal error.
+    #[inline]
+    pub fn internal_error(message: impl Into<String>) -> Box<Error> {
+        Box::new(Error::internal_error(message.into()))
+    }
+
+    /// Creates a boxed FFI error.
+    #[inline]
+    pub fn ffi_error(message: impl Into<String>) -> Box<Error> {
+        Box::new(Error::ffi_error(message.into()))
+    }
+
+    /// Creates a boxed type error with span.
+    #[inline]
+    pub fn type_error(message: impl Into<String>, span: Span) -> Box<Error> {
+        Box::new(Error::type_error(message.into(), span))
+    }
+
+    /// Creates a boxed parse error with span.
+    #[inline]
+    pub fn parse_error(message: impl Into<String>, span: Span) -> Box<Error> {
+        Box::new(Error::parse_error(message.into(), span))
+    }
+
+    /// Creates a boxed lex error with span.
+    #[inline]
+    pub fn lex_error(message: impl Into<String>, span: Span) -> Box<Error> {
+        Box::new(Error::lex_error(message.into(), span))
+    }
+
+    /// Creates a boxed macro error with span.
+    #[inline]
+    pub fn macro_error(message: impl Into<String>, span: Span) -> Box<Error> {
+        Box::new(Error::macro_error(message.into(), span))
+    }
+}

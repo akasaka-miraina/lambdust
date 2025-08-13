@@ -1,10 +1,9 @@
 //! The main lexer for Lambdust source code.
 
 use crate::diagnostics::{Error, Result, Span, SourceMap};
-use logos::Logos;
 use std::sync::Arc;
 
-use super::{Token, TokenKind};
+use super::{Token, TokenKind, InternalLexer};
 
 /// The main lexer for Lambdust source code.
 #[derive(Debug)]
@@ -26,38 +25,8 @@ impl<'a> Lexer<'a> {
 
     /// Tokenizes the entire source code.
     pub fn tokenize(&mut self) -> Result<Vec<Token>> {
-        let mut tokens = Vec::new();
-        let mut lex = TokenKind::lexer(self.source);
-
-        while let Some(token_result) = lex.next() {
-            let span = lex.span();
-            let span = Span::new(span.start, span.len());
-
-            match token_result {
-                Ok(kind) => {
-                    // Skip comments but preserve newlines
-                    if matches!(kind, TokenKind::LineComment | TokenKind::BlockComment) {
-                        continue;
-                    }
-
-                    let token = Token::new(kind, span, self.source[span.start..span.end()].to_string());
-                    tokens.push(token);
-                }
-                Err(()) => {
-                    let text = &self.source[span.start..span.end()];
-                    return Err(Box::new(Error::lex_error(
-                        format!("Unexpected character: '{text}'"),
-                        span,
-                    )))
-                }
-            }
-        }
-
-        // Add EOF token
-        let eof_span = Span::new(self.source.len(), 0);
-        tokens.push(Token::new(TokenKind::Eof, eof_span, String::new()));
-
-        Ok(tokens)
+        let mut internal_lexer = InternalLexer::new(self.source, self.filename);
+        internal_lexer.tokenize()
     }
 
     /// Gets the current filename (if any).

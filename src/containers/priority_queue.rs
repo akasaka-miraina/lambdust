@@ -109,10 +109,14 @@ impl PriorityQueue {
         }
         
         // Move last element to root and heapify down
-        let root = self.heap[0].clone();
         let last = self.heap.pop().unwrap();
-        self.heap[0] = last;
-        self.heapify_down(0);
+        let root = if !self.heap.is_empty() {
+            let old_root = std::mem::replace(&mut self.heap[0], last);
+            self.heapify_down(0);
+            old_root
+        } else {
+            last
+        };
         
         Some((root.value, root.priority))
     }
@@ -125,8 +129,7 @@ impl PriorityQueue {
     /// Changes the priority of the first occurrence of a value
     pub fn change_priority(&mut self, target: &Value, new_priority: Value) -> bool {
         if let Some(index) = self.find_value_index(target) {
-            let old_priority = self.heap[index].priority.clone();
-            self.heap[index].priority = new_priority.clone();
+            let old_priority = std::mem::replace(&mut self.heap[index].priority, new_priority.clone());
             
             // Determine if we need to heapify up or down
             let cmp = self.compare_priorities(&new_priority, &old_priority);
@@ -149,16 +152,16 @@ impl PriorityQueue {
     /// Removes the first occurrence of a value
     pub fn remove(&mut self, target: &Value) -> Option<Value> {
         if let Some(index) = self.find_value_index(target) {
-            let removed = self.heap[index].value.clone();
-            
             if index == self.heap.len() - 1 {
-                // Last element, just pop
-                self.heap.pop();
+                // Last element, just pop and return its value
+                let removed_entry = self.heap.pop().unwrap();
+                Some(removed_entry.value)
             } else {
                 // Replace with last element and heapify
                 let last = self.heap.pop().unwrap();
-                let old_priority = self.heap[index].priority.clone();
-                self.heap[index] = last;
+                let old_entry = std::mem::replace(&mut self.heap[index], last);
+                let removed = old_entry.value;
+                let old_priority = old_entry.priority;
                 
                 // Heapify in the appropriate direction
                 let cmp = self.compare_priorities(&self.heap[index].priority, &old_priority);
@@ -170,9 +173,9 @@ impl PriorityQueue {
                         self.heapify_down(index);
                     }
                 }
+                
+                Some(removed)
             }
-            
-            Some(removed)
         } else {
             None
         }
@@ -188,9 +191,19 @@ impl PriorityQueue {
         self.heap.iter().map(|entry| entry.value.clone()).collect()
     }
     
+    /// Returns references to all values in arbitrary order
+    pub fn value_refs(&self) -> Vec<&Value> {
+        self.heap.iter().map(|entry| &entry.value).collect()
+    }
+    
     /// Returns all priorities in arbitrary order
     pub fn priorities(&self) -> Vec<Value> {
         self.heap.iter().map(|entry| entry.priority.clone()).collect()
+    }
+    
+    /// Returns references to all priorities in arbitrary order
+    pub fn priority_refs(&self) -> Vec<&Value> {
+        self.heap.iter().map(|entry| &entry.priority).collect()
     }
     
     /// Returns all (value, priority) pairs in arbitrary order
@@ -198,6 +211,14 @@ impl PriorityQueue {
         self.heap
             .iter()
             .map(|entry| (entry.value.clone(), entry.priority.clone()))
+            .collect()
+    }
+    
+    /// Returns references to all (value, priority) pairs in arbitrary order
+    pub fn entry_refs(&self) -> Vec<(&Value, &Value)> {
+        self.heap
+            .iter()
+            .map(|entry| (&entry.value, &entry.priority))
             .collect()
     }
     

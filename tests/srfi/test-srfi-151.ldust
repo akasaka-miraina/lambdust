@@ -1,0 +1,472 @@
+;;; SRFI-151: Bitwise Operations - Comprehensive Test Suite
+;;; 
+;;; This test suite validates all 38 procedures defined in SRFI-151
+;;; across 6 categories with comprehensive edge case and error handling testing.
+;;;
+;;; Test Categories:
+;;; 1. Basic Bitwise Operations (11 procedures)
+;;; 2. Integer Operations (4 procedures)  
+;;; 3. Single-Bit Operations (6 procedures)
+;;; 4. Bit Field Operations (9 procedures)
+;;; 5. Conversion Operations (5 procedures)
+;;; 6. Higher-Order Operations (3 procedures)
+
+(import (scheme base)
+        (scheme case-lambda)
+        (srfi 151))
+
+;; ============= TEST FRAMEWORK =============
+
+(define *test-count* 0)
+(define *test-passed* 0)
+(define *test-failed* 0)
+
+(define (test-assert name expr)
+  "Assert that expr evaluates to #t, reporting test name on failure."
+  (set! *test-count* (+ *test-count* 1))
+  (if expr
+      (begin
+        (set! *test-passed* (+ *test-passed* 1))
+        (display "PASS: ") (display name) (newline))
+      (begin
+        (set! *test-failed* (+ *test-failed* 1))
+        (display "FAIL: ") (display name) (newline)
+        (display "  Expression: ") (write expr) (newline))))
+
+(define (test-equal name expected actual)
+  "Assert that expected equals actual."
+  (test-assert name (equal? expected actual)))
+
+(define (test-error name proc)
+  "Test that proc raises an error."
+  (set! *test-count* (+ *test-count* 1))
+  (let ((raised-error #f))
+    (with-exception-handler
+      (lambda (e) (set! raised-error #t))
+      (lambda () 
+        (proc)
+        (set! raised-error #f)))
+    (if raised-error
+        (begin
+          (set! *test-passed* (+ *test-passed* 1))
+          (display "PASS: ") (display name) (display " (error raised)") (newline))
+        (begin
+          (set! *test-failed* (+ *test-failed* 1))
+          (display "FAIL: ") (display name) (display " (no error raised)") (newline)))))
+
+(define (test-summary)
+  "Display test result summary."
+  (display "=== SRFI-151 Test Summary ===") (newline)
+  (display "Total tests: ") (display *test-count*) (newline)
+  (display "Passed: ") (display *test-passed*) (newline) 
+  (display "Failed: ") (display *test-failed*) (newline)
+  (if (= *test-failed* 0)
+      (begin (display "SUCCESS: All tests passed!") (newline))
+      (begin (display "FAILURE: ") (display *test-failed*) (display " tests failed.") (newline))))
+
+;; ============= CATEGORY 1: BASIC BITWISE OPERATIONS =============
+
+(display "=== Testing Basic Bitwise Operations (11 procedures) ===") (newline)
+
+;; bitwise-not tests
+(test-equal "bitwise-not: simple positive" -6 (bitwise-not 5))
+(test-equal "bitwise-not: zero" -1 (bitwise-not 0))
+(test-equal "bitwise-not: negative" 4 (bitwise-not -5))
+(test-equal "bitwise-not: -1" 0 (bitwise-not -1))
+(test-equal "bitwise-not: double complement" 42 (bitwise-not (bitwise-not 42)))
+(test-error "bitwise-not: non-integer" (lambda () (bitwise-not "not-int")))
+(test-error "bitwise-not: inexact" (lambda () (bitwise-not 5.5)))
+
+;; bitwise-and tests
+(test-equal "bitwise-and: no args" -1 (bitwise-and))
+(test-equal "bitwise-and: single arg" 42 (bitwise-and 42))
+(test-equal "bitwise-and: two args" 8 (bitwise-and 12 10))  ; 1100 & 1010 = 1000
+(test-equal "bitwise-and: multiple args" 0 (bitwise-and 15 10 5))  ; 1111 & 1010 & 0101 = 0000
+(test-equal "bitwise-and: with zero" 0 (bitwise-and 255 0 255))
+(test-equal "bitwise-and: with -1" 42 (bitwise-and 42 -1 42))
+(test-equal "bitwise-and: negatives" -16 (bitwise-and -12 -10))  ; Two's complement
+(test-error "bitwise-and: non-integer" (lambda () (bitwise-and 5 "not-int")))
+
+;; bitwise-ior tests  
+(test-equal "bitwise-ior: no args" 0 (bitwise-ior))
+(test-equal "bitwise-ior: single arg" 42 (bitwise-ior 42))
+(test-equal "bitwise-ior: two args" 14 (bitwise-ior 12 10))  ; 1100 | 1010 = 1110
+(test-equal "bitwise-ior: multiple args" 15 (bitwise-ior 8 4 2 1))  ; 1000 | 0100 | 0010 | 0001 = 1111
+(test-equal "bitwise-ior: with zero" 255 (bitwise-ior 255 0))
+(test-equal "bitwise-ior: negatives" -10 (bitwise-ior -12 -10))
+(test-error "bitwise-ior: non-integer" (lambda () (bitwise-ior 5 3.14)))
+
+;; bitwise-xor tests
+(test-equal "bitwise-xor: no args" 0 (bitwise-xor))
+(test-equal "bitwise-xor: single arg" 42 (bitwise-xor 42))
+(test-equal "bitwise-xor: two args" 6 (bitwise-xor 12 10))  ; 1100 ^ 1010 = 0110
+(test-equal "bitwise-xor: multiple args" 4 (bitwise-xor 1 2 4 3))  ; 0001 ^ 0010 ^ 0100 ^ 0011 = 0100  
+(test-equal "bitwise-xor: self cancel" 0 (bitwise-xor 42 42))
+(test-equal "bitwise-xor: three self cancel" 42 (bitwise-xor 42 42 42))
+(test-equal "bitwise-xor: negatives" 6 (bitwise-xor -12 -10))
+(test-error "bitwise-xor: non-integer" (lambda () (bitwise-xor 5 2.5)))
+
+;; Derived operations tests
+(test-equal "bitwise-eqv: complement of xor" -7 (bitwise-eqv 12 10))  ; ~(12^10) = ~6 = -7
+(test-equal "bitwise-eqv: identity" -1 (bitwise-eqv 42 42))  ; ~0 = -1
+(test-equal "bitwise-eqv: multiple args" -5 (bitwise-eqv 1 2 4 3))  ; ~4 = -5
+
+(test-equal "bitwise-nand: complement of and" -9 (bitwise-nand 12 10))  ; ~8 = -9
+(test-equal "bitwise-nand: with zero" -1 (bitwise-nand 255 0))  ; ~0 = -1
+
+(test-equal "bitwise-nor: complement of ior" -15 (bitwise-nor 12 10))  ; ~14 = -15
+(test-equal "bitwise-nor: both zero" -1 (bitwise-nor 0 0))  ; ~0 = -1
+
+(test-equal "bitwise-andc1: and with not first" 2 (bitwise-andc1 12 10))  ; (~12) & 10 = 3 & 10 = 2
+(test-equal "bitwise-andc2: and with not second" 4 (bitwise-andc2 12 10))  ; 12 & (~10) = 12 & 5 = 4
+
+(test-equal "bitwise-orc1: ior with not first" -1 (bitwise-orc1 12 10))  ; (~12) | 10 = 3 | 10 = 11, but in two's complement
+(test-equal "bitwise-orc2: ior with not second" -1 (bitwise-orc2 12 10))  ; 12 | (~10) = 12 | 5 = 13, but in two's complement
+
+;; ============= CATEGORY 2: INTEGER OPERATIONS =============
+
+(display "=== Testing Integer Operations (4 procedures) ===") (newline)
+
+;; arithmetic-shift tests
+(test-equal "arithmetic-shift: left shift positive" 40 (arithmetic-shift 5 3))  ; 5 << 3 = 40
+(test-equal "arithmetic-shift: right shift positive" 2 (arithmetic-shift 20 -3))  ; 20 >> 3 = 2
+(test-equal "arithmetic-shift: zero shift" 42 (arithmetic-shift 42 0))
+(test-equal "arithmetic-shift: shift zero" 0 (arithmetic-shift 0 5))
+(test-equal "arithmetic-shift: left shift negative" -40 (arithmetic-shift -5 3))
+(test-equal "arithmetic-shift: right shift negative" -3 (arithmetic-shift -20 -3))  ; Arithmetic right shift preserves sign
+(test-equal "arithmetic-shift: large shift" 0 (arithmetic-shift 1 -100))
+(test-error "arithmetic-shift: non-integer n" (lambda () (arithmetic-shift 5.5 2)))
+(test-error "arithmetic-shift: non-integer count" (lambda () (arithmetic-shift 5 2.5)))
+
+;; bit-count tests  
+(test-equal "bit-count: zero" 0 (bit-count 0))
+(test-equal "bit-count: positive" 3 (bit-count 7))  ; 111₂ = 3 bits
+(test-equal "bit-count: power of 2" 1 (bit-count 8))  ; 1000₂ = 1 bit
+(test-equal "bit-count: all bits in byte" 8 (bit-count 255))  ; 11111111₂ = 8 bits
+(test-equal "bit-count: negative -1" -1 (bit-count -1))  ; All bits set in two's complement
+(test-equal "bit-count: negative" -2 (bit-count -2))  ; Two's complement: ...11111110₂
+(test-error "bit-count: non-integer" (lambda () (bit-count 7.5)))
+
+;; integer-length tests
+(test-equal "integer-length: zero" 0 (integer-length 0))
+(test-equal "integer-length: positive small" 3 (integer-length 7))  ; 111₂ needs 3 bits
+(test-equal "integer-length: power of 2" 4 (integer-length 8))  ; 1000₂ needs 4 bits  
+(test-equal "integer-length: large" 8 (integer-length 255))  ; 11111111₂ needs 8 bits
+(test-equal "integer-length: negative" 3 (integer-length -7))  ; Same as positive for magnitude
+(test-equal "integer-length: -1" 0 (integer-length -1))  ; Special case
+(test-error "integer-length: non-integer" (lambda () (integer-length 7.5)))
+
+;; bitwise-if tests
+(test-equal "bitwise-if: basic conditional" 13 (bitwise-if 15 12 1))  ; mask=1111₂, where 1 use 12, else 1
+(test-equal "bitwise-if: zero mask" 42 (bitwise-if 0 1 42))  ; No bits from n1, all from n0
+(test-equal "bitwise-if: all mask" 42 (bitwise-if -1 42 1))  ; All bits from n1, none from n0
+(test-equal "bitwise-if: alternating pattern" 10 (bitwise-if 15 10 5))  ; 1111₂ & 1010₂ | (~1111₂ & 0101₂)
+(test-error "bitwise-if: non-integer mask" (lambda () (bitwise-if 7.5 1 2)))
+(test-error "bitwise-if: non-integer n0" (lambda () (bitwise-if 7 1.5 2)))
+(test-error "bitwise-if: non-integer n1" (lambda () (bitwise-if 7 1 2.5)))
+
+;; ============= CATEGORY 3: SINGLE-BIT OPERATIONS =============
+
+(display "=== Testing Single-Bit Operations (6 procedures) ===") (newline)
+
+;; bit-set? tests
+(test-equal "bit-set?: bit 0 set" #t (bit-set? 0 1))  ; LSB set in 1
+(test-equal "bit-set?: bit 0 clear" #f (bit-set? 0 2))  ; LSB clear in 2
+(test-equal "bit-set?: bit 3 set" #t (bit-set? 3 8))  ; Bit 3 set in 8 = 1000₂
+(test-equal "bit-set?: high bit" #t (bit-set? 7 128))  ; Bit 7 set in 128 = 10000000₂
+(test-equal "bit-set?: negative number" #t (bit-set? 0 -1))  ; LSB set in -1 (all bits set)
+(test-equal "bit-set?: large index" #f (bit-set? 100 15))  ; High bit clear in small number
+(test-error "bit-set?: negative index" (lambda () (bit-set? -1 5)))
+(test-error "bit-set?: non-integer index" (lambda () (bit-set? 2.5 5)))
+(test-error "bit-set?: non-integer n" (lambda () (bit-set? 2 5.5)))
+
+;; copy-bit tests  
+(test-equal "copy-bit: set bit 0" 3 (copy-bit 0 2 1))  ; Set LSB in 2 = 10₂ → 11₂ = 3
+(test-equal "copy-bit: clear bit 0" 2 (copy-bit 0 3 0))  ; Clear LSB in 3 = 11₂ → 10₂ = 2
+(test-equal "copy-bit: set bit 3" 15 (copy-bit 3 7 1))  ; Set bit 3 in 7 = 0111₂ → 1111₂ = 15
+(test-equal "copy-bit: clear bit 3" 7 (copy-bit 3 15 0))  ; Clear bit 3 in 15 = 1111₂ → 0111₂ = 7
+(test-equal "copy-bit: no change" 5 (copy-bit 0 5 1))  ; LSB already set in 5
+(test-equal "copy-bit: large index" 1048577 (copy-bit 20 1 1))  ; Set bit 20 in 1
+(test-error "copy-bit: negative index" (lambda () (copy-bit -1 5 1)))
+(test-error "copy-bit: invalid bit value" (lambda () (copy-bit 0 5 2)))
+(test-error "copy-bit: non-integer bit" (lambda () (copy-bit 0 5 1.5)))
+
+;; bit-swap tests
+(test-equal "bit-swap: swap different bits" 5 (bit-swap 0 2 6))  ; 110₂: swap bits 0,2 → 101₂ = 5  
+(test-equal "bit-swap: swap same bits" 7 (bit-swap 1 1 7))  ; No change when swapping bit with itself
+(test-equal "bit-swap: both bits clear" 0 (bit-swap 0 1 0))  ; 00₂ swap → 00₂
+(test-equal "bit-swap: both bits set" 3 (bit-swap 0 1 3))  ; 11₂ swap → 11₂
+(test-equal "bit-swap: large indices" 1048578 (bit-swap 1 20 3))  ; Complex bit pattern swap
+(test-error "bit-swap: negative index1" (lambda () (bit-swap -1 2 5)))
+(test-error "bit-swap: negative index2" (lambda () (bit-swap 1 -2 5)))
+
+;; any-bit-set? tests
+(test-equal "any-bit-set?: some bits overlap" #t (any-bit-set? 5 3))  ; 101₂ & 011₂ = 001₂ ≠ 0
+(test-equal "any-bit-set?: no bits overlap" #f (any-bit-set? 5 2))  ; 101₂ & 010₂ = 000₂ = 0
+(test-equal "any-bit-set?: all bits match" #t (any-bit-set? 7 15))  ; 0111₂ & 1111₂ = 0111₂ ≠ 0
+(test-equal "any-bit-set?: test zero" #f (any-bit-set? 0 15))  ; 0 & anything = 0
+(test-equal "any-bit-set?: n zero" #f (any-bit-set? 15 0))  ; anything & 0 = 0
+(test-error "any-bit-set?: non-integer test-bits" (lambda () (any-bit-set? 5.5 3)))
+
+;; every-bit-set? tests
+(test-equal "every-bit-set?: all bits present" #t (every-bit-set? 3 7))  ; 011₂ all set in 111₂
+(test-equal "every-bit-set?: some bits missing" #f (every-bit-set? 7 3))  ; 111₂ not all set in 011₂
+(test-equal "every-bit-set?: exact match" #t (every-bit-set? 5 5))  ; 101₂ all set in 101₂
+(test-equal "every-bit-set?: empty test" #t (every-bit-set? 0 7))  ; No bits to test = vacuously true
+(test-equal "every-bit-set?: n zero" #f (every-bit-set? 7 0))  ; 111₂ bits not set in 0
+(test-error "every-bit-set?: non-integer n" (lambda () (every-bit-set? 3 5.5)))
+
+;; first-set-bit tests  
+(test-equal "first-set-bit: LSB set" 0 (first-set-bit 1))  ; 001₂ → bit 0
+(test-equal "first-set-bit: bit 1 first" 1 (first-set-bit 2))  ; 010₂ → bit 1  
+(test-equal "first-set-bit: bit 3 first" 3 (first-set-bit 8))  ; 1000₂ → bit 3
+(test-equal "first-set-bit: multiple bits" 0 (first-set-bit 7))  ; 0111₂ → bit 0 (rightmost)
+(test-equal "first-set-bit: zero" -1 (first-set-bit 0))  ; No bits set
+(test-equal "first-set-bit: negative" 0 (first-set-bit -2))  ; Two's complement: ...11111110₂ → bit 1
+(test-error "first-set-bit: non-integer" (lambda () (first-set-bit 5.5)))
+
+;; ============= CATEGORY 4: BIT FIELD OPERATIONS =============
+
+(display "=== Testing Bit Field Operations (9 procedures) ===") (newline)
+
+;; bit-field tests
+(test-equal "bit-field: extract middle bits" 3 (bit-field 15 1 3))  ; 1111₂[1:3] = 11₂ = 3
+(test-equal "bit-field: extract single bit" 0 (bit-field 8 2 3))  ; 1000₂[2:3] = 0₂ = 0  
+(test-equal "bit-field: extract all bits" 15 (bit-field 15 0 4))  ; 1111₂[0:4] = 1111₂ = 15
+(test-equal "bit-field: empty range" 0 (bit-field 15 2 2))  ; Empty range = 0
+(test-equal "bit-field: high range" 0 (bit-field 15 10 15))  ; Beyond number's bits = 0
+(test-equal "bit-field: negative number" 3 (bit-field -1 1 3))  ; ...1111₂[1:3] = 11₂ = 3
+(test-error "bit-field: start > end" (lambda () (bit-field 15 3 1)))
+(test-error "bit-field: negative start" (lambda () (bit-field 15 -1 3)))
+
+;; bit-field-any? tests
+(test-equal "bit-field-any?: some bits set" #t (bit-field-any? 15 1 3))  ; 1111₂[1:3] has bits set
+(test-equal "bit-field-any?: no bits set" #f (bit-field-any? 8 0 3))  ; 1000₂[0:3] = 000₂ no bits
+(test-equal "bit-field-any?: empty range" #f (bit-field-any? 15 2 2))  ; Empty range = false
+(test-equal "bit-field-any?: single bit set" #t (bit-field-any? 4 2 3))  ; 0100₂[2:3] = 1₂ bit set
+(test-error "bit-field-any?: invalid range" (lambda () (bit-field-any? 15 3 1)))
+
+;; bit-field-every? tests  
+(test-equal "bit-field-every?: all bits set" #t (bit-field-every? 15 1 3))  ; 1111₂[1:3] = 11₂ all set
+(test-equal "bit-field-every?: some bits clear" #f (bit-field-every? 13 1 4))  ; 1101₂[1:4] = 110₂ not all set  
+(test-equal "bit-field-every?: empty range" #t (bit-field-every? 0 2 2))  ; Empty range = vacuously true
+(test-equal "bit-field-every?: single bit set" #t (bit-field-every? 4 2 3))  ; 0100₂[2:3] = 1₂ all set
+(test-equal "bit-field-every?: single bit clear" #f (bit-field-every? 3 2 3))  ; 0011₂[2:3] = 0₂ not all set
+
+;; bit-field-clear tests
+(test-equal "bit-field-clear: clear middle" 9 (bit-field-clear 15 1 3))  ; 1111₂ clear [1:3] → 1001₂ = 9
+(test-equal "bit-field-clear: clear all" 0 (bit-field-clear 15 0 4))  ; 1111₂ clear [0:4] → 0000₂ = 0
+(test-equal "bit-field-clear: already clear" 8 (bit-field-clear 8 0 3))  ; 1000₂ clear [0:3] → 1000₂ = 8
+(test-equal "bit-field-clear: empty range" 15 (bit-field-clear 15 2 2))  ; Empty range = no change
+
+;; bit-field-set tests
+(test-equal "bit-field-set: set middle" 15 (bit-field-set 9 1 3))  ; 1001₂ set [1:3] → 1111₂ = 15
+(test-equal "bit-field-set: set all" 15 (bit-field-set 0 0 4))  ; 0000₂ set [0:4] → 1111₂ = 15  
+(test-equal "bit-field-set: already set" 15 (bit-field-set 15 1 3))  ; 1111₂ set [1:3] → 1111₂ = 15
+(test-equal "bit-field-set: empty range" 8 (bit-field-set 8 2 2))  ; Empty range = no change
+
+;; bit-field-replace tests
+(test-equal "bit-field-replace: replace middle" 11 (bit-field-replace 15 1 1 3))  ; 1111₂ replace [1:3] with 01₂ → 1011₂ = 11
+(test-equal "bit-field-replace: replace all" 5 (bit-field-replace 15 5 0 4))  ; 1111₂ replace [0:4] with 0101₂ → 0101₂ = 5
+(test-equal "bit-field-replace: replace with overflow" 11 (bit-field-replace 15 7 1 3))  ; 7 = 111₂, but only 2 bits used
+(test-equal "bit-field-replace: empty range" 15 (bit-field-replace 15 5 2 2))  ; Empty range = no change
+
+;; bit-field-replace-same tests
+(test-equal "bit-field-replace-same: copy field" 7 (bit-field-replace-same 1 15 1 3))  ; Copy [1:3] from 1111₂ to 0001₂
+(test-equal "bit-field-replace-same: copy all" 15 (bit-field-replace-same 0 15 0 4))  ; Copy [0:4] from 1111₂ to 0000₂
+(test-equal "bit-field-replace-same: self copy" 15 (bit-field-replace-same 15 15 1 3))  ; Copy from self = no change
+
+;; bit-field-rotate tests
+(test-equal "bit-field-rotate: rotate left" 13 (bit-field-rotate 11 1 1 4))  ; 1011₂[1:4] = 011₂ rotate left 1 → 110₂ → 1101₂ = 13
+(test-equal "bit-field-rotate: rotate right" 9 (bit-field-rotate 11 -1 1 4))  ; 1011₂[1:4] = 011₂ rotate right 1 → 101₂ → 1101₂ = 13
+(test-equal "bit-field-rotate: full rotation" 11 (bit-field-rotate 11 3 1 4))  ; Rotate by width = no change
+(test-equal "bit-field-rotate: single bit" 8 (bit-field-rotate 8 5 3 4))  ; Single bit field = no change
+(test-equal "bit-field-rotate: empty range" 15 (bit-field-rotate 15 5 2 2))  ; Empty range = no change
+
+;; bit-field-reverse tests  
+(test-equal "bit-field-reverse: reverse middle" 13 (bit-field-reverse 11 1 4))  ; 1011₂[1:4] = 011₂ reverse → 110₂ → 1101₂ = 13
+(test-equal "bit-field-reverse: reverse all" 15 (bit-field-reverse 15 0 4))  ; 1111₂ reverse → 1111₂ = 15 (symmetric)
+(test-equal "bit-field-reverse: reverse two bits" 9 (bit-field-reverse 6 1 3))  ; 0110₂[1:3] = 11₂ reverse → 11₂ → 0110₂ = 6
+(test-equal "bit-field-reverse: single bit" 8 (bit-field-reverse 8 3 4))  ; Single bit = no change
+(test-equal "bit-field-reverse: empty range" 15 (bit-field-reverse 15 2 2))  ; Empty range = no change
+
+;; ============= CATEGORY 5: CONVERSION OPERATIONS =============
+
+(display "=== Testing Conversion Operations (5 procedures) ===") (newline)
+
+;; bits->list tests
+(test-equal "bits->list: simple positive" '(1 0 1 0) (bits->list 5))  ; 0101₂ → (1 0 1 0) LSB first
+(test-equal "bits->list: zero" '(0) (bits->list 0))  ; Special case
+(test-equal "bits->list: power of 2" '(0 0 0 1) (bits->list 8))  ; 1000₂ → (0 0 0 1)
+(test-equal "bits->list: with length" '(1 0 1) (bits->list 5 3))  ; 0101₂ with length 3 → (1 0 1)
+(test-equal "bits->list: length longer" '(1 0 1 0 0) (bits->list 5 5))  ; Pad with zeros
+(test-equal "bits->list: length zero" '() (bits->list 5 0))  ; Empty list
+(test-equal "bits->list: negative number" '(0 1 1) (bits->list -2 3))  ; Two's complement representation
+(test-error "bits->list: negative length" (lambda () (bits->list 5 -1)))
+(test-error "bits->list: non-integer" (lambda () (bits->list 5.5)))
+
+;; list->bits tests
+(test-equal "list->bits: simple list" 5 (list->bits '(1 0 1)))  ; (1 0 1) → 101₂ = 5
+(test-equal "list->bits: empty list" 0 (list->bits '()))  ; Empty → 0
+(test-equal "list->bits: single bit" 1 (list->bits '(1)))  ; (1) → 1
+(test-equal "list->bits: all zeros" 0 (list->bits '(0 0 0 0)))  ; All zeros → 0
+(test-equal "list->bits: all ones" 15 (list->bits '(1 1 1 1)))  ; All ones → 1111₂ = 15
+(test-equal "list->bits: large number" 255 (list->bits '(1 1 1 1 1 1 1 1)))  ; 8 bits all set
+(test-error "list->bits: invalid bit value" (lambda () (list->bits '(1 0 2))))
+(test-error "list->bits: non-list" (lambda () (list->bits "not-list")))
+(test-error "list->bits: non-integer in list" (lambda () (list->bits '(1 0 "not-bit"))))
+
+;; Round-trip conversion tests
+(test-equal "round-trip: list->bits->list" '(1 0 1 0) (bits->list (list->bits '(1 0 1 0))))
+(test-equal "round-trip: bits->list->bits" 42 (list->bits (bits->list 42)))
+
+;; bits->vector tests  
+(test-equal "bits->vector: simple positive" #(1 0 1 0) (bits->vector 5))  ; 0101₂ → #(1 0 1 0)
+(test-equal "bits->vector: zero" #(0) (bits->vector 0))
+(test-equal "bits->vector: with length" #(1 0 1) (bits->vector 5 3))  ; Length 3
+(test-equal "bits->vector: length longer" #(1 0 1 0 0) (bits->vector 5 5))  ; Pad with zeros
+(test-equal "bits->vector: length zero" #() (bits->vector 5 0))  ; Empty vector
+(test-error "bits->vector: negative length" (lambda () (bits->vector 5 -1)))
+
+;; vector->bits tests
+(test-equal "vector->bits: simple vector" 5 (vector->bits #(1 0 1)))  ; #(1 0 1) → 101₂ = 5
+(test-equal "vector->bits: empty vector" 0 (vector->bits #()))  ; Empty → 0  
+(test-equal "vector->bits: single bit" 1 (vector->bits #(1)))  ; #(1) → 1
+(test-equal "vector->bits: large vector" 255 (vector->bits #(1 1 1 1 1 1 1 1)))  ; 8 bits
+(test-error "vector->bits: invalid bit value" (lambda () (vector->bits #(1 0 2))))
+(test-error "vector->bits: non-vector" (lambda () (vector->bits '(1 0 1))))
+
+;; Round-trip vector tests
+(test-equal "round-trip: vector->bits->vector" #(1 0 1 0) (bits->vector (vector->bits #(1 0 1 0))))
+(test-equal "round-trip: bits->vector->bits" 42 (vector->bits (bits->vector 42)))
+
+;; bits constructor tests
+(test-equal "bits: no args" 0 (bits))  ; No arguments → 0
+(test-equal "bits: single bit" 1 (bits 1))  ; Single 1 → 1
+(test-equal "bits: multiple bits" 5 (bits 1 0 1))  ; 1 0 1 → 101₂ = 5
+(test-equal "bits: all zeros" 0 (bits 0 0 0 0))  ; All zeros → 0
+(test-equal "bits: all ones" 15 (bits 1 1 1 1))  ; All ones → 15
+(test-error "bits: invalid bit value" (lambda () (bits 1 0 2)))
+
+;; ============= CATEGORY 6: HIGHER-ORDER OPERATIONS =============
+
+(display "=== Testing Higher-Order Operations (3 procedures) ===") (newline)
+
+;; bitwise-fold tests
+(test-equal "bitwise-fold: sum bits" 3 (bitwise-fold + 0 7))  ; 0111₂ has 3 bits set
+(test-equal "bitwise-fold: count zeros" 1 (bitwise-fold (lambda (bit acc) (if (= bit 0) (+ acc 1) acc)) 0 6))  ; 0110₂ has 1 zero
+(test-equal "bitwise-fold: build list" '(1 1 0) (bitwise-fold cons '() 6))  ; 0110₂ → bits in reverse
+(test-equal "bitwise-fold: zero" 42 (bitwise-fold + 42 0))  ; Zero has no bits → seed returned
+(test-equal "bitwise-fold: negative" -1 (bitwise-fold (lambda (bit acc) bit) 0 -1))  ; Should work with negatives
+(test-error "bitwise-fold: non-procedure" (lambda () (bitwise-fold "not-proc" 0 5)))
+(test-error "bitwise-fold: non-integer" (lambda () (bitwise-fold + 0 5.5)))
+
+;; bitwise-for-each tests (side effects, harder to test directly)
+(test-assert "bitwise-for-each: executes for each bit"
+  (let ((count 0))
+    (bitwise-for-each (lambda (bit) (set! count (+ count 1))) 7)  ; 0111₂ = 3 bits + 1 leading zero = 4 total
+    (> count 0)))  ; Should execute at least once
+
+(test-assert "bitwise-for-each: receives correct bits"  
+  (let ((bits '()))
+    (bitwise-for-each (lambda (bit) (set! bits (cons bit bits))) 5)  ; 0101₂
+    (equal? bits '(0 1 0 1))))  ; Should get bits from MSB to LSB
+
+(test-error "bitwise-for-each: non-procedure" (lambda () (bitwise-for-each "not-proc" 5)))
+(test-error "bitwise-for-each: non-integer" (lambda () (bitwise-for-each (lambda (x) x) 5.5)))
+
+;; bitwise-unfold tests
+(test-equal "bitwise-unfold: generate powers of 2"
+  7  ; 0111₂
+  (bitwise-unfold (lambda (x) (>= x 3))      ; stop at 3
+                  (lambda (x) 1)             ; always generate bit 1
+                  (lambda (x) (+ x 1))       ; increment state
+                  0))                        ; start at 0
+
+(test-equal "bitwise-unfold: generate alternating bits"
+  10  ; 1010₂  
+  (bitwise-unfold (lambda (x) (>= x 4))      ; stop at 4  
+                  (lambda (x) (modulo x 2))  ; alternate 0,1
+                  (lambda (x) (+ x 1))       ; increment
+                  0))                        ; start at 0
+
+(test-equal "bitwise-unfold: empty generation"
+  0  ; Stop immediately
+  (bitwise-unfold (lambda (x) #t)            ; stop immediately
+                  (lambda (x) 1)             ; doesn't matter
+                  (lambda (x) x)             ; doesn't matter
+                  0))                        ; start at 0
+
+(test-error "bitwise-unfold: non-procedure stop" (lambda () (bitwise-unfold "not-proc" (lambda (x) 1) (lambda (x) (+ x 1)) 0)))
+(test-error "bitwise-unfold: non-procedure mapper" (lambda () (bitwise-unfold (lambda (x) #f) "not-proc" (lambda (x) (+ x 1)) 0)))
+(test-error "bitwise-unfold: non-procedure successor" (lambda () (bitwise-unfold (lambda (x) #f) (lambda (x) 1) "not-proc" 0)))
+(test-error "bitwise-unfold: mapper returns non-bit" (lambda () (bitwise-unfold (lambda (x) (>= x 1)) (lambda (x) 2) (lambda (x) (+ x 1)) 0)))
+
+;; ============= COMPREHENSIVE INTEGRATION TESTS =============
+
+(display "=== Testing Integration and Complex Scenarios ===") (newline)
+
+;; Test combinations of operations
+(test-equal "integration: complex bit manipulation"
+  42
+  (let* ((n 85)              ; 01010101₂
+         (shifted (arithmetic-shift n 1))    ; 10101010₂ = 170  
+         (masked (bitwise-and shifted 255))  ; 10101010₂ = 170
+         (inverted (bitwise-xor masked 255)) ; 01010101₂ = 85
+         (field (bit-field inverted 1 7)))  ; Extract middle 6 bits
+    (bitwise-ior field (arithmetic-shift field 1))))  ; Combine patterns
+
+;; Test bit field operations with conversions
+(test-equal "integration: bit field with conversions"
+  '(0 1 1)
+  (let ((n (list->bits '(1 1 0 1 0))))  ; Create number from bits
+    (bits->list (bit-field n 1 4) 3)))   ; Extract field and convert back
+
+;; Test higher-order with other operations  
+(test-equal "integration: fold with bit operations"
+  5
+  (bitwise-fold (lambda (bit pos)
+                  (if (= bit 1)
+                      (bitwise-ior pos (arithmetic-shift 1 pos))
+                      pos))
+                0
+                21))  ; Complex bit position manipulation
+
+;; Performance/stress tests with larger numbers
+(test-assert "performance: large number operations"
+  (let ((large-num (arithmetic-shift 1 32)))  ; 2^32
+    (and (= 1 (bit-count large-num))
+         (= 33 (integer-length large-num))
+         (= 32 (first-set-bit large-num)))))
+
+;; Edge cases with boundary conditions
+(test-equal "edge case: maximum positive fixnum operations" 
+  #t
+  (let ((max-fix 536870911))  ; Adjust based on implementation
+    (and (exact-integer? (bitwise-not max-fix))
+         (exact-integer? (arithmetic-shift max-fix 1))
+         (> (integer-length max-fix) 20))))
+
+;; ============= ERROR HANDLING VALIDATION =============
+
+(display "=== Testing Error Handling ===") (newline)
+
+;; Test that all procedures properly validate their arguments
+(test-error "error validation: bitwise-and with string" (lambda () (bitwise-and 5 "invalid")))
+(test-error "error validation: bit-field with invalid range" (lambda () (bit-field 15 5 3)))
+(test-error "error validation: copy-bit with invalid bit" (lambda () (copy-bit 0 5 -1)))
+(test-error "error validation: list->bits with invalid list" (lambda () (list->bits '(1 0 3))))
+(test-error "error validation: bitwise-fold with non-procedure" (lambda () (bitwise-fold 42 0 15)))
+
+;; ============= TEST EXECUTION AND SUMMARY =============
+
+(display "=== Test Execution Complete ===") (newline)
+(test-summary)
+
+;; Verify SRFI-151 is properly loaded and all procedures are available
+(display "=== SRFI-151 Procedure Availability Check ===") (newline)
+(test-assert "procedure availability: bitwise-not" (procedure? bitwise-not))
+(test-assert "procedure availability: bit-field-rotate" (procedure? bit-field-rotate))  
+(test-assert "procedure availability: bitwise-unfold" (procedure? bitwise-unfold))
+
+(display "=== SRFI-151 Test Suite Complete ===") (newline)

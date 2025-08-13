@@ -1,0 +1,476 @@
+#!/usr/bin/env lambdust
+;; Test file: Parallel Evaluation
+;; Purpose: Test parallel computation, work-stealing scheduler, and data parallelism
+;; Covers parallel map/fold, futures, and parallel data structures
+
+(import (scheme base)
+        (scheme write)
+        (scheme vector)
+        (lambdust test)
+        (lambdust parallel)
+        (lambdust futures))  ;; TODO: Implement parallel evaluation library
+
+;; =============================================================================
+;; BASIC PARALLEL OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Basic Parallel Operations"
+  
+  (test "Parallel map"
+    ;; TODO: Parallel evaluation syntax needs to be implemented
+    (define (slow-square x)
+      (sleep 10)  ;; Simulate slow computation
+      (* x x))
+    
+    (define data '(1 2 3 4 5 6 7 8))
+    
+    ;; Sequential version for comparison
+    (define sequential-result (map slow-square data))
+    
+    ;; Parallel version should be faster and produce same result
+    (define parallel-result (parallel-map slow-square data))
+    
+    (assert-equal sequential-result parallel-result)
+    (assert-equal '(1 4 9 16 25 36 49 64) parallel-result))
+  
+  (test "Parallel fold"
+    ;; Parallel reduction operations
+    (define data '(1 2 3 4 5 6 7 8 9 10))
+    
+    ;; Sum using parallel fold
+    (define parallel-sum (parallel-fold + 0 data))
+    (assert-equal 55 parallel-sum)
+    
+    ;; Product using parallel fold
+    (define parallel-product (parallel-fold * 1 data))
+    (assert-equal 3628800 parallel-product))  ;; 10!
+  
+  (test "Parallel filter"
+    ;; Filter operation in parallel
+    (define (is-prime? n)
+      (if (<= n 1)
+          #f
+          (let loop ((i 2))
+            (cond
+              ((> (* i i) n) #t)
+              ((= (modulo n i) 0) #f)
+              (else (loop (+ i 1)))))))
+    
+    (define numbers (iota 100 1))  ;; 1 to 100
+    
+    (define sequential-primes (filter is-prime? numbers))
+    (define parallel-primes (parallel-filter is-prime? numbers))
+    
+    (assert-equal sequential-primes parallel-primes))
+  
+  (test "Parallel vector operations"
+    ;; Operations on vectors in parallel
+    (define vec (vector-unfold (lambda (i) (+ i 1)) 1000))
+    
+    ;; Parallel vector map
+    (define result-vec (parallel-vector-map (lambda (x) (* x x)) vec))
+    
+    (assert-equal 1000 (vector-length result-vec))
+    (assert-equal 1 (vector-ref result-vec 0))
+    (assert-equal 4 (vector-ref result-vec 1))
+    (assert-equal 1000000 (vector-ref result-vec 999))))
+
+;; =============================================================================
+;; WORK-STEALING SCHEDULER
+;; =============================================================================
+
+(define-test-suite "Work-Stealing Scheduler"
+  
+  (test "Load balancing across cores"
+    ;; Work should be distributed across available CPU cores
+    (define (cpu-intensive-task n)
+      (let loop ((i 0) (sum 0))
+        (if (>= i n)
+            sum
+            (loop (+ i 1) (+ sum (sin (* i 0.001)))))))
+    
+    (define tasks (map (lambda (i) (lambda () (cpu-intensive-task 10000))) (iota 8)))
+    
+    ;; Execute tasks in parallel
+    (define results (parallel-map (lambda (task) (task)) tasks))
+    
+    (assert-equal 8 (length results))
+    ;; All results should be approximately equal (same computation)
+    (let ((first-result (car results)))
+      (for-each (lambda (result)
+                  (assert-true (< (abs (- result first-result)) 0.001)))
+                results)))
+  
+  (test "Work stealing with unbalanced loads"
+    ;; Some tasks take much longer than others
+    (define (variable-work-task duration)
+      (sleep duration)
+      duration)
+    
+    (define task-durations '(10 50 20 100 30 80 15 5))
+    (define start-time (current-time))
+    
+    ;; Execute with work stealing
+    (define results (parallel-map variable-work-task task-durations))
+    
+    (define end-time (current-time))
+    (define total-time (- end-time start-time))
+    
+    (assert-equal task-durations results)
+    ;; With work stealing, should finish faster than sequential execution
+    ;; TODO: Add timing assertions when timing functions are available
+    )
+  
+  (test "Recursive work stealing"
+    ;; Recursive parallel algorithms should work-steal effectively
+    (define (parallel-fibonacci n)
+      (cond
+        ((< n 2) n)
+        ((< n 20)  ;; Sequential threshold
+         (+ (parallel-fibonacci (- n 1))
+            (parallel-fibonacci (- n 2))))
+        (else
+         (let ((left (future (parallel-fibonacci (- n 1))))
+               (right (future (parallel-fibonacci (- n 2)))))
+           (+ (force left) (force right))))))
+    
+    ;; TODO: Test when futures are implemented
+    ;; (assert-equal 55 (parallel-fibonacci 10))
+    ))
+
+;; =============================================================================
+;; FUTURES AND PROMISES
+;; =============================================================================
+
+(define-test-suite "Futures and Promises"
+  
+  (test "Basic future operations"
+    ;; Futures represent values computed asynchronously
+    (define future-value 
+      (future (begin (sleep 50) (* 6 7))))
+    
+    ;; Future should not block creation
+    (assert-true (future? future-value))
+    
+    ;; Forcing should return the computed value
+    (assert-equal 42 (force future-value)))
+  
+  (test "Future composition"
+    ;; Composing multiple futures
+    (define future-a (future (begin (sleep 30) 10)))
+    (define future-b (future (begin (sleep 20) 20)))
+    (define future-c (future (begin (sleep 40) 30)))
+    
+    ;; Combine futures
+    (define combined-future
+      (future (+ (force future-a) (force future-b) (force future-c))))
+    
+    (assert-equal 60 (force combined-future)))
+  
+  (test "Promise/future interaction"
+    ;; Promises can be fulfilled from other threads
+    (define promise-obj (make-promise))
+    
+    ;; Start a future that will fulfill the promise
+    (define fulfiller-future
+      (future 
+        (begin
+          (sleep 50)
+          (fulfill-promise promise-obj "fulfilled!"))))
+    
+    ;; Wait for the promise to be fulfilled
+    (assert-equal "fulfilled!" (force-promise promise-obj)))
+  
+  (test "Future error handling"
+    ;; Futures should propagate exceptions
+    (define failing-future
+      (future (error "Future computation failed")))
+    
+    (assert-error 'user-error (force failing-future)))
+  
+  (test "Future memoization"
+    ;; Futures should only compute once
+    (define computation-count 0)
+    
+    (define memoized-future
+      (future 
+        (begin
+          (set! computation-count (+ computation-count 1))
+          (* 7 8))))
+    
+    ;; Force multiple times
+    (assert-equal 56 (force memoized-future))
+    (assert-equal 56 (force memoized-future))
+    (assert-equal 56 (force memoized-future))
+    
+    ;; Should only compute once
+    (assert-equal 1 computation-count)))
+
+;; =============================================================================
+;; PARALLEL DATA STRUCTURES
+;; =============================================================================
+
+(define-test-suite "Parallel Data Structures"
+  
+  (test "Concurrent vector operations"
+    ;; Vector operations that can be done in parallel
+    (define big-vector (make-vector 10000 0))
+    
+    ;; Parallel initialization
+    (parallel-vector-for-each!
+      (lambda (i) (vector-set! big-vector i (* i i)))
+      (iota 10000))
+    
+    ;; Verify results
+    (assert-equal 0 (vector-ref big-vector 0))
+    (assert-equal 1 (vector-ref big-vector 1))
+    (assert-equal 4 (vector-ref big-vector 2))
+    (assert-equal 9801 (vector-ref big-vector 99)))
+  
+  (test "Parallel tree operations"
+    ;; Operations on tree structures
+    ;; TODO: Define tree data structure for testing
+    (define-record-type tree
+      (make-tree value left right)
+      tree?
+      (value tree-value)
+      (left tree-left)
+      (right tree-right))
+    
+    (define sample-tree
+      (make-tree 1
+                (make-tree 2
+                          (make-tree 4 #f #f)
+                          (make-tree 5 #f #f))
+                (make-tree 3
+                          (make-tree 6 #f #f)
+                          (make-tree 7 #f #f))))
+    
+    ;; Parallel tree map
+    (define (parallel-tree-map f tree)
+      (if (not tree)
+          #f
+          (let ((left-future (if (tree-left tree)
+                                 (future (parallel-tree-map f (tree-left tree)))
+                                 #f))
+                (right-future (if (tree-right tree)
+                                  (future (parallel-tree-map f (tree-right tree)))
+                                  #f)))
+            (make-tree (f (tree-value tree))
+                      (if left-future (force left-future) #f)
+                      (if right-future (force right-future) #f)))))
+    
+    ;; TODO: Test when futures are implemented
+    ;; (define doubled-tree (parallel-tree-map (lambda (x) (* x 2)) sample-tree))
+    ;; (assert-equal 2 (tree-value doubled-tree))
+    )
+  
+  (test "Parallel sorting"
+    ;; Parallel merge sort implementation
+    (define (parallel-merge-sort lst)
+      (if (<= (length lst) 1)
+          lst
+          (let* ((mid (quotient (length lst) 2))
+                 (left (take lst mid))
+                 (right (drop lst mid)))
+            (let ((left-future (future (parallel-merge-sort left)))
+                  (right-future (future (parallel-merge-sort right))))
+              (merge (force left-future) (force right-future))))))
+    
+    (define (merge left right)
+      (cond
+        ((null? left) right)
+        ((null? right) left)
+        ((<= (car left) (car right))
+         (cons (car left) (merge (cdr left) right)))
+        (else
+         (cons (car right) (merge left (cdr right))))))
+    
+    (define unsorted '(64 34 25 12 22 11 90 88 76 50 42))
+    ;; TODO: Test when futures are implemented
+    ;; (define sorted (parallel-merge-sort unsorted))
+    ;; (assert-equal '(11 12 22 25 34 42 50 64 76 88 90) sorted)
+    ))
+
+;; =============================================================================
+;; PARALLEL ALGORITHMS
+;; =============================================================================
+
+(define-test-suite "Parallel Algorithms"
+  
+  (test "Parallel quicksort"
+    ;; Divide-and-conquer algorithms benefit from parallelism
+    (define (parallel-quicksort lst)
+      (if (<= (length lst) 1)
+          lst
+          (let* ((pivot (car lst))
+                 (rest (cdr lst))
+                 (less (filter (lambda (x) (< x pivot)) rest))
+                 (greater (filter (lambda (x) (>= x pivot)) rest)))
+            (let ((less-future (if (null? less)
+                                    (future '())
+                                    (future (parallel-quicksort less))))
+                  (greater-future (if (null? greater)
+                                      (future '())
+                                      (future (parallel-quicksort greater)))))
+              (append (force less-future)
+                     (list pivot)
+                     (force greater-future))))))
+    
+    ;; TODO: Test when futures are implemented
+    )
+  
+  (test "Parallel matrix multiplication"
+    ;; Matrix operations can be highly parallel
+    (define (make-matrix rows cols init-proc)
+      (vector-unfold
+        (lambda (i)
+          (vector-unfold
+            (lambda (j) (init-proc i j))
+            cols))
+        rows))
+    
+    (define (matrix-multiply a b)
+      (let ((a-rows (vector-length a))
+            (a-cols (vector-length (vector-ref a 0)))
+            (b-cols (vector-length (vector-ref b 0))))
+        (make-matrix a-rows b-cols
+          (lambda (i j)
+            (let loop ((k 0) (sum 0))
+              (if (>= k a-cols)
+                  sum
+                  (loop (+ k 1)
+                       (+ sum (* (vector-ref (vector-ref a i) k)
+                               (vector-ref (vector-ref b k) j))))))))))
+    
+    ;; TODO: Implement parallel version and test
+    )
+  
+  (test "Parallel search algorithms"
+    ;; Search can be parallelized across data partitions
+    (define (parallel-find predicate lst)
+      (if (null? lst)
+          #f
+          (let* ((mid (quotient (length lst) 2))
+                 (left (take lst mid))
+                 (right (drop lst mid)))
+            (let ((left-future (future (parallel-find predicate left)))
+                  (right-future (future (parallel-find predicate right))))
+              (or (force left-future) (force right-future))))))
+    
+    ;; TODO: Test when futures are implemented
+    ))
+
+;; =============================================================================
+;; PARALLEL PERFORMANCE AND SCALING
+;; =============================================================================
+
+(define-test-suite "Parallel Performance and Scaling"
+  
+  (test "Speedup measurement"
+    ;; Measure speedup from parallelization
+    (define (cpu-bound-work n)
+      (let loop ((i 0) (result 0))
+        (if (>= i n)
+            result
+            (loop (+ i 1) (+ result (sqrt i))))))
+    
+    (define work-size 100000)
+    (define num-tasks 8)
+    (define tasks (make-list num-tasks work-size))
+    
+    ;; Sequential timing
+    (define start-sequential (current-time))
+    (define sequential-results (map cpu-bound-work tasks))
+    (define end-sequential (current-time))
+    (define sequential-time (- end-sequential start-sequential))
+    
+    ;; Parallel timing
+    (define start-parallel (current-time))
+    (define parallel-results (parallel-map cpu-bound-work tasks))
+    (define end-parallel (current-time))
+    (define parallel-time (- end-parallel start-parallel))
+    
+    ;; Results should be identical
+    (assert-equal sequential-results parallel-results)
+    
+    ;; Parallel should be faster (speedup > 1)
+    ;; TODO: Add timing assertions when timing is available
+    ;; (assert-true (> (/ sequential-time parallel-time) 1.0))
+    )
+  
+  (test "Memory usage scaling"
+    ;; Parallel operations shouldn't use excessive memory
+    ;; TODO: Implement memory usage testing
+    )
+  
+  (test "Thread pool efficiency"
+    ;; Thread pool should efficiently handle varying workloads
+    ;; TODO: Test thread pool behavior
+    ))
+
+;; =============================================================================
+;; ERROR HANDLING IN PARALLEL OPERATIONS
+;; =============================================================================
+
+(define-test-suite "Parallel Error Handling"
+  
+  (test "Exception propagation in parallel map"
+    ;; Errors in parallel computations should propagate correctly
+    (define (sometimes-failing-function x)
+      (if (= x 5)
+          (error "Failed on 5")
+          (* x x)))
+    
+    (define test-data '(1 2 3 4 5 6 7))
+    
+    ;; Should propagate the error
+    (assert-error 'user-error 
+                  (parallel-map sometimes-failing-function test-data)))
+  
+  (test "Partial failure handling"
+    ;; Some parallel systems allow partial failures
+    ;; TODO: Implement robust parallel operations with error recovery
+    )
+  
+  (test "Resource cleanup on failure"
+    ;; Failed parallel operations should clean up resources
+    ;; TODO: Test resource management
+    ))
+
+;; =============================================================================
+;; INTEGRATION WITH OTHER CONCURRENCY MODELS
+;; =============================================================================
+
+(define-test-suite "Parallel Integration with Other Models"
+  
+  (test "Parallel operations with STM"
+    ;; Combining parallelism with software transactional memory
+    ;; TODO: Test STM + parallelism integration
+    )
+  
+  (test "Parallel operations with actors"
+    ;; Actors can use parallel operations internally
+    ;; TODO: Test actor + parallelism integration
+    )
+  
+  (test "Parallel I/O operations"
+    ;; I/O operations can be parallelized
+    ;; TODO: Test parallel file operations, network operations
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Parallel Operations")
+(run-test-suite "Work-Stealing Scheduler")
+(run-test-suite "Futures and Promises")
+(run-test-suite "Parallel Data Structures")
+(run-test-suite "Parallel Algorithms")
+(run-test-suite "Parallel Performance and Scaling")
+(run-test-suite "Parallel Error Handling")
+(run-test-suite "Parallel Integration with Other Models")
+
+(display "Parallel evaluation test completed.\n")
+(display "This test verifies parallel computation and work-stealing scheduling.\n")

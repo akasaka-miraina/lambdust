@@ -1,0 +1,352 @@
+#!/usr/bin/env lambdust
+;; Test file: Macro System
+;; Purpose: Test Lambdust's hygienic macro system and syntax transformations
+;; Covers syntax-rules, define-syntax, and advanced macro features
+
+(import (scheme base)
+        (scheme write)
+        (lambdust test))
+
+;; =============================================================================
+;; BASIC SYNTAX-RULES MACROS
+;; =============================================================================
+
+(define-test-suite "Basic Syntax-Rules Macros"
+  
+  (test "Simple pattern replacement"
+    (define-syntax when
+      (syntax-rules ()
+        ((_ condition body ...)
+         (if condition (begin body ...)))))
+    
+    (let ((x 0))
+      (when #t (set! x 1))
+      (assert-equal 1 x))
+    
+    (let ((y 0))
+      (when #f (set! y 99))
+      (assert-equal 0 y)))
+  
+  (test "Multiple patterns"
+    (define-syntax my-let
+      (syntax-rules ()
+        ((_ () body ...)
+         (begin body ...))
+        ((_ ((var val) ...) body ...)
+         ((lambda (var ...) body ...) val ...))))
+    
+    (assert-equal 6 (my-let ((x 2) (y 3)) (+ x y)))
+    (assert-equal 42 (my-let () 42)))
+  
+  (test "Literal identifiers"
+    (define-syntax case-simple
+      (syntax-rules (else)
+        ((_ expr (else result))
+         result)
+        ((_ expr (val result) clause ...)
+         (if (equal? expr 'val)
+             result
+             (case-simple expr clause ...)))))
+    
+    (assert-equal 'found (case-simple 'b 
+                                     ('a 'not-found)
+                                     ('b 'found)
+                                     (else 'default)))
+    (assert-equal 'default (case-simple 'c
+                                       ('a 'not-found)
+                                       ('b 'found)
+                                       (else 'default)))))
+
+;; =============================================================================
+;; ELLIPSIS PATTERNS
+;; =============================================================================
+
+(define-test-suite "Ellipsis Patterns"
+  
+  (test "Simple ellipsis"
+    (define-syntax list-of-squares
+      (syntax-rules ()
+        ((_ x ...)
+         (list (* x x) ...))))
+    
+    (assert-equal '(1 4 9 16) (list-of-squares 1 2 3 4))
+    (assert-equal '() (list-of-squares)))
+  
+  (test "Nested ellipsis"
+    (define-syntax let*
+      (syntax-rules ()
+        ((_ () body ...)
+         (begin body ...))
+        ((_ ((var val) . rest) body ...)
+         (let ((var val))
+           (let* rest body ...)))))
+    
+    (assert-equal 30 (let* ((x 2) (y (* x 3)) (z (+ x y))) (* x z))))
+  
+  (test "Ellipsis with literals"
+    (define-syntax and
+      (syntax-rules ()
+        ((_) #t)
+        ((_ x) x)
+        ((_ x y ...)
+         (if x (and y ...) #f))))
+    
+    (assert-equal #t (and))
+    (assert-equal 42 (and 42))
+    (assert-equal #f (and #t #f #t))
+    (assert-equal 'last (and #t 'middle 'last))))
+
+;; =============================================================================
+;; HYGIENE TESTING
+;; =============================================================================
+
+(define-test-suite "Macro Hygiene"
+  
+  (test "Variable capture prevention"
+    (define-syntax swap!
+      (syntax-rules ()
+        ((_ a b)
+         (let ((temp a))
+           (set! a b)
+           (set! b temp)))))
+    
+    ;; Test that macro-introduced 'temp doesn't capture user 'temp
+    (let ((temp 'outer) (x 1) (y 2))
+      (swap! x y)
+      (assert-equal 2 x)
+      (assert-equal 1 y)
+      (assert-equal 'outer temp)))  ;; User temp unchanged
+  
+  (test "Reference preservation"
+    (let ((if 'not-the-if-special-form))
+      (define-syntax my-when
+        (syntax-rules ()
+          ((_ condition body ...)
+           (if condition (begin body ...)))))
+      
+      ;; Macro should use the real 'if', not the local binding
+      (let ((result 'not-set))
+        (my-when #t (set! result 'set))
+        (assert-equal 'set result))))
+  
+  (test "Keyword capture prevention"
+    (define-syntax test-macro
+      (syntax-rules (special)
+        ((_ special x)
+         (list 'special-case x))
+        ((_ normal x)
+         (list 'normal-case x))))
+    
+    (assert-equal '(special-case 42) (test-macro special 42))
+    (assert-equal '(normal-case 42) (test-macro normal 42))
+    
+    ;; Local binding of 'special' shouldn't affect macro
+    (let ((special 'local-value))
+      (assert-equal '(special-case 42) (test-macro special 42)))))
+
+;; =============================================================================
+;; RECURSIVE MACROS
+;; =============================================================================
+
+(define-test-suite "Recursive Macros"
+  
+  (test "Self-recursive macro"
+    (define-syntax countdown
+      (syntax-rules ()
+        ((_ 0)
+         '(done))
+        ((_ n)
+         (cons n (countdown (- n 1))))))
+    
+    ;; Note: This tests compile-time recursion
+    ;; TODO: This might not work without macro-time arithmetic
+    ;; (assert-equal '(3 2 1 done) (countdown 3))
+    )
+  
+  (test "Mutually recursive macros"
+    (define-syntax even-length?
+      (syntax-rules ()
+        ((_ ()) #t)
+        ((_ (x . xs)) (odd-length? xs))))
+    
+    (define-syntax odd-length?
+      (syntax-rules ()
+        ((_ ()) #f)
+        ((_ (x . xs)) (even-length? xs))))
+    
+    ;; TODO: Test when macro-time recursion is supported
+    ;; (assert-true (even-length? (1 2)))
+    ;; (assert-false (odd-length? (1 2 3)))
+    ))
+
+;; =============================================================================
+;; COMPLEX MACRO PATTERNS
+;; =============================================================================
+
+(define-test-suite "Complex Macro Patterns"
+  
+  (test "Pattern matching with guards"
+    ;; This simulates a simple pattern matching construct
+    (define-syntax match-simple
+      (syntax-rules ()
+        ((_ expr
+            (pattern result) ...)
+         (let ((val expr))
+           (cond
+             ((match-pattern? val 'pattern) result) ...)))))
+    
+    ;; TODO: Requires helper functions for pattern matching
+    )
+  
+  (test "Quasi-quotation in macros"
+    (define-syntax make-list-processor
+      (syntax-rules ()
+        ((_ name operation)
+         (define (name lst)
+           (map (lambda (x) operation) lst)))))
+    
+    ;; TODO: This requires more sophisticated template handling
+    )
+  
+  (test "Macro-generating macros"
+    (define-syntax define-binary-op
+      (syntax-rules ()
+        ((_ name op)
+         (define-syntax name
+           (syntax-rules ()
+             ((_ a b) (op a b)))))))
+    
+    (define-binary-op my-add +)
+    (define-binary-op my-mult *)
+    
+    (assert-equal 7 (my-add 3 4))
+    (assert-equal 12 (my-mult 3 4))))
+
+;; =============================================================================
+;; IDENTIFIER MACROS
+;; =============================================================================
+
+(define-test-suite "Identifier Macros"
+  
+  (test "Simple identifier macro"
+    ;; TODO: This requires define-syntax with identifier transformer
+    ;; (define-syntax current-time
+    ;;   (identifier-syntax (get-current-time)))
+    )
+  
+  (test "Settable identifier macro"
+    ;; TODO: This requires set! transformer support
+    ))
+
+;; =============================================================================
+;; MACRO EXPANSION AND DEBUGGING
+;; =============================================================================
+
+(define-test-suite "Macro Expansion and Debugging"
+  
+  (test "Expansion visibility"
+    ;; TODO: Test macro expansion introspection
+    ;; This would test expand-once, expand-all, etc.
+    )
+  
+  (test "Error reporting"
+    ;; TODO: Test that macro expansion errors provide good source locations
+    ))
+
+;; =============================================================================
+;; MACRO UTILITIES
+;; =============================================================================
+
+(define-test-suite "Macro Utilities"
+  
+  (test "Conditional compilation"
+    (define-syntax when-debugging
+      (syntax-rules ()
+        ((_ body ...)
+         (if debugging-enabled?
+             (begin body ...)
+             (void)))))
+    
+    ;; TODO: Requires compile-time feature detection
+    )
+  
+  (test "Code generation macros"
+    (define-syntax define-accessors
+      (syntax-rules ()
+        ((_ type field ...)
+         (begin
+           (define (type-field obj)
+             (vector-ref obj field-index)) ...))))
+    
+    ;; TODO: Requires compile-time index calculation
+    ))
+
+;; =============================================================================
+;; SYNTAX OBJECT MANIPULATION
+;; =============================================================================
+
+(define-test-suite "Syntax Object Manipulation"
+  
+  (test "Syntax object predicates"
+    ;; TODO: syntax?, identifier?, free-identifier=?, bound-identifier=?
+    )
+  
+  (test "Syntax object construction"
+    ;; TODO: datum->syntax, syntax->datum
+    )
+  
+  (test "Syntax properties"
+    ;; TODO: syntax-source, syntax-line, syntax-column
+    ))
+
+;; =============================================================================
+;; MACRO LIBRARIES AND MODULES
+;; =============================================================================
+
+(define-test-suite "Macro Libraries and Modules"
+  
+  (test "Macro export/import"
+    ;; TODO: Test that macros can be exported from libraries
+    ;; and imported correctly with proper hygiene
+    )
+  
+  (test "Macro phase separation"
+    ;; TODO: Test compile-time vs runtime phases
+    ))
+
+;; =============================================================================
+;; ERROR CASES AND EDGE CONDITIONS
+;; =============================================================================
+
+(define-test-suite "Macro Error Cases"
+  
+  (test "Pattern mismatch errors"
+    ;; TODO: Test that pattern mismatches produce good error messages
+    )
+  
+  (test "Circular macro expansion"
+    ;; TODO: Test detection of circular macro expansion
+    )
+  
+  (test "Invalid syntax-rules patterns"
+    ;; TODO: Test various malformed syntax-rules
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Basic Syntax-Rules Macros")
+(run-test-suite "Ellipsis Patterns")
+(run-test-suite "Macro Hygiene")
+(run-test-suite "Recursive Macros")
+(run-test-suite "Complex Macro Patterns")
+(run-test-suite "Identifier Macros")
+(run-test-suite "Macro Expansion and Debugging")
+(run-test-suite "Macro Utilities")
+(run-test-suite "Syntax Object Manipulation")
+(run-test-suite "Macro Libraries and Modules")
+(run-test-suite "Macro Error Cases")
+
+(display "Macro system test completed.\n")
+(display "This test verifies hygienic macro expansion and syntax transformation.\n")

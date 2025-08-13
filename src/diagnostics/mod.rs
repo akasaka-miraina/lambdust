@@ -6,14 +6,15 @@
 
 #![allow(missing_docs)]
 
-use miette::Diagnostic;
-
 pub mod error;
 pub mod position;
 pub mod span;
 pub mod source_map;
 pub mod stack_trace;
 pub mod suggestions;
+pub mod gc_diagnostics;
+pub mod custom_error;
+pub mod lightweight_diagnostic;
 
 pub use error::*;
 pub use position::*;
@@ -21,88 +22,70 @@ pub use span::{Span, Spanned, spanned};
 pub use source_map::*;
 pub use stack_trace::*;
 pub use suggestions::*;
+pub use gc_diagnostics::{
+    GcDiagnosticManager, GcDiagnosticConfig, DiagnosticId, PreservedError,
+    ErrorKind, ErrorContext, GcAwareError, DiagnosticStatistics
+};
+pub use custom_error::{LambdustError, ErrorLabel, LabelStyle, RuntimeError, utils as error_utils};
+pub use lightweight_diagnostic::{
+    LightweightDiagnostic, DiagnosticLabel, DiagnosticLabelStyle, DiagnosticSeverity,
+    DiagnosticReporter, report_diagnostic
+};
 
 /// Result type used throughout the Lambdust implementation.
 pub type Result<T> = std::result::Result<T, Box<Error>>;
 
 /// Error types for the Lambdust language implementation.
-#[derive(Debug, Clone, thiserror::Error, Diagnostic)]
+#[derive(Debug, Clone)]
 pub enum Error {
     /// Lexical analysis errors
-    #[error("Lexical error: {message}")]
-    #[diagnostic(code(lambdust::lexer::error))]
     LexError {
         message: String,
-        #[label("here")]
         span: Span,
     },
 
     /// Parsing errors
-    #[error("Parse error: {message}")]
-    #[diagnostic(code(lambdust::parser::error))]
     ParseError {
         message: String,
-        #[label("here")]
         span: Span,
     },
 
     /// Type checking errors
-    #[error("Type error: {message}")]
-    #[diagnostic(code(lambdust::types::error))]
     TypeError {
         message: String,
-        #[label("here")]
         span: Span,
     },
 
     /// Macro expansion errors
-    #[error("Macro error: {message}")]
-    #[diagnostic(code(lambdust::macros::error))]
     MacroError {
         message: String,
-        #[label("here")]
         span: Span,
     },
 
     /// Runtime evaluation errors
-    #[error("Runtime error: {message}")]
-    #[diagnostic(code(lambdust::runtime::error))]
     RuntimeError {
         message: String,
-        #[label("here")]
         span: Option<Span>,
     },
 
     /// FFI errors
-    #[error("FFI error: {message}")]
-    #[diagnostic(code(lambdust::ffi::error))]
     FfiError {
         message: String,
     },
 
     /// IO and system errors
-    #[error("IO error: {message}")]
-    #[diagnostic(code(lambdust::io::error))]
     IoError {
         message: String,
     },
 
     /// Internal compiler errors (bugs)
-    #[error("Internal error: {message}")]
-    #[diagnostic(
-        code(lambdust::internal::error),
-        help("This is likely a bug in the Lambdust implementation. Please report it.")
-    )]
     InternalError {
         message: String,
     },
 
     /// R7RS Exception (raised by raise/error procedures)
-    #[error("Exception: {exception}")]
-    #[diagnostic(code(lambdust::exception::error))]
     Exception {
         exception: crate::stdlib::exceptions::ExceptionObject,
-        #[label("raised here")]
         span: Option<Span>,
     },
 }
@@ -200,7 +183,112 @@ impl Error {
             span: None,
         }
     }
+}
 
+// Manual Display implementation to replace thiserror
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::LexError { message, .. } => write!(f, "Lexical error: {message}"),
+            Self::ParseError { message, .. } => write!(f, "Parse error: {message}"),
+            Self::TypeError { message, .. } => write!(f, "Type error: {message}"),
+            Self::MacroError { message, .. } => write!(f, "Macro error: {message}"),
+            Self::RuntimeError { message, .. } => write!(f, "Runtime error: {message}"),
+            Self::FfiError { message } => write!(f, "FFI error: {message}"),
+            Self::IoError { message } => write!(f, "IO error: {message}"),
+            Self::InternalError { message } => write!(f, "Internal error: {message}"),
+            Self::Exception { exception, .. } => write!(f, "Exception: {exception}"),
+        }
+    }
+}
+
+// LambdustError trait implementation
+impl LambdustError for Error {
+    fn error_code(&self) -> &'static str {
+        match self {
+            Self::LexError { .. } => "lambdust::lexer::error",
+            Self::ParseError { .. } => "lambdust::parser::error",
+            Self::TypeError { .. } => "lambdust::types::error",
+            Self::MacroError { .. } => "lambdust::macros::error",
+            Self::RuntimeError { .. } => "lambdust::runtime::error",
+            Self::FfiError { .. } => "lambdust::ffi::error",
+            Self::IoError { .. } => "lambdust::io::error",
+            Self::InternalError { .. } => "lambdust::internal::error",
+            Self::Exception { .. } => "lambdust::exception::error",
+        }
+    }
+    
+    fn help(&self) -> Option<&str> {
+        match self {
+            Self::InternalError { .. } => Some("This is likely a bug in the Lambdust implementation. Please report it."),
+            _ => None,
+        }
+    }
+    
+    fn labels(&self) -> Vec<ErrorLabel> {
+        match self {
+            Self::LexError { span, .. } => vec![ErrorLabel::primary(*span, "here")],
+            Self::ParseError { span, .. } => vec![ErrorLabel::primary(*span, "here")],
+            Self::TypeError { span, .. } => vec![ErrorLabel::primary(*span, "here")],
+            Self::MacroError { span, .. } => vec![ErrorLabel::primary(*span, "here")],
+            Self::RuntimeError { span: Some(span), .. } => vec![ErrorLabel::primary(*span, "here")],
+            Self::Exception { span: Some(span), .. } => vec![ErrorLabel::primary(*span, "raised here")],
+            _ => Vec::new(),
+        }
+    }
+    
+    fn is_critical(&self) -> bool {
+        matches!(self, Self::InternalError { .. })
+    }
+}
+
+// Standard Error trait implementation
+impl std::error::Error for Error {}
+
+// LightweightDiagnostic trait implementation
+impl LightweightDiagnostic for Error {
+    fn code(&self) -> Option<&str> {
+        match self {
+            Self::LexError { .. } => Some("lambdust::lexer::error"),
+            Self::ParseError { .. } => Some("lambdust::parser::error"),
+            Self::TypeError { .. } => Some("lambdust::types::error"),
+            Self::MacroError { .. } => Some("lambdust::macros::error"),
+            Self::RuntimeError { .. } => Some("lambdust::runtime::error"),
+            Self::FfiError { .. } => Some("lambdust::ffi::error"),
+            Self::IoError { .. } => Some("lambdust::io::error"),
+            Self::InternalError { .. } => Some("lambdust::internal::error"),
+            Self::Exception { .. } => Some("lambdust::exception::error"),
+        }
+    }
+    
+    fn help(&self) -> Option<&str> {
+        match self {
+            Self::InternalError { .. } => Some("This is likely a bug in the Lambdust implementation. Please report it."),
+            _ => None,
+        }
+    }
+    
+    fn labels(&self) -> Vec<DiagnosticLabel> {
+        match self {
+            Self::LexError { span, .. } => vec![DiagnosticLabel::primary(*span, "here")],
+            Self::ParseError { span, .. } => vec![DiagnosticLabel::primary(*span, "here")],
+            Self::TypeError { span, .. } => vec![DiagnosticLabel::primary(*span, "here")],
+            Self::MacroError { span, .. } => vec![DiagnosticLabel::primary(*span, "here")],
+            Self::RuntimeError { span: Some(span), .. } => vec![DiagnosticLabel::primary(*span, "here")],
+            Self::Exception { span: Some(span), .. } => vec![DiagnosticLabel::primary(*span, "raised here")],
+            _ => Vec::new(),
+        }
+    }
+    
+    fn severity(&self) -> DiagnosticSeverity {
+        match self {
+            Self::InternalError { .. } => DiagnosticSeverity::Error,
+            _ => DiagnosticSeverity::Error,
+        }
+    }
+}
+
+impl Error {
     /// Creates a compilation error.
     pub fn compilation_error(message: impl Into<String>) -> Self {
         Self::InternalError {

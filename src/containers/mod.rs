@@ -31,6 +31,9 @@ pub mod priority_queue;
 pub mod ordered_set;
 pub mod list_queue;
 pub mod random_access_list;
+pub mod set;
+pub mod bag;
+pub mod generator;
 pub mod comparator;
 pub mod benchmarks;
 
@@ -41,6 +44,9 @@ pub use priority_queue::{PriorityQueue, ThreadSafePriorityQueue};
 pub use ordered_set::{OrderedSet, ThreadSafeOrderedSet};
 pub use list_queue::{ListQueue, ThreadSafeListQueue};
 pub use random_access_list::{RandomAccessList, PersistentRandomAccessList, ThreadSafeRandomAccessList};
+pub use set::{Set, ThreadSafeSet};
+pub use bag::{Bag, ThreadSafeBag};
+pub use generator::{Generator, ThreadSafeGenerator};
 pub use comparator::{Comparator, HashComparator};
 pub use benchmarks::{ContainerBenchmarks, BenchmarkResult, run_quick_benchmark};
 
@@ -74,6 +80,39 @@ pub trait Persistent<T>: Clone {
     
     /// Returns a new container with the given element removed
     fn remove(&self, element: &T) -> Self;
+}
+
+/// Trait for containers that support debugging and introspection
+pub trait Debuggable {
+    /// Returns the debug name of the container, if set
+    fn debug_name(&self) -> Option<&str>;
+    
+    /// Sets the debug name of the container for easier identification
+    fn set_debug_name(&mut self, name: impl Into<String>);
+    
+    /// Clears the debug name
+    fn clear_debug_name(&mut self);
+}
+
+/// Trait for containers that can report and manage capacity
+pub trait Capacity: Container {
+    /// Returns the current capacity of the container
+    fn capacity(&self) -> usize;
+    
+    /// Reserves space for at least `additional` more elements
+    fn reserve(&mut self, additional: usize);
+    
+    /// Shrinks the container's capacity as much as possible
+    fn shrink_to_fit(&mut self);
+    
+    /// Returns the current load factor (elements/capacity)
+    fn load_factor(&self) -> f64 {
+        if self.capacity() == 0 {
+            0.0
+        } else {
+            self.len() as f64 / self.capacity() as f64
+        }
+    }
 }
 
 /// Load factor constants for hash-based containers
@@ -230,6 +269,7 @@ pub mod utils {
             Value::Nil => 3,
             Value::Unspecified => 4,
             Value::Pair(_, _) => 5,
+            Value::MutablePair(_, _) => 5,
             Value::Vector(_) => 6,
             Value::Hashtable(_) => 7,
             Value::Procedure(_) => 8,
@@ -251,14 +291,37 @@ pub mod utils {
             Value::OrderedSet(_) => 24,
             Value::ListQueue(_) => 25,
             Value::RandomAccessList(_) => 26,
-            // Concurrency types
-            Value::Future(_) => 27,
-            Value::Channel(_) => 28,
-            Value::Mutex(_) => 29,
-            Value::Semaphore(_) => 30,
-            Value::AtomicCounter(_) => 31,
-            Value::DistributedNode(_) => 32,
-            Value::Opaque(_) => 33,
+            Value::Set(_) => 27,
+            Value::Bag(_) => 28,
+            // Concurrency types (only available with async-runtime)
+            #[cfg(feature = "async-runtime")]
+            Value::Future(_) => 29,
+            #[cfg(feature = "async-runtime")]
+            Value::Channel(_) => 30,
+            #[cfg(feature = "async-runtime")]
+            Value::Mutex(_) => 31,
+            #[cfg(feature = "async-runtime")]
+            Value::Semaphore(_) => 32,
+            #[cfg(feature = "async-runtime")]
+            Value::AtomicCounter(_) => 33,
+            #[cfg(feature = "async-runtime")]
+            Value::DistributedNode(_) => 34,
+            Value::MutableString(s) => {
+                match s.read() {
+                    Ok(chars) => {
+                        use std::collections::hash_map::DefaultHasher;
+                        use std::hash::{Hash, Hasher};
+                        let mut hasher = DefaultHasher::new();
+                        for ch in chars.iter() {
+                            ch.hash(&mut hasher);
+                        }
+                        35u8
+                    }
+                    Err(_) => 35, // Fallback for locked strings
+                }
+            }
+            Value::Generator(_) => 36,
+            Value::Opaque(_) => 37,
         }
     }
     
@@ -267,8 +330,11 @@ pub mod utils {
         use std::cmp::Ordering;
         
         match (a, b) {
-            (Literal::Number(n_a), Literal::Number(n_b)) => {
-                n_a.partial_cmp(n_b).unwrap_or(Ordering::Equal)
+            (a, b) if a.is_number() && b.is_number() => {
+                match (a.to_f64(), b.to_f64()) {
+                    (Some(n_a), Some(n_b)) => n_a.partial_cmp(&n_b).unwrap_or(Ordering::Equal),
+                    _ => Ordering::Equal
+                }
             }
             (Literal::String(s_a), Literal::String(s_b)) => s_a.cmp(s_b),
             (Literal::Character(c_a), Literal::Character(c_b)) => c_a.cmp(c_b),
@@ -343,7 +409,7 @@ pub mod utils {
     fn estimate_literal_memory(lit: &crate::ast::Literal) -> usize {
         use crate::ast::Literal;
         match lit {
-            Literal::Number(_) => std::mem::size_of::<f64>(),
+            Literal::ExactInteger(_) | Literal::InexactReal(_) | Literal::Number(_) => std::mem::size_of::<f64>(),
             Literal::String(s) => std::mem::size_of::<String>() + s.len(),
             Literal::Character(_) => std::mem::size_of::<char>(),
             Literal::Boolean(_) => std::mem::size_of::<bool>(),

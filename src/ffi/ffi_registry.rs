@@ -1,5 +1,6 @@
 use super::{FfiError, FfiFunction, RegisteredFunction, FfiStats, FfiSignature};
-use super::builtins::*;
+use super::builtin_ffi_module::BuiltinFfiModule;
+use super::registry::FfiModule;
 use crate::eval::Value;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -114,31 +115,7 @@ impl FfiRegistry {
     
     /// Registers built-in FFI functions.
     fn register_builtins(&self) {
-        // Register basic arithmetic functions
-        self.register(AddFunction).ok();
-        self.register(SubtractFunction).ok();
-        self.register(MultiplyFunction).ok();
-        self.register(DivideFunction).ok();
-        
-        // Register string functions
-        self.register(StringLengthFunction).ok();
-        self.register(StringConcatFunction).ok();
-        self.register(StringUpperFunction).ok();
-        self.register(StringLowerFunction).ok();
-        
-        // Register list functions
-        self.register(ListLengthFunction).ok();
-        self.register(ListMapFunction).ok();
-        self.register(ListFilterFunction).ok();
-        
-        // Register type checking functions
-        self.register(IsNumberFunction).ok();
-        self.register(IsStringFunction).ok();
-        self.register(IsListFunction).ok();
-        self.register(IsBooleanFunction).ok();
-        
-        // Register I/O functions
-        self.register(PrintFunction).ok();
-        self.register(PrintlnFunction).ok();
+        // Use the centralized builtin module registration
+        BuiltinFfiModule::register_functions(self).ok();
     }
 }

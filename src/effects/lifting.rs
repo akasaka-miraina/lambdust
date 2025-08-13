@@ -330,12 +330,22 @@ impl EffectLifter {
     /// Creates an IO action for the given operation.
     fn create_io_action(&self, operation: &str, args: &[Value]) -> Result<IOAction> {
         match operation {
-            "display" | "write" => {
+            "display" => {
                 if let Some(value) = args.first() {
                     Ok(IOAction::Print(value.clone()))
                 } else {
                     Err(Box::new(DiagnosticError::runtime_error(
                         "display requires at least one argument".to_string(),
+                        None,
+                    )))
+                }
+            },
+            "write" => {
+                if let Some(value) = args.first() {
+                    Ok(IOAction::WriteValue(value.clone()))
+                } else {
+                    Err(Box::new(DiagnosticError::runtime_error(
+                        "write requires at least one argument".to_string(),
                         None,
                     )))
                 }

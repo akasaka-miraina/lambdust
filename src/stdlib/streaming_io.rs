@@ -15,8 +15,7 @@ use crate::eval::value::{
 use crate::effects::Effect;
 use std::sync::Arc;
 use std::collections::VecDeque;
-// Most IO traits not currently used
-// use std::io::{Read, Write, BufReader, BufWriter};
+use std::io::{Write, Read}; // Add Write and Read traits for I/O methods
 
 #[cfg(feature = "compression")]
 use flate2::{Compression, read::GzDecoder, write::GzEncoder};
@@ -539,13 +538,13 @@ pub fn primitive_gzip_compress(args: &[Value]) -> Result<Value> {
             match encoder.finish() {
                 Ok(compressed) => Ok(Value::bytevector(compressed)),
                 Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-                    format!("Gzip compression failed: {}", e),
+                    format!("Gzip compression failed: {e}"),
                     None,
                 ))),
             }
         }
         Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-            format!("Gzip compression failed: {}", e),
+            format!("Gzip compression failed: {e}"),
             None,
         ))),
     }
@@ -575,7 +574,7 @@ pub fn primitive_gzip_decompress(args: &[Value]) -> Result<Value> {
     match decoder.read_to_end(&mut decompressed) {
         Ok(_) => Ok(Value::bytevector(decompressed)),
         Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-            format!("Gzip decompression failed: {}", e),
+            format!("Gzip decompression failed: {e}"),
             None,
         ))),
     }
@@ -608,7 +607,7 @@ pub fn primitive_zstd_compress(args: &[Value]) -> Result<Value> {
     match zstd::encode_all(&data[..], level) {
         Ok(compressed) => Ok(Value::bytevector(compressed)),
         Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-            format!("Zstd compression failed: {}", e),
+            format!("Zstd compression failed: {e}"),
             None,
         ))),
     }
@@ -636,7 +635,7 @@ pub fn primitive_zstd_decompress(args: &[Value]) -> Result<Value> {
     match zstd::decode_all(&compressed[..]) {
         Ok(decompressed) => Ok(Value::bytevector(decompressed)),
         Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-            format!("Zstd decompression failed: {}", e),
+            format!("Zstd decompression failed: {e}"),
             None,
         ))),
     }
@@ -687,7 +686,7 @@ pub fn primitive_lz4_decompress(args: &[Value]) -> Result<Value> {
     match decompress(&compressed, expected_size) {
         Ok(decompressed) => Ok(Value::bytevector(decompressed)),
         Err(e) => Err(Box::new(DiagnosticError::runtime_error(
-            format!("LZ4 decompression failed: {}", e),
+            format!("LZ4 decompression failed: {e}"),
             None,
         ))),
     }

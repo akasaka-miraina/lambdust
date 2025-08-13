@@ -431,11 +431,15 @@ impl SyntaxHighlighter {
         {
             let value_str = value.to_string();
             match value {
-                Value::Number(_) => self.color_scheme.number.paint(&value_str).to_string(),
-                Value::String(_) => self.color_scheme.string.paint(&format!("\"{}\"", value_str)).to_string(),
-                Value::Boolean(_) => self.color_scheme.boolean.paint(&value_str).to_string(),
+                Value::Literal(crate::ast::Literal::Number(_)) => 
+                    self.color_scheme.number.paint(&value_str).to_string(),
+                Value::Literal(crate::ast::Literal::String(_)) => 
+                    self.color_scheme.string.paint(&format!("\"{value_str}\"")).to_string(),
+                Value::Literal(crate::ast::Literal::Boolean(_)) => 
+                    self.color_scheme.boolean.paint(&value_str).to_string(),
                 Value::Symbol(_) => value_str,
-                Value::List(_) => self.highlight(&value_str),
+                Value::Pair(_, _) | Value::MutablePair(_, _) => 
+                    self.highlight(&value_str),
                 _ => value_str,
             }
         }

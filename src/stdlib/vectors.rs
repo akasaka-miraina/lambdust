@@ -6,6 +6,7 @@
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
+use crate::numeric::{NumericValue, SimdNumericOps};
 use std::sync::Arc;
 
 /// Creates vector operation bindings for the standard library.
@@ -668,6 +669,12 @@ fn primitive_vector_map(args: &[Value]) -> Result<Value> {
                 let result = match &prim.implementation {
                     PrimitiveImpl::RustFn(func) => func(&proc_args)?,
                     PrimitiveImpl::Native(func) => func(&proc_args)?,
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "vector-map with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
+                    }
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
                             "vector-map with foreign functions not yet implemented".to_string(),
@@ -742,6 +749,12 @@ fn primitive_vector_for_each(args: &[Value]) -> Result<Value> {
                     PrimitiveImpl::Native(func) => {
                         // Call the function but ignore the result (for-each is for side effects)
                         func(&proc_args)?;
+                    },
+                    PrimitiveImpl::EvaluatorIntegrated(_) => {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            "vector-for-each with evaluator-integrated functions requires evaluator access".to_string(),
+                            None,
+                        )));
                     },
                     PrimitiveImpl::ForeignFn { .. } => {
                         return Err(Box::new(DiagnosticError::runtime_error(
@@ -933,8 +946,22 @@ mod tests {
         let args = vec![Value::Primitive(double_proc), vector];
         let result = primitive_vector_map(&args).unwrap();
         
-        let expected = Value::vector(vec![Value::number(2.0), Value::number(4.0), Value::number(6.0)]);
-        assert_eq!(result, expected);
+        // Verify result is a vector
+        assert!(result.is_vector());
+        
+        // Verify result length
+        let result_length = primitive_vector_length(&[result.clone()]).unwrap();
+        assert_eq!(result_length, Value::integer(3));
+        
+        // Verify individual elements
+        let elem0 = primitive_vector_ref(&[result.clone(), Value::integer(0)]).unwrap();
+        assert_eq!(elem0, Value::number(2.0));
+        
+        let elem1 = primitive_vector_ref(&[result.clone(), Value::integer(1)]).unwrap();
+        assert_eq!(elem1, Value::number(4.0));
+        
+        let elem2 = primitive_vector_ref(&[result, Value::integer(2)]).unwrap();
+        assert_eq!(elem2, Value::number(6.0));
     }
     
     #[test]
@@ -958,8 +985,22 @@ mod tests {
         let args = vec![Value::Primitive(add_proc), vector1, vector2];
         let result = primitive_vector_map(&args).unwrap();
         
-        let expected = Value::vector(vec![Value::number(5.0), Value::number(7.0), Value::number(9.0)]);
-        assert_eq!(result, expected);
+        // Verify result is a vector
+        assert!(result.is_vector());
+        
+        // Verify result length
+        let result_length = primitive_vector_length(&[result.clone()]).unwrap();
+        assert_eq!(result_length, Value::integer(3));
+        
+        // Verify individual elements
+        let elem0 = primitive_vector_ref(&[result.clone(), Value::integer(0)]).unwrap();
+        assert_eq!(elem0, Value::number(5.0));
+        
+        let elem1 = primitive_vector_ref(&[result.clone(), Value::integer(1)]).unwrap();
+        assert_eq!(elem1, Value::number(7.0));
+        
+        let elem2 = primitive_vector_ref(&[result, Value::integer(2)]).unwrap();
+        assert_eq!(elem2, Value::number(9.0));
     }
     
     #[test]
@@ -983,8 +1024,19 @@ mod tests {
         let args = vec![Value::Primitive(add_proc), vector1, vector2];
         let result = primitive_vector_map(&args).unwrap();
         
-        let expected = Value::vector(vec![Value::number(5.0), Value::number(7.0)]);
-        assert_eq!(result, expected);
+        // Verify result is a vector
+        assert!(result.is_vector());
+        
+        // Verify result length (should be 2, the shortest input)
+        let result_length = primitive_vector_length(&[result.clone()]).unwrap();
+        assert_eq!(result_length, Value::integer(2));
+        
+        // Verify individual elements
+        let elem0 = primitive_vector_ref(&[result.clone(), Value::integer(0)]).unwrap();
+        assert_eq!(elem0, Value::number(5.0));
+        
+        let elem1 = primitive_vector_ref(&[result, Value::integer(1)]).unwrap();
+        assert_eq!(elem1, Value::number(7.0));
     }
     
     #[test]
@@ -1007,7 +1059,12 @@ mod tests {
         let args = vec![Value::Primitive(double_proc), empty_vector];
         let result = primitive_vector_map(&args).unwrap();
         
-        assert_eq!(result, Value::vector(Vec::new()));
+        // Verify result is a vector
+        assert!(result.is_vector());
+        
+        // Verify result is empty
+        let result_length = primitive_vector_length(&[result]).unwrap();
+        assert_eq!(result_length, Value::integer(0));
     }
     
     #[test]
@@ -1080,5 +1137,45 @@ mod tests {
         let args = vec![Value::Primitive(proc)];
         assert!(primitive_vector_map(&args).is_err());
         assert!(primitive_vector_for_each(&args).is_err());
+    }
+    
+    #[test]
+    fn test_r7rs_small_vector_api_completeness() {
+        // Comprehensive test of all R7RS-small vector procedures
+        
+        // Test vector creation
+        let v1 = primitive_vector(&[Value::integer(1), Value::integer(2), Value::integer(3)]).unwrap();
+        let v2 = primitive_make_vector(&[Value::integer(4), Value::string("fill")]).unwrap();
+        
+        // Test vector predicate
+        assert_eq!(primitive_vector_p(&[v1.clone()]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_vector_p(&[Value::integer(42)]).unwrap(), Value::boolean(false));
+        
+        // Test vector length
+        assert_eq!(primitive_vector_length(&[v1.clone()]).unwrap(), Value::integer(3));
+        assert_eq!(primitive_vector_length(&[v2.clone()]).unwrap(), Value::integer(4));
+        
+        // Test vector-ref and vector-set!
+        assert_eq!(primitive_vector_ref(&[v1.clone(), Value::integer(1)]).unwrap(), Value::integer(2));
+        primitive_vector_set(&[v1.clone(), Value::integer(1), Value::string("modified")]).unwrap();
+        assert_eq!(primitive_vector_ref(&[v1.clone(), Value::integer(1)]).unwrap(), Value::string("modified"));
+        
+        // Test vector-copy
+        let v3 = primitive_vector_copy(&[v1.clone(), Value::integer(0), Value::integer(2)]).unwrap();
+        assert_eq!(primitive_vector_length(&[v3.clone()]).unwrap(), Value::integer(2));
+        
+        // Test vector-fill!
+        primitive_vector_fill(&[v2.clone(), Value::string("filled")]).unwrap();
+        assert_eq!(primitive_vector_ref(&[v2.clone(), Value::integer(0)]).unwrap(), Value::string("filled"));
+        
+        // Test vector-append
+        let v4 = primitive_vector(&[Value::integer(4), Value::integer(5)]).unwrap();
+        let v_appended = primitive_vector_append(&[v1.clone(), v4]).unwrap();
+        assert_eq!(primitive_vector_length(&[v_appended]).unwrap(), Value::integer(5));
+        
+        // Test vector->list and list->vector conversion
+        let as_list = primitive_vector_to_list(&[v1.clone()]).unwrap();
+        let back_to_vector = primitive_list_to_vector(&[as_list]).unwrap();
+        assert_eq!(primitive_vector_length(&[back_to_vector]).unwrap(), Value::integer(3));
     }
 }

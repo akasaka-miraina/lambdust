@@ -112,15 +112,21 @@ impl SerializableValue {
             Value::Nil => Ok(SerializableValue::Nil),
             Value::Literal(lit) => match lit {
                 crate::ast::Literal::Boolean(b) => Ok(SerializableValue::Boolean(*b)),
-                crate::ast::Literal::Number(n) if n.fract() == 0.0 => Ok(SerializableValue::Integer(*n as i64)),
+                crate::ast::Literal::ExactInteger(i) => Ok(SerializableValue::Integer(*i)),
+                crate::ast::Literal::InexactReal(f) => Ok(SerializableValue::Float(*f)),
                 crate::ast::Literal::Number(f) => Ok(SerializableValue::Float(*f)),
+                crate::ast::Literal::Rational { numerator, denominator } => {
+                    if *denominator == 1 {
+                        Ok(SerializableValue::Integer(*numerator))
+                    } else {
+                        Ok(SerializableValue::Float(*numerator as f64 / *denominator as f64))
+                    }
+                }
+                crate::ast::Literal::Complex { real, imaginary: _ } => 
+                    Ok(SerializableValue::Float(*real)), // Only serialize real part
                 crate::ast::Literal::String(s) => Ok(SerializableValue::String(s.clone())),
                 crate::ast::Literal::Character(c) => Ok(SerializableValue::String(c.to_string())),
                 // Handle other literal types
-                crate::ast::Literal::Rational { numerator, denominator } => 
-                    Ok(SerializableValue::Float(*numerator as f64 / *denominator as f64)),
-                crate::ast::Literal::Complex { real, imaginary: _ } => 
-                    Ok(SerializableValue::Float(*real)), // Only serialize real part
                 crate::ast::Literal::Bytevector(bytes) => 
                     Ok(SerializableValue::String(format!("bytevector-{}", bytes.len()))),
                 crate::ast::Literal::Nil => Ok(SerializableValue::Nil),
@@ -169,8 +175,8 @@ impl SerializableValue {
         match self {
             SerializableValue::Nil => Ok(Value::Nil),
             SerializableValue::Boolean(b) => Ok(Value::Literal(crate::ast::Literal::Boolean(*b))),
-            SerializableValue::Integer(i) => Ok(Value::Literal(crate::ast::Literal::Number(*i as f64))),
-            SerializableValue::Float(f) => Ok(Value::Literal(crate::ast::Literal::Number(*f))),
+            SerializableValue::Integer(i) => Ok(Value::Literal(crate::ast::Literal::integer(*i))),
+            SerializableValue::Float(f) => Ok(Value::Literal(crate::ast::Literal::float(*f))),
             SerializableValue::String(s) => Ok(Value::Literal(crate::ast::Literal::String(s.clone()))),
             SerializableValue::Symbol(s) => {
                 // Extract symbol ID from the string (simplified)

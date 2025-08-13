@@ -18,7 +18,7 @@ pub const NURSERY_GENERATION: GenerationId = 0;
 pub const MAX_GENERATIONS: GenerationId = 3;
 
 /// Trait for objects that can be garbage collected.
-pub trait GcObject: Send + Sync {
+pub trait GcObject: Send + Sync + std::any::Any + std::fmt::Debug {
     /// Returns the generation this object belongs to.
     fn generation(&self) -> GenerationId;
     
@@ -42,7 +42,7 @@ pub trait GcObject: Send + Sync {
 }
 
 /// A garbage-collected pointer to an object.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct GcPtr {
     inner: Arc<dyn GcObject>,
     id: ObjectId,
@@ -52,15 +52,27 @@ pub struct GcPtr {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ObjectId(u64);
 
+impl ObjectId {
+    /// Creates a new ObjectId.
+    pub fn new(id: u64) -> Self {
+        ObjectId(id)
+    }
+    
+    /// Gets the raw ID value.
+    pub fn raw(&self) -> u64 {
+        self.0
+    }
+}
+
 /// Weak reference to a GC object for breaking cycles.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct WeakGcPtr {
     inner: Weak<dyn GcObject>,
     id: ObjectId,
 }
 
 /// Statistics about a garbage collection cycle.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct GcStats {
     /// Generation that was collected
     pub generation: GenerationId,

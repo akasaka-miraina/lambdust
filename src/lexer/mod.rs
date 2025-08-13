@@ -15,7 +15,6 @@
 
 #![allow(missing_docs)]
 
-use logos::Logos;
 use std::fmt;
 
 pub mod token;
@@ -24,6 +23,7 @@ pub mod numeric;
 pub mod string_utils;
 pub mod optimized;
 pub mod lexer;
+pub mod internal_lexer;
 
 pub use token::*;
 pub use token_struct::*;
@@ -31,135 +31,63 @@ pub use numeric::*;
 pub use string_utils::*;
 pub use optimized::*;
 pub use lexer::*;
+pub use internal_lexer::*;
 
 
 
 /// Token kinds recognized by the Lambdust lexer.
 /// 
 /// This enum covers all R7RS Scheme tokens plus Lambdust extensions.
-/// The order and priority of regex patterns is carefully chosen to
-/// ensure correct tokenization.
-#[derive(Logos, Debug, Clone, PartialEq)]
-#[logos(skip r"[ \t\f\r\n]+")] // Skip all whitespace including newlines (R7RS compliant)
+/// Previously used logos for regex-based tokenization, now uses internal
+/// lexer implementation for better performance and control.
+#[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     // === Delimiters ===
-    #[token("(")]
     LeftParen,
-    
-    #[token(")")]
     RightParen,
-    
-    #[token("[")]
     LeftBracket,
-    
-    #[token("]")]
     RightBracket,
-    
-    #[token("{")]
     LeftBrace,
-    
-    #[token("}")]
     RightBrace,
 
     // === Quote and Unquote ===
-    #[token("'")]
     Quote,
-    
-    #[token("`")]
     Quasiquote,
-    
-    #[token(",@")]  // Must come before comma
     UnquoteSplicing,
-    
-    #[token(",")]
     Unquote,
-    
-    #[token(".")]
     Dot,
 
     // === Lambdust Extensions ===
-    #[token("::")]
     TypeAnnotation,
 
-    // === Numbers (high priority, specific to general) ===
-    // Complex numbers with imaginary unit
-    #[regex(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?|\.[0-9]+(?:[eE][+-]?[0-9]+)?)[+-](?:[0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?|\.[0-9]+(?:[eE][+-]?[0-9]+)?)i", priority = 10)]
-    #[regex(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?|\.[0-9]+(?:[eE][+-]?[0-9]+)?)[+-]i", priority = 9)]
-    #[regex(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?(?:[eE][+-]?[0-9]+)?|\.[0-9]+(?:[eE][+-]?[0-9]+)?)i", priority = 8)]
-    #[regex(r"[+-]i", priority = 7)]
+    // === Numbers ===
     ComplexNumber,
-    
-    // Rational numbers
-    #[regex(r"[+-]?[0-9]+/[0-9]+", priority = 6)]
     RationalNumber,
-    
-    // Real numbers (floats)
-    #[regex(r"[+-]?[0-9]+\.[0-9]*(?:[eE][+-]?[0-9]+)?", priority = 5)]
-    #[regex(r"[+-]?\.[0-9]+(?:[eE][+-]?[0-9]+)?", priority = 4)]
-    #[regex(r"[+-]?[0-9]+[eE][+-]?[0-9]+", priority = 3)]
     RealNumber,
-    
-    // Integer numbers
-    #[regex(r"[+-]?[0-9]+", priority = 2)]
     IntegerNumber,
 
-    // === Keywords (self-evaluating identifiers) ===
-    #[regex(r"#:[a-zA-Z!$%&*+\-./:<=>?^_~\|][a-zA-Z0-9!$%&*+\-./:<=>?^_~\|]*", priority = 15)]
+    // === Keywords ===
     Keyword,
 
     // === Strings ===
-    #[regex(r#""([^"\\\r\n]|\\["\\abfnrtv]|\\x[0-9a-fA-F]{1,6};|\\[0-7]{1,3})*""#, priority = 20)]
     String,
 
     // === Character literals ===
-    // Named characters (must come before single character)
-    #[token("#\\alarm", priority = 25)]
-    #[token("#\\backspace", priority = 25)]
-    #[token("#\\delete", priority = 25)]
-    #[token("#\\escape", priority = 25)]
-    #[token("#\\newline", priority = 25)]
-    #[token("#\\null", priority = 25)]
-    #[token("#\\return", priority = 25)]
-    #[token("#\\space", priority = 25)]
-    #[token("#\\tab", priority = 25)]
-    #[token("#\\vtab", priority = 25)]
-    // Unicode hex escape
-    #[regex(r"#\\x[0-9a-fA-F]+", priority = 24)]
-    // Any single character
-    #[regex(r"#\\.", priority = 23)]
     Character,
 
     // === Booleans ===
-    #[token("#t", priority = 30)]
-    #[token("#f", priority = 30)]
-    #[token("#true", priority = 30)]
-    #[token("#false", priority = 30)]
     Boolean,
 
     // === Comments ===
-    // Block comments (simplified for now)
-    #[regex(r"#\|([^|]|\|[^#])*\|#", priority = 35)]
     BlockComment,
-    
-    // Line comments
-    #[regex(r";[^\r\n]*", priority = 34)]
     LineComment,
 
-    // === Identifiers (lowest priority to allow keywords and numbers to match first) ===
-    #[regex(r"[a-zA-Z!$%&*+\-/<=>?^_~\|][a-zA-Z0-9!$%&*+\-/<=>?^_~\|]*", priority = 1)]
+    // === Identifiers ===
     Identifier,
 
-    // Note: Newlines are now handled as whitespace in logos skip directive
-    // This is R7RS compliant - newlines are just whitespace
-
     // === Special tokens ===
-    // End of file marker
     Eof,
-    
-    // Error token for unrecognized input
-    #[regex(r".", priority = 0)]
     Error,
-
 }
 
 /// Helper function for escaping text for display in error messages.

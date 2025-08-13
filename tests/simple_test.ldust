@@ -1,0 +1,52 @@
+;; Simple test to verify current implementation status
+
+(import (scheme base)
+        (scheme write))
+
+;; Test basic arithmetic
+(display "Testing basic arithmetic...\n")
+(display "2 + 3 = ")
+(display (+ 2 3))
+(newline)
+
+;; Test list operations
+(display "Testing list operations...\n")
+(display "car of '(1 2 3) = ")
+(display (car '(1 2 3)))
+(newline)
+
+(display "cdr of '(1 2 3) = ")
+(display (cdr '(1 2 3)))
+(newline)
+
+;; Test type predicates
+(display "Testing type predicates...\n")
+(display "number? 42 = ")
+(display (number? 42))
+(newline)
+
+(display "string? \"hello\" = ")
+(display (string? "hello"))
+(newline)
+
+;; Test conditionals
+(display "Testing conditionals...\n")
+(display "if #t then 'true else 'false = ")
+(display (if #t 'true 'false))
+(newline)
+
+;; Test lambda
+(display "Testing lambda...\n")
+(define square (lambda (x) (* x x)))
+(display "square of 5 = ")
+(display (square 5))
+(newline)
+
+;; Test define
+(display "Testing define...\n")
+(define my-number 42)
+(display "my-number = ")
+(display my-number)
+(newline)
+
+(display "Basic tests completed.\n")

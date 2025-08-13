@@ -1,0 +1,350 @@
+#!/usr/bin/env lambdust
+;; Test file: SRFI-128 Comparators
+;; Purpose: Comprehensive test suite for SRFI-128 comparator objects
+;; Tests comparator construction, built-in comparators, and integration
+
+(import (scheme base)
+        (scheme write)
+        (srfi 128)   ; Comparators
+        (lambdust test))
+
+;; =============================================================================
+;; BASIC COMPARATOR CONSTRUCTION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Comparator Construction"
+  
+  (test "make-comparator with all four functions"
+    (define test-cmp
+      (make-comparator number?
+                      =
+                      (lambda (a b) (cond ((< a b) -1) ((> a b) 1) (else 0)))
+                      abs))
+    (assert-true (comparator? test-cmp))
+    (assert-true (comparator-ordered? test-cmp))
+    (assert-true (comparator-hashable? test-cmp)))
+  
+  (test "make-comparator with three functions (no hash)"
+    (define test-cmp
+      (make-comparator number?
+                      =
+                      (lambda (a b) (cond ((< a b) -1) ((> a b) 1) (else 0)))))
+    (assert-true (comparator? test-cmp))
+    (assert-true (comparator-ordered? test-cmp))
+    (assert-false (comparator-hashable? test-cmp)))
+  
+  (test "make-comparator with two functions (no comparison or hash)"
+    (define test-cmp
+      (make-comparator number? =))
+    (assert-true (comparator? test-cmp))
+    (assert-false (comparator-ordered? test-cmp))
+    (assert-false (comparator-hashable? test-cmp))))
+
+;; =============================================================================
+;; BUILT-IN COMPARATOR TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Built-in Comparators"
+  
+  (test "boolean-comparator properties"
+    (assert-true (comparator? boolean-comparator))
+    (assert-true (comparator-ordered? boolean-comparator))
+    (assert-true (comparator-hashable? boolean-comparator))
+    
+    ;; Test type checking
+    (assert-true (comparator-test-type boolean-comparator #t))
+    (assert-true (comparator-test-type boolean-comparator #f))
+    (assert-false (comparator-test-type boolean-comparator 42)))
+  
+  (test "char-comparator properties"
+    (assert-true (comparator? char-comparator))
+    (assert-true (comparator-ordered? char-comparator))
+    (assert-true (comparator-hashable? char-comparator))
+    
+    ;; Test type checking
+    (assert-true (comparator-test-type char-comparator #\a))
+    (assert-false (comparator-test-type char-comparator "a")))
+  
+  (test "string-comparator properties"
+    (assert-true (comparator? string-comparator))
+    (assert-true (comparator-ordered? string-comparator))
+    (assert-true (comparator-hashable? string-comparator))
+    
+    ;; Test type checking
+    (assert-true (comparator-test-type string-comparator "hello"))
+    (assert-false (comparator-test-type string-comparator 'hello)))
+  
+  (test "number-comparator properties"
+    (assert-true (comparator? number-comparator))
+    (assert-true (comparator-ordered? number-comparator))
+    (assert-true (comparator-hashable? number-comparator))
+    
+    ;; Test type checking
+    (assert-true (comparator-test-type number-comparator 42))
+    (assert-true (comparator-test-type number-comparator 3.14))
+    (assert-false (comparator-test-type number-comparator "42")))
+  
+  (test "default-comparator properties"
+    (assert-true (comparator? default-comparator))
+    (assert-true (comparator-ordered? default-comparator))
+    (assert-true (comparator-hashable? default-comparator))))
+
+;; =============================================================================
+;; COMPARISON OPERATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Comparison Operations"
+  
+  (test "comparator-equal? with various types"
+    (assert-true (comparator-equal? number-comparator 5 5))
+    (assert-false (comparator-equal? number-comparator 5 6))
+    (assert-true (comparator-equal? string-comparator "hello" "hello"))
+    (assert-false (comparator-equal? string-comparator "hello" "world"))
+    (assert-true (comparator-equal? boolean-comparator #t #t))
+    (assert-false (comparator-equal? boolean-comparator #t #f)))
+  
+  (test "comparator-compare with numbers"
+    (assert-equal -1 (comparator-compare number-comparator 3 5))
+    (assert-equal 0 (comparator-compare number-comparator 5 5))
+    (assert-equal 1 (comparator-compare number-comparator 7 5)))
+  
+  (test "comparator-compare with strings"
+    (assert-equal -1 (comparator-compare string-comparator "apple" "banana"))
+    (assert-equal 0 (comparator-compare string-comparator "hello" "hello"))
+    (assert-equal 1 (comparator-compare string-comparator "zebra" "apple")))
+  
+  (test "comparator-compare with booleans"
+    (assert-equal -1 (comparator-compare boolean-comparator #f #t))
+    (assert-equal 0 (comparator-compare boolean-comparator #t #t))
+    (assert-equal 0 (comparator-compare boolean-comparator #f #f))
+    (assert-equal 1 (comparator-compare boolean-comparator #t #f)))
+  
+  (test "comparator-hash consistency"
+    ;; Equal objects should have equal hash codes
+    (assert-equal (comparator-hash number-comparator 42)
+                  (comparator-hash number-comparator 42))
+    (assert-equal (comparator-hash string-comparator "test")
+                  (comparator-hash string-comparator "test"))))
+
+;; =============================================================================
+;; DERIVED COMPARISON PROCEDURE TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Derived Comparisons"
+  
+  (test "=? equality predicate"
+    (assert-true (=? number-comparator 5 5 5))
+    (assert-false (=? number-comparator 5 5 6))
+    (assert-true (=? string-comparator "a" "a"))
+    (assert-false (=? string-comparator "a" "b")))
+  
+  (test "<? less-than predicate"
+    (assert-true (<? number-comparator 1 2 3 4))
+    (assert-false (<? number-comparator 1 3 2 4))
+    (assert-true (<? string-comparator "a" "b" "c"))
+    (assert-false (<? string-comparator "a" "c" "b")))
+  
+  (test ">? greater-than predicate"
+    (assert-true (>? number-comparator 4 3 2 1))
+    (assert-false (>? number-comparator 4 2 3 1))
+    (assert-true (>? string-comparator "z" "y" "x"))
+    (assert-false (>? string-comparator "z" "x" "y")))
+  
+  (test "<=? less-than-or-equal predicate"
+    (assert-true (<=? number-comparator 1 2 2 3))
+    (assert-false (<=? number-comparator 1 3 2))
+    (assert-true (<=? string-comparator "a" "a" "b"))
+    (assert-false (<=? string-comparator "a" "c" "b")))
+  
+  (test ">=? greater-than-or-equal predicate"
+    (assert-true (>=? number-comparator 3 2 2 1))
+    (assert-false (>=? number-comparator 3 1 2))
+    (assert-true (>=? string-comparator "c" "b" "b" "a"))
+    (assert-false (>=? string-comparator "c" "a" "b"))))
+
+;; =============================================================================
+;; CUSTOM COMPARATOR TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Custom Comparators"
+  
+  (test "custom list-length comparator"
+    (define length-cmp
+      (make-comparator list?
+                      (lambda (a b) (= (length a) (length b)))
+                      (lambda (a b) (- (length a) (length b)))
+                      length))
+    
+    (assert-true (comparator-test-type length-cmp '(1 2 3)))
+    (assert-false (comparator-test-type length-cmp #(1 2 3)))
+    
+    (assert-true (comparator-equal? length-cmp '(a b) '(x y)))
+    (assert-false (comparator-equal? length-cmp '(a) '(x y)))
+    
+    (assert-equal -1 (comparator-compare length-cmp '(a) '(x y)))
+    (assert-equal 0 (comparator-compare length-cmp '(a b) '(x y)))
+    (assert-equal 1 (comparator-compare length-cmp '(a b c) '(x y))))
+  
+  (test "custom point comparator"
+    (define point-cmp
+      (make-comparator
+        (lambda (obj) (and (pair? obj) (number? (car obj)) (number? (cdr obj))))
+        (lambda (a b) (and (= (car a) (car b)) (= (cdr a) (cdr b))))
+        (lambda (a b) 
+          (let ((x-cmp (- (car a) (car b))))
+            (if (= x-cmp 0) (- (cdr a) (cdr b)) x-cmp)))
+        (lambda (p) (+ (* 31 (abs (car p))) (abs (cdr p))))))
+    
+    (assert-true (comparator-test-type point-cmp '(3 . 4)))
+    (assert-false (comparator-test-type point-cmp '(3 4)))
+    
+    (assert-true (comparator-equal? point-cmp '(1 . 2) '(1 . 2)))
+    (assert-false (comparator-equal? point-cmp '(1 . 2) '(2 . 1)))
+    
+    (assert-equal -1 (comparator-compare point-cmp '(1 . 5) '(2 . 3)))
+    (assert-equal 1 (comparator-compare point-cmp '(2 . 1) '(1 . 5)))
+    (assert-equal -1 (comparator-compare point-cmp '(1 . 2) '(1 . 3))))
+  
+  (test "case-insensitive string comparator"
+    (define ci-string-cmp
+      (make-comparator
+        string?
+        (lambda (a b) (string-ci=? a b))
+        (lambda (a b) (cond ((string-ci<? a b) -1)
+                           ((string-ci>? a b) 1)
+                           (else 0)))
+        (lambda (s) (string-hash (string-downcase s)))))
+    
+    (assert-true (comparator-equal? ci-string-cmp "Hello" "HELLO"))
+    (assert-true (comparator-equal? ci-string-cmp "World" "world"))
+    (assert-equal -1 (comparator-compare ci-string-cmp "Apple" "BANANA"))))
+
+;; =============================================================================
+;; ERROR HANDLING TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Error Handling"
+  
+  (test "type mismatch errors"
+    ;; These should work without error (proper types)
+    (assert-equal 0 (comparator-compare number-comparator 5 5))
+    (assert-equal 0 (comparator-compare string-comparator "a" "a"))
+    
+    ;; Type mismatches should be handled gracefully
+    ;; (Implementation dependent behavior - some may error, others may return default))
+  
+  (test "non-ordered comparator with ordering operations"
+    (define non-ordered (make-comparator number? =))  ; No comparison function
+    
+    ;; Should not be able to use ordering operations
+    (assert-false (comparator-ordered? non-ordered)))
+  
+  (test "non-hashable comparator with hash operations"
+    (define non-hashable (make-comparator number? = 
+                                        (lambda (a b) (cond ((< a b) -1) ((> a b) 1) (else 0)))))
+    
+    ;; Should not be hashable
+    (assert-false (comparator-hashable? non-hashable))))
+
+;; =============================================================================
+;; EDGE CASE TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Edge Cases"
+  
+  (test "empty argument lists for derived predicates"
+    ;; Zero arguments should return #t for all predicates
+    (assert-true (=? number-comparator))
+    (assert-true (<? number-comparator))
+    (assert-true (>? number-comparator))
+    (assert-true (<=? number-comparator))
+    (assert-true (>=? number-comparator)))
+  
+  (test "single argument for derived predicates"
+    ;; Single arguments should return #t for all predicates
+    (assert-true (=? number-comparator 5))
+    (assert-true (<? number-comparator 5))
+    (assert-true (>? number-comparator 5))
+    (assert-true (<=? number-comparator 5))
+    (assert-true (>=? number-comparator 5)))
+  
+  (test "chain comparisons"
+    ;; Test chaining behavior
+    (assert-true (=? number-comparator 5 5 5 5))
+    (assert-false (=? number-comparator 5 5 6 5))
+    (assert-true (<? number-comparator 1 2 3 4 5))
+    (assert-false (<? number-comparator 1 2 4 3 5))))
+
+;; =============================================================================
+;; UTILITY FUNCTION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Utility Functions"
+  
+  (test "make-comparison utility"
+    ;; Test the make-comparison utility function if implemented
+    ;; This would convert < predicate to comparison function
+    (when (defined? make-comparison)
+      (define test-comparison (make-comparison <))
+      (assert-equal -1 (test-comparison 3 5))
+      (assert-equal 0 (test-comparison 5 5))
+      (assert-equal 1 (test-comparison 7 5))))
+  
+  (test "make-hash-function utility"
+    ;; Test the make-hash-function utility if implemented
+    (when (defined? make-hash-function)
+      (define test-hash (make-hash-function =))
+      (assert-true (number? (test-hash 42))))))
+
+;; =============================================================================
+;; INTEGRATION PREPARATION TESTS
+;; =============================================================================
+
+(define-test-suite "SRFI-128 Integration Preparation"
+  
+  (test "comparators work with sorting context"
+    ;; Test that comparators provide the interface needed by sorting
+    (define test-data '(3 1 4 1 5 9 2 6 5))
+    
+    ;; Test that we can use comparator-compare for sorting-style comparisons
+    (assert-equal -1 (comparator-compare number-comparator 1 3))
+    (assert-equal 0 (comparator-compare number-comparator 5 5))
+    (assert-equal 1 (comparator-compare number-comparator 9 2))
+    
+    ;; Test ordered? property 
+    (assert-true (comparator-ordered? number-comparator)))
+  
+  (test "stability-relevant equal comparison"
+    ;; Test that equal elements are properly identified for stable sorting
+    (define pairs '((1 . a) (2 . b) (1 . c) (2 . d)))
+    (define pair-cmp (make-comparator 
+                      pair?
+                      (lambda (a b) (and (= (car a) (car b)) (eq? (cdr a) (cdr b))))
+                      (lambda (a b) (- (car a) (car b)))))
+    
+    ;; Different pairs with same first element should not be equal
+    (assert-false (comparator-equal? pair-cmp '(1 . a) '(1 . c)))
+    ;; But comparison should be 0 (for stability)
+    (assert-equal 0 (comparator-compare pair-cmp '(1 . a) '(1 . c)))))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(define (run-srfi-128-tests)
+  (run-test-suite "SRFI-128 Comparator Construction")
+  (run-test-suite "SRFI-128 Built-in Comparators")  
+  (run-test-suite "SRFI-128 Comparison Operations")
+  (run-test-suite "SRFI-128 Derived Comparisons")
+  (run-test-suite "SRFI-128 Custom Comparators")
+  (run-test-suite "SRFI-128 Error Handling")
+  (run-test-suite "SRFI-128 Edge Cases")
+  (run-test-suite "SRFI-128 Utility Functions")
+  (run-test-suite "SRFI-128 Integration Preparation")
+  
+  (display "\n=== SRFI-128 Comparators Test Suite Complete ===\n")
+  (test-summary))
+
+;; Run tests if this file is executed directly
+(when (and (defined? 'command-line) (not (null? (command-line))))
+  (run-srfi-128-tests))

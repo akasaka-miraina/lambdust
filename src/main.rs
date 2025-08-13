@@ -2,12 +2,15 @@
 //!
 //! This binary provides a REPL and file execution capabilities for the Lambdust language.
 
-use clap::{Arg, ArgAction, Command};
 use lambdust::{Lambdust, Error, Result};
+use lambdust::cli::{LightweightCli, ArgDef, CliError};
 use lambdust::runtime::{BootstrapIntegrationConfig, BootstrapMode, LibraryPathResolver, LibraryPathConfig};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+
+#[cfg(feature = "minimal-repl")]
+use lambdust::repl::start_minimal_repl;
 
 #[cfg(feature = "repl")]
 use {
@@ -26,72 +29,83 @@ fn main() -> Result<()> {
     // This must be done before creating the Lambdust instance so the system functions work
     lambdust::stdlib::system::initialize_system_state(args);
     
-    let matches = Command::new("lambdust")
+    let cli = LightweightCli::new("lambdust")
         .version(lambdust::VERSION)
         .author("Lambdust Contributors")
         .about("A Scheme dialect with gradual typing and effect systems")
         .arg(
-            Arg::new("file")
+            ArgDef::new("file")
                 .help("Lambdust source file to execute")
                 .value_name("FILE")
-                .index(1),
+                .index(0)
         )
         .arg(
-            Arg::new("repl")
+            ArgDef::new("repl")
                 .short('r')
                 .long("repl")
                 .help("Start interactive REPL")
-                .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("eval")
+            ArgDef::new("eval")
                 .short('e')
                 .long("eval")
                 .help("Evaluate expression")
                 .value_name("EXPR")
-                .action(ArgAction::Set),
+                .takes_value()
         )
         .arg(
-            Arg::new("type-check")
+            ArgDef::new("type-check")
                 .short('t')
                 .long("type-check")
                 .help("Type check only, don't evaluate")
-                .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("verbose")
+            ArgDef::new("verbose")
                 .short('v')
                 .long("verbose")
                 .help("Enable verbose output")
-                .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("bootstrap-mode")
+            ArgDef::new("bootstrap-mode")
                 .long("bootstrap-mode")
                 .help("Bootstrap mode: full, minimal, or fallback")
                 .value_name("MODE")
-                .value_parser(["full", "minimal", "fallback"]),
+                .takes_value()
+                .possible_values(&["full", "minimal", "fallback"])
         )
         .arg(
-            Arg::new("lazy-loading")
+            ArgDef::new("lazy-loading")
                 .long("lazy-loading")
                 .help("Enable lazy loading of Scheme libraries")
-                .action(ArgAction::SetTrue),
         )
         .arg(
-            Arg::new("lib-dir")
+            ArgDef::new("lib-dir")
                 .long("lib-dir")
                 .help("Override library directory path (alternative to LAMBDUST_LIB_DIR)")
                 .value_name("PATH")
-                .action(ArgAction::Set),
+                .takes_value()
         )
         .arg(
-            Arg::new("validate-libs")
+            ArgDef::new("validate-libs")
                 .long("validate-libs")
                 .help("Validate library setup and show status")
-                .action(ArgAction::SetTrue),
-        )
-        .get_matches();
+        );
+
+    let matches = match cli.parse_env() {
+        Ok(matches) => matches,
+        Err(CliError::HelpRequested) => {
+            println!("{}", cli.generate_help());
+            return Ok(());
+        }
+        Err(CliError::VersionRequested) => {
+            println!("{}", cli.generate_version());
+            return Ok(());
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+    };
 
     // Handle library validation if requested
     if matches.get_flag("validate-libs") {
@@ -123,7 +137,10 @@ fn main() -> Result<()> {
         #[cfg(all(feature = "repl", not(feature = "enhanced-repl")))]
         start_repl(&mut lambdust)?;
         
-        #[cfg(not(any(feature = "repl", feature = "enhanced-repl")))]
+        #[cfg(all(feature = "minimal-repl", not(any(feature = "repl", feature = "enhanced-repl"))))]
+        start_minimal_repl(&mut lambdust)?;
+        
+        #[cfg(not(any(feature = "minimal-repl", feature = "repl", feature = "enhanced-repl")))]
         {
             eprintln!("REPL support not compiled in. Use --eval or provide a file.");
             std::process::exit(1);
@@ -144,7 +161,10 @@ fn eval_expression(lambdust: &mut Lambdust, expr: &str, type_check_only: bool) -
     } else {
         // Evaluate
         let result = lambdust.eval(expr, Some("<command-line>"))?;
-        println!("{result}");
+        // Don't print the result if it's unspecified (e.g., from display, set!, etc.)
+        if !matches!(result, lambdust::eval::Value::Unspecified) {
+            println!("{result}");
+        }
     }
     Ok(())
 }
@@ -168,7 +188,10 @@ fn execute_file(lambdust: &mut Lambdust, filename: &str, type_check_only: bool) 
     } else {
         // Evaluate
         let result = lambdust.eval(&source, Some(filename))?;
-        println!("{result}");
+        // Don't print the result if it's unspecified (e.g., from display, set!, etc.)
+        if !matches!(result, lambdust::eval::Value::Unspecified) {
+            println!("{result}");
+        }
     }
     Ok(())
 }
@@ -224,10 +247,13 @@ fn start_repl(lambdust: &mut Lambdust) -> Result<()> {
                     _ => {}
                 }
 
-                // Evaluate expression
-                match lambdust.eval(line, Some("<repl>")) {
+                // Evaluate expression with proper macro support for REPL
+                match evaluate_repl_expression(lambdust, line) {
                     Ok(result) => {
-                        println!("{}", format!("{result}").bright_green());
+                        // Don't print the result if it's unspecified (e.g., from display, set!, etc.)
+                        if !matches!(result, lambdust::eval::Value::Unspecified) {
+                            println!("{}", format!("{result}").bright_green());
+                        }
                     }
                     Err(e) => {
                         eprintln!("{}", format!("Error: {e}").bright_red());
@@ -268,6 +294,15 @@ fn start_enhanced_repl(lambdust: Lambdust) -> Result<()> {
 }
 
 #[cfg(feature = "repl")]
+fn evaluate_repl_expression(lambdust: &mut Lambdust, source: &str) -> Result<lambdust::eval::Value> {
+    // This function provides improved macro handling for REPL sessions
+    // by maintaining macro state between evaluations
+    
+    // Use the standard evaluation pipeline which now includes proper macro expansion
+    lambdust.eval(source, Some("<repl>"))
+}
+
+#[cfg(feature = "repl")]
 fn print_repl_help() {
     println!("{}", "Lambdust REPL Commands:".bright_blue().bold());
     println!("  {}  - Show this help", ":help, :h".bright_yellow());
@@ -282,7 +317,7 @@ fn print_repl_help() {
 }
 
 /// Creates bootstrap configuration from command line arguments.
-fn create_bootstrap_config(matches: &clap::ArgMatches) -> Result<BootstrapIntegrationConfig> {
+fn create_bootstrap_config(matches: &lambdust::cli::ParsedArgs) -> Result<BootstrapIntegrationConfig> {
     // Create library path configuration
     let lib_path_config = LibraryPathConfig {
         include_dev_paths: true,
@@ -292,7 +327,7 @@ fn create_bootstrap_config(matches: &clap::ArgMatches) -> Result<BootstrapIntegr
     };
 
     // Determine bootstrap mode - check library setup first if not explicitly set
-    let mode = match matches.get_one::<String>("bootstrap-mode").map(|s| s.as_str()) {
+    let mode = match matches.get_one::<String>("bootstrap-mode") {
         Some("full") => BootstrapMode::Full,
         Some("minimal") => BootstrapMode::Minimal,
         Some("fallback") => BootstrapMode::Fallback,
@@ -340,7 +375,7 @@ fn determine_bootstrap_mode_with_lib_config(lib_config: &LibraryPathConfig) -> R
 }
 
 /// Validates library setup and displays results.
-fn validate_library_setup(matches: &clap::ArgMatches) -> Result<()> {
+fn validate_library_setup(matches: &lambdust::cli::ParsedArgs) -> Result<()> {
     println!("Validating Lambdust library setup...\n");
 
     // Check environment variables

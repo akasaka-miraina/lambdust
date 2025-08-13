@@ -5,9 +5,9 @@
 //! performance regression detection.
 
 use lambdust::benchmarks::{PerformanceTester, SchemeBenchmarkSuite, PerformanceTestConfig};
+use lambdust::cli::{LightweightCli, ArgDef, ArgType, CliError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::path::PathBuf;
-use clap::{Arg, Command};
 use serde::{Serialize, Deserialize};
 
 /// Point-in-time performance measurement snapshot.
@@ -150,8 +150,10 @@ pub struct PerformanceMonitor {
     /// Historical performance snapshots
     snapshot_history: Vec<PerformanceSnapshot>,
     /// Performance testing utility
+    #[allow(dead_code)]
     performance_tester: PerformanceTester,
     /// Benchmark suite for performance testing
+    #[allow(dead_code)]
     benchmark_suite: SchemeBenchmarkSuite,
     /// Monitoring configuration settings
     monitoring_config: MonitoringConfig,
@@ -528,7 +530,7 @@ impl PerformanceMonitor {
         println!("Press Ctrl+C to stop monitoring\n");
 
         loop {
-            let snapshot = self.take_snapshot();
+            let _snapshot = self.take_snapshot();
 
             // Check for regressions
             let regressions = self.detect_regressions();
@@ -552,72 +554,117 @@ impl PerformanceMonitor {
 }
 
 fn main() {
-    let matches = Command::new("Performance Monitor")
-        .version("1.0.0")
-        .about("Real-time performance monitoring and analysis for Lambdust")
-        .arg(
-            Arg::new("continuous")
-                .long("continuous")
-                .short('c')
-                .action(clap::ArgAction::SetTrue)
-                .help("Run continuous monitoring")
-        )
-        .arg(
-            Arg::new("interval")
-                .long("interval")
-                .short('i')
-                .value_name("SECONDS")
-                .help("Snapshot interval in seconds")
-                .default_value("60")
-        )
-        .arg(
-            Arg::new("output")
-                .long("output")
-                .short('o')
-                .value_name("FILE")
-                .help("Output file for monitoring data")
-                .default_value("performance_monitoring.json")
-        )
-        .arg(
-            Arg::new("retention")
-                .long("retention")
-                .short('r')
-                .value_name("DAYS")
-                .help("Data retention period in days")
-                .default_value("30")
-        )
-        .arg(
-            Arg::new("threshold")
-                .long("threshold")
-                .short('t')
-                .value_name("PERCENTAGE")
-                .help("Regression detection threshold (percentage)")
-                .default_value("10.0")
-        )
-        .arg(
-            Arg::new("report")
-                .long("report")
-                .action(clap::ArgAction::SetTrue)
-                .help("Generate monitoring report from existing data")
-        )
-        .get_matches();
+    let cli = LightweightCli {
+        name: "Performance Monitor".to_string(),
+        version: "1.0.0".to_string(),
+        author: "Lambdust Team".to_string(),
+        about: "Real-time performance monitoring and analysis for Lambdust".to_string(),
+        args: vec![
+            ArgDef {
+                name: "continuous".to_string(),
+                short: Some('c'),
+                long: Some("continuous".to_string()),
+                help: "Run continuous monitoring".to_string(),
+                value_name: None,
+                arg_type: ArgType::Flag,
+                positional: false,
+                index: None,
+                allowed_values: None,
+            },
+            ArgDef {
+                name: "interval".to_string(),
+                short: Some('i'),
+                long: Some("interval".to_string()),
+                help: "Snapshot interval in seconds".to_string(),
+                value_name: Some("SECONDS".to_string()),
+                arg_type: ArgType::Value,
+                positional: false,
+                index: None,
+                allowed_values: None,
+            },
+            ArgDef {
+                name: "output".to_string(),
+                short: Some('o'),
+                long: Some("output".to_string()),
+                help: "Output file for monitoring data".to_string(),
+                value_name: Some("FILE".to_string()),
+                arg_type: ArgType::Value,
+                positional: false,
+                index: None,
+                allowed_values: None,
+            },
+            ArgDef {
+                name: "retention".to_string(),
+                short: Some('r'),
+                long: Some("retention".to_string()),
+                help: "Data retention period in days".to_string(),
+                value_name: Some("DAYS".to_string()),
+                arg_type: ArgType::Value,
+                positional: false,
+                index: None,
+                allowed_values: None,
+            },
+            ArgDef {
+                name: "threshold".to_string(),
+                short: Some('t'),
+                long: Some("threshold".to_string()),
+                help: "Regression detection threshold (percentage)".to_string(),
+                value_name: Some("PERCENTAGE".to_string()),
+                arg_type: ArgType::Value,
+                positional: false,
+                index: None,
+                allowed_values: None,
+            },
+            ArgDef {
+                name: "report".to_string(),
+                short: None,
+                long: Some("report".to_string()),
+                help: "Generate monitoring report from existing data".to_string(),
+                value_name: None,
+                arg_type: ArgType::Flag,
+                positional: false,
+                index: None,
+                allowed_values: None,
+            },
+        ],
+    };
 
-    let interval_secs: u64 = matches.get_one::<String>("interval")
-        .unwrap()
+    let args: Vec<String> = std::env::args().collect();
+    let parsed_args = match cli.parse(&args[1..]) {
+        Ok(args) => args,
+        Err(CliError::HelpRequested) => {
+            cli.print_help();
+            return;
+        }
+        Err(CliError::VersionRequested) => {
+            println!("{} {}", cli.name, cli.version);
+            return;
+        }
+        Err(e) => {
+            eprintln!("Error: {e}");
+            std::process::exit(1);
+        }
+    };
+
+    let interval_secs: u64 = parsed_args.values.get("interval")
+        .unwrap_or(&"60".to_string())
         .parse()
         .expect("Invalid interval value");
 
-    let retention_days: u32 = matches.get_one::<String>("retention")
-        .unwrap()
+    let retention_days: u32 = parsed_args.values.get("retention")
+        .unwrap_or(&"30".to_string())
         .parse()
         .expect("Invalid retention value");
 
-    let threshold: f64 = matches.get_one::<String>("threshold")
-        .unwrap()
+    let threshold: f64 = parsed_args.values.get("threshold")
+        .unwrap_or(&"10.0".to_string())
         .parse()
         .expect("Invalid threshold value");
 
-    let output_file = PathBuf::from(matches.get_one::<String>("output").unwrap());
+    let output_file = PathBuf::from(
+        parsed_args.values.get("output")
+            .unwrap_or(&"performance_monitoring.json".to_string())
+    );
 
     let config = MonitoringConfig {
         snapshot_interval: Duration::from_secs(interval_secs),
@@ -634,10 +681,10 @@ fn main() {
         eprintln!("⚠️  Could not load existing monitoring data: {e}");
     }
 
-    if matches.get_flag("report") {
+    if *parsed_args.flags.get("report").unwrap_or(&false) {
         // Generate report mode
         println!("{}", monitor.generate_monitoring_report());
-    } else if matches.get_flag("continuous") {
+    } else if *parsed_args.flags.get("continuous").unwrap_or(&false) {
         // Continuous monitoring mode
         monitor.run_continuous_monitoring();
     } else {

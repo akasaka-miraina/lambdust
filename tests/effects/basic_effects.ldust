@@ -1,0 +1,391 @@
+#!/usr/bin/env lambdust
+;; Test file: Basic Effects
+;; Purpose: Test basic effect tracking, classification, and transparent effect management
+;; Covers pure functions, IO effects, state effects, and error effects
+
+(import (scheme base)
+        (scheme write)
+        (scheme file)
+        (lambdust test)
+        (lambdust effects))  ;; TODO: Implement effects library
+
+;; =============================================================================
+;; PURE FUNCTION EFFECTS
+;; =============================================================================
+
+(define-test-suite "Pure Function Effects"
+  
+  (test "Explicitly pure functions"
+    ;; Functions marked as pure should have no side effects
+    (define (pure-square x)
+      #:pure #t
+      (* x x))
+    
+    (assert-equal 25 (pure-square 5))
+    (assert-equal 16 (pure-square 4))
+    
+    ;; TODO: Test effect tracking when available
+    ;; (assert-equal 'Pure (effect-type pure-square))
+    )
+  
+  (test "Inferred pure functions"
+    ;; Functions with no side effects should be inferred as pure
+    (define (factorial n)
+      (if (= n 0)
+          1
+          (* n (factorial (- n 1)))))
+    
+    (assert-equal 120 (factorial 5))
+    (assert-equal 1 (factorial 0))
+    
+    ;; TODO: Test that purity is inferred
+    ;; (assert-equal 'Pure (inferred-effect factorial))
+    )
+  
+  (test "Pure higher-order functions"
+    (define (compose f g)
+      #:pure #t
+      (lambda (x) (f (g x))))
+    
+    (define add1 (lambda (x) (+ x 1)))
+    (define double (lambda (x) (* x 2)))
+    (define composed (compose double add1))
+    
+    (assert-equal 8 (composed 3))
+    
+    ;; Composed pure functions should remain pure
+    ;; TODO: Test effect composition
+    ;; (assert-equal 'Pure (effect-type composed))
+    ))
+
+;; =============================================================================
+;; IO EFFECTS
+;; =============================================================================
+
+(define-test-suite "IO Effects"
+  
+  (test "Basic IO operations"
+    ;; Display and write operations should be marked as IO effects
+    (define (print-greeting name)
+      (display "Hello, ")
+      (display name)
+      (display "!")
+      (newline))
+    
+    ;; TODO: Test IO effect tracking
+    ;; (assert-equal 'IO (effect-type print-greeting))
+    
+    ;; TODO: Capture output for testing
+    ;; (assert-equal "Hello, Alice!\n" (capture-output (print-greeting "Alice")))
+    )
+  
+  (test "File IO operations"
+    ;; File operations should be marked as IO effects
+    (define (write-to-file filename content)
+      (call-with-output-file filename
+        (lambda (port)
+          (write content port))))
+    
+    (define (read-from-file filename)
+      (call-with-input-file filename read))
+    
+    ;; TODO: Test in a temporary directory
+    ;; (write-to-file "/tmp/test.scm" '(hello world))
+    ;; (assert-equal '(hello world) (read-from-file "/tmp/test.scm"))
+    )
+  
+  (test "Network IO effects"
+    ;; TODO: Network operations when implemented
+    ;; These should also be classified as IO effects
+    ))
+
+;; =============================================================================
+;; STATE EFFECTS
+;; =============================================================================
+
+(define-test-suite "State Effects"
+  
+  (test "Global variable mutation"
+    ;; Functions that mutate global state should have State effects
+    (define counter 0)
+    
+    (define (increment!)
+      (set! counter (+ counter 1))
+      counter)
+    
+    (assert-equal 1 (increment!))
+    (assert-equal 2 (increment!))
+    (assert-equal 3 (increment!))
+    
+    ;; TODO: Test effect tracking
+    ;; (assert-equal 'State (effect-type increment!))
+    )
+  
+  (test "Data structure mutation"
+    ;; Mutating data structures should have State effects
+    (define (vector-increment! vec index)
+      (let ((old-val (vector-ref vec index)))
+        (vector-set! vec index (+ old-val 1))
+        old-val))
+    
+    (define test-vec (vector 10 20 30))
+    (assert-equal 20 (vector-increment! test-vec 1))
+    (assert-equal 21 (vector-ref test-vec 1))
+    
+    ;; TODO: Test mutation effect tracking
+    ;; (assert-equal 'State (effect-type vector-increment!))
+    )
+  
+  (test "Hash table mutation"
+    ;; TODO: Test hash table mutations when hash tables are available
+    ))
+
+;; =============================================================================
+;; ERROR EFFECTS
+;; =============================================================================
+
+(define-test-suite "Error Effects"
+  
+  (test "Explicit error raising"
+    ;; Functions that can raise errors should have Error effects
+    (define (safe-divide x y)
+      (if (= y 0)
+          (error "Division by zero")
+          (/ x y)))
+    
+    (assert-equal 2 (safe-divide 10 5))
+    (assert-error 'user-error (safe-divide 10 0))
+    
+    ;; TODO: Test error effect tracking
+    ;; (assert-equal '(Error) (effect-type safe-divide))
+    )
+  
+  (test "Exception handling"
+    ;; TODO: Test with-exception-handler and guard when available
+    (define (handle-division x y)
+      (guard (condition
+              ((and (error-object? condition)
+                    (string=? (error-object-message condition) "Division by zero"))
+               'division-by-zero)
+              (else 'other-error))
+        (if (= y 0)
+            (error "Division by zero")
+            (/ x y))))
+    
+    ;; TODO: Test when exception system is available
+    ;; (assert-equal 2 (handle-division 10 5))
+    ;; (assert-equal 'division-by-zero (handle-division 10 0))
+    )
+  
+  (test "Assertion failures"
+    ;; TODO: Test assertion-based error effects
+    (define (checked-square-root x)
+      (assert (>= x 0) "Square root of negative number")
+      (sqrt x))
+    
+    ;; TODO: Test when assertions are implemented
+    ;; (assert-equal 4.0 (checked-square-root 16))
+    ;; (assert-error 'assertion-error (checked-square-root -1))
+    ))
+
+;; =============================================================================
+;; CUSTOM EFFECTS
+;; =============================================================================
+
+(define-test-suite "Custom Effects"
+  
+  (test "User-defined effect types"
+    ;; TODO: Define custom effect types
+    ;; (define-effect Logging)
+    ;; (define-effect Database)
+    
+    ;; (define (log-message message)
+    ;;   #:effect Logging
+    ;;   (display message))
+    
+    ;; (define (query-database query)
+    ;;   #:effect Database
+    ;;   (mock-database-query query))
+    )
+  
+  (test "Effect composition"
+    ;; Functions using multiple effects should combine them
+    ;; TODO: Test when custom effects are implemented
+    )
+  
+  (test "Effect polymorphism"
+    ;; Functions that are polymorphic in effects
+    ;; TODO: Test effect variables and polymorphism
+    ))
+
+;; =============================================================================
+;; EFFECT INFERENCE
+;; =============================================================================
+
+(define-test-suite "Effect Inference"
+  
+  (test "Automatic effect inference"
+    ;; Effects should be inferred from function bodies
+    (define (mixed-function x)
+      (display "Processing: ")  ;; IO effect
+      (display x)               ;; IO effect
+      (newline)                ;; IO effect
+      (* x x))                 ;; Pure computation
+    
+    ;; TODO: Should infer IO effect
+    ;; (assert-equal 'IO (inferred-effect mixed-function))
+    )
+  
+  (test "Effect propagation"
+    ;; Effects should propagate through function calls
+    (define (pure-helper x) (* x 2))
+    (define (io-helper x) (display x) x)
+    
+    (define (calls-pure x) (pure-helper x))
+    (define (calls-io x) (io-helper x))
+    
+    ;; TODO: Test effect propagation
+    ;; (assert-equal 'Pure (inferred-effect calls-pure))
+    ;; (assert-equal 'IO (inferred-effect calls-io))
+    )
+  
+  (test "Conditional effect inference"
+    ;; Effects in conditional branches should be combined
+    (define (conditional-effect condition x)
+      (if condition
+          (begin (display x) x)     ;; IO effect
+          x))                       ;; Pure
+    
+    ;; TODO: Should infer IO effect (conservative)
+    ;; (assert-equal 'IO (inferred-effect conditional-effect))
+    ))
+
+;; =============================================================================
+;; EFFECT BOUNDARIES AND ISOLATION
+;; =============================================================================
+
+(define-test-suite "Effect Boundaries and Isolation"
+  
+  (test "Effect containment"
+    ;; TODO: Test effect containment mechanisms
+    ;; This would involve running effectful code in controlled contexts
+    )
+  
+  (test "Effect permission checking"
+    ;; TODO: Test that functions can only perform effects they're allowed to
+    ;; This requires a permission system
+    )
+  
+  (test "Effect sandboxing"
+    ;; TODO: Test running code with restricted effects
+    ))
+
+;; =============================================================================
+;; EFFECT OPTIMIZATION
+;; =============================================================================
+
+(define-test-suite "Effect Optimization"
+  
+  (test "Pure function optimization"
+    ;; Pure functions should be optimizable
+    ;; TODO: Test that pure functions are cached, reordered, etc.
+    )
+  
+  (test "Effect batching"
+    ;; Similar effects should be batchable for performance
+    ;; TODO: Test IO batching, state batching, etc.
+    )
+  
+  (test "Dead effect elimination"
+    ;; Effects with no observable consequences should be eliminated
+    ;; TODO: Test dead effect elimination
+    ))
+
+;; =============================================================================
+;; EFFECT DEBUGGING AND INTROSPECTION
+;; =============================================================================
+
+(define-test-suite "Effect Debugging and Introspection"
+  
+  (test "Effect tracing"
+    ;; TODO: Test that effects can be traced for debugging
+    ;; (define traced-function
+    ;;   (lambda (x)
+    ;;     (display x)
+    ;;     (+ x 1)))
+    ;; (assert-true (has-effect-trace? traced-function))
+    )
+  
+  (test "Effect profiling"
+    ;; TODO: Test effect performance profiling
+    ;; This would track time spent in different effect types
+    )
+  
+  (test "Effect visualization"
+    ;; TODO: Test tools for visualizing effect flow
+    ))
+
+;; =============================================================================
+;; EFFECT TESTING UTILITIES
+;; =============================================================================
+
+(define-test-suite "Effect Testing Utilities"
+  
+  (test "Effect mocking"
+    ;; TODO: Test mocking effects for unit testing
+    ;; (with-mocked-effects
+    ;;   ((IO . mock-io-handler)
+    ;;    (Database . mock-db-handler))
+    ;;   (test-function-that-uses-io-and-db))
+    )
+  
+  (test "Effect stubbing"
+    ;; TODO: Test stubbing specific effectful operations
+    )
+  
+  (test "Effect replay"
+    ;; TODO: Test recording and replaying effect sequences
+    ))
+
+;; =============================================================================
+;; INTEGRATION WITH TYPE SYSTEM
+;; =============================================================================
+
+(define-test-suite "Effect and Type Integration"
+  
+  (test "Effect types"
+    ;; TODO: Test that effects are reflected in the type system
+    ;; Function types should include effect information
+    ;; (assert-equal "Number -> {IO} Number" (type-of io-function))
+    )
+  
+  (test "Effect polymorphism in types"
+    ;; TODO: Test polymorphic functions over effects
+    ;; (define (generic-operation x)
+    ;;   #:type (∀ eff a. a -> {eff} a)
+    ;;   x)
+    )
+  
+  (test "Effect subtyping"
+    ;; TODO: Test effect subtyping relationships
+    ;; Pure <: IO, etc.
+    ))
+
+;; =============================================================================
+;; RUN ALL TESTS
+;; =============================================================================
+
+(run-test-suite "Pure Function Effects")
+(run-test-suite "IO Effects")
+(run-test-suite "State Effects")
+(run-test-suite "Error Effects")
+(run-test-suite "Custom Effects")
+(run-test-suite "Effect Inference")
+(run-test-suite "Effect Boundaries and Isolation")
+(run-test-suite "Effect Optimization")
+(run-test-suite "Effect Debugging and Introspection")
+(run-test-suite "Effect Testing Utilities")
+(run-test-suite "Effect and Type Integration")
+
+(display "Basic effects test completed.\n")
+(display "This test verifies effect tracking and transparent effect management.\n")

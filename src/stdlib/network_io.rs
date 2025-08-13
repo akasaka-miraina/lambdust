@@ -20,15 +20,23 @@ use std::collections::HashMap;
 // use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
-#[cfg(feature = "async")]
+#[cfg(feature = "async-runtime")]
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
-#[cfg(feature = "async")]
+#[cfg(feature = "async-runtime")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-#[cfg(feature = "async")]
+#[cfg(feature = "async-runtime")]
 use tokio::time::timeout;
 
-#[cfg(unix)]
+// Fallback to standard library types when tokio is not available
+#[cfg(not(feature = "async-runtime"))]
+use std::net::{TcpStream, TcpListener, UdpSocket};
+
+#[cfg(all(unix, feature = "async-runtime"))]
 use tokio::net::{UnixListener, UnixStream};
+
+// Fallback to standard library Unix types when tokio is not available
+#[cfg(all(unix, not(feature = "async-runtime")))]
+use std::os::unix::net::{UnixStream, UnixListener};
 
 #[cfg(feature = "tls")]
 use rustls::{ClientConfig, ServerConfig};
@@ -50,13 +58,25 @@ pub enum NetworkSocket {
 }
 
 /// Network listener wrapper
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum NetworkListener {
     Tcp(Arc<std::sync::Mutex<Option<TcpListener>>>),
     #[cfg(unix)]
     Unix(Arc<std::sync::Mutex<Option<UnixListener>>>),
     #[cfg(feature = "tls")]
     Tls(Arc<std::sync::Mutex<Option<TcpListener>>>, Arc<TlsAcceptor>),
+}
+
+impl std::fmt::Debug for NetworkListener {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NetworkListener::Tcp(_) => f.debug_tuple("Tcp").field(&"TcpListener").finish(),
+            #[cfg(unix)]
+            NetworkListener::Unix(_) => f.debug_tuple("Unix").field(&"UnixListener").finish(),
+            #[cfg(feature = "tls")]
+            NetworkListener::Tls(_, _) => f.debug_tuple("Tls").field(&"TcpListener").field(&"TlsAcceptor").finish(),
+        }
+    }
 }
 
 /// HTTP request/response structures
