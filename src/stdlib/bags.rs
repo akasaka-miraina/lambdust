@@ -124,11 +124,17 @@ impl ValueKey {
             Value::CharSet(charset) => ValueKeyType::MutableRef(Arc::as_ptr(charset) as usize),
             Value::Parameter(param) => ValueKeyType::MutableRef(Arc::as_ptr(param) as usize),
             Value::Record(record) => ValueKeyType::MutableRef(Arc::as_ptr(record) as usize),
+            #[cfg(feature = "async-runtime")]
             Value::Future(future) => ValueKeyType::MutableRef(Arc::as_ptr(future) as usize),
+            #[cfg(feature = "async-runtime")]
             Value::Channel(channel) => ValueKeyType::MutableRef(Arc::as_ptr(channel) as usize),
+            #[cfg(feature = "async-runtime")]
             Value::Mutex(mutex) => ValueKeyType::MutableRef(Arc::as_ptr(mutex) as usize),
+            #[cfg(feature = "async-runtime")]
             Value::Semaphore(sem) => ValueKeyType::MutableRef(Arc::as_ptr(sem) as usize),
+            #[cfg(feature = "async-runtime")]
             Value::AtomicCounter(counter) => ValueKeyType::MutableRef(Arc::as_ptr(counter) as usize),
+            #[cfg(feature = "async-runtime")]
             Value::DistributedNode(node) => ValueKeyType::MutableRef(Arc::as_ptr(node) as usize),
             Value::Opaque(opaque) => {
                 // For trait objects, we use the Arc pointer itself as the identity

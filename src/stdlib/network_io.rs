@@ -20,15 +20,23 @@ use std::collections::HashMap;
 // use std::net::{SocketAddr, IpAddr, Ipv4Addr, Ipv6Addr};
 use std::time::Duration;
 
-#[cfg(feature = "async")]
+#[cfg(feature = "async-runtime")]
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
-#[cfg(feature = "async")]
+#[cfg(feature = "async-runtime")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-#[cfg(feature = "async")]
+#[cfg(feature = "async-runtime")]
 use tokio::time::timeout;
 
-#[cfg(unix)]
+// Fallback to standard library types when tokio is not available
+#[cfg(not(feature = "async-runtime"))]
+use std::net::{TcpStream, TcpListener, UdpSocket};
+
+#[cfg(all(unix, feature = "async-runtime"))]
 use tokio::net::{UnixListener, UnixStream};
+
+// Fallback to standard library Unix types when tokio is not available
+#[cfg(all(unix, not(feature = "async-runtime")))]
+use std::os::unix::net::{UnixStream, UnixListener};
 
 #[cfg(feature = "tls")]
 use rustls::{ClientConfig, ServerConfig};

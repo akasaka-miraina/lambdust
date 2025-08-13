@@ -389,37 +389,43 @@ impl ObjectInspector {
                 }
             }
             
-            // Concurrency types
+            // Concurrency types (only available with async-runtime)
+            #[cfg(feature = "async-runtime")]
             Value::Future(_future) => {
                 TypeInfo::Future {
                     status: "pending".to_string(), // Placeholder - would check actual status
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::Channel(_channel) => {
                 TypeInfo::Channel {
                     capacity: None, // Placeholder - would extract actual capacity
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::Mutex(_mutex) => {
                 TypeInfo::Mutex {
                     locked: false, // Placeholder - would check actual state
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::Semaphore(_semaphore) => {
                 TypeInfo::Semaphore {
                     permits: 0, // Placeholder - would extract actual permits
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::AtomicCounter(_counter) => {
                 TypeInfo::AtomicCounter {
                     value: 0, // Placeholder - would extract actual value
                 }
             }
             
+            #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_node) => {
                 TypeInfo::DistributedNode {
                     node_id: "unknown".to_string(), // Placeholder - would extract actual node ID

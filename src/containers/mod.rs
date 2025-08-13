@@ -293,12 +293,18 @@ pub mod utils {
             Value::RandomAccessList(_) => 26,
             Value::Set(_) => 27,
             Value::Bag(_) => 28,
-            // Concurrency types
+            // Concurrency types (only available with async-runtime)
+            #[cfg(feature = "async-runtime")]
             Value::Future(_) => 29,
+            #[cfg(feature = "async-runtime")]
             Value::Channel(_) => 30,
+            #[cfg(feature = "async-runtime")]
             Value::Mutex(_) => 31,
+            #[cfg(feature = "async-runtime")]
             Value::Semaphore(_) => 32,
+            #[cfg(feature = "async-runtime")]
             Value::AtomicCounter(_) => 33,
+            #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_) => 34,
             Value::MutableString(s) => {
                 match s.read() {

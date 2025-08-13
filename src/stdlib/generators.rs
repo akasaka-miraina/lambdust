@@ -115,6 +115,24 @@ fn bind_constructors(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_string_to_generator),
         effects: vec![Effect::Pure],
     })));
+    
+    // generator-unfold
+    env.define("generator-unfold".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-unfold".to_string(),
+        arity_min: 4,
+        arity_max: Some(4), // stop-pred, mapper, successor, seed
+        implementation: PrimitiveImpl::RustFn(primitive_generator_unfold),
+        effects: vec![Effect::Pure],
+    })));
+    
+    // generator-tabulate
+    env.define("generator-tabulate".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-tabulate".to_string(),
+        arity_min: 1,
+        arity_max: Some(2), // func, count?
+        implementation: PrimitiveImpl::RustFn(primitive_generator_tabulate),
+        effects: vec![Effect::Pure],
+    })));
 }
 
 /// Binds generator utility procedures.
@@ -128,6 +146,24 @@ fn bind_utilities(env: &Arc<ThreadSafeEnvironment>) {
         effects: vec![Effect::IO], // May consume generator
     })));
     
+    // generator->vector
+    env.define("generator->vector".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator->vector".to_string(),
+        arity_min: 1,
+        arity_max: Some(2), // generator, length?
+        implementation: PrimitiveImpl::RustFn(primitive_generator_to_vector),
+        effects: vec![Effect::IO], // May consume generator
+    })));
+    
+    // generator->string
+    env.define("generator->string".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator->string".to_string(),
+        arity_min: 1,
+        arity_max: Some(2), // generator, length?
+        implementation: PrimitiveImpl::RustFn(primitive_generator_to_string),
+        effects: vec![Effect::IO], // May consume generator
+    })));
+    
     // generator-fold
     env.define("generator-fold".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
         name: "generator-fold".to_string(),
@@ -135,6 +171,69 @@ fn bind_utilities(env: &Arc<ThreadSafeEnvironment>) {
         arity_max: Some(3), // kons, knil, generator
         implementation: PrimitiveImpl::RustFn(primitive_generator_fold),
         effects: vec![Effect::IO], // May call user procedures and consume generator
+    })));
+    
+    // generator-map
+    env.define("generator-map".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-map".to_string(),
+        arity_min: 2,
+        arity_max: Some(2), // mapper, generator
+        implementation: PrimitiveImpl::RustFn(primitive_generator_map),
+        effects: vec![Effect::Pure],
+    })));
+    
+    // generator-filter
+    env.define("generator-filter".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-filter".to_string(),
+        arity_min: 2,
+        arity_max: Some(2), // predicate, generator
+        implementation: PrimitiveImpl::RustFn(primitive_generator_filter),
+        effects: vec![Effect::Pure],
+    })));
+    
+    // generator-take
+    env.define("generator-take".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-take".to_string(),
+        arity_min: 2,
+        arity_max: Some(2), // generator, count
+        implementation: PrimitiveImpl::RustFn(primitive_generator_take),
+        effects: vec![Effect::Pure],
+    })));
+    
+    // generator-drop
+    env.define("generator-drop".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-drop".to_string(),
+        arity_min: 2,
+        arity_max: Some(2), // generator, count
+        implementation: PrimitiveImpl::RustFn(primitive_generator_drop),
+        effects: vec![Effect::Pure],
+    })));
+    
+    // generator-append
+    env.define("generator-append".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-append".to_string(),
+        arity_min: 2,
+        arity_max: Some(2), // first, second
+        implementation: PrimitiveImpl::RustFn(primitive_generator_append),
+        effects: vec![Effect::Pure],
+    })));
+    
+    // generator-concatenate
+    env.define("generator-concatenate".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-concatenate".to_string(),
+        arity_min: 0,
+        arity_max: None, // Variadic
+        implementation: PrimitiveImpl::RustFn(primitive_generator_concatenate),
+        effects: vec![Effect::Pure],
+    })));
+    
+    // generator-zip
+    env.define("generator-zip".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "generator-zip".to_string(),
+        arity_min: 0,
+        arity_max: None, // Variadic
+        implementation: PrimitiveImpl::RustFn(primitive_generator_zip),
+        effects: vec![Effect::Pure],
     })));
     
     // EOF object for generators
@@ -402,9 +501,76 @@ fn primitive_vector_to_generator(args: &[Value]) -> LambdustResult<Value> {
         }))
     };
     
-    // For now, we'll ignore start/end parameters and just convert the whole vector
-    // In a full implementation, we would respect start/end bounds
-    Ok(Value::generator_from_vector(vector))
+    // Get vector length
+    let vector_len = {
+        let vec_guard = vector.read().map_err(|_| {
+            Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "vector->generator: failed to read vector".to_string(),
+                span: None,
+            })
+        })?;
+        vec_guard.len()
+    };
+    
+    let start = if args.len() > 1 {
+        let start_val = args[1].as_integer()
+            .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "vector->generator: start index must be an integer".to_string(),
+                span: None,
+            }))?;
+        
+        if start_val < 0 || start_val as usize > vector_len {
+            return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "vector->generator: start index out of bounds".to_string(),
+                span: None,
+            }));
+        }
+        
+        start_val as usize
+    } else {
+        0
+    };
+    
+    let end = if args.len() > 2 {
+        let end_val = args[2].as_integer()
+            .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "vector->generator: end index must be an integer".to_string(),
+                span: None,
+            }))?;
+        
+        if end_val < 0 || end_val as usize > vector_len {
+            return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "vector->generator: end index out of bounds".to_string(),
+                span: None,
+            }));
+        }
+        
+        if (end_val as usize) < start {
+            return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "vector->generator: end index must be >= start index".to_string(),
+                span: None,
+            }));
+        }
+        
+        end_val as usize
+    } else {
+        vector_len
+    };
+    
+    // Extract the subvector
+    let subvector = {
+        let vec_guard = vector.read().map_err(|_| {
+            Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "vector->generator: failed to read vector".to_string(),
+                span: None,
+            })
+        })?;
+        
+        let slice = &vec_guard[start..end];
+        Arc::new(std::sync::RwLock::new(slice.to_vec()))
+    };
+    
+    Ok(Value::generator_from_vector(subvector))
 }
 
 /// string->generator primitive
@@ -422,9 +588,59 @@ fn primitive_string_to_generator(args: &[Value]) -> LambdustResult<Value> {
             span: None,
         }))?;
     
-    // For now, we'll ignore start/end parameters and just convert the whole string
-    // In a full implementation, we would respect start/end bounds
-    Ok(Value::generator_from_string(string))
+    // Convert to character vector to handle Unicode properly
+    let chars: Vec<char> = string.chars().collect();
+    let string_len = chars.len();
+    
+    let start = if args.len() > 1 {
+        let start_val = args[1].as_integer()
+            .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "string->generator: start index must be an integer".to_string(),
+                span: None,
+            }))?;
+        
+        if start_val < 0 || start_val as usize > string_len {
+            return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "string->generator: start index out of bounds".to_string(),
+                span: None,
+            }));
+        }
+        
+        start_val as usize
+    } else {
+        0
+    };
+    
+    let end = if args.len() > 2 {
+        let end_val = args[2].as_integer()
+            .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "string->generator: end index must be an integer".to_string(),
+                span: None,
+            }))?;
+        
+        if end_val < 0 || end_val as usize > string_len {
+            return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "string->generator: end index out of bounds".to_string(),
+                span: None,
+            }));
+        }
+        
+        if (end_val as usize) < start {
+            return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "string->generator: end index must be >= start index".to_string(),
+                span: None,
+            }));
+        }
+        
+        end_val as usize
+    } else {
+        string_len
+    };
+    
+    // Extract the substring
+    let substring: String = chars[start..end].iter().collect();
+    
+    Ok(Value::generator_from_string(substring))
 }
 
 // ============= UTILITIES =============
@@ -476,6 +692,111 @@ fn primitive_generator_to_list(args: &[Value]) -> LambdustResult<Value> {
     Ok(Value::list(values))
 }
 
+/// generator->vector primitive
+fn primitive_generator_to_vector(args: &[Value]) -> LambdustResult<Value> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator->vector: expected 1-2 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let generator = match &args[0] {
+        Value::Generator(gen_ref) => gen_ref,
+        _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator->vector: first argument must be a generator".to_string(),
+            span: None,
+        }))
+    };
+    
+    let max_length = if args.len() == 2 {
+        Some(args[1].as_integer()
+            .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "generator->vector: second argument must be an integer".to_string(),
+                span: None,
+            }))?
+            .max(0) as usize)
+    } else {
+        None
+    };
+    
+    let mut values = Vec::new();
+    let mut count = 0;
+    
+    while max_length.is_none_or(|max| count < max) {
+        match generator.next() {
+            Ok(value) => {
+                if value == *generator.eof_object() {
+                    break;
+                }
+                values.push(value);
+                count += 1;
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    
+    Ok(Value::vector(values))
+}
+
+/// generator->string primitive
+fn primitive_generator_to_string(args: &[Value]) -> LambdustResult<Value> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator->string: expected 1-2 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let generator = match &args[0] {
+        Value::Generator(gen_ref) => gen_ref,
+        _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator->string: first argument must be a generator".to_string(),
+            span: None,
+        }))
+    };
+    
+    let max_length = if args.len() == 2 {
+        Some(args[1].as_integer()
+            .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "generator->string: second argument must be an integer".to_string(),
+                span: None,
+            }))?
+            .max(0) as usize)
+    } else {
+        None
+    };
+    
+    let mut chars = Vec::new();
+    let mut count = 0;
+    
+    while max_length.is_none_or(|max| count < max) {
+        match generator.next() {
+            Ok(value) => {
+                if value == *generator.eof_object() {
+                    break;
+                }
+                
+                // Convert value to character
+                match value {
+                    Value::Literal(crate::ast::Literal::Character(ch)) => {
+                        chars.push(ch);
+                        count += 1;
+                    }
+                    _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                        message: "generator->string: generator must yield characters".to_string(),
+                        span: None,
+                    }))
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    }
+    
+    let string: String = chars.into_iter().collect();
+    Ok(Value::string(string))
+}
+
 /// generator-fold primitive
 fn primitive_generator_fold(_args: &[Value]) -> LambdustResult<Value> {
     // This is a placeholder implementation
@@ -485,6 +806,268 @@ fn primitive_generator_fold(_args: &[Value]) -> LambdustResult<Value> {
         message: "generator-fold: not yet implemented (requires evaluator integration)".to_string(),
         span: None,
     }))
+}
+
+/// generator-unfold primitive
+fn primitive_generator_unfold(args: &[Value]) -> LambdustResult<Value> {
+    if args.len() != 4 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator-unfold: expected 4 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let stop_predicate = args[0].clone();
+    let mapper = args[1].clone();
+    let successor = args[2].clone();
+    let seed = args[3].clone();
+    
+    // Verify all are procedures
+    if !stop_predicate.is_procedure() {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-unfold: stop predicate must be a procedure".to_string(),
+            span: None,
+        }));
+    }
+    
+    if !mapper.is_procedure() {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-unfold: mapper must be a procedure".to_string(),
+            span: None,
+        }));
+    }
+    
+    if !successor.is_procedure() {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-unfold: successor must be a procedure".to_string(),
+            span: None,
+        }));
+    }
+    
+    Ok(Value::generator_unfold(stop_predicate, mapper, successor, seed))
+}
+
+/// generator-tabulate primitive
+fn primitive_generator_tabulate(args: &[Value]) -> LambdustResult<Value> {
+    if args.is_empty() || args.len() > 2 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator-tabulate: expected 1-2 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let func = args[0].clone();
+    if !func.is_procedure() {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-tabulate: first argument must be a procedure".to_string(),
+            span: None,
+        }));
+    }
+    
+    let max_count = if args.len() == 2 {
+        let count = args[1].as_integer()
+            .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "generator-tabulate: second argument must be an integer".to_string(),
+                span: None,
+            }))?;
+        
+        if count < 0 {
+            return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "generator-tabulate: count must be non-negative".to_string(),
+                span: None,
+            }));
+        }
+        
+        Some(count as usize)
+    } else {
+        None
+    };
+    
+    Ok(Value::generator_tabulate(func, max_count))
+}
+
+/// generator-map primitive
+fn primitive_generator_map(args: &[Value]) -> LambdustResult<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator-map: expected 2 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let mapper = args[0].clone();
+    if !mapper.is_procedure() {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-map: first argument must be a procedure".to_string(),
+            span: None,
+        }));
+    }
+    
+    let source = match &args[1] {
+        Value::Generator(generator) => generator.clone(),
+        _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-map: second argument must be a generator".to_string(),
+            span: None,
+        }))
+    };
+    
+    Ok(Value::generator_map(source, mapper))
+}
+
+/// generator-filter primitive
+fn primitive_generator_filter(args: &[Value]) -> LambdustResult<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator-filter: expected 2 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let predicate = args[0].clone();
+    if !predicate.is_procedure() {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-filter: first argument must be a procedure".to_string(),
+            span: None,
+        }));
+    }
+    
+    let source = match &args[1] {
+        Value::Generator(generator) => generator.clone(),
+        _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-filter: second argument must be a generator".to_string(),
+            span: None,
+        }))
+    };
+    
+    Ok(Value::generator_filter(source, predicate))
+}
+
+/// generator-take primitive
+fn primitive_generator_take(args: &[Value]) -> LambdustResult<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator-take: expected 2 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let source = match &args[0] {
+        Value::Generator(generator) => generator.clone(),
+        _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-take: first argument must be a generator".to_string(),
+            span: None,
+        }))
+    };
+    
+    let count = args[1].as_integer()
+        .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-take: second argument must be an integer".to_string(),
+            span: None,
+        }))?;
+    
+    if count < 0 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-take: count must be non-negative".to_string(),
+            span: None,
+        }));
+    }
+    
+    Ok(Value::generator_take(source, count as usize))
+}
+
+/// generator-drop primitive
+fn primitive_generator_drop(args: &[Value]) -> LambdustResult<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator-drop: expected 2 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let source = match &args[0] {
+        Value::Generator(generator) => generator.clone(),
+        _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-drop: first argument must be a generator".to_string(),
+            span: None,
+        }))
+    };
+    
+    let count = args[1].as_integer()
+        .ok_or_else(|| Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-drop: second argument must be an integer".to_string(),
+            span: None,
+        }))?;
+    
+    if count < 0 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-drop: count must be non-negative".to_string(),
+            span: None,
+        }));
+    }
+    
+    Ok(Value::generator_drop(source, count as usize))
+}
+
+/// generator-append primitive
+fn primitive_generator_append(args: &[Value]) -> LambdustResult<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: format!("generator-append: expected 2 arguments, got {}", args.len()),
+            span: None,
+        }));
+    }
+    
+    let first = match &args[0] {
+        Value::Generator(generator) => generator.clone(),
+        _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-append: first argument must be a generator".to_string(),
+            span: None,
+        }))
+    };
+    
+    let second = match &args[1] {
+        Value::Generator(generator) => generator.clone(),
+        _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+            message: "generator-append: second argument must be a generator".to_string(),
+            span: None,
+        }))
+    };
+    
+    Ok(Value::generator_append(first, second))
+}
+
+/// generator-concatenate primitive
+fn primitive_generator_concatenate(args: &[Value]) -> LambdustResult<Value> {
+    let mut generators = Vec::new();
+    
+    for arg in args {
+        match arg {
+            Value::Generator(generator) => generators.push(generator.clone()),
+            _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "generator-concatenate: all arguments must be generators".to_string(),
+                span: None,
+            }))
+        }
+    }
+    
+    Ok(Value::generator_concatenate(generators))
+}
+
+/// generator-zip primitive
+fn primitive_generator_zip(args: &[Value]) -> LambdustResult<Value> {
+    let mut sources = Vec::new();
+    
+    for arg in args {
+        match arg {
+            Value::Generator(generator) => sources.push(generator.clone()),
+            _ => return Err(Box::new(crate::diagnostics::Error::RuntimeError {
+                message: "generator-zip: all arguments must be generators".to_string(),
+                span: None,
+            }))
+        }
+    }
+    
+    Ok(Value::generator_zip(sources))
 }
 
 #[cfg(test)]
@@ -522,6 +1105,52 @@ mod tests {
     fn test_generator_constructor() {
         let args = vec![Value::integer(1), Value::string("hello"), Value::boolean(true)];
         let generator = primitive_generator(&args).unwrap();
+        
+        assert!(generator.is_generator());
+    }
+    
+    #[test]
+    fn test_generator_take() {
+        // Create a simple range generator
+        let args = vec![Value::number(0.0), Value::number(10.0)];
+        let range_gen = primitive_make_range_generator(&args).unwrap();
+        
+        // Take first 3 values
+        let take_args = vec![range_gen, Value::integer(3)];
+        let take_gen = primitive_generator_take(&take_args).unwrap();
+        
+        assert!(take_gen.is_generator());
+    }
+    
+    #[test]
+    fn test_generator_append() {
+        let first_args = vec![Value::integer(1), Value::integer(2)];
+        let first_gen = primitive_generator(&first_args).unwrap();
+        
+        let second_args = vec![Value::integer(3), Value::integer(4)];
+        let second_gen = primitive_generator(&second_args).unwrap();
+        
+        let append_args = vec![first_gen, second_gen];
+        let appended = primitive_generator_append(&append_args).unwrap();
+        
+        assert!(appended.is_generator());
+    }
+    
+    #[test]
+    fn test_generator_to_vector() {
+        let args = vec![Value::integer(10), Value::integer(20), Value::integer(30)];
+        let generator = primitive_generator(&args).unwrap();
+        
+        let to_vec_args = vec![generator];
+        let result = primitive_generator_to_vector(&to_vec_args).unwrap();
+        
+        assert!(result.is_vector());
+    }
+    
+    #[test]
+    fn test_string_to_generator_with_bounds() {
+        let args = vec![Value::string("hello"), Value::integer(1), Value::integer(4)];
+        let generator = primitive_string_to_generator(&args).unwrap();
         
         assert!(generator.is_generator());
     }

@@ -1,0 +1,19 @@
+;; Basic test without imports to check core implementation
+
+;; Test basic arithmetic
+(display "Testing basic arithmetic...\n")
+(display (+ 2 3))
+(newline)
+
+;; Test list operations
+(display "Testing list operations...\n")
+(display (car '(1 2 3)))
+(newline)
+
+;; Test basic functions
+(display "Testing lambda...\n")
+(define square (lambda (x) (* x x)))
+(display (square 5))
+(newline)
+
+(display "Basic test completed.\n")

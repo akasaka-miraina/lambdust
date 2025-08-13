@@ -207,16 +207,12 @@ impl ThreadSafeSet {
     
     /// Adds an element to the set. Returns true if the element was newly inserted.
     pub fn adjoin(&self, value: Value) -> ContainerResult<bool> {
-        self.inner
+        Ok(self.inner
             .write()
             .map_err(|_| ContainerError::InvalidComparator {
                 message: "Failed to acquire write lock".to_string(),
             })?
-            .adjoin(value)
-            .then_some(true)
-            .ok_or_else(|| ContainerError::EmptyContainer {
-                operation: "adjoin".to_string(),
-            })
+            .adjoin(value))
     }
     
     /// Removes an element from the set. Returns true if the element was present.
@@ -350,6 +346,27 @@ impl ThreadSafeSet {
         })
     }
     
+    /// Creates a difference of this set with another set.
+    pub fn difference(&self, other: &ThreadSafeSet) -> ContainerResult<ThreadSafeSet> {
+        let self_set = self
+            .inner
+            .read()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire read lock".to_string(),
+            })?;
+        let other_set = other
+            .inner
+            .read()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire read lock".to_string(),
+            })?;
+        
+        let result = self_set.difference(&other_set);
+        Ok(ThreadSafeSet {
+            inner: Arc::new(RwLock::new(result)),
+        })
+    }
+    
     /// Tests if this set is a subset of another set.
     pub fn is_subset(&self, other: &ThreadSafeSet) -> ContainerResult<bool> {
         let self_set = self
@@ -366,6 +383,101 @@ impl ThreadSafeSet {
             })?;
         
         Ok(self_set.is_subset(&other_set))
+    }
+    
+    /// Tests if this set is a superset of another set.
+    pub fn is_superset(&self, other: &ThreadSafeSet) -> ContainerResult<bool> {
+        let self_set = self
+            .inner
+            .read()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire read lock".to_string(),
+            })?;
+        let other_set = other
+            .inner
+            .read()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire read lock".to_string(),
+            })?;
+        
+        Ok(self_set.is_superset(&other_set))
+    }
+    
+    /// Tests if this set is disjoint from another set.
+    pub fn is_disjoint(&self, other: &ThreadSafeSet) -> ContainerResult<bool> {
+        let self_set = self
+            .inner
+            .read()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire read lock".to_string(),
+            })?;
+        let other_set = other
+            .inner
+            .read()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire read lock".to_string(),
+            })?;
+        
+        Ok(self_set.is_disjoint(&other_set))
+    }
+    
+    /// Returns the comparator used by this set.
+    pub fn comparator(&self) -> ContainerResult<HashComparator> {
+        Ok(self
+            .inner
+            .read()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire read lock".to_string(),
+            })?
+            .comparator()
+            .clone())
+    }
+    
+    /// Adjoins multiple elements to the set.
+    pub fn adjoin_all<I>(&self, values: I) -> ContainerResult<()>
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        let mut set = self
+            .inner
+            .write()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire write lock".to_string(),
+            })?;
+        
+        for value in values {
+            set.adjoin(value);
+        }
+        Ok(())
+    }
+    
+    /// Deletes multiple elements from the set.
+    pub fn delete_all<I>(&self, values: I) -> ContainerResult<()>
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        let mut set = self
+            .inner
+            .write()
+            .map_err(|_| ContainerError::InvalidComparator {
+                message: "Failed to acquire write lock".to_string(),
+            })?;
+        
+        for value in values {
+            set.delete(&value);
+        }
+        Ok(())
+    }
+    
+    /// Creates a new set from an iterator and comparator.
+    pub fn from_iter_with_comparator<I>(iter: I, comparator: HashComparator) -> Self
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        let set = Set::from_iter_with_comparator(iter, comparator);
+        Self {
+            inner: Arc::new(RwLock::new(set)),
+        }
     }
 }
 

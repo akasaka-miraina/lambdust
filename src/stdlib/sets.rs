@@ -226,14 +226,10 @@ fn primitive_set_disjoint_p(args: &[Value]) -> Result<Value> {
     
     match (&args[0], &args[1]) {
         (Value::Set(set1), Value::Set(set2)) => {
-            // Check if sets have any common elements
-            let vec1 = set1.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
-            for element in vec1 {
-                if set2.contains(&element).map_err(|_| runtime_error("Failed to check set membership"))? {
-                    return Ok(Value::boolean(false));
-                }
+            match set1.is_disjoint(set2) {
+                Ok(result) => Ok(Value::boolean(result)),
+                Err(_) => Err(runtime_error("Failed to check if sets are disjoint")),
             }
-            Ok(Value::boolean(true))
         }
         _ => Err(type_error("Expected two sets")),
     }
@@ -639,19 +635,110 @@ fn primitive_set_xor(args: &[Value]) -> Result<Value> {
 
 // Mutating versions of set operations (simplified implementations)
 fn primitive_set_union_mut(args: &[Value]) -> Result<Value> {
-    Err(runtime_error("set-union! not implemented"))
+    if args.is_empty() {
+        return Ok(Value::Unspecified);
+    }
+    
+    if let Value::Set(first_set) = &args[0] {
+        for other_set_value in &args[1..] {
+            if let Value::Set(other_set) = other_set_value {
+                let elements = other_set.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
+                first_set.adjoin_all(elements).map_err(|_| runtime_error("Failed to union sets"))?;
+            } else {
+                return Err(type_error("Expected a set"));
+            }
+        }
+        Ok(Value::Unspecified)
+    } else {
+        Err(type_error("Expected a set"))
+    }
 }
 
 fn primitive_set_intersection_mut(args: &[Value]) -> Result<Value> {
-    Err(runtime_error("set-intersection! not implemented"))
+    if args.len() < 2 {
+        return Err(arity_error("set-intersection!", 2, None, args.len()));
+    }
+    
+    if let Value::Set(first_set) = &args[0] {
+        let first_elements = first_set.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
+        first_set.clear().map_err(|_| runtime_error("Failed to clear set"))?;
+        
+        for element in first_elements {
+            let mut in_all_sets = true;
+            for other_set_value in &args[1..] {
+                if let Value::Set(other_set) = other_set_value {
+                    if !other_set.contains(&element).map_err(|_| runtime_error("Failed to check set membership"))? {
+                        in_all_sets = false;
+                        break;
+                    }
+                } else {
+                    return Err(type_error("Expected a set"));
+                }
+            }
+            if in_all_sets {
+                first_set.adjoin(element).map_err(|_| runtime_error("Failed to add element to set"))?;
+            }
+        }
+        Ok(Value::Unspecified)
+    } else {
+        Err(type_error("Expected a set"))
+    }
 }
 
 fn primitive_set_difference_mut(args: &[Value]) -> Result<Value> {
-    Err(runtime_error("set-difference! not implemented"))
+    if args.len() < 2 {
+        return Err(arity_error("set-difference!", 2, None, args.len()));
+    }
+    
+    if let Value::Set(first_set) = &args[0] {
+        let mut elements_to_remove = Vec::new();
+        
+        for other_set_value in &args[1..] {
+            if let Value::Set(other_set) = other_set_value {
+                let other_elements = other_set.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
+                elements_to_remove.extend(other_elements);
+            } else {
+                return Err(type_error("Expected a set"));
+            }
+        }
+        
+        first_set.delete_all(elements_to_remove).map_err(|_| runtime_error("Failed to remove elements from set"))?;
+        Ok(Value::Unspecified)
+    } else {
+        Err(type_error("Expected a set"))
+    }
 }
 
 fn primitive_set_xor_mut(args: &[Value]) -> Result<Value> {
-    Err(runtime_error("set-xor! not implemented"))
+    arity_check("set-xor!", args, 2, Some(2))?;
+    
+    match (&args[0], &args[1]) {
+        (Value::Set(set1), Value::Set(set2)) => {
+            // XOR = (A ∪ B) - (A ∩ B)
+            let set1_elements = set1.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
+            let set2_elements = set2.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
+            
+            // Clear the first set
+            set1.clear().map_err(|_| runtime_error("Failed to clear set"))?;
+            
+            // Add elements that are in set1 but not in set2
+            for element in &set1_elements {
+                if !set2.contains(element).map_err(|_| runtime_error("Failed to check set membership"))? {
+                    set1.adjoin(element.clone()).map_err(|_| runtime_error("Failed to add element to set"))?;
+                }
+            }
+            
+            // Add elements that are in set2 but not in original set1
+            for element in &set2_elements {
+                if !set1_elements.contains(element) {
+                    set1.adjoin(element.clone()).map_err(|_| runtime_error("Failed to add element to set"))?;
+                }
+            }
+            
+            Ok(Value::Unspecified)
+        }
+        _ => Err(type_error("Expected two sets")),
+    }
 }
 
 /// Tests whether two sets are equal.
@@ -696,15 +783,14 @@ fn primitive_set_subset_p(args: &[Value]) -> Result<Value> {
                 let size1 = set1.size().map_err(|_| runtime_error("Failed to get set size"))?;
                 let size2 = set2.size().map_err(|_| runtime_error("Failed to get set size"))?;
                 
+                // Proper subset requires strictly smaller size
                 if size1 >= size2 {
                     return Ok(Value::boolean(false));
                 }
                 
-                let elements1 = set1.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
-                for element in elements1 {
-                    if !set2.contains(&element).map_err(|_| runtime_error("Failed to check set membership"))? {
-                        return Ok(Value::boolean(false));
-                    }
+                // Check if set1 is a subset of set2
+                if !set1.is_subset(set2).map_err(|_| runtime_error("Failed to check subset relation"))? {
+                    return Ok(Value::boolean(false));
                 }
             }
             _ => return Err(type_error("Expected sets")),
@@ -727,15 +813,14 @@ fn primitive_set_superset_p(args: &[Value]) -> Result<Value> {
                 let size1 = set1.size().map_err(|_| runtime_error("Failed to get set size"))?;
                 let size2 = set2.size().map_err(|_| runtime_error("Failed to get set size"))?;
                 
+                // Proper superset requires strictly larger size
                 if size1 <= size2 {
                     return Ok(Value::boolean(false));
                 }
                 
-                let elements2 = set2.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
-                for element in elements2 {
-                    if !set1.contains(&element).map_err(|_| runtime_error("Failed to check set membership"))? {
-                        return Ok(Value::boolean(false));
-                    }
+                // Check if set1 is a superset of set2
+                if !set1.is_superset(set2).map_err(|_| runtime_error("Failed to check superset relation"))? {
+                    return Ok(Value::boolean(false));
                 }
             }
             _ => return Err(type_error("Expected sets")),
@@ -755,11 +840,9 @@ fn primitive_set_subset_eq_p(args: &[Value]) -> Result<Value> {
     for window in args.windows(2) {
         match (&window[0], &window[1]) {
             (Value::Set(set1), Value::Set(set2)) => {
-                let elements1 = set1.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
-                for element in elements1 {
-                    if !set2.contains(&element).map_err(|_| runtime_error("Failed to check set membership"))? {
-                        return Ok(Value::boolean(false));
-                    }
+                // Check if set1 is a subset of set2 (includes equality)
+                if !set1.is_subset(set2).map_err(|_| runtime_error("Failed to check subset relation"))? {
+                    return Ok(Value::boolean(false));
                 }
             }
             _ => return Err(type_error("Expected sets")),
@@ -779,11 +862,9 @@ fn primitive_set_superset_eq_p(args: &[Value]) -> Result<Value> {
     for window in args.windows(2) {
         match (&window[0], &window[1]) {
             (Value::Set(set1), Value::Set(set2)) => {
-                let elements2 = set2.to_vec().map_err(|_| runtime_error("Failed to get set elements"))?;
-                for element in elements2 {
-                    if !set1.contains(&element).map_err(|_| runtime_error("Failed to check set membership"))? {
-                        return Ok(Value::boolean(false));
-                    }
+                // Check if set1 is a superset of set2 (includes equality)
+                if !set1.is_superset(set2).map_err(|_| runtime_error("Failed to check superset relation"))? {
+                    return Ok(Value::boolean(false));
                 }
             }
             _ => return Err(type_error("Expected sets")),

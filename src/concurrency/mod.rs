@@ -43,39 +43,62 @@ pub use lockfree_queue::{LockFreeQueue, BoundedLockFreeQueue};
 pub use atomic_primitives::{AtomicCounter, AtomicFlag};
 pub use sync_registry::{SyncRegistry, global_sync_registry};
 
-use crate::diagnostics::{Error, Result};
+use crate::diagnostics::{Error, Result, LambdustError};
 
 /// Error types specific to concurrency operations.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum ConcurrencyError {
     /// Channel has been closed and can no longer send/receive messages
-    #[error("Channel closed")]
     ChannelClosed,
     
     /// Operation timed out before completion
-    #[error("Timeout expired")]
     Timeout,
     
     /// Task was cancelled before completion
-    #[error("Task cancelled")]
     Cancelled,
     
     /// Deadlock detected in the system
-    #[error("Deadlock detected")]
     Deadlock,
     
     /// Actor with the specified name was not found
-    #[error("Actor not found: {0}")]
     ActorNotFound(String),
     
     /// Error during serialization/deserialization
-    #[error("Serialization error: {0}")]
     Serialization(String),
     
     /// Network-related error
-    #[error("Network error: {0}")]
     Network(String),
 }
+
+impl std::fmt::Display for ConcurrencyError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::ChannelClosed => write!(f, "Channel closed"),
+            Self::Timeout => write!(f, "Timeout expired"),
+            Self::Cancelled => write!(f, "Task cancelled"),
+            Self::Deadlock => write!(f, "Deadlock detected"),
+            Self::ActorNotFound(name) => write!(f, "Actor not found: {}", name),
+            Self::Serialization(msg) => write!(f, "Serialization error: {}", msg),
+            Self::Network(msg) => write!(f, "Network error: {}", msg),
+        }
+    }
+}
+
+impl LambdustError for ConcurrencyError {
+    fn error_code(&self) -> &'static str {
+        match self {
+            Self::ChannelClosed => "lambdust::concurrency::channel_closed",
+            Self::Timeout => "lambdust::concurrency::timeout",
+            Self::Cancelled => "lambdust::concurrency::cancelled",
+            Self::Deadlock => "lambdust::concurrency::deadlock",
+            Self::ActorNotFound(_) => "lambdust::concurrency::actor_not_found",
+            Self::Serialization(_) => "lambdust::concurrency::serialization",
+            Self::Network(_) => "lambdust::concurrency::network",
+        }
+    }
+}
+
+impl std::error::Error for ConcurrencyError {}
 
 impl From<ConcurrencyError> for Error {
     fn from(err: ConcurrencyError) -> Self {

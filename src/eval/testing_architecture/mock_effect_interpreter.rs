@@ -58,10 +58,17 @@ impl EffectInterpreter for MockEffectInterpreter {
         self.call_log.lock().unwrap().push(effect_call);
         
         // Simulate processing time
+        #[cfg(feature = "async-runtime")]
         if self.behavior.processing_time_ms > 0 {
             tokio::time::sleep(
                 tokio::time::Duration::from_millis(self.behavior.processing_time_ms)
             ).await;
+        }
+        
+        // Fallback when async-runtime is not available - use std::thread::sleep
+        #[cfg(not(feature = "async-runtime"))]
+        if self.behavior.processing_time_ms > 0 {
+            std::thread::sleep(std::time::Duration::from_millis(self.behavior.processing_time_ms));
         }
         
         // Return mock response or default

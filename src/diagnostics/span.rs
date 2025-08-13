@@ -159,11 +159,8 @@ impl Default for Span {
     }
 }
 
-impl From<Span> for miette::SourceSpan {
-    fn from(span: Span) -> Self {
-        miette::SourceSpan::new(span.start.into(), span.len)
-    }
-}
+// Note: miette::SourceSpan conversion removed due to miette dependency elimination
+// Use lightweight diagnostic system instead
 
 /// Helper function to create a spanned value.
 pub fn spanned<T>(inner: T, span: Span) -> Spanned<T> {

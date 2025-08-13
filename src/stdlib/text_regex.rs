@@ -9,7 +9,8 @@ use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnv
 use crate::effects::Effect;
 use crate::stdlib::text::Text;
 use std::sync::Arc;
-use regex::Captures;
+// use regex::Captures; // Removed external regex dependency
+use crate::regex::compat::{LightRegex, Captures as LightCaptures};
 use std::collections::HashMap;
 
 // ============= REGEX ENGINE =============
@@ -23,8 +24,8 @@ pub struct TextRegex {
     pattern: String,
     /// Regex flags
     flags: RegexFlags,
-    /// Compiled regex
-    regex: regex::Regex,
+    /// Compiled regex using internal engine
+    regex: LightRegex,
 }
 
 /// Regular expression compilation flags.
@@ -74,16 +75,14 @@ impl TextRegex {
     }
 
     /// Compiles a regular expression with specific flags.
-    /// Note: This is a simplified implementation.
+    /// Note: Uses internal lightweight regex engine.
     pub fn with_flags(pattern: &str, flags: RegexFlags) -> Result<Self> {
-        // Build regex with flags
-        let mut builder = regex::RegexBuilder::new(pattern);
-        builder.case_insensitive(flags.case_insensitive);
-        builder.multi_line(flags.multiline);
-        builder.dot_matches_new_line(flags.dot_matches_newline);
-        builder.unicode(flags.unicode);
-        builder.ignore_whitespace(flags.extended);
-        builder.swap_greed(flags.swap_greed);
+        // Build regex with flags using internal engine
+        let builder = crate::regex::compat::RegexBuilder::new(pattern)
+            .case_insensitive(flags.case_insensitive)
+            .multi_line(flags.multiline)
+            .dot_matches_new_line(flags.dot_matches_newline)
+            .unicode(flags.unicode);
         
         let regex = builder.build().map_err(|e| DiagnosticError::runtime_error(
             format!("Invalid regex pattern: {e}"),
@@ -108,21 +107,23 @@ impl TextRegex {
     }
 
     /// Tests if the pattern matches anywhere in the text.
-    /// Note: Simplified implementation using basic string matching.
+    /// Note: Uses internal lightweight regex engine.
     pub fn is_match(&self, text: &Text) -> bool {
-        text.to_string().contains(&self.pattern)
+        let text_str = text.to_string();
+        self.regex.is_match(&text_str)
     }
 
     /// Finds the first match in the text.
-    /// Note: Simplified implementation using basic string searching.
+    /// Note: Uses internal lightweight regex engine.
     pub fn find(&self, text: &Text) -> Option<TextMatchResult> {
-        let s = text.to_string();
-        if let Some(pos) = s.find(&self.pattern) {
-            let start_char = s[..pos].chars().count();
-            let end_char = start_char + self.pattern.chars().count();
+        let text_str = text.to_string();
+        if let Some(m) = self.regex.find(&text_str) {
+            let start_char = text_str[..m.start()].chars().count();
+            let end_char = text_str[..m.end()].chars().count();
+            let matched_text = text.substring(start_char, end_char)?;
             
             Some(TextMatchResult {
-                matched_text: Text::from_string_slice(&self.pattern),
+                matched_text,
                 start: start_char,
                 end: end_char,
                 groups: vec![],
@@ -135,10 +136,22 @@ impl TextRegex {
 
     /// Finds all matches in the text.
     pub fn find_all(&self, text: &Text) -> Vec<TextMatchResult> {
-        let s = text.to_string();
+        let text_str = text.to_string();
         self.regex
-            .captures_iter(&s)
-            .filter_map(|caps| self.captures_to_match_result(text, &caps))
+            .find_iter(&text_str)
+            .filter_map(|m| {
+                let start_char = text_str[..m.start()].chars().count();
+                let end_char = text_str[..m.end()].chars().count();
+                let matched_text = text.substring(start_char, end_char)?;
+                
+                Some(TextMatchResult {
+                    matched_text,
+                    start: start_char,
+                    end: end_char,
+                    groups: vec![],
+                    named_groups: HashMap::new(),
+                })
+            })
             .collect()
     }
 
@@ -153,17 +166,17 @@ impl TextRegex {
 
     /// Replaces the first match with replacement text.
     pub fn replace(&self, text: &Text, replacement: &Text) -> Text {
-        let s = text.to_string();
+        let text_str = text.to_string();
         let replacement_str = replacement.to_string();
-        let result = self.regex.replace(&s, replacement_str.as_str());
+        let result = self.regex.replace(&text_str, &replacement_str);
         Text::from_string(result.into_owned())
     }
 
     /// Replaces all matches with replacement text.
     pub fn replace_all(&self, text: &Text, replacement: &Text) -> Text {
-        let s = text.to_string();
+        let text_str = text.to_string();
         let replacement_str = replacement.to_string();
-        let result = self.regex.replace_all(&s, replacement_str.as_str());
+        let result = self.regex.replace_all(&text_str, &replacement_str);
         Text::from_string(result.into_owned())
     }
 
@@ -172,94 +185,46 @@ impl TextRegex {
     where
         F: Fn(&TextMatchResult) -> Text,
     {
-        let s = text.to_string();
-        let mut result = String::new();
-        let mut last_end = 0;
-
-        for captures in self.regex.captures_iter(&s) {
-            let m = captures.get(0).unwrap();
-            
-            // Add text before match
-            result.push_str(&s[last_end..m.start()]);
-            
-            // Create match result and get replacement
-            if let Some(match_result) = self.captures_to_match_result(text, &captures) {
-                let replacement = replacer(&match_result);
-                result.push_str(&replacement.to_string());
+        let text_str = text.to_string();
+        let result = self.regex.replace_all_fn(&text_str, |m| {
+            let start_char = text_str[..m.start()].chars().count();
+            let end_char = text_str[..m.end()].chars().count();
+            if let Some(matched_text) = text.substring(start_char, end_char) {
+                let match_result = TextMatchResult {
+                    matched_text: matched_text.clone(),
+                    start: start_char,
+                    end: end_char,
+                    groups: vec![],
+                    named_groups: HashMap::new(),
+                };
+                replacer(&match_result).to_string()
+            } else {
+                String::new()
             }
-            
-            last_end = m.end();
-        }
+        });
         
-        // Add remaining text
-        result.push_str(&s[last_end..]);
-        
-        Text::from_string(result)
+        Text::from_string(result.into_owned())
     }
 
     /// Splits the text by the regex pattern.
     pub fn split(&self, text: &Text) -> Vec<Text> {
-        let s = text.to_string();
+        let text_str = text.to_string();
         self.regex
-            .split(&s)
+            .split(&text_str)
             .map(|part| Text::from_string(part.to_string()))
             .collect()
     }
 
     /// Splits the text by the regex pattern with limit.
     pub fn splitn(&self, text: &Text, limit: usize) -> Vec<Text> {
-        let s = text.to_string();
+        let text_str = text.to_string();
         self.regex
-            .splitn(&s, limit)
+            .splitn(&text_str, limit)
             .map(|part| Text::from_string(part.to_string()))
             .collect()
     }
 
-    /// Converts regex captures to match result.
-    fn captures_to_match_result(&self, text: &Text, captures: &Captures<'_>) -> Option<TextMatchResult> {
-        let full_match = captures.get(0)?;
-        let text_str = text.to_string();
-        
-        // Convert byte positions to character positions
-        let start_char = text_str[..full_match.start()].chars().count();
-        let end_char = text_str[..full_match.end()].chars().count();
-        
-        let matched_text = text.substring(start_char, end_char)?;
-        
-        // Extract numbered groups
-        let mut groups = Vec::new();
-        for i in 1..captures.len() {
-            if let Some(group_match) = captures.get(i) {
-                let group_start = text_str[..group_match.start()].chars().count();
-                let group_end = text_str[..group_match.end()].chars().count();
-                let group_text = text.substring(group_start, group_end);
-                groups.push(group_text);
-            } else {
-                groups.push(None);
-            }
-        }
-        
-        // Extract named groups
-        let mut named_groups = HashMap::new();
-        for name in self.regex.capture_names().flatten() {
-            if let Some(group_match) = captures.name(name) {
-                let group_start = text_str[..group_match.start()].chars().count();
-                let group_end = text_str[..group_match.end()].chars().count();
-                let group_text = text.substring(group_start, group_end);
-                named_groups.insert(name.to_string(), group_text);
-            } else {
-                named_groups.insert(name.to_string(), None);
-            }
-        }
-
-        Some(TextMatchResult {
-            matched_text,
-            start: start_char,
-            end: end_char,
-            groups,
-            named_groups,
-        })
-    }
+    // captures_to_match_result method removed - no longer needed with internal engine
 }
 
 impl<'t> Iterator for TextMatchIter<'t> {

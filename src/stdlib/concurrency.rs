@@ -4,20 +4,23 @@
 //! This module provides Scheme-friendly wrappers around the concurrency
 //! primitives, making them accessible from Scheme code with idiomatic APIs.
 
-use crate::eval::{Value, ThreadSafeEnvironment, PrimitiveProcedure, PrimitiveImpl};
-use crate::diagnostics::{Error, Result};
-use crate::effects::Effect;
-use crate::concurrency::{
-    futures::{Future, Promise, FutureOps},
-    channels::{Channel, ChannelConfig, ChannelType},
-    parallel::{ParallelOps, ParallelConfig},
-    Mutex, SemaphoreSync, AtomicCounter,
-    actors::{global_actor_system, EchoActor},
-    scheduler::{submit_task, submit_priority_task, Priority},
-    distributed::DistributedNode,
-};
-use std::sync::Arc;
-use std::time::Duration;
+// The entire concurrency stdlib module is only available with async-runtime feature
+#[cfg(feature = "async-runtime")]
+mod concurrency_impl {
+    use crate::eval::{Value, ThreadSafeEnvironment, PrimitiveProcedure, PrimitiveImpl};
+    use crate::diagnostics::{Error, Result};
+    use crate::effects::Effect;
+    use crate::concurrency::{
+        futures::{Future, Promise, FutureOps},
+        channels::{Channel, ChannelConfig, ChannelType},
+        parallel::{ParallelOps, ParallelConfig},
+        Mutex, SemaphoreSync, AtomicCounter,
+        actors::{global_actor_system, EchoActor},
+        scheduler::{submit_task, submit_priority_task, Priority},
+        distributed::DistributedNode,
+    };
+    use std::sync::Arc;
+    use std::time::Duration;
 
 /// Registers all concurrency primitives with the environment.
 pub fn populate_environment(env: &ThreadSafeEnvironment) {
@@ -727,9 +730,26 @@ fn primitive_channel_recv(args: &[Value]) -> Result<Value> {
     }
 }
 
-/// Concurrency standard library initialization.
-pub fn init_concurrency_stdlib() -> Result<()> {
-    // Initialize the concurrency system
-    crate::concurrency::initialize()?;
+    /// Concurrency standard library initialization.
+    pub fn init_concurrency_stdlib() -> Result<()> {
+        // Initialize the concurrency system
+        crate::concurrency::initialize()?;
+        Ok(())
+    }
+}
+
+// Re-export functions when async-runtime feature is available
+#[cfg(feature = "async-runtime")]
+pub use concurrency_impl::*;
+
+// Provide stub implementations when async-runtime is not available
+#[cfg(not(feature = "async-runtime"))]
+pub fn populate_environment(_env: &crate::eval::ThreadSafeEnvironment) {
+    // No-op when async runtime is disabled
+}
+
+#[cfg(not(feature = "async-runtime"))]
+pub fn init_concurrency_stdlib() -> crate::diagnostics::Result<()> {
+    // No-op when async runtime is disabled
     Ok(())
 }

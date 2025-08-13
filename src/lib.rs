@@ -63,7 +63,8 @@ pub mod types;
 pub mod effects;
 /// Module system with R7RS-compatible libraries.
 pub mod module_system;
-/// Concurrency primitives and parallel evaluation support.
+/// Concurrency primitives and parallel evaluation support (requires async-runtime).
+#[cfg(feature = "async-runtime")]
 pub mod concurrency;
 
 // Runtime and evaluation
@@ -77,6 +78,8 @@ pub mod stdlib;
 pub mod bytecode;
 /// Just-In-Time compilation system for native code generation.
 pub mod jit;
+/// Lightweight regular expression engine (internal implementation).
+pub mod regex;
 
 // Advanced numeric system
 /// Advanced numeric tower with bigints, rationals, and complex numbers.
@@ -100,10 +103,14 @@ pub mod diagnostics;
 /// Utility functions and data structures.
 pub mod utils;
 
-// Enhanced REPL system
-/// Enhanced Read-Eval-Print Loop with debugging and completion.
-#[cfg(any(feature = "repl", feature = "enhanced-repl"))]
+// REPL system (multiple configurations supported)
+/// REPL implementations: minimal, full, and enhanced.
+#[cfg(any(feature = "minimal-repl", feature = "repl", feature = "enhanced-repl"))]
 pub mod repl;
+
+// Command-line interface
+/// Lightweight command-line interface system.
+pub mod cli;
 
 // Benchmarking and performance comparison
 /// Benchmarking suite and performance analysis tools.

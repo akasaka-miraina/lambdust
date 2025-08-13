@@ -50,5 +50,8 @@ pub use parser_builder::*;
 // pub use literals::*;
 // pub use special_forms::*;
 
+/// 内製パーサーコンビネータシステム
+pub mod combinators;
+
 
 

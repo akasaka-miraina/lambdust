@@ -23,7 +23,7 @@ use nix::unistd::{pipe, read, write};
 #[cfg(target_os = "linux")]
 use nix::fcntl::{fcntl, FcntlArg, OFlag};
 
-#[cfg(target_os = "macos")]
+#[cfg(all(target_os = "macos", feature = "advanced-io"))]
 use nix::sys::event::{KEvent, EventFilter, FilterFlag, EventFlag, Kqueue};
 // Note: EvFlags may not be available in this version of nix
 
@@ -45,7 +45,7 @@ pub enum PlatformHandle {
         epoll_fd: i32,
         events: Vec<EpollEvent>,
     },
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", feature = "advanced-io"))]
     Kqueue {
         kq_fd: Kqueue,
         events: Vec<KEvent>,
@@ -120,7 +120,7 @@ impl HighPerformanceIo {
         }
     }
     
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", feature = "advanced-io"))]
     fn create_platform_handle() -> std::io::Result<PlatformHandle> {
         match Kqueue::new() {
             Ok(kq) => Ok(PlatformHandle::Kqueue {
@@ -132,6 +132,12 @@ impl HighPerformanceIo {
                 Self::create_mio_handle()
             }
         }
+    }
+    
+    // Fallback for macos without advanced-io feature
+    #[cfg(all(target_os = "macos", not(feature = "advanced-io")))]
+    fn create_platform_handle() -> std::io::Result<PlatformHandle> {
+        Self::create_mio_handle()
     }
     
     #[cfg(windows)]
@@ -185,7 +191,7 @@ impl HighPerformanceIo {
                 let fd = *epoll_fd;
                 Self::poll_epoll_static(fd, events, timeout, &mut self.pending_operations)
             }
-            #[cfg(target_os = "macos")]
+            #[cfg(all(target_os = "macos", feature = "advanced-io"))]
             PlatformHandle::Kqueue { kq_fd, events } => {
                 Self::poll_kqueue_static(kq_fd, events, timeout, &mut self.pending_operations)
             }
@@ -230,7 +236,7 @@ impl HighPerformanceIo {
         }
     }
     
-    #[cfg(target_os = "macos")]
+    #[cfg(all(target_os = "macos", feature = "advanced-io"))]
     fn poll_kqueue_static(kq_fd: &Kqueue, events: &mut Vec<KEvent>, timeout: Option<Duration>, pending_operations: &mut HashMap<u64, IoOperation>) -> std::io::Result<Vec<IoCompletion>> {
         events.clear();
         events.resize(32, KEvent::new(0, EventFilter::EVFILT_READ, EventFlag::empty(), FilterFlag::empty(), 0, 0));

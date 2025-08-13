@@ -126,22 +126,29 @@ pub enum Value {
     Record(Arc<Record>),
     
     // ============= CONCURRENCY VALUES =============
+    // These are only available when async-runtime feature is enabled
     
+    #[cfg(feature = "async-runtime")]
     /// Future for asynchronous computation - Thread-safe
     Future(Arc<crate::concurrency::futures::Future>),
     
+    #[cfg(feature = "async-runtime")]
     /// Communication channel - Thread-safe  
     Channel(Arc<crate::concurrency::channels::Channel>),
     
+    #[cfg(feature = "async-runtime")]
     /// Mutex for synchronization - Thread-safe
     Mutex(Arc<crate::concurrency::Mutex>),
     
+    #[cfg(feature = "async-runtime")]
     /// Semaphore for resource control - Thread-safe
     Semaphore(Arc<crate::concurrency::SemaphoreSync>),
     
+    #[cfg(feature = "async-runtime")]
     /// Atomic counter - Thread-safe
     AtomicCounter(Arc<crate::concurrency::AtomicCounter>),
     
+    #[cfg(feature = "async-runtime")]
     /// Distributed node - Thread-safe
     DistributedNode(Arc<crate::concurrency::distributed::DistributedNode>),
     
@@ -1084,6 +1091,30 @@ impl Value {
     {
         Value::Set(Arc::new(crate::containers::ThreadSafeSet::from_iter(iter)))
     }
+    
+    /// Creates a set from an iterator of values with a custom comparator.
+    pub fn set_from_iter_with_comparator<I>(iter: I, comparator: crate::containers::HashComparator) -> Self
+    where
+        I: IntoIterator<Item = Value>,
+    {
+        Value::Set(Arc::new(crate::containers::ThreadSafeSet::from_iter_with_comparator(iter, comparator)))
+    }
+    
+    /// Tries to get a reference to the ThreadSafeSet if this value is a set.
+    pub fn as_set(&self) -> Option<&Arc<crate::containers::ThreadSafeSet>> {
+        match self {
+            Value::Set(set) => Some(set),
+            _ => None,
+        }
+    }
+    
+    /// Tries to get a clone of the ThreadSafeSet if this value is a set.
+    pub fn to_set(&self) -> Option<Arc<crate::containers::ThreadSafeSet>> {
+        match self {
+            Value::Set(set) => Some(set.clone()),
+            _ => None,
+        }
+    }
 
     /// Creates a new bag value.
     pub fn bag() -> Self {
@@ -1108,6 +1139,15 @@ impl Value {
     /// Creates a new generator from a procedure (thunk).
     pub fn generator_from_procedure(thunk: Value, environment: Arc<ThreadSafeEnvironment>) -> Self {
         Value::Generator(Arc::new(crate::containers::Generator::from_procedure(thunk, environment)))
+    }
+    
+    /// Creates a new generator from a procedure (thunk) with an evaluator callback.
+    pub fn generator_from_procedure_with_evaluator(
+        thunk: Value, 
+        environment: Arc<ThreadSafeEnvironment>,
+        evaluator: Arc<crate::containers::generator::ProcedureEvaluator>
+    ) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::from_procedure_with_evaluator(thunk, environment, evaluator)))
     }
 
     /// Creates a new generator from explicit values.
@@ -1143,6 +1183,94 @@ impl Value {
     /// Creates an already exhausted generator.
     pub fn generator_exhausted() -> Self {
         Value::Generator(Arc::new(crate::containers::Generator::exhausted()))
+    }
+    
+    /// Creates a new unfold generator.
+    pub fn generator_unfold(
+        stop_predicate: Value,
+        mapper: Value,
+        successor: Value,
+        seed: Value,
+    ) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::unfold(stop_predicate, mapper, successor, seed)))
+    }
+    
+    /// Creates a new unfold generator with an evaluator.
+    pub fn generator_unfold_with_evaluator(
+        stop_predicate: Value,
+        mapper: Value,
+        successor: Value,
+        seed: Value,
+        evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
+    ) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::unfold_with_evaluator(stop_predicate, mapper, successor, seed, evaluator)))
+    }
+    
+    /// Creates a new tabulate generator.
+    pub fn generator_tabulate(func: Value, max_count: Option<usize>) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::tabulate(func, max_count)))
+    }
+    
+    /// Creates a new tabulate generator with an evaluator.
+    pub fn generator_tabulate_with_evaluator(
+        func: Value,
+        max_count: Option<usize>,
+        evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
+    ) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::tabulate_with_evaluator(func, max_count, evaluator)))
+    }
+    
+    /// Creates a new map generator.
+    pub fn generator_map(source: Arc<crate::containers::Generator>, mapper: Value) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::map(source, mapper)))
+    }
+    
+    /// Creates a new map generator with an evaluator.
+    pub fn generator_map_with_evaluator(
+        source: Arc<crate::containers::Generator>,
+        mapper: Value,
+        evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
+    ) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::map_with_evaluator(source, mapper, evaluator)))
+    }
+    
+    /// Creates a new filter generator.
+    pub fn generator_filter(source: Arc<crate::containers::Generator>, predicate: Value) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::filter(source, predicate)))
+    }
+    
+    /// Creates a new filter generator with an evaluator.
+    pub fn generator_filter_with_evaluator(
+        source: Arc<crate::containers::Generator>,
+        predicate: Value,
+        evaluator: Arc<crate::containers::generator::ProcedureEvaluator>,
+    ) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::filter_with_evaluator(source, predicate, evaluator)))
+    }
+    
+    /// Creates a new take generator.
+    pub fn generator_take(source: Arc<crate::containers::Generator>, count: usize) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::take(source, count)))
+    }
+    
+    /// Creates a new drop generator.
+    pub fn generator_drop(source: Arc<crate::containers::Generator>, count: usize) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::drop(source, count)))
+    }
+    
+    /// Creates a new append generator.
+    pub fn generator_append(first: Arc<crate::containers::Generator>, second: Arc<crate::containers::Generator>) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::append(first, second)))
+    }
+    
+    /// Creates a new concatenate generator.
+    pub fn generator_concatenate(generators: Vec<Arc<crate::containers::Generator>>) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::concatenate(generators)))
+    }
+    
+    /// Creates a new zip generator.
+    pub fn generator_zip(sources: Vec<Arc<crate::containers::Generator>>) -> Self {
+        Value::Generator(Arc::new(crate::containers::Generator::zip(sources)))
     }
 
     // ============= ADVANCED CONTAINER TYPE PREDICATES =============
@@ -1193,33 +1321,75 @@ impl Value {
     }
 
     /// Returns true if this value is a future.
+    #[cfg(feature = "async-runtime")]
     pub fn is_future(&self) -> bool {
         matches!(self, Value::Future(_))
     }
+    
+    /// Returns true if this value is a future (no-op when async-runtime disabled).
+    #[cfg(not(feature = "async-runtime"))]
+    pub fn is_future(&self) -> bool {
+        false
+    }
 
     /// Returns true if this value is a channel.
+    #[cfg(feature = "async-runtime")]
     pub fn is_channel(&self) -> bool {
         matches!(self, Value::Channel(_))
     }
+    
+    /// Returns true if this value is a channel (no-op when async-runtime disabled).
+    #[cfg(not(feature = "async-runtime"))]
+    pub fn is_channel(&self) -> bool {
+        false
+    }
 
     /// Returns true if this value is a mutex.
+    #[cfg(feature = "async-runtime")]
     pub fn is_mutex(&self) -> bool {
         matches!(self, Value::Mutex(_))
     }
+    
+    /// Returns true if this value is a mutex (no-op when async-runtime disabled).
+    #[cfg(not(feature = "async-runtime"))]
+    pub fn is_mutex(&self) -> bool {
+        false
+    }
 
     /// Returns true if this value is a semaphore.
+    #[cfg(feature = "async-runtime")]
     pub fn is_semaphore(&self) -> bool {
         matches!(self, Value::Semaphore(_))
     }
+    
+    /// Returns true if this value is a semaphore (no-op when async-runtime disabled).
+    #[cfg(not(feature = "async-runtime"))]
+    pub fn is_semaphore(&self) -> bool {
+        false
+    }
 
     /// Returns true if this value is an atomic counter.
+    #[cfg(feature = "async-runtime")]
     pub fn is_atomic_counter(&self) -> bool {
         matches!(self, Value::AtomicCounter(_))
     }
+    
+    /// Returns true if this value is an atomic counter (no-op when async-runtime disabled).
+    #[cfg(not(feature = "async-runtime"))]
+    pub fn is_atomic_counter(&self) -> bool {
+        false
+    }
 
     /// Returns true if this value is a distributed node.
+    #[cfg(feature = "async-runtime")]
     pub fn is_distributed_node(&self) -> bool {
         matches!(self, Value::DistributedNode(_))
+    }
+    
+    /// Returns true if this value is a distributed node (no-op when async-runtime disabled).
+    #[cfg(not(feature = "async-runtime"))]
+    pub fn is_distributed_node(&self) -> bool {
+        false
     }
 
     /// Returns true if this value is an opaque value.
@@ -1339,12 +1509,18 @@ impl PartialEq for Value {
             (Value::Set(a), Value::Set(b)) => Arc::ptr_eq(a, b),
             (Value::Bag(a), Value::Bag(b)) => Arc::ptr_eq(a, b),
             (Value::Generator(a), Value::Generator(b)) => Arc::ptr_eq(a, b),
-            // Concurrency values use reference equality
+            // Concurrency values use reference equality (only available with async-runtime)
+            #[cfg(feature = "async-runtime")]
             (Value::Future(a), Value::Future(b)) => Arc::ptr_eq(a, b),
+            #[cfg(feature = "async-runtime")]
             (Value::Channel(a), Value::Channel(b)) => Arc::ptr_eq(a, b),
+            #[cfg(feature = "async-runtime")]
             (Value::Mutex(a), Value::Mutex(b)) => Arc::ptr_eq(a, b),
+            #[cfg(feature = "async-runtime")]
             (Value::Semaphore(a), Value::Semaphore(b)) => Arc::ptr_eq(a, b),
+            #[cfg(feature = "async-runtime")]
             (Value::AtomicCounter(a), Value::AtomicCounter(b)) => Arc::ptr_eq(a, b),
+            #[cfg(feature = "async-runtime")]
             (Value::DistributedNode(a), Value::DistributedNode(b)) => Arc::ptr_eq(a, b),
             (Value::Opaque(a), Value::Opaque(b)) => Arc::ptr_eq(a, b),
             _ => false,
@@ -1457,12 +1633,18 @@ impl fmt::Display for Value {
             Value::OrderedSet(_) => write!(f, "#<ordered-set>"),
             Value::ListQueue(_) => write!(f, "#<list-queue>"),
             Value::RandomAccessList(_) => write!(f, "#<random-access-list>"),
-            // Concurrency values
+            // Concurrency values (only available with async-runtime)
+            #[cfg(feature = "async-runtime")]
             Value::Future(_) => write!(f, "#<future>"),
+            #[cfg(feature = "async-runtime")]
             Value::Channel(_) => write!(f, "#<channel>"),
+            #[cfg(feature = "async-runtime")]
             Value::Mutex(_) => write!(f, "#<mutex>"),
+            #[cfg(feature = "async-runtime")]
             Value::Semaphore(_) => write!(f, "#<semaphore>"),
+            #[cfg(feature = "async-runtime")]
             Value::AtomicCounter(counter) => write!(f, "#<atomic-counter:{}>", counter.get()),
+            #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_) => write!(f, "#<distributed-node>"),
             Value::MutableString(s) => {
                 match s.read() {

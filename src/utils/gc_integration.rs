@@ -137,12 +137,18 @@ impl ValueGcWrapper {
             Value::Set(_) => 512,
             Value::Bag(_) => 512,
             Value::Generator(_) => 256,
-            // Concurrency primitives
+            // Concurrency primitives (only available with async-runtime)
+            #[cfg(feature = "async-runtime")]
             Value::Future(_) => 128,
+            #[cfg(feature = "async-runtime")]
             Value::Channel(_) => 256,
+            #[cfg(feature = "async-runtime")]
             Value::Mutex(_) => 64,
+            #[cfg(feature = "async-runtime")]
             Value::Semaphore(_) => 64,
+            #[cfg(feature = "async-runtime")]
             Value::AtomicCounter(_) => 32,
+            #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_) => 1024,
             Value::Opaque(_) => 64,
         }

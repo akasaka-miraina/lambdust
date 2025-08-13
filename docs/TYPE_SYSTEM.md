@@ -1,563 +1,812 @@
-# Type System Guide
+# Lambdust Type System Guide
 
-Lambdust implements a sophisticated four-level gradual typing system that allows seamless progression from dynamic to fully static typing. This guide covers the complete type system implementation and usage patterns.
+This document provides comprehensive documentation of Lambdust's four-level gradual type system, which seamlessly combines dynamic typing with static analysis and dependent types.
 
-## Overview
+## Table of Contents
 
-The Lambdust type system provides:
+1. [Type System Overview](#type-system-overview)
+2. [Four Typing Levels](#four-typing-levels)
+3. [Type Inference Engine](#type-inference-engine)
+4. [Type Classes and Constraints](#type-classes-and-constraints)
+5. [Algebraic Data Types](#algebraic-data-types)
+6. [Gradual Typing Integration](#gradual-typing-integration)
+7. [Advanced Features](#advanced-features)
+8. [Best Practices](#best-practices)
 
-- **Gradual Typing**: Smooth transition between dynamic and static typing
-- **Type Inference**: Advanced Hindley-Milner with extensions
-- **Algebraic Data Types**: Sum types and product types with pattern matching
-- **Type Classes**: Haskell-style type constraints and polymorphism
-- **Dependent Types**: Limited dependent type features for advanced users
-- **Effect Types**: Integration with the algebraic effect system
+## Type System Overview
 
-## Type System Levels
+Lambdust's type system is designed to provide maximum flexibility while enabling powerful static analysis and optimization:
 
-### Level 1: Dynamic Typing
+### **Type System Architecture**
 
-Pure dynamic typing with runtime type checking:
-
-```scheme
-;; No type annotations - fully dynamic
-(define (add x y)
-  (+ x y))
-
-(add 1 2)        ;; => 3
-(add 1.5 2.3)    ;; => 3.8
-(add "hello" " world")  ;; Runtime error: + expects numbers
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│    Dynamic      │    │   Contracts     │    │    Static       │
+│    Types        │────┤                 ├────┤   Inference     │
+│                 │    │ • Runtime Check │    │                 │
+│ • R7RS Compat   │    │ • Gradual Opt   │    │ • HM Inference  │
+│ • Zero Overhead │    │ • Soft Typing   │    │ • Unification   │
+│ • Full Scheme   │    │ • Type Guards   │    │ • Polymorphism  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                        │                        │
+         └────────────────────────┼────────────────────────┘
+                                  │
+                        ┌─────────────────┐
+                        │   Dependent     │
+                        │    Types        │
+                        │                 │
+                        │ • Proof Objects │
+                        │ • Refinements   │
+                        │ • Verification  │
+                        └─────────────────┘
 ```
 
-### Level 2: Optional Typing
+### **Key Features**
 
-Optional type annotations for documentation and basic checking:
+- **Gradual Progression**: Smooth transition between typing levels
+- **Backward Compatibility**: Full R7RS compatibility in dynamic mode
+- **Zero Runtime Overhead**: Types are erased unless specifically checked
+- **Inference Engine**: Powerful Hindley-Milner type inference
+- **Type Classes**: Haskell-style constrained polymorphism
+- **Row Polymorphism**: Extensible records and variants
+- **Effect Integration**: Types integrated with effect system
 
-```scheme
-;; Optional type hints
-(define (add x : Number y : Number) : Number
-  (+ x y))
+## Four Typing Levels
 
-(define (greet name : String) : String
-  (string-append "Hello, " name "!"))
+### **1. Dynamic Typing (Level 0)**
 
-;; Type hints are checked but not enforced
-(add 1 2)        ;; => 3
-(add 1 "2")      ;; Warning: type mismatch, but continues execution
-```
-
-### Level 3: Gradual Typing
-
-Mixed static and dynamic typing with gradual enforcement:
+The default mode providing full R7RS Scheme compatibility:
 
 ```scheme
-;; Statically typed function
-(define (safe-add x : Number y : Number) : Number
-  (+ x y))
-
-;; Dynamically typed function
-(define (flexible-add x y)
-  (+ x y))
-
-;; Gradual interaction
-(define (mixed-computation data)
-  (let ([typed-result : Number (safe-add 1 2)]
-        [dynamic-result (flexible-add 3 4)])
-    (+ typed-result dynamic-result)))
-
-;; Type boundaries are enforced
-(safe-add 1 "2")  ;; Type error: argument 2 must be Number
-```
-
-### Level 4: Static Typing
-
-Full static typing with compile-time verification:
-
-```scheme
-#:type-level static
-
-;; All functions must be fully typed
-(define (factorial n : Natural) : Natural
+;; Pure dynamic typing - no type annotations needed
+(define (factorial n)
   (if (= n 0)
       1
       (* n (factorial (- n 1)))))
 
-;; Type checking prevents runtime errors
-(define (process-data data : (List Number)) : Number
-  (fold + 0 data))
-
-;; Compile-time error prevention
-(process-data '(1 2 "3"))  ;; Compile error: "3" is not Number
+;; All Scheme operations work as expected
+(factorial 5)     ; => 120
+(factorial 5.0)   ; => 120.0
+(factorial "5")   ; => Runtime error with helpful message
 ```
 
-## Type Syntax
+**Characteristics:**
+- Zero type annotations required
+- Full R7RS compatibility
+- Runtime type checking only
+- Maximum flexibility
 
-### Basic Types
+### **2. Contract Typing (Level 1)**
+
+Runtime type checking with gradual optimization:
 
 ```scheme
-;; Primitive types
-Number          ;; Floating-point numbers
-Integer         ;; Integer numbers  
-String          ;; Text strings
-Boolean         ;; #t or #f
-Character       ;; Single characters
-Symbol          ;; Scheme symbols
+;; Contract-based typing with runtime verification
+(define (safe-divide x y)
+  #:contract (-> (and Number (not zero?)) 
+                 (and Number (not zero?)) 
+                 Number)
+  (/ x y))
 
-;; Container types
-(List Number)           ;; List of numbers
-(Vector String)         ;; Vector of strings
-(Pair Number String)    ;; Pair with typed components
+;; Contracts are checked at runtime
+(safe-divide 10 2)  ; => 5 (contract satisfied)
+(safe-divide 10 0)  ; => Contract violation: y must be non-zero
 
-;; Function types
-(Number Number -> Number)       ;; Two numbers to number
-(String -> Boolean)             ;; String to boolean
-((List a) -> Number)            ;; Generic list to number
+;; Contracts can be complex predicates
+(define (process-list lst)
+  #:contract (-> (List-of Number) (List-of Number))
+  (map square lst))
+
+;; Contract checking with custom predicates
+(define positive-integer?
+  (lambda (x)
+    (and (integer? x) (positive? x))))
+
+(define (safe-nth lst n)
+  #:contract (-> (List-of Any) positive-integer? Any)
+  (list-ref lst (- n 1)))
 ```
 
-### Generic Types
+**Contract Features:**
+- Runtime type checking
+- Custom predicate support  
+- Gradual optimization opportunities
+- Clear error messages with blame assignment
+
+### **3. Static Typing (Level 2)**
+
+Compile-time type checking with Hindley-Milner inference:
 
 ```scheme
-;; Type variables
-(define (identity x : a) : a
-  x)
-
-(define (first lst : (List a)) : a
-  (car lst))
-
-;; Multiple type variables
-(define (map f : (a -> b) lst : (List a)) : (List b)
+;; Type annotations enable static checking
+(define (typed-map f lst)
+  #:type (∀ (a b) (-> (-> a b) (List a) (List b)))
   (if (null? lst)
       '()
       (cons (f (car lst))
-            (map f (cdr lst)))))
+            (typed-map f (cdr lst)))))
 
-;; Type constraints
-(define (sort lst : (List a)) : (List a)
-  (where (Ord a)
-    (quick-sort lst)))
+;; Type inference works across function boundaries
+(define numbers '(1 2 3 4 5))
+(define squares (typed-map square numbers))
+; Inferred type: (List Number)
+
+;; Higher-order functions with type inference
+(define (compose f g)
+  #:type (∀ (a b c) (-> (-> b c) (-> a b) (-> a c)))
+  (lambda (x) (f (g x))))
+
+(define add1 (lambda (x) (+ x 1)))
+(define double (lambda (x) (* x 2)))
+(define add1-then-double (compose double add1))
+; Inferred type: (-> Number Number)
+```
+
+**Static Typing Features:**
+- Hindley-Milner type inference
+- Parametric polymorphism
+- Type error detection at compile time
+- Optimization opportunities
+
+### **4. Dependent Typing (Level 3)**
+
+Types that depend on values, enabling verification:
+
+```scheme
+;; Dependent types with refinement predicates
+(define-type Nat Number (lambda (n) (>= n 0)))
+(define-type Vec (n : Nat) (vector-of-length n Any))
+
+;; Length-indexed vectors
+(define (safe-head v)
+  #:type (∀ (n : Nat) (-> (Vec (+ n 1)) Any))
+  (vector-ref v 0))
+
+;; Proof-carrying code
+(define (binary-search arr key)
+  #:type (-> (Sorted-Vector Number) Number (Maybe Nat))
+  #:requires (sorted? arr)
+  #:ensures (lambda (result)
+              (match result
+                [(Just idx) (= (vector-ref arr idx) key)]
+                [Nothing (not (member key (vector->list arr)))]))
+  (binary-search-impl arr key 0 (- (vector-length arr) 1)))
+
+;; Liquid types for precise specifications
+(define (divide x y)
+  #:type (-> x:Number {y:Number | y ≠ 0} {r:Number | r = x/y})
+  (/ x y))
+```
+
+**Dependent Features:**
+- Value-dependent types
+- Refinement predicates
+- Proof obligations
+- Verification conditions
+
+## Type Inference Engine
+
+### **Hindley-Milner Algorithm** (`src/types/inference.rs`)
+
+The inference engine implements Algorithm W with extensions:
+
+```rust
+pub struct TypeInferer {
+    substitution: Substitution,
+    constraints: Vec<Constraint>,
+    type_env: TypeEnv,
+    fresh_var_generator: FreshVarGen,
+}
+
+impl TypeInferer {
+    /// Infer the type of an expression
+    pub fn infer(&mut self, expr: &Spanned<Expr>) -> InferResult<Type> {
+        match &expr.inner {
+            Expr::Literal(lit) => Ok(self.infer_literal(lit)),
+            Expr::Symbol(name) => self.infer_variable(name),
+            Expr::Lambda { formals, body } => self.infer_lambda(formals, body),
+            Expr::Application { operator, operands } => {
+                self.infer_application(operator, operands)
+            }
+            // ... other expression types
+        }
+    }
+    
+    /// Generate constraints and solve them
+    fn infer_application(&mut self, op: &Spanned<Expr>, args: &[Spanned<Expr>]) 
+                        -> InferResult<Type> {
+        let op_type = self.infer(op)?;
+        let arg_types: Result<Vec<_>, _> = args.iter().map(|arg| self.infer(arg)).collect();
+        let arg_types = arg_types?;
+        
+        let result_type = self.fresh_type_var();
+        let function_type = Type::function(arg_types, result_type.clone());
+        
+        self.add_constraint(Constraint::Equal(op_type, function_type))?;
+        self.solve_constraints()?;
+        
+        Ok(self.apply_substitution(&result_type))
+    }
+}
+```
+
+### **Type Inference Examples**
+
+#### **Automatic Type Inference**
+```scheme
+;; No type annotations needed - types are inferred
+(define id (lambda (x) x))
+; Inferred: ∀a. a -> a
+
+(define const (lambda (x y) x))  
+; Inferred: ∀a b. a -> b -> a
+
+(define flip (lambda (f x y) (f y x)))
+; Inferred: ∀a b c. (a -> b -> c) -> b -> a -> c
+
+;; Complex inference across multiple functions
+(define apply-twice (lambda (f x) (f (f x))))
+; Inferred: ∀a. (a -> a) -> a -> a
+
+(define increment (lambda (n) (+ n 1)))
+; Inferred: Number -> Number
+
+(define result (apply-twice increment 5))
+; Inferred: Number, evaluates to 7
+```
+
+#### **Polymorphic Type Inference**
+```scheme
+;; Generic list operations
+(define length
+  (lambda (lst)
+    (if (null? lst)
+        0
+        (+ 1 (length (cdr lst))))))
+; Inferred: ∀a. List a -> Number
+
+(define map
+  (lambda (f lst)
+    (if (null? lst)
+        '()
+        (cons (f (car lst)) (map f (cdr lst))))))
+; Inferred: ∀a b. (a -> b) -> List a -> List b
+
+;; Higher-order function inference
+(define fold-right
+  (lambda (f init lst)
+    (if (null? lst)
+        init
+        (f (car lst) (fold-right f init (cdr lst))))))
+; Inferred: ∀a b. (a -> b -> b) -> b -> List a -> b
+```
+
+### **Error Messages and Debugging**
+
+The type system provides detailed error messages:
+
+```scheme
+;; Type mismatch example
+(define bad-function
+  (lambda (x)
+    (+ x "hello")))
+
+;; Error message:
+;; Type Error in bad-function at line 3:
+;;   Cannot unify Number with String
+;;   In expression: (+ x "hello")  
+;;   Expected: Number
+;;   Actual: String
+;;   
+;; Type inference trace:
+;;   x : Number (from + constraint)
+;;   "hello" : String
+;;   + : Number -> Number -> Number
+;;   Cannot satisfy: String <: Number
+```
+
+## Type Classes and Constraints
+
+### **Type Class System** (`src/types/type_classes.rs`)
+
+Lambdust supports Haskell-style type classes for constrained polymorphism:
+
+```rust
+/// Type class definition
+pub struct TypeClass {
+    pub name: String,
+    pub parameters: Vec<TypeVar>,
+    pub superclasses: Vec<Constraint>,
+    pub methods: Vec<Method>,
+}
+
+/// Type class instance
+pub struct Instance {
+    pub class: String,
+    pub types: Vec<Type>,
+    pub constraints: Vec<Constraint>,
+    pub implementations: HashMap<String, Value>,
+}
+```
+
+### **Built-in Type Classes**
+
+#### **Eq - Equality Testing**
+```scheme
+;; Type class for equality
+(define-class (Eq a)
+  (= : a -> a -> Boolean)
+  (≠ : a -> a -> Boolean))
+
+;; Default implementation for ≠
+(define-default ≠ (lambda (x y) (not (= x y))))
+
+;; Instances for built-in types
+(define-instance (Eq Number)
+  (= number=?))
+
+(define-instance (Eq String)  
+  (= string=?))
+
+;; Derived instance for lists
+(define-instance (Eq a) => (Eq (List a))
+  (= (lambda (xs ys)
+       (cond
+         [(and (null? xs) (null? ys)) #t]
+         [(or (null? xs) (null? ys)) #f]
+         [else (and (= (car xs) (car ys))
+                    (= (cdr xs) (cdr ys)))]))))
+```
+
+#### **Ord - Ordering**
+```scheme
+;; Ordering type class
+(define-class (Eq a) => (Ord a)
+  (compare : a -> a -> Ordering)
+  (<  : a -> a -> Boolean)
+  (<= : a -> a -> Boolean)
+  (>  : a -> a -> Boolean)  
+  (>= : a -> a -> Boolean))
+
+;; Ordering enumeration
+(define-type Ordering
+  LT  ; Less than
+  EQ  ; Equal
+  GT) ; Greater than
+
+;; Minimal complete definition
+(define-default < (lambda (x y) (eq? (compare x y) 'LT)))
+(define-default <= (lambda (x y) (not (> x y))))
+(define-default > (lambda (x y) (eq? (compare x y) 'GT)))
+(define-default >= (lambda (x y) (not (< x y))))
+```
+
+#### **Show - String Representation**
+```scheme
+;; String representation type class
+(define-class (Show a)
+  (show : a -> String))
+
+;; Instances
+(define-instance (Show Number)
+  (show number->string))
+
+(define-instance (Show String)
+  (show (lambda (s) (string-append "\"" s "\""))))
+
+(define-instance (Show Boolean)
+  (show (lambda (b) (if b "true" "false"))))
+
+;; Generic show for lists
+(define-instance (Show a) => (Show (List a))
+  (show (lambda (lst)
+          (string-append "["
+                         (string-join (map show lst) ", ")
+                         "]"))))
+```
+
+### **Custom Type Classes**
+
+```scheme
+;; Define a numeric type class
+(define-class (Numeric a)
+  (+ : a -> a -> a)
+  (* : a -> a -> a)
+  (negate : a -> a)
+  (abs : a -> a)
+  (signum : a -> a))
+
+;; Vector space type class
+(define-class (Numeric a) => (VectorSpace a)
+  (scalar-multiply : Number -> a -> a)
+  (vector-add : a -> a -> a)
+  (zero : a))
+
+;; 2D point instance
+(define-type Point2D Number Number)
+
+(define-instance (VectorSpace Point2D)
+  (scalar-multiply 
+    (lambda (scalar point)
+      (match point
+        [(Point2D x y) (Point2D (* scalar x) (* scalar y))])))
+  (vector-add
+    (lambda (p1 p2)
+      (match (list p1 p2)
+        [(list (Point2D x1 y1) (Point2D x2 y2))
+         (Point2D (+ x1 x2) (+ y1 y2))])))
+  (zero (Point2D 0 0)))
 ```
 
 ## Algebraic Data Types
 
-### Sum Types (Variants)
+### **ADT Definition and Usage**
 
 ```scheme
-;; Define a sum type
+;; Simple enumeration
 (define-type Color
-  (Red)
-  (Green)
-  (Blue)
-  (RGB Number Number Number)
-  (HSV Number Number Number))
+  Red
+  Green  
+  Blue)
 
-;; Constructor functions are automatically created
-(define red-color (Red))
-(define custom-color (RGB 255 128 0))
-
-;; Pattern matching
-(define (color-to-hex color : Color) : String
-  (match color
-    [(Red) "#FF0000"]
-    [(Green) "#00FF00"] 
-    [(Blue) "#0000FF"]
-    [(RGB r g b) (format "#~2,'0X~2,'0X~2,'0X" 
-                        (inexact->exact r)
-                        (inexact->exact g)
-                        (inexact->exact b))]
-    [(HSV h s v) (rgb-to-hex (hsv->rgb h s v))]))
-```
-
-### Product Types (Records)
-
-```scheme
-;; Define a product type
-(define-type Person
-  (make-person name : String
-               age : Number
-               email : String))
-
-;; Usage
-(define john (make-person "John Doe" 30 "john@example.com"))
-
-;; Field accessors (automatically generated)
-(person-name john)    ;; => "John Doe"
-(person-age john)     ;; => 30
-(person-email john)   ;; => "john@example.com"
-
-;; Pattern matching with records
-(define (adult? person : Person) : Boolean
-  (match person
-    [(make-person _ age _) (>= age 18)]))
-```
-
-### Recursive Types
-
-```scheme
-;; Binary tree
-(define-type (Tree a)
-  (Empty)
-  (Node (Tree a) a (Tree a)))
-
-;; List definition
-(define-type (MyList a)
-  (Nil)
-  (Cons a (MyList a)))
-
-;; Usage
-(define int-tree : (Tree Number)
-  (Node (Node (Empty) 1 (Empty))
-        2
-        (Node (Empty) 3 (Empty))))
-
-(define (tree-sum tree : (Tree Number)) : Number
-  (match tree
-    [(Empty) 0]
-    [(Node left value right)
-     (+ value (tree-sum left) (tree-sum right))]))
-```
-
-## Type Classes
-
-Type classes provide structured polymorphism similar to Haskell's type classes:
-
-### Defining Type Classes
-
-```scheme
-;; Basic type class
-(define-type-class (Eq a)
-  (equal? : a a -> Boolean)
-  (not-equal? : a a -> Boolean))
-
-;; Default implementations
-(define-type-class (Eq a) 
-  (equal? : a a -> Boolean)
-  (not-equal? : a a -> Boolean)
-  
-  ;; Default implementation for not-equal?
-  (default not-equal? (lambda (x y) (not (equal? x y)))))
-
-;; Type class with dependencies
-(define-type-class (Ord a)
-  (super (Eq a))  ;; Ord requires Eq
-  (compare : a a -> Ordering)
-  (< : a a -> Boolean)
-  (<= : a a -> Boolean)
-  (> : a a -> Boolean)
-  (>= : a a -> Boolean))
-```
-
-### Type Class Instances
-
-```scheme
-;; Implement Eq for Number
-(define-instance (Eq Number)
-  (define (equal? x y) (= x y)))
-
-;; Implement Ord for Number
-(define-instance (Ord Number)
-  (define (compare x y)
-    (cond [(< x y) 'LT]
-          [(> x y) 'GT]
-          [else 'EQ]))
-  (define (< x y) (< x y))
-  (define (<= x y) (<= x y))
-  (define (> x y) (> x y))
-  (define (>= x y) (>= x y)))
-
-;; Generic functions using type classes
-(define (sort lst : (List a)) : (List a)
-  (where (Ord a)
-    (merge-sort lst)))
-
-;; Usage
-(sort '(3 1 4 1 5 9))  ;; Works because Number implements Ord
-```
-
-### Advanced Type Classes
-
-```scheme
-;; Functor type class
-(define-type-class (Functor f)
-  (fmap : (a -> b) (f a) -> (f b)))
-
-;; Monad type class
-(define-type-class (Monad m)
-  (super (Functor m))
-  (return : a -> (m a))
-  (bind : (m a) (a -> (m b)) -> (m b)))
-
-;; Maybe type with Functor and Monad instances
-(define-type (Maybe a)
-  (Nothing)
+;; Parametric data type
+(define-type Maybe (a)
+  Nothing
   (Just a))
 
-(define-instance (Functor Maybe)
-  (define (fmap f maybe)
-    (match maybe
-      [(Nothing) (Nothing)]
-      [(Just x) (Just (f x))])))
+;; Recursive data type
+(define-type Tree (a)
+  Leaf
+  (Node a (Tree a) (Tree a)))
 
-(define-instance (Monad Maybe)
-  (define (return x) (Just x))
-  (define (bind maybe f)
-    (match maybe
-      [(Nothing) (Nothing)]
-      [(Just x) (f x)])))
+;; Multiple type parameters
+(define-type Either (a b)
+  (Left a)
+  (Right b))
 ```
 
-## Type Inference
-
-### Hindley-Milner Inference
-
-The type system includes sophisticated type inference:
+### **Pattern Matching**
 
 ```scheme
-;; No type annotations needed - types are inferred
-(define (compose f g)
-  (lambda (x) (f (g x))))
-;; Inferred type: (b -> c) (a -> b) -> (a -> c)
+;; Pattern matching with match
+(define (maybe-map f maybe-val)
+  (match maybe-val
+    [Nothing Nothing]
+    [(Just x) (Just (f x))]))
 
-(define (map f lst)
-  (if (null? lst)
-      '()
-      (cons (f (car lst))
-            (map f (cdr lst)))))
-;; Inferred type: (a -> b) (List a) -> (List b)
+;; Pattern matching with multiple cases
+(define (tree-size tree)
+  (match tree
+    [Leaf 0]
+    [(Node _ left right) 
+     (+ 1 (tree-size left) (tree-size right))]))
 
-;; Complex inference
-(define (fold f init lst)
-  (if (null? lst)
-      init
-      (fold f (f init (car lst)) (cdr lst))))
-;; Inferred type: (b a -> b) b (List a) -> b
+;; Pattern matching with guards
+(define (classify-number n)
+  (match n
+    [x #:when (= x 0) 'zero]
+    [x #:when (> x 0) 'positive]
+    [x #:when (< x 0) 'negative]))
+
+;; Nested pattern matching
+(define (unwrap-nested maybe-maybe)
+  (match maybe-maybe
+    [Nothing Nothing]
+    [(Just Nothing) Nothing]
+    [(Just (Just x)) (Just x)]))
 ```
 
-### Type Constraints
+### **Pattern Guards and Complex Patterns**
 
 ```scheme
-;; Constrained type inference
-(define (sort-by f lst)
-  (sort (map f lst)))
-;; Inferred type: (a -> b) (List a) -> (List b) where (Ord b)
+;; Pattern guards for conditional matching
+(define (safe-head lst)
+  (match lst
+    [(cons x _) #:when (not (null? lst)) (Just x)]
+    [_ Nothing]))
 
-(define (unique lst)
-  (remove-duplicates lst))
-;; Inferred type: (List a) -> (List a) where (Eq a)
+;; Variable patterns and wildcards
+(define (second lst)
+  (match lst
+    [(cons _ (cons x _)) (Just x)]
+    [_ Nothing]))
+
+;; As-patterns (binding whole and parts)
+(define (duplicate-head lst)
+  (match lst
+    [(cons x tail) #:as original-list
+     (cons x original-list)]
+    [empty-list empty-list]))
 ```
 
-## Integration with Effect System
+## Gradual Typing Integration
 
-Types can be combined with effects for precise tracking:
+### **Type Level Transitions** (`src/types/gradual.rs`)
 
-```scheme
-;; Effect-typed functions
-(define (read-file filename : String) : (IO String)
-  (with-file-input filename
-    (lambda (port)
-      (read-string #f port))))
+The gradual typing system enables smooth transitions between typing levels:
 
-(define (write-log message : String) : (IO Unit)
-  (with-file-output "app.log"
-    (lambda (port)
-      (write-line message port))))
+```rust
+pub struct GradualChecker {
+    dynamic_checker: DynamicChecker,
+    contract_checker: ContractChecker,  
+    static_checker: StaticChecker,
+    dependent_checker: DependentChecker,
+}
 
-;; Combined effects and types
-(define (process-data filename : String) : (IO (Either Error (List Number)))
-  (do [content (read-file filename)]
-      [parsed (parse-numbers content)]
-      [processed (map square parsed)]
-      [_ (write-log (format "Processed ~a numbers" (length processed)))]
-      (return (Right processed))))
+impl GradualChecker {
+    pub fn check_gradual(&mut self, expr: &Spanned<Expr>, level: TypeLevel) 
+                        -> GradualResult {
+        match level {
+            TypeLevel::Dynamic => self.check_dynamic(expr),
+            TypeLevel::Contracts => self.check_contracts(expr),
+            TypeLevel::Static => self.check_static(expr),
+            TypeLevel::Dependent => self.check_dependent(expr),
+        }
+    }
+    
+    /// Insert runtime checks at type boundaries
+    pub fn insert_checks(&mut self, expr: &Spanned<Expr>) -> Spanned<Expr> {
+        // Insert checks where typed code calls untyped code
+        // and vice versa
+    }
+}
 ```
 
-## Error Handling with Types
-
-### Result Types
+### **Mixed Typing in Practice**
 
 ```scheme
-(define-type (Result a e)
-  (Ok a)
-  (Error e))
+;; File 1: Dynamic code (legacy)
+(define (legacy-function x y)
+  ;; No type information
+  (+ x y))
 
-(define (safe-divide x : Number y : Number) : (Result Number String)
-  (if (= y 0)
-      (Error "Division by zero")
-      (Ok (/ x y))))
+;; File 2: Gradually typed code  
+#:type-level contracts
 
-;; Monadic error handling
-(define-instance (Monad (Result e))
-  (define (return x) (Ok x))
-  (define (bind result f)
-    (match result
-      [(Error e) (Error e)]
-      [(Ok x) (f x)])))
+(define (safe-wrapper a b)
+  #:contract (-> Number Number Number)
+  ;; Runtime check inserted automatically
+  (legacy-function a b))
 
-;; Usage
-(define computation
-  (do [x (safe-divide 10 2)]    ;; Ok 5
-      [y (safe-divide x 0)]     ;; Error "Division by zero"
-      [z (safe-divide y 3)]     ;; Skipped due to error
-      (return z)))
+;; File 3: Statically typed code
+#:type-level static
+
+(define (fully-typed x y)
+  #:type (-> Number Number Number)  
+  ;; Static verification, runtime check at boundary
+  (safe-wrapper x y))
 ```
 
-## Performance Considerations
+### **Blame Assignment**
 
-### Type Specialization
-
-The type system enables performance optimizations:
+When runtime checks fail, the gradual typing system assigns blame:
 
 ```scheme
-;; Generic function
-(define (sum lst : (List a)) : a
-  (where (Num a)
-    (fold + (zero) lst)))
+;; Typed function
+(define (typed-double x)
+  #:type (-> Number Number)
+  (* 2 x))
 
-;; Specialized versions are generated automatically
-;; sum-number : (List Number) -> Number    ; Optimized for numbers
-;; sum-complex : (List Complex) -> Complex ; Optimized for complex numbers
-```
+;; Dynamic caller passes wrong type
+(define (bad-caller)
+  (typed-double "not a number"))
 
-### Compile-time Optimizations
-
-```scheme
-#:optimize-types #t
-
-;; Type information enables:
-;; - Inlining of type-specific operations  
-;; - Elimination of runtime type checks
-;; - SIMD optimizations for numeric types
-;; - Memory layout optimizations
-
-(define (vector-add v1 : (Vector Number) v2 : (Vector Number)) : (Vector Number)
-  ;; Compiled to optimized SIMD operations
-  (vector-map + v1 v2))
+;; Error message with blame:
+;; Contract violation in typed-double
+;; Expected: Number
+;; Actual: String  
+;; Blame: bad-caller (dynamic code)
+;; The dynamic caller bad-caller failed to provide 
+;; a Number as required by typed-double's contract
 ```
 
 ## Advanced Features
 
-### Dependent Types (Limited)
+### **Row Polymorphism** (`src/types/row.rs`)
+
+Extensible records using row polymorphism:
 
 ```scheme
-;; Length-indexed vectors
-(define-type (Vec n a)
-  (make-vec (vector a) (= (vector-length vector) n)))
+;; Row types for extensible records
+(define-type Person (r : Row)
+  (record (name : String) 
+          (age : Number) 
+          | r))
 
-(define (safe-head vec : (Vec (> n 0) a)) : a
-  (vector-ref (vec-data vec) 0))
+;; Extension with additional fields
+(define-type Employee (r : Row)  
+  (record (salary : Number)
+          (department : String)
+          | (Person r)))
 
-;; Refinement types
-(define-type Positive (and Number (> x 0)))
-(define-type NonEmptyString (and String (> (string-length x) 0)))
+;; Polymorphic functions over records
+(define (greet person)
+  #:type (∀ (r : Row) (-> (Person r) String))
+  (string-append "Hello, " (person.name)))
 
-(define (sqrt-positive x : Positive) : Positive
-  (sqrt x))  ;; Type system guarantees x > 0 and result > 0
+;; Works with any extension of Person
+(define employee (Employee "Alice" 30 50000 "Engineering"))
+(greet employee) ; => "Hello, Alice"
 ```
 
-### Type-level Programming
+### **Higher-Kinded Types**
 
 ```scheme
-;; Type-level computations
-(define-type-function (Replicate n a)
-  (if (= n 0)
-      '()
-      (cons a (Replicate (- n 1) a))))
+;; Higher-kinded type variables
+(define-class (Functor (f : * -> *))
+  (map : ∀ a b. (a -> b) -> f a -> f b))
 
-;; Usage
-(define tuple : (Replicate 3 Number)
-  '(1 2 3))  ;; Type: (Number Number Number)
+;; Instance for Maybe
+(define-instance (Functor Maybe)
+  (map maybe-map))
+
+;; Instance for List
+(define-instance (Functor List)
+  (map list-map))
+
+;; Generic functions using functors
+(define (void f-val)
+  #:type (∀ (f : * -> *) a. (Functor f) => f a -> f ())
+  (map (lambda (_) ()) f-val))
 ```
 
-## Configuration
-
-### Type System Settings
+### **Type Families**
 
 ```scheme
-;; Global type system configuration
-(set-type-level! 'gradual)          ;; Set default type level
-(set-type-inference! #t)            ;; Enable type inference
-(set-type-optimization! #t)         ;; Enable type-based optimizations
-(set-type-warnings! 'strict)        ;; Warning level for type mismatches
+;; Associated types via type families
+(define-class (Collection (c : * -> *))
+  (type Element c : *)
+  (type Index c : *)
+  (empty : ∀ a. c a)
+  (insert : ∀ a. Index c -> a -> c a -> c a)
+  (lookup : ∀ a. Index c -> c a -> Maybe a))
 
-;; Module-specific settings
-#:type-level static                 ;; This module uses static typing
-#:type-inference aggressive         ;; Use aggressive inference
-#:type-checking strict             ;; Strict type checking
+;; Instance for vectors
+(define-instance (Collection Vector)
+  (type Element Vector = Any)
+  (type Index Vector = Number)
+  (empty (vector))
+  (insert vector-set!)
+  (lookup vector-ref-safe))
 ```
 
-## Examples
+## Best Practices
 
-### Complete Type System Usage
+### **1. Progressive Typing Strategy**
 
+#### **Start Dynamic, Add Types Incrementally**
 ```scheme
-#!/usr/bin/env lambdust
-#:type-level gradual
+;; Phase 1: Dynamic prototype
+(define (process-data data)
+  (map transform (filter valid? data)))
 
-(import (scheme base)
-        (lambdust types)
-        (lambdust effects))
+;; Phase 2: Add contracts
+(define (process-data data)
+  #:contract (-> (List Any) (List ProcessedData))
+  (map transform (filter valid? data)))
 
-;; Define a complete data processing pipeline with types
-
-;; Custom data types
-(define-type (Employee)
-  (make-employee name : String
-                 id : Integer
-                 salary : Number
-                 department : String))
-
-(define-type Department
-  (Engineering)
-  (Sales)  
-  (Marketing)
-  (HR))
-
-;; Type classes for our domain
-(define-type-class (Payroll a)
-  (calculate-pay : a -> Number)
-  (tax-rate : a -> Number))
-
-(define-instance (Payroll Employee)
-  (define (calculate-pay emp)
-    (* (employee-salary emp) 0.8))  ;; After deductions
-  (define (tax-rate emp)
-    (cond [(> (employee-salary emp) 100000) 0.3]
-          [(> (employee-salary emp) 50000) 0.25]
-          [else 0.2])))
-
-;; Effectful computation with types
-(define (process-payroll employees : (List Employee)) : (IO (List Number))
-  (do [_ (log-info "Starting payroll processing")]
-      [payments (map calculate-pay employees)]
-      [total (sum payments)]
-      [_ (log-info (format "Total payroll: $~a" total))]
-      [_ (write-payroll-report employees payments)]
-      (return payments)))
-
-;; Safe computation with error handling
-(define (load-employee-data filename : String) : (IO (Result (List Employee) String))
-  (guard (condition
-          [(file-not-found? condition)
-           (return (Error "Employee data file not found"))]
-          [(parse-error? condition) 
-           (return (Error "Invalid employee data format"))])
-    (do [content (read-file filename)]
-        [employees (parse-employees content)]
-        (return (Ok employees)))))
-
-;; Main program
-(define (main)
-  (do [result (load-employee-data "employees.json")]
-      (match result
-        [(Error msg) 
-         (log-error msg)
-         (exit 1)]
-        [(Ok employees)
-         (do [payments (process-payroll employees)]
-             [_ (log-info "Payroll processing complete")]
-             (return payments))])))
-
-(when (script-file?)
-  (main))
+;; Phase 3: Full static typing
+(define (process-data data)
+  #:type (-> (List InputData) (List ProcessedData))
+  (map transform (filter valid? data)))
 ```
 
-This type system provides a solid foundation for building reliable, efficient, and maintainable Scheme programs while preserving the flexibility that makes Lisp languages powerful.
+#### **Use Type-Driven Development**
+```scheme
+;; Start with type signatures
+(define (merge-sorted xs ys)
+  #:type (∀ a. (Ord a) => List a -> List a -> List a)
+  ;; Implementation guided by types
+  (cond
+    [(null? xs) ys]
+    [(null? ys) xs]
+    [(<= (car xs) (car ys))
+     (cons (car xs) (merge-sorted (cdr xs) ys))]
+    [else
+     (cons (car ys) (merge-sorted xs (cdr ys)))]))
+```
+
+### **2. Effective Use of Type Classes**
+
+#### **Design Minimal Type Classes**
+```scheme
+;; Good: Minimal complete definition
+(define-class (Eq a)
+  (= : a -> a -> Boolean))
+
+;; Derived methods
+(define ≠ (lambda (x y) (not (= x y))))
+
+;; Bad: Redundant methods in class
+(define-class (BadEq a)
+  (= : a -> a -> Boolean)
+  (≠ : a -> a -> Boolean)  ; Could be derived
+  (eq? : a -> a -> Boolean) ; Redundant with =
+  (neq? : a -> a -> Boolean)) ; Redundant with ≠
+```
+
+#### **Use Superclass Constraints Appropriately**
+```scheme
+;; Good: Logical hierarchy
+(define-class (Eq a) => (Ord a)
+  (compare : a -> a -> Ordering))
+
+;; Good: Multiple constraints when needed
+(define-class (Eq a) (Show a) => (Debug a)
+  (debug : a -> String))
+```
+
+### **3. Pattern Matching Best Practices**
+
+#### **Exhaustive Pattern Matching**
+```scheme
+;; Good: Exhaustive patterns
+(define (maybe-to-string maybe-val)
+  (match maybe-val
+    [Nothing "nothing"]
+    [(Just x) (show x)]))
+
+;; Compiler warns about non-exhaustive patterns
+(define (incomplete-match color)
+  (match color
+    [Red "red"]
+    [Green "green"]
+    ;; Missing Blue case - warning issued
+    ))
+```
+
+#### **Use Guards Judiciously**
+```scheme
+;; Good: Simple guards for additional constraints
+(define (classify-temperature temp)
+  (match temp
+    [t #:when (<= t 32) 'freezing]
+    [t #:when (<= t 70) 'cool] 
+    [t #:when (<= t 90) 'warm]
+    [_ 'hot]))
+
+;; Consider helper functions for complex guards
+(define hot-day? (lambda (temp humidity) (and (> temp 85) (> humidity 60))))
+
+(define (comfort-level temp humidity)
+  (match (list temp humidity)
+    [(list t h) #:when (hot-day? t h) 'uncomfortable]
+    [_ 'comfortable]))
+```
+
+### **4. Performance Considerations**
+
+#### **Type Specialization**
+```scheme
+;; Generic function
+(define (generic-add x y)
+  #:type (∀ a. (Numeric a) => a -> a -> a)
+  (+ x y))
+
+;; Specialized versions for better performance  
+(define (number-add x y)
+  #:type (-> Number Number Number)
+  (+ x y))
+
+;; Use specialized versions in hot paths
+(define (sum-numbers nums)
+  (fold-left number-add 0 nums))
+```
+
+#### **Avoid Unnecessary Boxing**
+```scheme
+;; Good: Direct numeric operations
+(define (fast-computation x)
+  #:type (-> Number Number)
+  (* (+ x 1) (- x 1)))
+
+;; Bad: Boxing through generic operations  
+(define (slow-computation x)
+  (let ((boxed-x (box x)))
+    (* (+ (unbox boxed-x) 1) 
+       (- (unbox boxed-x) 1))))
+```
+
+---
+
+This type system guide provides a comprehensive foundation for understanding and effectively using Lambdust's sophisticated type system. The four-level gradual typing approach enables developers to choose the appropriate level of type safety and performance optimization for their specific needs while maintaining the flexibility and expressiveness of Scheme.

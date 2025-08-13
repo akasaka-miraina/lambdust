@@ -452,12 +452,18 @@ fn get_value_type_name(value: &Value) -> String {
         Value::OrderedSet(_) => "ordered-set".to_string(),
         Value::ListQueue(_) => "list-queue".to_string(),
         Value::RandomAccessList(_) => "random-access-list".to_string(),
-        // Concurrency types
+        // Concurrency types (only available with async-runtime)
+        #[cfg(feature = "async-runtime")]
         Value::Future(_) => "future".to_string(),
+        #[cfg(feature = "async-runtime")]
         Value::Channel(_) => "channel".to_string(),
+        #[cfg(feature = "async-runtime")]
         Value::Mutex(_) => "mutex".to_string(),
+        #[cfg(feature = "async-runtime")]
         Value::Semaphore(_) => "semaphore".to_string(),
+        #[cfg(feature = "async-runtime")]
         Value::AtomicCounter(_) => "atomic-counter".to_string(),
+        #[cfg(feature = "async-runtime")]
         Value::DistributedNode(_) => "distributed-node".to_string(),
         Value::MutableString(_) => "string".to_string(),
         Value::Set(_) => "set".to_string(),
