@@ -8,6 +8,7 @@ use crate::utils::{GcIntegration, GcIntegrationConfig};
 use crate::utils::gc::{ObjectId, gc_alloc};
 use crate::macro_system::{MacroExpander, MacroTransformer, HygieneContext, next_hygiene_id};
 use crate::eval::{Value, ThreadSafeEnvironment};
+use crate::eval::gc_coordinator::GcCoordinator;
 use crate::ast::{Expr};
 use crate::diagnostics::{Result, Error, Span, Spanned};
 use std::sync::{Arc, RwLock, Mutex};
