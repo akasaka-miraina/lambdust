@@ -22,6 +22,13 @@ pub mod algebraic;
 pub mod advanced_type_classes;
 pub mod r7rs_integration;
 pub mod integration_bridge;
+pub mod dependent;
+// Note: Temporarily disabled modules that depend on old dependent type system
+// pub mod dependent_bridge;
+// pub mod gradual_dependent;
+// pub mod type_level_computation;
+// pub mod scheme_dependent_integration;
+// pub mod proof_assistant;
 
 // Individual structure modules
 pub mod type_var;
@@ -43,6 +50,11 @@ pub use algebraic::*;
 pub use advanced_type_classes::*;
 pub use r7rs_integration::*;
 pub use integration_bridge::*;
+pub use dependent::*;
+// pub use gradual_dependent::*;
+// pub use type_level_computation::*;
+// pub use scheme_dependent_integration::*;
+// pub use proof_assistant::*;
 
 // Re-export individual structures
 pub use type_var::*;

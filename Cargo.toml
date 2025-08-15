@@ -149,6 +149,9 @@ lru = "0.12"
 # Numeric traits for monad implementations
 num-traits = "0.2"
 
+# Memory optimization for dependent type system
+bumpalo = { version = "3.14", features = ["collections"] }
+
 # Concurrency and async runtime
 async-trait = "0.1"                                    # For async traits in actors
 uuid = { version = "1.6", features = ["v4", "serde"] } # For unique IDs
@@ -196,6 +199,14 @@ multithreaded-tests = ["async", "tokio/test-util"]
 ffi = ["libffi", "cc"] # FFI support
 jit = [] # Future JIT compilation support
 simd-benchmarks = ["benchmarks"] # SIMD optimization benchmarking
+
+# Formal methods integration (advanced feature)
+formal-methods = [] # Event-B/B-Method integration
+isabelle-hol = ["formal-methods"] # Isabelle/HOL proof integration  
+event-b = ["formal-methods"] # Event-B machine translation
+b-method = ["formal-methods"] # B-Method specification support
+certified-translation = ["formal-methods", "isabelle-hol", "event-b", "b-method"] # Full formal verification stack
+
 # internal-parser = [] # 廃止済み (2025年8月12日) - nom互換レイヤー削除により不要
 
 # Benchmark configuration

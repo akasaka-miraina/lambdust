@@ -81,6 +81,11 @@ pub mod jit;
 /// Lightweight regular expression engine (internal implementation).
 pub mod regex;
 
+// Formal methods integration (requires feature flags)
+/// Formal methods integration for Event-B, B-Method, and Isabelle/HOL.
+#[cfg(feature = "formal-methods")]
+pub mod formal;
+
 // Advanced numeric system
 /// Advanced numeric tower with bigints, rationals, and complex numbers.
 pub mod numeric;
