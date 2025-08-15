@@ -472,13 +472,13 @@ impl ElaborationEngine {
     fn elaborate_lambda(
         &mut self,
         param: &str,
-        param_type: &Box<DependentType>,
-        body: &Box<DependentTerm>,
+        param_type: &DependentType,
+        body: &DependentTerm,
         expected_type: Option<&DependentType>,
         span: Span,
     ) -> Result<ElaborationResult> {
         // Check if we need to insert implicit parameters
-        let mut elaborated_params = vec![(param, (**param_type).clone())];
+        let mut elaborated_params = vec![(param, param_type.clone())];
         let mut implicits_inserted = Vec::new();
 
         // If expected type is Pi type with implicits, insert them
@@ -486,21 +486,21 @@ impl ElaborationEngine {
             // Check for implicit parameters in expected type
             if let Some(implicit_arg) = self.context.lookup_implicit(var) {
                 if implicit_arg.optional {
-                    elaborated_params.insert(0, (var.as_str(), (**domain).clone()));
+                    elaborated_params.insert(0, (var.as_str(), domain.as_ref().clone()));
                     implicits_inserted.push((var.clone(), DependentTerm::Variable(var.clone())));
                 }
             }
         }
 
         // Elaborate body in extended context
-        self.type_checker.get_context_mut().bind_variable(param.to_string(), (**param_type).clone());
+        self.type_checker.get_context_mut().bind_variable(param.to_string(), param_type.clone());
         let body_result = self.elaborate_term_internal(body, None, span)?;
         self.type_checker.get_context_mut().unbind_variable(param);
 
         // Construct elaborated lambda
         let mut elaborated_lambda = DependentTerm::Lambda {
             param: param.to_string(),
-            param_type: param_type.clone(),
+            param_type: Box::new(param_type.clone()),
             body: Box::new(body_result.elaborated),
         };
 
@@ -515,7 +515,7 @@ impl ElaborationEngine {
 
         let elaborated_type = DependentType::Pi {
             var: param.to_string(),
-            domain: param_type.clone(),
+            domain: Box::new(param_type.clone()),
             codomain: Box::new(body_result.elaborated_type),
         };
 
@@ -534,8 +534,8 @@ impl ElaborationEngine {
     /// Elaborate function application with implicit argument insertion
     fn elaborate_application(
         &mut self,
-        function: &Box<DependentTerm>,
-        argument: &Box<DependentTerm>,
+        function: &DependentTerm,
+        argument: &DependentTerm,
         expected_type: Option<&DependentType>,
         span: Span,
     ) -> Result<ElaborationResult> {
@@ -573,7 +573,7 @@ impl ElaborationEngine {
                         constraints.extend(arg_result.constraints);
                         constraints.push(TypeConstraint::Equal {
                             left: arg_result.elaborated_type,
-                            right: (**domain).clone(),
+                            right: domain.as_ref().clone(),
                             span,
                         });
 
@@ -601,7 +601,7 @@ impl ElaborationEngine {
                         constraints.extend(arg_result.constraints);
                         constraints.push(TypeConstraint::Equal {
                             left: arg_result.elaborated_type,
-                            right: (**domain).clone(),
+                            right: domain.as_ref().clone(),
                             span,
                         });
 
@@ -676,8 +676,8 @@ impl ElaborationEngine {
     /// Elaborate pair construction
     fn elaborate_pair(
         &mut self,
-        first: &Box<DependentTerm>,
-        second: &Box<DependentTerm>,
+        first: &DependentTerm,
+        second: &DependentTerm,
         expected_type: Option<&DependentType>,
         span: Span,
     ) -> Result<ElaborationResult> {
@@ -722,7 +722,7 @@ impl ElaborationEngine {
     /// Elaborate projection
     fn elaborate_projection(
         &mut self,
-        pair: &Box<DependentTerm>,
+        pair: &DependentTerm,
         is_first: bool,
         expected_type: Option<&DependentType>,
         span: Span,
@@ -754,7 +754,7 @@ impl ElaborationEngine {
         &mut self,
         name: &str,
         args: &[DependentTerm],
-        result_type: &Box<DependentType>,
+        result_type: &DependentType,
         expected_type: Option<&DependentType>,
         span: Span,
     ) -> Result<ElaborationResult> {
@@ -775,13 +775,13 @@ impl ElaborationEngine {
         let constructor = DependentTerm::Constructor {
             name: name.to_string(),
             args: elaborated_args,
-            result_type: result_type.clone(),
+            result_type: Box::new(result_type.clone()),
         };
 
         Ok(ElaborationResult {
             elaborated: constructor,
             implicits_inserted: all_implicits,
-            elaborated_type: (**result_type).clone(),
+            elaborated_type: result_type.clone(),
             constraints: all_constraints,
             is_complete: all_complete,
         })
@@ -790,8 +790,8 @@ impl ElaborationEngine {
     /// Elaborate pattern matching
     fn elaborate_match(
         &mut self,
-        scrutinee: &Box<DependentTerm>,
-        return_type: &Box<DependentType>,
+        scrutinee: &DependentTerm,
+        return_type: &DependentType,
         branches: &[MatchBranch],
         expected_type: Option<&DependentType>,
         span: Span,
@@ -822,14 +822,14 @@ impl ElaborationEngine {
 
         let match_expr = DependentTerm::Match {
             scrutinee: Box::new(scrutinee_result.elaborated),
-            return_type: return_type.clone(),
+            return_type: Box::new(return_type.clone()),
             branches: elaborated_branches,
         };
 
         Ok(ElaborationResult {
             elaborated: match_expr,
             implicits_inserted: all_implicits,
-            elaborated_type: (**return_type).clone(),
+            elaborated_type: return_type.clone(),
             constraints: all_constraints,
             is_complete: all_complete,
         })
@@ -838,11 +838,11 @@ impl ElaborationEngine {
     /// Elaborate reflexivity proof
     fn elaborate_refl(
         &mut self,
-        ty: &Box<DependentType>,
+        ty: &DependentType,
         expected_type: Option<&DependentType>,
         span: Span,
     ) -> Result<ElaborationResult> {
-        let refl = DependentTerm::Refl { ty: ty.clone() };
+        let refl = DependentTerm::Refl { ty: Box::new(ty.clone()) };
 
         // Infer type of refl
         let inferred = self.inference_engine.infer_type(&refl, span)?;

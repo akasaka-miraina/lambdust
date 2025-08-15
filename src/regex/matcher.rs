@@ -299,10 +299,8 @@ mod tests {
         NfaEngine::from_pattern(&parsed).unwrap()
     }
 
-    fn create_matcher(pattern: &str) -> (NfaEngine, Matcher) {
-        let engine = create_engine(pattern);
-        let matcher = Matcher::new(&engine);
-        (engine, matcher)
+    fn create_matcher(pattern: &str) -> NfaEngine {
+        create_engine(pattern)
     }
 
     #[test]
@@ -318,7 +316,8 @@ mod tests {
     
     #[test]
     fn test_concatenation_match() {
-        let (_engine, mut matcher) = create_matcher("abc");
+        let engine = create_matcher("abc");
+        let mut matcher = Matcher::new(&engine);
         
         let m = matcher.find("abc").unwrap();
         assert_eq!(m.start, 0);

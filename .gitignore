@@ -94,3 +94,6 @@ docs/.doctrees/
 # OS generated files
 Thumbs.db
 ehthumbs.db
+
+# Isabelle
+Isabelle2025.app

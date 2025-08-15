@@ -690,7 +690,7 @@ mod tests {
             signature: FunctionSignature {
                 parameter_count: 0,
                 is_variadic: false,
-                return_type: crate::jit::SchemeType::Any,
+                return_type: crate::jit::code_generator::SchemeType::Any,
                 parameter_types: Vec::new(),
             },
             memory_layout: MemoryLayout {

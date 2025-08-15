@@ -604,6 +604,7 @@ mod tests {
     use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
     
     // Mock GC object for testing
+    #[derive(Debug)]
     struct MockObject {
         generation: AtomicU32,
         marked: AtomicBool,

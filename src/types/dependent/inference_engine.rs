@@ -483,11 +483,7 @@ impl TypeInferenceEngine {
                             span,
                         });
 
-                        let result_type = if *is_first {
-                            DependentType::Universe(0) // Placeholder for fresh_first
-                        } else {
-                            DependentType::Universe(0) // Placeholder for fresh_second
-                        };
+                        let result_type = DependentType::Universe(0); // Placeholder for projection
 
                         Ok(InferenceResult {
                             inferred_type: result_type,

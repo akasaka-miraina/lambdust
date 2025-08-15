@@ -169,6 +169,7 @@ impl<'a> ParserBuilder<'a> {
 }
 
 /// 文字列リテラルパーサー
+#[derive(Clone)]
 struct StringLiteralParser {
     expected: &'static str,
 }

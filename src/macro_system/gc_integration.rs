@@ -534,7 +534,7 @@ mod tests {
             Span::new(0, 2),
         );
         
-        let size = GcCoordinator::estimate_expression_memory(&simple_expr);
+        let size = GcMacroCoordinator::estimate_expression_memory(&simple_expr);
         assert!(size > 0);
         assert!(size < 100); // Should be small for a simple literal
     }

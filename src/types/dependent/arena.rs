@@ -692,7 +692,7 @@ mod tests {
     
     #[test]
     fn test_arena_clear() {
-        let arena = TypeArena::new();
+        let mut arena = TypeArena::new();
         
         // Allocate some data
         let _ref1 = arena.alloc_type(DependentTypeData::Universe(0)).unwrap();

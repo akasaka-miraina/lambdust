@@ -123,11 +123,7 @@ impl MigrationBridge {
         Self {
             optimized_context: OptimizedTypingContext::with_arena(arena.clone()),
             optimized_normalizer: OptimizedNormalizer::with_arena(arena),
-            memory_pool: if config.enable_memory_pooling {
-                MemoryPoolManager::new()
-            } else {
-                MemoryPoolManager::new()
-            },
+            memory_pool: MemoryPoolManager::new(),
             stats: RefCell::new(MigrationStats::new()),
             config,
         }

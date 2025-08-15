@@ -12,7 +12,7 @@ mod tests {
         
         if let Ok(runtime) = runtime {
             assert_eq!(runtime.thread_count(), 2);
-            let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
+            let _ = tokio_test::block_on(runtime.shutdown());
         }
     }
 
@@ -24,12 +24,12 @@ mod tests {
         let expr = Expr::Literal(Literal::Number(42.0));
         let span = Some(Span { start: 0, len: 2, file_id: None, line: 1, column: 1 });
         
-        let result = runtime.eval_expr(expr, span)/* .await - disabled for non-async tests */;
+        let result = tokio_test::block_on(runtime.eval_expr(expr, span));
         
         // The current implementation just returns Unspecified, so check for that
         assert!(result.is_ok());
         
-        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
+        let _ = tokio_test::block_on(runtime.shutdown());
     }
 
     #[test]
@@ -43,13 +43,13 @@ mod tests {
             (Expr::Literal(Literal::Number(3.0)), Some(Span { start: 0, len: 1, file_id: None, line: 1, column: 1 })),
         ];
         
-        let result = runtime.eval_parallel(expressions)/* .await - disabled for non-async tests */;
+        let result = tokio_test::block_on(runtime.eval_parallel(expressions));
         
         assert_eq!(result.results.len(), 3);
         assert_eq!(result.threads_used, 2); // We created 2 threads
         assert!(result.elapsed.as_nanos() > 0); // Should have taken some time
         
-        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
+        let _ = tokio_test::block_on(runtime.shutdown());
     }
 
     #[test]
@@ -63,7 +63,7 @@ mod tests {
         let expr = Expr::Literal(Literal::Number(42.0));
         let span = Some(Span { start: 0, len: 2, file_id: None, line: 1, column: 1 });
         
-        let result = handle.eval(expr, span)/* .await - disabled for non-async tests */;
+        let result = tokio_test::block_on(handle.eval(expr, span));
         assert!(result.is_ok());
         
         // Test global definition
@@ -74,7 +74,7 @@ mod tests {
         let shutdown_result = handle.shutdown();
         assert!(shutdown_result.is_ok());
         
-        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
+        let _ = tokio_test::block_on(runtime.shutdown());
     }
 
     #[test]
@@ -134,7 +134,7 @@ mod tests {
         assert_eq!(stats.total_tasks_submitted, 0);
         assert_eq!(stats.total_tasks_completed, 0);
         
-        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
+        let _ = tokio_test::block_on(runtime.shutdown());
     }
 
     #[test]
@@ -148,7 +148,7 @@ mod tests {
             
             if let Ok(lambdust) = lambdust {
                 assert_eq!(lambdust.thread_count(), 2);
-                let _ = lambdust.shutdown()/* .await - disabled for non-async tests */;
+                let _ = tokio_test::block_on(lambdust.shutdown());
             }
         // });
     }
@@ -451,7 +451,7 @@ mod tests {
         io_coordinator.unregister_thread(thread_id);
         error_propagation.unregister_thread(thread_id);
         
-        let _ = runtime.shutdown()/* .await - disabled for non-async tests */;
+        let _ = tokio_test::block_on(runtime.shutdown());
     }
 
     #[test]
@@ -489,7 +489,7 @@ mod tests {
         
         // Wait for all transactions to complete
         for handle in handles {
-            let result = handle/* .await - disabled for non-async tests */;
+            let result = tokio_test::block_on(handle);
             assert!(result.is_ok());
         }
         

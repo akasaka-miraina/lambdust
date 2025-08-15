@@ -341,16 +341,16 @@ fn test_type_construction_performance() {
     // Create many types quickly
     for i in 0..1000 {
         let _universe = DependentType::Universe(i % 10);
-        let _variable = DependentTerm::Variable(format!("var_{}", i));
+        let _variable = DependentTerm::Variable(format!("var_{i}"));
         let _pi_type = DependentType::Pi {
-            var: format!("param_{}", i),
+            var: format!("param_{i}"),
             domain: Box::new(DependentType::Universe(0)),
             codomain: Box::new(DependentType::Universe(1)),
         };
     }
     
     let elapsed = start.elapsed();
-    println!("Created 3000 types/terms in {:?}", elapsed);
+    println!("Created 3000 types/terms in {elapsed:?}");
     
     // Should be very fast
     assert!(elapsed.as_millis() < 100, "Type construction should be fast");

@@ -169,7 +169,7 @@ struct SequencePredictor {
 
 /// Pool configuration parameters
 #[derive(Debug, Clone)]
-struct PoolConfig {
+pub struct PoolConfig {
     /// Initial pool size
     initial_size: usize,
     /// Maximum pool size
@@ -199,7 +199,7 @@ struct PoolStats {
 
 /// Overall pool system statistics
 #[derive(Debug, Clone)]
-struct PoolStatistics {
+pub struct PoolStatistics {
     /// Small pool stats
     small_pool: PoolStats,
     /// Medium pool stats
@@ -832,7 +832,7 @@ mod tests {
         let large_ref = manager.allocate_type(AllocationType::InductiveType, 1024).unwrap();
         
         // Verify different pools were used (simplified check)
-        assert_ne!(small_ref.index, large_ref.index);
+        assert_ne!(small_ref, large_ref);
     }
     
     #[test]

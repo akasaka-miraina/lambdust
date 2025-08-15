@@ -77,9 +77,9 @@ impl std::fmt::Display for ConcurrencyError {
             Self::Timeout => write!(f, "Timeout expired"),
             Self::Cancelled => write!(f, "Task cancelled"),
             Self::Deadlock => write!(f, "Deadlock detected"),
-            Self::ActorNotFound(name) => write!(f, "Actor not found: {}", name),
-            Self::Serialization(msg) => write!(f, "Serialization error: {}", msg),
-            Self::Network(msg) => write!(f, "Network error: {}", msg),
+            Self::ActorNotFound(name) => write!(f, "Actor not found: {name}"),
+            Self::Serialization(msg) => write!(f, "Serialization error: {msg}"),
+            Self::Network(msg) => write!(f, "Network error: {msg}"),
         }
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "lambdust"
-version = "0.1.1"
+version = "0.2.0"
 edition = "2024"
 authors = ["Mitsuki Akasaka <m.akasaka@miraina-step.co.jp>"]
 description = "A Scheme dialect with gradual typing and effect systems"
@@ -29,9 +29,6 @@ name = "performance-monitor"
 path = "src/bin/performance_monitor.rs"
 
 [dependencies]
-# Core parsing and lexing
-# nom = "7.1" # 廃止済み (2025年8月12日) - 内製parser combinatorに移行
-# logos = "0.14"  # 廃止済み (2025年8月12日) - 内製lexerに移行
 
 # Date and time for reporting
 chrono = { version = "0.4", features = ["serde"] }
@@ -72,17 +69,17 @@ crossbeam = "0.8" # For channels and concurrent data structures
 num_cpus = "1.16" # For detecting CPU count
 
 # Error handling and diagnostics
-# thiserror = "1.0" # 廃止済み (2025年8月12日) - 内製カスタムエラーシステムに移行
-# miette = { version = "7.0", features = ["fancy"] } # 廃止済み (2025年8月12日) - 内製軽量診断システムに移行
-ariadne = "0.4"                                    # Beautiful error reporting
-log = "0.4"                                        # Logging for parser benchmarking
+ariadne = "0.4" # Beautiful error reporting
+log = "0.4"     # Logging for parser benchmarking
 
 # FFI and interop
 libloading = "0.8"
 dlopen2 = "0.7"
-libc = "0.2"                                  # C standard library bindings
-libffi = { version = "3.2", optional = true, features = ["system"] } # Foreign Function Interface for C interop
-cc = { version = "1.0", optional = true }     # C compiler integration
+libc = "0.2" # C standard library bindings
+libffi = { version = "3.2", optional = true, features = [
+    "system",
+] } # Foreign Function Interface for C interop
+cc = { version = "1.0", optional = true } # C compiler integration
 
 # Performance and optimization
 criterion = { version = "0.5", optional = true }
@@ -139,11 +136,10 @@ rand = "0.8"                                    # For random test data generatio
 futures = "0.3"                                 # For futures utilities in tests
 
 # Text processing
-# regex = "1.10" # 廃止済み (2025年8月12日) - 内製軽量正規表現エンジンに移行
 unicode-normalization = "0.1"
 unicode-segmentation = "1.10"
 icu_collator = { version = "1.4", optional = true } # Unicode collation for text processing
-icu_locid = { version = "1.4", optional = true } # ICU locale support
+icu_locid = { version = "1.4", optional = true }    # ICU locale support
 lru = "0.12"
 
 # Numeric traits for monad implementations
@@ -170,24 +166,32 @@ futures = "0.3"                                              # Futures utilities
 default = ["minimal-repl"]
 
 # REPL configurations
-minimal-repl = ["dep:colored"]  # Lightweight REPL with basic colors
-repl = ["minimal-repl", "dep:rustyline", "dep:dirs"]  # Full-featured REPL
+minimal-repl = ["dep:colored"] # Lightweight REPL with basic colors
+repl = ["minimal-repl", "dep:rustyline", "dep:dirs"] # Full-featured REPL
 enhanced-repl = [
     "repl",
-    "dep:reedline", 
+    "dep:reedline",
     "dep:nu-ansi-term",
     "dep:crossterm",
     "dep:syntect",
 ]
 
 # Runtime configurations  
-async-runtime = ["tokio", "tokio-util"]  # Async runtime (heavy dependency)
-network-io = ["async-runtime", "rustls", "tokio-rustls", "webpki-roots"]  # Network I/O
-platform-extensions = ["unix-extensions", "windows-extensions"]  # Platform-specific APIs
+async-runtime = ["tokio", "tokio-util"] # Async runtime (heavy dependency)
+network-io = [
+    "async-runtime",
+    "rustls",
+    "tokio-rustls",
+    "webpki-roots",
+] # Network I/O
+platform-extensions = [
+    "unix-extensions",
+    "windows-extensions",
+] # Platform-specific APIs
 
 # Legacy compatibility (opt-in only)
-async = ["async-runtime"]  # Backward compatibility
-advanced-io = ["network-io", "platform-extensions"]  # Backward compatibility
+async = ["async-runtime"]                           # Backward compatibility
+advanced-io = ["network-io", "platform-extensions"] # Backward compatibility
 text-processing = ["icu_collator", "icu_locid"]
 compression = ["flate2", "zstd", "lz4_flex"]
 tls = ["rustls", "tokio-rustls", "webpki-roots"]
@@ -196,16 +200,21 @@ windows-extensions = ["winapi"]
 benchmarks = ["criterion", "flame"]
 property-testing = ["proptest"]
 multithreaded-tests = ["async", "tokio/test-util"]
-ffi = ["libffi", "cc"] # FFI support
-jit = [] # Future JIT compilation support
-simd-benchmarks = ["benchmarks"] # SIMD optimization benchmarking
+ffi = ["libffi", "cc"]                              # FFI support
+jit = []                                            # Future JIT compilation support
+simd-benchmarks = ["benchmarks"]                    # SIMD optimization benchmarking
 
 # Formal methods integration (advanced feature)
 formal-methods = [] # Event-B/B-Method integration
 isabelle-hol = ["formal-methods"] # Isabelle/HOL proof integration  
 event-b = ["formal-methods"] # Event-B machine translation
 b-method = ["formal-methods"] # B-Method specification support
-certified-translation = ["formal-methods", "isabelle-hol", "event-b", "b-method"] # Full formal verification stack
+certified-translation = [
+    "formal-methods",
+    "isabelle-hol",
+    "event-b",
+    "b-method",
+] # Full formal verification stack
 
 # internal-parser = [] # 廃止済み (2025年8月12日) - nom互換レイヤー削除により不要
 

@@ -672,7 +672,7 @@ mod tests {
         assert!(result.is_ok());
         let (remaining, values) = result.unwrap();
         assert_eq!(remaining, "abc");
-        assert_eq!(values, vec![]);
+        assert_eq!(values, Vec::<char>::new());
         
         // 複数個の場合
         let result = parser.parse("123abc");

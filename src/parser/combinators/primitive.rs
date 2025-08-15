@@ -456,6 +456,6 @@ mod tests {
         
         let span = state.current_span(5);
         assert_eq!(span.start, 6);
-        assert_eq!(span.end, 11);
+        assert_eq!(span.end(), 11);
     }
 }
