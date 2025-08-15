@@ -640,7 +640,7 @@ mod tests {
         
         // Insert enough elements to trigger resize
         for i in 0..10 {
-            let key = Value::string(format!("key{}", i));
+            let key = Value::string(format!("key{i}"));
             let value = Value::number(i as f64);
             table.insert(key, value);
         }
@@ -650,7 +650,7 @@ mod tests {
         
         // Verify all elements are still accessible
         for i in 0..10 {
-            let key = Value::string(format!("key{}", i));
+            let key = Value::string(format!("key{i}"));
             let expected = Value::number(i as f64);
             assert_eq!(table.get(&key), Some(&expected));
         }
@@ -665,7 +665,7 @@ mod tests {
         let mut table = table;
         for i in 0..20 {
             let key = Value::number(i as f64);
-            let value = Value::string(format!("value{}", i));
+            let value = Value::string(format!("value{i}"));
             table.insert(key, value);
         }
         
@@ -673,7 +673,7 @@ mod tests {
         
         for i in 0..20 {
             let key = Value::number(i as f64);
-            let expected = Value::string(format!("value{}", i));
+            let expected = Value::string(format!("value{i}"));
             assert_eq!(table.get(&key), Some(&expected));
         }
     }
@@ -733,7 +733,7 @@ mod tests {
         
         for i in 0..5 {
             let key = Value::number(i as f64);
-            let value = Value::string(format!("value{}", i));
+            let value = Value::string(format!("value{i}"));
             table.insert(key, value);
         }
         

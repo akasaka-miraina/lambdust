@@ -303,7 +303,7 @@ mod tests {
         let mut env = Rc::new(Environment::new(None, 0));
         
         for i in 0..depth {
-            env.define(format!("var{}", i), Value::integer(i as i64));
+            env.define(format!("var{i}"), Value::integer(i as i64));
             if i < depth - 1 {
                 env = env.extend((i as u32).into());
             }
@@ -386,8 +386,8 @@ mod tests {
         
         // Perform various lookups
         for i in 0..10 {
-            cached_env.lookup(&format!("var{}", i));
-            cached_env.lookup(&format!("var{}", i));  // Second lookup should hit cache
+            cached_env.lookup(&format!("var{i}"));
+            cached_env.lookup(&format!("var{i}"));  // Second lookup should hit cache
         }
         
         let stats = cached_env.cache_statistics();

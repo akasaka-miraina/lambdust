@@ -37,7 +37,7 @@ mod literal_evaluation {
         
         match result {
             Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => assert_eq!(n as i64, 42),
-            _ => panic!("Expected integer literal, got: {:?}", result),
+            _ => panic!("Expected integer literal, got: {result:?}"),
         }
     }
 
@@ -60,12 +60,12 @@ mod literal_evaluation {
         let mut evaluator = Evaluator::new();
         let env = test_env();
         
-        let expr = spanned(Expr::Literal(Literal::string("hello")));
+        let expr = spanned(Expr::Literal(Literal::String("hello")));
         let result = evaluator.eval(&expr, env).unwrap();
         
         match result {
             Value::Literal(Literal::String(s)) => assert_eq!(s, "hello"),
-            _ => panic!("Expected string literal, got: {:?}", result),
+            _ => panic!("Expected string literal, got: {result:?}"),
         }
     }
 
@@ -79,7 +79,7 @@ mod literal_evaluation {
         
         match result_true {
             Value::Literal(Literal::Boolean(b)) => assert!(b),
-            _ => panic!("Expected boolean true, got: {:?}", result_true),
+            _ => panic!("Expected boolean true, got: {result_true:?}"),
         }
         
         let expr_false = spanned(Expr::Literal(Literal::boolean(false)));
@@ -87,7 +87,7 @@ mod literal_evaluation {
         
         match result_false {
             Value::Literal(Literal::Boolean(b)) => assert!(!b),
-            _ => panic!("Expected boolean false, got: {:?}", result_false),
+            _ => panic!("Expected boolean false, got: {result_false:?}"),
         }
     }
 
@@ -102,7 +102,7 @@ mod literal_evaluation {
         
         match result_char {
             Value::Literal(Literal::Character(ch)) => assert_eq!(ch, 'a'),
-            _ => panic!("Expected character 'a', got: {:?}", result_char),
+            _ => panic!("Expected character 'a', got: {result_char:?}"),
         }
         
         // Test special character (space)
@@ -111,7 +111,7 @@ mod literal_evaluation {
         
         match result_space {
             Value::Literal(Literal::Character(ch)) => assert_eq!(ch, ' '),
-            _ => panic!("Expected character ' ', got: {:?}", result_space),
+            _ => panic!("Expected character ' ', got: {result_space:?}"),
         }
         
         // Test Unicode character
@@ -120,7 +120,7 @@ mod literal_evaluation {
         
         match result_emoji {
             Value::Literal(Literal::Character(ch)) => assert_eq!(ch, '😀'),
-            _ => panic!("Expected character '😀', got: {:?}", result_emoji),
+            _ => panic!("Expected character '😀', got: {result_emoji:?}"),
         }
     }
 }
@@ -149,7 +149,7 @@ mod variable_operations {
         
         match lookup_result {
             Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => assert_eq!(n as i64, 42),
-            _ => panic!("Expected integer 42, got: {:?}", lookup_result),
+            _ => panic!("Expected integer 42, got: {lookup_result:?}"),
         }
     }
 
@@ -185,7 +185,7 @@ mod conditional_evaluation {
         
         match result {
             Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => assert_eq!(n as i64, 42),
-            _ => panic!("Expected integer 42, got: {:?}", result),
+            _ => panic!("Expected integer 42, got: {result:?}"),
         }
     }
 
@@ -205,7 +205,7 @@ mod conditional_evaluation {
         
         match result {
             Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => assert_eq!(n as i64, 24),
-            _ => panic!("Expected integer 24, got: {:?}", result),
+            _ => panic!("Expected integer 24, got: {result:?}"),
         }
     }
 }
@@ -229,7 +229,7 @@ mod sequence_evaluation {
         
         match result {
             Value::Literal(Literal::Number(n)) if n.fract() == 0.0 => assert_eq!(n as i64, 3),
-            _ => panic!("Expected integer 3, got: {:?}", result),
+            _ => panic!("Expected integer 3, got: {result:?}"),
         }
     }
 
@@ -261,7 +261,7 @@ mod quote_evaluation {
         
         match result {
             Value::Symbol(_) => {}, // Symbol ID comparison would need more setup
-            _ => panic!("Expected symbol, got: {:?}", result),
+            _ => panic!("Expected symbol, got: {result:?}"),
         }
     }
 }
@@ -294,7 +294,7 @@ mod quasiquote_evaluation {
                 }
             }
         } else {
-            panic!("Expected list result, got: {:?}", result);
+            panic!("Expected list result, got: {result:?}");
         }
     }
 
@@ -333,7 +333,7 @@ mod quasiquote_evaluation {
                 }
             }
         } else {
-            panic!("Expected list result, got: {:?}", result);
+            panic!("Expected list result, got: {result:?}");
         }
     }
 
@@ -400,7 +400,7 @@ mod quasiquote_evaluation {
         if let Value::Pair(car, _cdr) = result {
             assert!(matches!(car.as_ref(), Value::Symbol(_)));
         } else {
-            panic!("Expected list result, got: {:?}", result);
+            panic!("Expected list result, got: {result:?}");
         }
     }
 

@@ -136,7 +136,7 @@ impl BootstrapTestSuite {
         
         // Test each mode
         for mode in [BootstrapMode::Minimal, BootstrapMode::Fallback] {
-            println!("Testing {:?} mode...", mode);
+            println!("Testing {mode:?} mode...");
             
             let config = BootstrapIntegrationConfig {
                 mode,
@@ -183,11 +183,11 @@ impl BootstrapTestSuite {
             let run_time = start.elapsed();
             total_time += run_time;
             
-            println!("  Run {}: {:?}", i, run_time);
+            println!("  Run {i}: {run_time:?}");
         }
         
         let average_time = total_time / runs;
-        println!("Average bootstrap time: {:?}", average_time);
+        println!("Average bootstrap time: {average_time:?}");
         
         // Bootstrap should be reasonably fast
         if average_time > Duration::from_secs(1) {

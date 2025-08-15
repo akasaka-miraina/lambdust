@@ -3,7 +3,7 @@
 //! This module tests the essential R7RS-small primitives to ensure they work correctly
 //! and comply with the R7RS specification.
 
-use lambdust::eval::value::{Value, ThreadSafeEnvironment};
+use lambdust::eval::value::Value;
 use lambdust::runtime::{LambdustRuntime, GlobalEnvironmentManager};
 use std::sync::Arc;
 
@@ -163,7 +163,7 @@ fn test_r7rs_small_procedure_availability() {
     }
     
     if !missing_procedures.is_empty() {
-        panic!("Missing R7RS-small required procedures: {:?}", missing_procedures);
+        panic!("Missing R7RS-small required procedures: {missing_procedures:?}");
     }
 }
 

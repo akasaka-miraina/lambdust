@@ -1,4 +1,5 @@
-use super::{TypeScheme, TypeConstructor};
+use crate::types::type_scheme::TypeScheme;
+use crate::types::type_constructor::TypeConstructor;
 use super::type_classes::TypeClassInstance;
 use std::collections::HashMap;
 

@@ -290,7 +290,7 @@ impl ObjectInspector {
             Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::InexactReal(_)) | Value::Literal(Literal::Number(_)) => TypeInfo::Number,
             Value::Literal(Literal::Rational { .. }) => TypeInfo::Number,
             Value::Literal(Literal::Complex { .. }) => TypeInfo::Number,
-            Value::Literal(Literal::String(_)) => TypeInfo::String,
+            Value::Literal(Literal::String(_)) | Value::Literal(Literal::InternedString(_)) => TypeInfo::String,
             Value::Literal(Literal::Character(_)) => TypeInfo::Character,
             Value::Literal(Literal::Bytevector(_)) => TypeInfo::Bytevector,
             Value::Literal(Literal::Nil) => TypeInfo::Nil,

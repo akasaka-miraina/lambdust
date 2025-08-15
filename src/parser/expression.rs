@@ -238,7 +238,7 @@ impl Parser {
             )))
         }
         
-        let name = self.current_token().text.clone();
+        let name = self.current_token().text().to_string();
         Self::validate_identifier(&name, self.current_span())?;
         self.advance();
         

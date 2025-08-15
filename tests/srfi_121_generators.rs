@@ -3,10 +3,7 @@
 //! This module provides comprehensive tests for the SRFI-121 generators
 //! implementation, covering core operations, constructors, and utilities.
 
-use lambdust::eval::value::{Value, ThreadSafeEnvironment};
-use lambdust::stdlib::generators::*;
-use lambdust::containers::Generator;
-use std::sync::Arc;
+use lambdust::eval::value::Value;
 
 /// Test basic generator functionality
 #[test]
@@ -200,7 +197,7 @@ fn test_exhausted_generator() {
 #[test]
 fn test_generator_display() {
     let generator = Value::generator_from_values(vec![Value::integer(1)]);
-    let display_str = format!("{}", generator);
+    let display_str = format!("{generator}");
     assert!(display_str.contains("generator"));
 }
 
@@ -273,7 +270,7 @@ fn test_large_generator_performance() {
         }
         
         let elapsed = start.elapsed();
-        println!("Generated {} values in {:?}", large_count, elapsed);
+        println!("Generated {large_count} values in {elapsed:?}");
         
         // Should be exhausted
         assert!(gen_ref.is_exhausted());

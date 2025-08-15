@@ -60,6 +60,12 @@ pub struct PerformanceTestResult {
     pub error_message: Option<String>,
 }
 
+impl Default for DependentTypePerformanceTestSuite {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl DependentTypePerformanceTestSuite {
     pub fn new() -> Self {
         Self {
@@ -112,7 +118,7 @@ impl DependentTypePerformanceTestSuite {
         let mut traditional_types = Vec::new();
         for i in 0..50 { // さらに削減
             let pi_type = DependentType::Pi {
-                var: format!("x{}", i),
+                var: format!("x{i}"),
                 domain: Box::new(DependentType::Universe(0)),
                 codomain: Box::new(DependentType::Universe(1)),
             };
@@ -156,7 +162,7 @@ impl DependentTypePerformanceTestSuite {
     fn test_arena_allocation_efficiency(&self) -> Result<PerformanceTestResult, Box<dyn std::error::Error>> {
         let start = Instant::now();
         let arena = TypeArena::new();
-        let _arena_memory;
+        
         
         // アリーナベースの型作成（量を削減）
         for i in 0..1000 { // 10000から1000に削減
@@ -167,7 +173,7 @@ impl DependentTypePerformanceTestSuite {
             let codomain_ref = arena.alloc_type(codomain_data)?;
             
             let pi_data = DependentTypeData::Pi {
-                var: format!("x{}", i),
+                var: format!("x{i}"),
                 domain: domain_ref,
                 codomain: codomain_ref,
             };
@@ -175,7 +181,7 @@ impl DependentTypePerformanceTestSuite {
         }
         
         let arena_stats = arena.memory_stats();
-        _arena_memory = arena_stats.total_memory();
+        let _arena_memory = arena_stats.total_memory();
         let duration = start.elapsed();
         
         // メモリ効率比計算
@@ -320,7 +326,7 @@ impl DependentTypePerformanceTestSuite {
                 let codomain_ref = arena.alloc_type(DependentTypeData::Universe(1))?;
                 
                 let type_data = DependentTypeData::Pi {
-                    var: format!("x{}_{}", batch, i),
+                    var: format!("x{batch}_{i}"),
                     domain: domain_ref,
                     codomain: codomain_ref,
                 };
@@ -408,7 +414,7 @@ impl DependentTypePerformanceTestSuite {
                     let codomain_ref = arena.alloc_type(codomain_data)?;
                     
                     let pi_data = DependentTypeData::Pi {
-                        var: format!("x{}", i),
+                        var: format!("x{i}"),
                         domain: domain_ref,
                         codomain: codomain_ref,
                     };
@@ -422,7 +428,7 @@ impl DependentTypePerformanceTestSuite {
                     let second_ref = arena.alloc_type(second_data)?;
                     
                     let sigma_data = DependentTypeData::Sigma {
-                        var: format!("y{}", i),
+                        var: format!("y{i}"),
                         first: first_ref,
                         second: second_ref,
                     };
@@ -441,10 +447,10 @@ impl DependentTypePerformanceTestSuite {
                     // Inductive型
                     let constructor_type = arena.alloc_type(DependentTypeData::Universe(0))?;
                     let inductive_data = DependentTypeData::Inductive {
-                        name: format!("Ind{}", i),
+                        name: format!("Ind{i}"),
                         parameters: vec![],
                         universe_level: 1,
-                        constructors: vec![(format!("ctor{}", i), constructor_type)],
+                        constructors: vec![(format!("ctor{i}"), constructor_type)],
                         induction_principle: None,
                     };
                     let _inductive_ref = arena.alloc_type(inductive_data)?;
@@ -474,7 +480,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("型構築速度目標未達成: {:.0}個/ms (目標10個/ms)", ops_per_ms))
+                Some(format!("型構築速度目標未達成: {ops_per_ms:.0}個/ms (目標10個/ms)"))
             },
         })
     }
@@ -543,7 +549,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("型等価性チェック目標未達成: {:.1}μs (目標100μs)", avg_equality_time_us))
+                Some(format!("型等価性チェック目標未達成: {avg_equality_time_us:.1}μs (目標100μs)"))
             },
         })
     }
@@ -571,7 +577,7 @@ impl DependentTypePerformanceTestSuite {
         let substitution_start = Instant::now();
         for i in 0..substitution_count {
             // 型置換をシミュレート（プライベートメソッドのため直接呼び出し不可）
-            let var_name = format!("x{}", i);
+            let var_name = format!("x{i}");
             // 代わりに型等価性チェックで置換処理をシミュレート
             let _result = type_system.types_equal(&target_type, &target_type)?;
         }
@@ -599,7 +605,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("型置換目標未達成: {:.1}μs (目標1000μs)", avg_substitution_time_us))
+                Some(format!("型置換目標未達成: {avg_substitution_time_us:.1}μs (目標1000μs)"))
             },
         })
     }
@@ -614,7 +620,7 @@ impl DependentTypePerformanceTestSuite {
         
         for depth in 1..=max_depth {
             let pi_data = DependentTypeData::Pi {
-                var: format!("x{}", depth),
+                var: format!("x{depth}"),
                 domain: current_type_ref,
                 codomain: current_type_ref,
             };
@@ -650,7 +656,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("深いネスト処理目標未達成: {:.1}μs (目標50μs)", avg_access_time_us))
+                Some(format!("深いネスト処理目標未達成: {avg_access_time_us:.1}μs (目標50μs)"))
             },
         })
     }
@@ -747,7 +753,7 @@ impl DependentTypePerformanceTestSuite {
             let codomain_ref = arena.alloc_type(codomain_data)?;
             
             let pi_data = DependentTypeData::Pi {
-                var: format!("x{}", i),
+                var: format!("x{i}"),
                 domain: domain_ref,
                 codomain: codomain_ref,
             };
@@ -861,7 +867,7 @@ impl DependentTypePerformanceTestSuite {
         for i in 0..50 {
             // DependentTypeConstraintの実際の構造に基づいてシミュレート
             // とりあえず簡単な制約情報として文字列ペアを使用
-            let constraint = (format!("var{}", i), DependentType::Universe(i % 10));
+            let constraint = (format!("var{i}"), DependentType::Universe(i % 10));
             constraints.push(constraint);
         }
         
@@ -869,7 +875,7 @@ impl DependentTypePerformanceTestSuite {
         let sequential_start = Instant::now();
         for _constraint in &constraints[..20] { // サンプリング削減
             // 制約解決をシミュレート
-            let _result = format!("solved");
+            let _result = "solved".to_string();
         }
         let sequential_duration = sequential_start.elapsed();
         
@@ -877,7 +883,7 @@ impl DependentTypePerformanceTestSuite {
         let parallel_start = Instant::now();
         for chunk in constraints[..20].chunks(4) { // 4並列をシミュレート
             for _constraint in chunk {
-                let _result = format!("solved_parallel");
+                let _result = "solved_parallel".to_string();
             }
         }
         let parallel_duration = parallel_start.elapsed();
@@ -908,7 +914,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("並列化高速化目標未達成: {:.1}倍 (目標2倍)", speedup_factor))
+                Some(format!("並列化高速化目標未達成: {speedup_factor:.1}倍 (目標2倍)"))
             },
         })
     }
@@ -963,7 +969,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("ベクトル化高速化目標未達成: {:.1}倍 (目標1.5倍)", speedup_factor))
+                Some(format!("ベクトル化高速化目標未達成: {speedup_factor:.1}倍 (目標1.5倍)"))
             },
         })
     }
@@ -980,7 +986,7 @@ impl DependentTypePerformanceTestSuite {
             // ネストした型を構築
             for j in 0..5 {
                 nested_type = OptimizedDependentType::Pi {
-                    var: format!("x{}_{}", i, j),
+                    var: format!("x{i}_{j}"),
                     domain: Rc::new(nested_type.clone()),
                     codomain: Rc::new(OptimizedDependentType::Universe(1)),
                 };
@@ -1026,7 +1032,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("並列正規化高速化目標未達成: {:.1}倍 (目標1.8倍)", speedup_factor))
+                Some(format!("並列正規化高速化目標未達成: {speedup_factor:.1}倍 (目標1.8倍)"))
             },
         })
     }
@@ -1077,7 +1083,7 @@ impl DependentTypePerformanceTestSuite {
                 let codomain_idx = (i + 1) % prev_level.len();
                 
                 let pi_data = DependentTypeData::Pi {
-                    var: format!("x{}_{}",level, i),
+                    var: format!("x{level}_{i}"),
                     domain: prev_level[domain_idx],
                     codomain: prev_level[codomain_idx],
                 };
@@ -1121,7 +1127,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("大規模階層アクセス目標未達成: {:.1}μs (目標10μs)", avg_access_time_us))
+                Some(format!("大規模階層アクセス目標未達成: {avg_access_time_us:.1}μs (目標10μs)"))
             },
         })
     }
@@ -1134,11 +1140,11 @@ impl DependentTypePerformanceTestSuite {
         let conversion_start = Instant::now();
         for i in 0..conversion_count {
             // 変換処理をシミュレート
-            let _scheme_value = format!("scheme_value_{}", i);
+            let _scheme_value = format!("scheme_value_{i}");
             let _dependent_type = DependentType::Universe(i % 10);
             
             // 逆変換
-            let _converted_back = format!("converted_back_{}", i);
+            let _converted_back = format!("converted_back_{i}");
         }
         let conversion_duration = conversion_start.elapsed();
         
@@ -1164,7 +1170,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("大量変換目標未達成: {:.0}変換/ms (目標1000変換/ms)", conversions_per_ms))
+                Some(format!("大量変換目標未達成: {conversions_per_ms:.0}変換/ms (目標1000変換/ms)"))
             },
         })
     }
@@ -1215,7 +1221,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("並行アクセス目標未達成: {:.0}ops/ms (目標1000ops/ms)", ops_per_ms))
+                Some(format!("並行アクセス目標未達成: {ops_per_ms:.0}ops/ms (目標1000ops/ms)"))
             },
         })
     }
@@ -1255,19 +1261,19 @@ impl DependentTypePerformanceTestSuite {
             let inferred_type = match i % 4 {
                 0 => DependentType::Universe(0),
                 1 => DependentType::Pi {
-                    var: format!("x{}", i),
+                    var: format!("x{i}"),
                     domain: Box::new(DependentType::Universe(0)),
                     codomain: Box::new(DependentType::Universe(1)),
                 },
                 2 => DependentType::Sigma {
-                    var: format!("y{}", i),
+                    var: format!("y{i}"),
                     first: Box::new(DependentType::Universe(0)),
                     second: Box::new(DependentType::Universe(1)),
                 },
                 _ => DependentType::Identity {
                     ty: Box::new(DependentType::Universe(0)),
-                    left: Box::new(DependentTerm::Variable(format!("a{}", i))),
-                    right: Box::new(DependentTerm::Variable(format!("b{}", i))),
+                    left: Box::new(DependentTerm::Variable(format!("a{i}"))),
+                    right: Box::new(DependentTerm::Variable(format!("b{i}"))),
                 },
             };
             total_inference_time += inference_start.elapsed();
@@ -1308,7 +1314,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("パイプライン処理目標未達成: {:.1}μs (目標1000μs)", pipeline_time_per_item_us))
+                Some(format!("パイプライン処理目標未達成: {pipeline_time_per_item_us:.1}μs (目標1000μs)"))
             },
         })
     }
@@ -1369,7 +1375,7 @@ impl DependentTypePerformanceTestSuite {
             
             // プロパティ: 型安全性の検証
             let function_type = DependentType::Pi {
-                var: format!("x{}", i),
+                var: format!("x{i}"),
                 domain: Box::new(DependentType::Universe(0)),
                 codomain: Box::new(DependentType::Universe(0)),
             };
@@ -1379,7 +1385,7 @@ impl DependentTypePerformanceTestSuite {
             
             // 自己適用の型チェック（Y combinator的）
             let self_application = DependentType::Pi {
-                var: format!("f{}", i),
+                var: format!("f{i}"),
                 domain: Box::new(function_type.clone()),
                 codomain: Box::new(function_type.clone()),
             };
@@ -1418,7 +1424,7 @@ impl DependentTypePerformanceTestSuite {
             error_message: if target_met {
                 None
             } else {
-                Some(format!("プロパティ検証目標未達成: {:.1}ms (目標100ms)", avg_verification_time_ms))
+                Some(format!("プロパティ検証目標未達成: {avg_verification_time_ms:.1}ms (目標100ms)"))
             },
         })
     }
@@ -1434,9 +1440,9 @@ impl DependentTypePerformanceTestSuite {
         let performance_targets_met = self.results.iter().filter(|r| r.performance_target_met).count();
         
         println!("\n📊 総合統計:");
-        println!("  総テスト数: {}", total_tests);
-        println!("  成功: {} / {}", passed_tests, total_tests);
-        println!("  性能目標達成: {} / {}", performance_targets_met, total_tests);
+        println!("  総テスト数: {total_tests}");
+        println!("  成功: {passed_tests} / {total_tests}");
+        println!("  性能目標達成: {performance_targets_met} / {total_tests}");
         println!("  成功率: {:.1}%", (passed_tests as f64 / total_tests as f64) * 100.0);
         println!("  性能目標達成率: {:.1}%", (performance_targets_met as f64 / total_tests as f64) * 100.0);
         
@@ -1474,7 +1480,7 @@ impl DependentTypePerformanceTestSuite {
             }
             
             if let Some(error) = &result.error_message {
-                println!("    エラー: {}", error);
+                println!("    エラー: {error}");
             }
             println!();
         }

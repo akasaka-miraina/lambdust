@@ -175,7 +175,7 @@ impl Parser {
             TokenKind::Character => self.parse_character(),
             TokenKind::Boolean => self.parse_boolean(),
             TokenKind::Identifier => {
-                let name = self.current_token().text.clone();
+                let name = self.current_token().text().to_string();
                 let span = self.current_span();
                 self.advance();
                 self.make_identifier(name, span)
@@ -346,7 +346,7 @@ impl Parser {
 
     /// Gets the text of the current token.
     pub fn current_token_text(&self) -> String {
-        self.current_token().text.clone()
+        self.current_token().text().to_string()
     }
 
     /// Validates formals for correctness.

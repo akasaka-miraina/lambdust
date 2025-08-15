@@ -202,7 +202,7 @@ impl PropertyTestFramework {
             let equality_result = self.equality_checker.types_equal(&ty, &ty)?;
             
             if !equality_result.is_equal {
-                counterexample = Some(format!("Reflexivity failed for type: {}", ty));
+                counterexample = Some(format!("Reflexivity failed for type: {ty}"));
                 break;
             }
         }
@@ -217,7 +217,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} randomly generated types for reflexivity", test_cases_run),
+            details: format!("Tested {test_cases_run} randomly generated types for reflexivity"),
         })
     }
 
@@ -239,7 +239,7 @@ impl PropertyTestFramework {
             let equality_result = self.equality_checker.terms_equal(&term, &term)?;
             
             if !equality_result.is_equal {
-                counterexample = Some(format!("Reflexivity failed for term: {}", term));
+                counterexample = Some(format!("Reflexivity failed for term: {term}"));
                 break;
             }
         }
@@ -254,7 +254,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} randomly generated terms for reflexivity", test_cases_run),
+            details: format!("Tested {test_cases_run} randomly generated terms for reflexivity"),
         })
     }
 
@@ -297,7 +297,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} type pairs for symmetry", test_cases_run),
+            details: format!("Tested {test_cases_run} type pairs for symmetry"),
         })
     }
 
@@ -343,7 +343,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} term pairs for symmetry", test_cases_run),
+            details: format!("Tested {test_cases_run} term pairs for symmetry"),
         })
     }
 
@@ -372,8 +372,7 @@ impl PropertyTestFramework {
             // If ty1 ≡ ty2 and ty2 ≡ ty3, then ty1 ≡ ty3 must hold
             if eq12.is_equal && eq23.is_equal && !eq13.is_equal {
                 counterexample = Some(format!(
-                    "Transitivity failed: {} ≡ {} and {} ≡ {}, but {} ≢ {}",
-                    ty1, ty2, ty2, ty3, ty1, ty3
+                    "Transitivity failed: {ty1} ≡ {ty2} and {ty2} ≡ {ty3}, but {ty1} ≢ {ty3}"
                 ));
                 break;
             }
@@ -389,7 +388,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} type triples for transitivity", test_cases_run),
+            details: format!("Tested {test_cases_run} type triples for transitivity"),
         })
     }
 
@@ -417,8 +416,7 @@ impl PropertyTestFramework {
             // If term1 ≡ term2 and term2 ≡ term3, then term1 ≡ term3 must hold
             if eq12.is_equal && eq23.is_equal && !eq13.is_equal {
                 counterexample = Some(format!(
-                    "Transitivity failed: {} ≡ {} and {} ≡ {}, but {} ≢ {}",
-                    term1, term2, term2, term3, term1, term3
+                    "Transitivity failed: {term1} ≡ {term2} and {term2} ≡ {term3}, but {term1} ≢ {term3}"
                 ));
                 break;
             }
@@ -434,7 +432,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} term triples for transitivity", test_cases_run),
+            details: format!("Tested {test_cases_run} term triples for transitivity"),
         })
     }
 
@@ -442,7 +440,7 @@ impl PropertyTestFramework {
     fn test_substitution_preservation(&mut self) -> Result<PropertyTestResult> {
         let start_time = std::time::Instant::now();
         let mut test_cases_run = 0;
-        let mut counterexample = None;
+        let counterexample = None;
 
         // This is a simplified test - in a full implementation, we would need
         // a type checker to verify typing judgments
@@ -477,7 +475,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} substitution cases", test_cases_run),
+            details: format!("Tested {test_cases_run} substitution cases"),
         })
     }
 
@@ -515,7 +513,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} weakening cases", test_cases_run),
+            details: format!("Tested {test_cases_run} weakening cases"),
         })
     }
 
@@ -540,16 +538,14 @@ impl PropertyTestFramework {
                     // Check if normalization completed without exceeding limits
                     if !result.is_complete && result.reduction_count > 10000 {
                         counterexample = Some(format!(
-                            "Strong normalization failed: term {} required too many reductions",
-                            term
+                            "Strong normalization failed: term {term} required too many reductions"
                         ));
                         break;
                     }
                 }
                 Err(_) => {
                     counterexample = Some(format!(
-                        "Strong normalization failed: term {} caused normalization error",
-                        term
+                        "Strong normalization failed: term {term} caused normalization error"
                     ));
                     break;
                 }
@@ -566,7 +562,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} terms for strong normalization", test_cases_run),
+            details: format!("Tested {test_cases_run} terms for strong normalization"),
         })
     }
 
@@ -597,8 +593,7 @@ impl PropertyTestFramework {
             
             if !equality_result.is_equal {
                 counterexample = Some(format!(
-                    "Church-Rosser property failed: term {} has non-confluent reductions",
-                    term
+                    "Church-Rosser property failed: term {term} has non-confluent reductions"
                 ));
                 break;
             }
@@ -614,7 +609,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} terms for confluence", test_cases_run),
+            details: format!("Tested {test_cases_run} terms for confluence"),
         })
     }
 
@@ -652,7 +647,7 @@ impl PropertyTestFramework {
             test_cases_run,
             counterexample,
             execution_time_ms: execution_time,
-            details: format!("Tested {} universe levels for hierarchy consistency", test_cases_run),
+            details: format!("Tested {test_cases_run} universe levels for hierarchy consistency"),
         })
     }
 
@@ -881,7 +876,7 @@ impl fmt::Display for PropertyTestResult {
                self.execution_time_ms)?;
         
         if let Some(ref counterexample) = self.counterexample {
-            write!(f, "\n  Counterexample: {}", counterexample)?;
+            write!(f, "\n  Counterexample: {counterexample}")?;
         }
         
         Ok(())

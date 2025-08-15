@@ -19,10 +19,15 @@ use crate::effects::{Effect, EffectSystem, EffectLifter, MonadicValue};
 use crate::ffi::FfiBridge;
 use crate::macro_system::MacroExpander;
 use crate::utils::{intern_symbol};
+#[cfg(feature = "jit")]
+use crate::jit::JitRuntime;
+#[cfg(feature = "jit")]
+use crate::jit::jit_runtime::JitExecutionResult;
 use std::sync::Arc;
 use std::rc::Rc;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Instant, Duration};
 
 /// Global counter for continuation IDs.
 static CONTINUATION_COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -30,6 +35,36 @@ static CONTINUATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 /// Generates a unique continuation ID.
 fn next_continuation_id() -> u64 {
     CONTINUATION_COUNTER.fetch_add(1, Ordering::SeqCst)
+}
+
+/// JIT error recovery strategies
+#[derive(Debug, Clone, Copy)]
+enum JitErrorRecovery {
+    /// Immediately fall back to interpreter and blacklist expression
+    ImmediateFallback,
+    /// Try to simplify the expression and retry JIT compilation
+    RetryWithSimplification,
+    /// Fall back with degradation (temporarily disable JIT for this identifier)
+    FallbackWithDegradation,
+    /// Standard fallback to interpreter
+    FallbackToInterpreter,
+}
+
+/// Reasons for JIT compilation fallback
+#[derive(Debug, Clone)]
+enum JitFallbackReason {
+    /// Expression was not compiled by JIT
+    NotCompiled,
+    /// Critical error during compilation/execution
+    CriticalError,
+    /// Retry with simplified expression
+    RetryWithSimplification,
+    /// Expression cannot be simplified
+    CannotSimplify,
+    /// Temporarily disabled due to repeated failures
+    TemporaryDisable,
+    /// Standard fallback
+    StandardFallback,
 }
 
 /// The result of a single evaluation step.
@@ -47,6 +82,8 @@ pub enum EvalStep {
         expr: Spanned<Expr>,
         env: Rc<Environment>,
     },
+    
+    // JIT execution is handled at the entry point, not as a separate step
     
     /// Apply a procedure to arguments (tail call)
     TailCall {
@@ -82,7 +119,7 @@ pub enum EvalStep {
 /// - Effect tracking and transformation
 /// - FFI support for calling Rust functions
 /// - Comprehensive error reporting with stack traces
-#[derive(Debug)]
+// Note: Debug not derived due to JitRuntime
 pub struct Evaluator {
     /// Current generation for garbage collection
     generation: Generation,
@@ -98,6 +135,13 @@ pub struct Evaluator {
     effect_lifter: EffectLifter,
     /// FFI bridge for calling Rust functions
     ffi_bridge: FfiBridge,
+    /// JIT runtime for high-performance execution
+    #[cfg(feature = "jit")]
+    jit_runtime: Option<Arc<JitRuntime>>,
+    /// Blacklisted expressions that should not use JIT
+    jit_blacklist: HashSet<String>,
+    /// Temporarily disabled expressions with retry timestamps
+    jit_temp_disabled: HashMap<String, Instant>,
     /// Evaluation context stack for continuation capture
     context_stack: Vec<Frame>,
     /// Module system for handling imports
@@ -128,6 +172,10 @@ impl Evaluator {
             module_system,
             scheme_loader,
             call_cc_context: None,
+            #[cfg(feature = "jit")]
+            jit_runtime: None,
+            jit_blacklist: HashSet::new(),
+            jit_temp_disabled: HashMap::new(),
         }
     }
 
@@ -150,6 +198,10 @@ impl Evaluator {
             module_system,
             scheme_loader,
             call_cc_context: None,
+            #[cfg(feature = "jit")]
+            jit_runtime: None,
+            jit_blacklist: HashSet::new(),
+            jit_temp_disabled: HashMap::new(),
         }
     }
 
@@ -172,6 +224,10 @@ impl Evaluator {
             module_system,
             scheme_loader,
             call_cc_context: None,
+            #[cfg(feature = "jit")]
+            jit_runtime: None,
+            jit_blacklist: HashSet::new(),
+            jit_temp_disabled: HashMap::new(),
         }
     }
 
@@ -183,10 +239,33 @@ impl Evaluator {
         // First, expand macros in the expression
         let expanded_expr = self.macro_expander.expand(expr)?;
         
-        // Set up initial evaluation step with expanded expression
-        let mut step = EvalStep::Continue {
-            expr: expanded_expr,
-            env,
+        // Check if we should use JIT for this expression
+        let identifier = self.extract_function_identifier(&expanded_expr.inner);
+        let jit_should_run = {
+            #[cfg(feature = "jit")]
+            {
+                self.jit_runtime.is_some() && self.should_jit_compile(&identifier, &expanded_expr.inner)
+            }
+            #[cfg(not(feature = "jit"))]
+            {
+                false
+            }
+        };
+        
+        let mut step = if jit_should_run {
+            // Try JIT execution first
+            match self.handle_jit_execution(identifier, expanded_expr.clone(), env.clone()) {
+                EvalStep::Return(value) => return Ok(value),
+                _ => EvalStep::Continue {
+                    expr: expanded_expr,
+                    env,
+                }
+            }
+        } else {
+            EvalStep::Continue {
+                expr: expanded_expr,
+                env,
+            }
         };
 
         // Trampoline loop - keeps evaluating until we get a final result
@@ -205,6 +284,7 @@ impl Evaluator {
                     // Non-local jump immediately returns the value, bypassing all computation
                     return Ok(value);
                 }
+                // JIT execution is handled at entry point
             };
         }
     }
@@ -2394,11 +2474,307 @@ impl Evaluator {
         self.stack_trace.pop();
         EvalStep::Return(Value::Unspecified)
     }
+    
+    /// High-performance JIT execution handler with comprehensive error recovery
+    fn handle_jit_execution(
+        &mut self,
+        identifier: String,
+        expr: Spanned<Expr>,
+        env: Rc<Environment>,
+    ) -> EvalStep {
+        #[cfg(feature = "jit")]
+        {
+            if let Some(ref jit_runtime) = self.jit_runtime {
+                let env_arc = Arc::new(env.as_ref().clone()); // Convert Rc to Arc
+                
+                match jit_runtime.execute_with_jit(&identifier, &expr.inner, &env_arc, None::<Arc<()>>) {
+                    Ok(result) => {
+                        if result.used_compiled_code {
+                            // JIT execution succeeded - record success metrics
+                            self.record_jit_success(&identifier);
+                            EvalStep::Return(result.value)
+                        } else {
+                            // JIT chose not to compile - fall back gracefully
+                            self.record_jit_fallback(&identifier, JitFallbackReason::NotCompiled);
+                            EvalStep::Continue { expr, env }
+                        }
+                    }
+                    Err(jit_error) => {
+                        // JIT compilation/execution failed - implement recovery strategy
+                        self.handle_jit_error(&identifier, &jit_error, expr, env)
+                    }
+                }
+            } else {
+                // No JIT runtime available, continue with interpreter
+                EvalStep::Continue { expr, env }
+            }
+        }
+        #[cfg(not(feature = "jit"))]
+        {
+            // JIT is disabled, continue with interpreter
+            EvalStep::Continue { expr, env }
+        }
+    }
+    
+    /// Enable JIT compilation for this evaluator
+    #[cfg(feature = "jit")]
+    pub fn enable_jit(&mut self) -> Result<()> {
+        if self.jit_runtime.is_none() {
+            let config = crate::jit::JitConfig::default();
+            self.jit_runtime = Some(Arc::new(JitRuntime::new(config)?));
+        }
+        Ok(())
+    }
+    
+    /// Enable JIT compilation for this evaluator (no-op when JIT disabled)
+    #[cfg(not(feature = "jit"))]
+    pub fn enable_jit(&mut self) -> Result<()> {
+        // JIT is disabled, this is a no-op
+        Ok(())
+    }
+    
+    /// Disable JIT compilation
+    #[cfg(feature = "jit")]
+    pub fn disable_jit(&mut self) {
+        self.jit_runtime = None;
+    }
+    
+    /// Disable JIT compilation (no-op when JIT disabled)
+    #[cfg(not(feature = "jit"))]
+    pub fn disable_jit(&mut self) {
+        // JIT is disabled, this is a no-op
+    }
+    
+    /// Extract a function identifier for JIT compilation
+    fn extract_function_identifier(&self, expr: &Expr) -> String {
+        match expr {
+            Expr::Identifier(name) => name.clone(),
+            Expr::Lambda { .. } => "lambda".to_string(),
+            Expr::Let { .. } => "let".to_string(),
+            Expr::LetRec { .. } => "letrec".to_string(),
+            Expr::Application { operator, .. } => {
+                self.extract_function_identifier(&operator.inner)
+            }
+            _ => "expression".to_string(),
+        }
+    }
+    
+    /// Check if a function should be JIT compiled based on execution frequency
+    fn should_jit_compile(&self, identifier: &str, expr: &Expr) -> bool {
+        // Check blacklist first
+        if self.is_expression_blacklisted(identifier) {
+            return false;
+        }
+        
+        // Check temporary disable list
+        if self.is_temporarily_disabled(identifier) {
+            return false;
+        }
+        
+        // Simple heuristic: JIT compile functions and let expressions
+        matches!(expr, Expr::Lambda { .. } | Expr::Let { .. } | Expr::LetRec { .. })
+            && !identifier.is_empty()  // Has a valid identifier
+    }
+    
+    /// JIT error recovery strategies
+    fn handle_jit_error(
+        &mut self,
+        identifier: &str,
+        jit_error: &crate::diagnostics::Error,
+        expr: Spanned<Expr>,
+        env: Rc<Environment>,
+    ) -> EvalStep {
+        // Categorize the error type for appropriate recovery
+        let recovery_strategy = self.determine_error_recovery_strategy(jit_error);
+        
+        match recovery_strategy {
+            JitErrorRecovery::ImmediateFallback => {
+                // Critical error - disable JIT for this expression permanently
+                self.blacklist_expression(identifier);
+                self.record_jit_fallback(identifier, JitFallbackReason::CriticalError);
+                EvalStep::Continue { expr, env }
+            }
+            JitErrorRecovery::RetryWithSimplification => {
+                // Try to simplify the expression and retry
+                if let Some(simplified) = self.simplify_expression_for_jit(&expr.inner) {
+                    // Retry with simplified expression
+                    self.record_jit_fallback(identifier, JitFallbackReason::RetryWithSimplification);
+                    let simplified_expr = Spanned {
+                        inner: simplified,
+                        span: expr.span,
+                    };
+                    self.handle_jit_execution(format!("{identifier}_simplified"), simplified_expr, env)
+                } else {
+                    // Cannot simplify, fall back to interpreter
+                    self.record_jit_fallback(identifier, JitFallbackReason::CannotSimplify);
+                    EvalStep::Continue { expr, env }
+                }
+            }
+            JitErrorRecovery::FallbackWithDegradation => {
+                // Temporarily disable JIT for this identifier
+                self.temporarily_disable_jit_for(identifier);
+                self.record_jit_fallback(identifier, JitFallbackReason::TemporaryDisable);
+                EvalStep::Continue { expr, env }
+            }
+            JitErrorRecovery::FallbackToInterpreter => {
+                // Standard fallback to interpreter
+                self.record_jit_fallback(identifier, JitFallbackReason::StandardFallback);
+                EvalStep::Continue { expr, env }
+            }
+        }
+    }
+    
+    /// Determine the appropriate error recovery strategy
+    fn determine_error_recovery_strategy(&self, error: &crate::diagnostics::Error) -> JitErrorRecovery {
+        // Analyze error type to determine recovery strategy
+        let error_str = error.to_string();
+        match true {
+            // For compilation errors, try fallback with degradation
+            _ if error_str.contains("compilation") => JitErrorRecovery::FallbackWithDegradation,
+            // For memory errors, immediately blacklist
+            _ if error_str.contains("memory") => JitErrorRecovery::ImmediateFallback,
+            // For syntax errors, try simplification
+            _ if error_str.contains("syntax") => JitErrorRecovery::RetryWithSimplification,
+            // Default fallback for unknown errors
+            _ => JitErrorRecovery::FallbackToInterpreter,
+        }
+    }
+    
+    /// Simplify an expression for JIT compilation
+    fn simplify_expression_for_jit(&self, expr: &Expr) -> Option<Expr> {
+        // Implement expression simplification strategies
+        match expr {
+            // Simplify complex let expressions to basic forms
+            Expr::Let { bindings, body } if bindings.len() > 10 => {
+                // If too many bindings, take first few and wrap rest in nested let
+                let (first_bindings, rest_bindings) = bindings.split_at(5);
+                if rest_bindings.is_empty() {
+                    None
+                } else {
+                    let nested_let = Expr::Let {
+                        bindings: rest_bindings.to_vec(),
+                        body: body.clone(),
+                    };
+                    Some(Expr::Let {
+                        bindings: first_bindings.to_vec(),
+                        body: vec![Spanned {
+                            inner: nested_let,
+                            span: body[0].span,
+                        }],
+                    })
+                }
+            }
+            // Simplify complex applications by reducing argument count
+            Expr::Application { operator, operands } if operands.len() > 20 => {
+                // Split large application into smaller ones
+                let (first_args, _rest_args) = operands.split_at(10);
+                Some(Expr::Application {
+                    operator: operator.clone(),
+                    operands: first_args.to_vec(),
+                })
+            }
+            // For other expressions, no simplification available
+            _ => None,
+        }
+    }
+    
+    /// Record successful JIT execution
+    fn record_jit_success(&self, _identifier: &str) {
+        // In a full implementation, this would update metrics and
+        // potentially remove from temporary disable list
+    }
+    
+    /// Record JIT fallback with reason
+    fn record_jit_fallback(&self, _identifier: &str, _reason: JitFallbackReason) {
+        // In a full implementation, this would:
+        // - Update fallback metrics
+        // - Log the reason for analysis
+        // - Potentially adjust JIT heuristics
+    }
+    
+    /// Blacklist an expression from future JIT compilation
+    fn blacklist_expression(&mut self, identifier: &str) {
+        self.jit_blacklist.insert(identifier.to_string());
+    }
+    
+    /// Temporarily disable JIT for a specific identifier
+    fn temporarily_disable_jit_for(&mut self, identifier: &str) {
+        // Disable for 5 minutes before retrying
+        let retry_time = Instant::now() + Duration::from_secs(300);
+        self.jit_temp_disabled.insert(identifier.to_string(), retry_time);
+    }
+    
+    /// Check if an expression is blacklisted from JIT compilation
+    fn is_expression_blacklisted(&self, identifier: &str) -> bool {
+        self.jit_blacklist.contains(identifier)
+    }
+    
+    /// Check if JIT is temporarily disabled for an identifier
+    fn is_temporarily_disabled(&self, identifier: &str) -> bool {
+        if let Some(&retry_time) = self.jit_temp_disabled.get(identifier) {
+            Instant::now() < retry_time
+        } else {
+            false
+        }
+    }
+    
+    /// Clean up expired temporary disables
+    pub fn cleanup_expired_temp_disables(&mut self) {
+        let now = Instant::now();
+        self.jit_temp_disabled.retain(|_, &mut retry_time| now < retry_time);
+    }
+    
+    /// Get JIT error recovery statistics
+    pub fn get_jit_error_stats(&self) -> JitErrorStats {
+        JitErrorStats {
+            blacklisted_expressions: self.jit_blacklist.len(),
+            temporarily_disabled: self.jit_temp_disabled.len(),
+            total_fallbacks: 0, // Would be tracked in full implementation
+            recovery_success_rate: 0.0, // Would be calculated from metrics
+        }
+    }
+}
+
+/// JIT error recovery statistics
+#[derive(Debug, Clone)]
+pub struct JitErrorStats {
+    /// Number of blacklisted expressions
+    pub blacklisted_expressions: usize,
+    /// Number of temporarily disabled expressions
+    pub temporarily_disabled: usize,
+    /// Total number of fallbacks
+    pub total_fallbacks: u64,
+    /// Success rate of error recovery
+    pub recovery_success_rate: f64,
 }
 
 impl Default for Evaluator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl std::fmt::Debug for Evaluator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Evaluator")
+            .field("generation", &self.generation)
+            .field("stack_trace", &"<stack_trace>")
+            .field("global_env", &"<global_env>")
+            .field("macro_expander", &"<macro_expander>")
+            .field("effect_system", &"<effect_system>")
+            .field("effect_lifter", &"<effect_lifter>")
+            .field("ffi_bridge", &"<ffi_bridge>")
+            .field("context_stack", &"<context_stack>")
+            .field("module_system", &"<module_system>")
+            .field("scheme_loader", &"<scheme_loader>")
+            .field("call_cc_context", &"<call_cc_context>")
+            .field("jit_runtime", &{
+                #[cfg(feature = "jit")]
+                { self.jit_runtime.is_some() }
+                #[cfg(not(feature = "jit"))]
+                { false }
+            })
+            .finish()
     }
 }
 

@@ -38,6 +38,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 indexmap = "2.0"
 im = "15.1"                                        # Immutable data structures for functional programming
+paste = "1.0"                                      # Macro paste for token concatenation
 
 # Type system and inference
 petgraph = "0.6" # For type dependency graphs
@@ -201,7 +202,13 @@ benchmarks = ["criterion", "flame"]
 property-testing = ["proptest"]
 multithreaded-tests = ["async", "tokio/test-util"]
 ffi = ["libffi", "cc"]                              # FFI support
-jit = []                                            # Future JIT compilation support
+jit = []                                            # JIT compilation support
+
+# Type System Features
+hindley-milner = []                                 # Hindley-Milner type inference
+monad-aware = ["hindley-milner"]                    # Monad-aware type system
+experimental-type-system = ["hindley-milner", "monad-aware"] # Advanced type system features
+
 simd-benchmarks = ["benchmarks"]                    # SIMD optimization benchmarking
 
 # Formal methods integration (advanced feature)
@@ -305,6 +312,13 @@ overflow-checks = true
 
 [profile.test]
 opt-level = 1
+
+# JIT Performance Benchmarks
+[[bench]]
+name = "jit_performance_benchmarks"
+path = "benches/jit_performance_benchmarks.rs"
+harness = false
+required-features = ["benchmarks"]
 
 # Lint configuration for crates.io quality
 [lints.rust]

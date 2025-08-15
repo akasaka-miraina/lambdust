@@ -15,7 +15,7 @@ impl Parser {
     pub fn parse_number(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
-        let text = &token.text;
+        let text = &token.text();
         
         // Use the token's built-in number parsing capability with enhanced error handling
         let parsed_number = token.parse_number().ok_or_else(|| {
@@ -104,7 +104,7 @@ impl Parser {
     pub fn parse_string(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
-        let text = &token.text;
+        let text = &token.text();
         
         // Enhanced string parsing with better error messages
         let content = token.parse_string().map_err(|e| {
@@ -139,7 +139,7 @@ impl Parser {
     pub fn parse_character(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
-        let text = &token.text;
+        let text = &token.text();
         
         // Enhanced character parsing with better error messages
         let ch = token.parse_character().map_err(|e| {
@@ -172,7 +172,7 @@ impl Parser {
     pub fn parse_boolean(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
-        let text = token.text.clone();
+        let text = token.text().to_string();
         
         self.advance();
         

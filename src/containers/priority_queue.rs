@@ -896,7 +896,7 @@ mod tests {
     fn test_stats() {
         let mut pq = PriorityQueue::new();
         for i in 1..=5 {
-            pq.insert(Value::string(format!("item{}", i)), Value::number(i as f64));
+            pq.insert(Value::string(format!("item{i}")), Value::number(i as f64));
         }
         
         let stats = pq.stats();

@@ -277,8 +277,16 @@ impl GcSystem {
     }
 
     /// Initialize the GC system with optional JIT metrics
+    #[cfg(feature = "jit")]
     pub fn initialize(&mut self, jit_metrics: Option<Arc<std::sync::RwLock<crate::jit::metrics::JitMetrics>>>) -> GcResult<()> {
         self.parallel_gc.initialize(jit_metrics)
+    }
+    
+    /// Initialize the GC system (no JIT metrics when JIT disabled)
+    #[cfg(not(feature = "jit"))]
+    pub fn initialize(&mut self) -> GcResult<()> {
+        // No JIT integration when JIT is disabled
+        Ok(())
     }
 
     /// Perform a minor collection

@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 pub mod literal;
+pub mod literal_helpers;
 pub mod visitor;
 pub mod program;
 pub mod formals;

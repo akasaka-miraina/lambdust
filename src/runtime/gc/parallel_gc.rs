@@ -5,6 +5,7 @@
 //! generation-specific collection algorithms.
 
 use crate::eval::value::Value;
+#[cfg(feature = "jit")]
 use crate::jit::metrics::JitMetrics;
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock, Mutex, Condvar, atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering}};
@@ -250,6 +251,7 @@ pub struct ParallelGc {
     /// Safepoint coordinator
     safepoint: Arc<SafepointCoordinator>,
     /// JIT metrics integration
+    #[cfg(feature = "jit")]
     jit_metrics: Option<Arc<RwLock<JitMetrics>>>,
     /// Adaptive tuning parameters
     adaptive_params: Arc<RwLock<AdaptiveTuningParams>>,
@@ -306,6 +308,7 @@ impl ParallelGc {
             current_phase: Arc::new(RwLock::new(CollectionPhase::Idle)),
             statistics: Arc::new(GcStatistics::new()),
             safepoint: Arc::new(SafepointCoordinator::new()),
+            #[cfg(feature = "jit")]
             jit_metrics: None,
             adaptive_params: Arc::new(RwLock::new(AdaptiveTuningParams::default())),
             collection_requests: Arc::new(Mutex::new(VecDeque::new())),
@@ -315,8 +318,16 @@ impl ParallelGc {
     }
 
     /// Initialize the garbage collector with optional JIT metrics integration
+    #[cfg(feature = "jit")]
     pub fn initialize(&mut self, jit_metrics: Option<Arc<RwLock<JitMetrics>>>) -> Result<(), String> {
         self.jit_metrics = jit_metrics;
+        self.start_worker_threads()?;
+        Ok(())
+    }
+    
+    /// Initialize the garbage collector (no JIT when disabled)
+    #[cfg(not(feature = "jit"))]
+    pub fn initialize(&mut self) -> Result<(), String> {
         self.start_worker_threads()?;
         Ok(())
     }

@@ -1,23 +1,33 @@
 //! Just-In-Time (JIT) compilation system for Lambdust Scheme
 //!
 //! This module provides comprehensive JIT compilation capabilities targeting
-//! 5-15x performance improvements over pure interpretation while maintaining
+//! 10-100x performance improvements over pure interpretation while maintaining
 //! R7RS-large compliance and seamless integration with existing systems.
 //!
 //! Key components:
-//! - Hotspot detection and profiling
-//! - Multi-tier compilation strategy  
+//! - Hotspot detection and profiling (including dependent type awareness)
+//! - Multi-tier compilation strategy (T0-T6 tiers)
 //! - Native code generation with Cranelift
 //! - Scheme-specific optimizations
 //! - Profile-guided optimization
 //! - Intelligent code caching
+//! - Security and verification framework
+//! - Dependent type specialization
 
 /// Hotspot detection and execution profiling
 pub mod hotspot_detector;
+/// Dependent type-aware hotspot detection
+pub mod dependent_hotspot_detector;
 /// Multi-tier compilation strategy management
 pub mod compilation_tiers;
+/// Specialized compilation tiers for dependent types
+pub mod specialized_compilation_tiers;
 /// Native code generation using Cranelift backend
 pub mod code_generator;
+pub mod unified_jit_errors;
+pub mod generic_primitives;
+pub mod primitive_macros;
+pub mod core_primitives_generalized;
 /// Scheme-specific optimization pipeline
 pub mod optimization_pipeline;
 /// Intelligent code cache with LRU eviction
@@ -28,9 +38,35 @@ pub mod profile_guided_optimizer;
 pub mod config;
 /// Performance monitoring and metrics
 pub mod metrics;
+/// Security and verification framework
+pub mod security_verification;
+/// Deoptimization system
+pub mod deoptimization;
+/// JIT runtime coordination
+pub mod jit_runtime;
+/// R7RS compliance verification for JIT compiled code
+pub mod r7rs_compliance;
+/// JIT-aware implementations of the 42 core Lambdust primitives
+pub mod jit_primitives;
+/// Tail call optimization for R7RS compliance
+pub mod tail_call_optimization;
+/// First-class continuation support (call/cc) for JIT compiled code
+pub mod continuation_support;
+/// R7RS number tower support for JIT compiled code
+pub mod number_tower_support;
+/// Advanced algorithmic optimizations
+pub mod algorithmic_optimizations;
+/// Mathematical models and optimization algorithms
+pub mod mathematical_models;
+/// Cache-aware memory optimization strategies
+pub mod memory_optimization;
+/// Parallel compilation coordination and SIMD vectorization
+pub mod parallel_optimization;
 
 pub use hotspot_detector::{HotspotDetector, ExecutionProfile, CompilationCandidate};
+pub use dependent_hotspot_detector::{DependentHotspotDetector, DependentExecutionProfile, DependentCompilationCandidate};
 pub use compilation_tiers::{TierManager, CompilationTier, TierTransition};
+pub use specialized_compilation_tiers::{SpecializedTierManager, SpecializedCompilationTier, SpecializedNativeCode};
 pub use code_generator::{CodeGenerator, NativeCode, TargetFeatures};
 pub use optimization_pipeline::{OptimizationPipeline, SchemeOptimization};
 pub use code_cache::{CodeCache, CacheEntry};
@@ -38,6 +74,18 @@ pub use config::EvictionPolicy;
 pub use profile_guided_optimizer::{ProfileGuidedOptimizer, RuntimeProfile};
 pub use config::{JitConfig, CompilationStrategy};
 pub use metrics::{JitMetrics, PerformanceCounters};
+pub use security_verification::{JitSecurityFramework, SecurityVerificationResult, ExecutionPermissions};
+pub use deoptimization::{DeoptimizationManager, DeoptimizationReason};
+pub use jit_runtime::{JitRuntime, JitExecutionContext};
+pub use r7rs_compliance::{R7RSComplianceVerifier, R7RSComplianceLevel, R7RSSemanticRequirements, CORE_R7RS_PRIMITIVES};
+pub use jit_primitives::{JitPrimitive, JitPrimitiveRegistry, JitCompilationStrategy, TypeSpecialization};
+pub use tail_call_optimization::{TailCallOptimizer, TailCallAnalysis, TailCallConfig, TailCallOptimizable};
+pub use continuation_support::{ContinuationSupport, ContinuationObject, ContinuationConfig, ContinuationAware};
+pub use number_tower_support::{NumberTowerSupport, NumericType, NumberTowerConfig};
+pub use algorithmic_optimizations::{AlgorithmicOptimizer, OptimizedCompilationPlan, ComplexityMetrics, CostBenefitAnalysis};
+pub use mathematical_models::{MathematicalOptimizationEngine, MathematicallyOptimizedPlan, BayesianPrediction};
+pub use memory_optimization::{CacheAwareMemoryOptimizer, MemoryOptimizedCompilationPlan, CachePerformancePrediction};
+pub use parallel_optimization::{ParallelOptimizationCoordinator, ParallelCompilationPlan, SIMDOpportunity};
 
 use crate::ast::{Expr, Program};
 use crate::eval::{Environment, Value};
@@ -492,8 +540,12 @@ mod tests {
     #[test]
     fn test_jit_suitability() {
         let suitable = Expr::Lambda {
-            params: vec![],
-            body: Box::new(Expr::Literal(Literal::ExactInteger(1))),
+            formals: crate::ast::Formals::Fixed(vec![]),
+            metadata: std::collections::HashMap::new(),
+            body: vec![crate::diagnostics::Spanned::new(
+                Expr::Literal(Literal::ExactInteger(1)),
+                crate::diagnostics::Span::new(0, 1),
+            )],
         };
         assert!(utils::is_jit_suitable(&suitable));
 

@@ -2908,14 +2908,14 @@ mod tests {
         
         for proc_name in &required_procedures {
             let value = env.lookup(proc_name);
-            assert!(value.is_some(), "Procedure {} should be bound", proc_name);
+            assert!(value.is_some(), "Procedure {proc_name} should be bound");
             
             if let Some(Value::Primitive(prim)) = value {
                 assert_eq!(prim.name, *proc_name);
                 // All these procedures should take at least 1 argument
                 assert!(prim.arity_min >= 1);
             } else {
-                panic!("Procedure {} should be a primitive", proc_name);
+                panic!("Procedure {proc_name} should be a primitive");
             }
         }
     }

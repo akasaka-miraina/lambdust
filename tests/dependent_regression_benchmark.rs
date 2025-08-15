@@ -45,14 +45,14 @@ impl RegressionBenchmarkSuite {
         operation();
         let duration = start.elapsed();
         
-        println!("Benchmark {}: {:?} (target: {}μs)", name, duration, target_micros);
+        println!("Benchmark {name}: {duration:?} (target: {target_micros}μs)");
         
         // Verify performance target
         let micros = duration.as_micros() as u64;
         if micros > target_micros {
             println!("WARNING: {} exceeded target by {}μs", name, micros - target_micros);
         } else {
-            println!("✓ {} completed within target", name);
+            println!("✓ {name} completed within target");
         }
         
         duration
@@ -106,7 +106,7 @@ fn test_regression_scheme_integration() {
     for value in test_values {
         let mut integration = SchemeIntegration::new().unwrap();
         let dep_type_result = integration.value_to_type(&value);
-        assert!(dep_type_result.is_ok(), "Scheme value conversion regression test failed for {:?}", value);
+        assert!(dep_type_result.is_ok(), "Scheme value conversion regression test failed for {value:?}");
         
         let dep_type = dep_type_result.unwrap();
         let value_result = integration.type_to_value(&dep_type);
@@ -198,7 +198,7 @@ fn test_benchmark_type_checking() {
     }, 500);
     
     // Additional verification
-    assert!(duration.as_micros() < 1000, "Type checking took too long: {:?}", duration);
+    assert!(duration.as_micros() < 1000, "Type checking took too long: {duration:?}");
 }
 
 #[test]
@@ -216,7 +216,7 @@ fn test_benchmark_scheme_conversion() {
     }, 2000); // 200μs * 10 conversions
     
     // Additional verification
-    assert!(duration.as_micros() < 5000, "Scheme conversion took too long: {:?}", duration);
+    assert!(duration.as_micros() < 5000, "Scheme conversion took too long: {duration:?}");
 }
 
 #[test]
@@ -235,7 +235,7 @@ fn test_benchmark_equality_checking() {
     }, 5000); // 100μs * 50 checks
     
     // Additional verification
-    assert!(duration.as_micros() < 10000, "Equality checking took too long: {:?}", duration);
+    assert!(duration.as_micros() < 10000, "Equality checking took too long: {duration:?}");
 }
 
 // ============= MEMORY USAGE TESTS =============
@@ -263,10 +263,10 @@ fn test_memory_usage_bounds() {
     
     let duration = start_time.elapsed();
     
-    println!("Heavy operations completed in: {:?}", duration);
+    println!("Heavy operations completed in: {duration:?}");
     
     // Operations should complete in reasonable time (less than 1 second)
-    assert!(duration.as_secs() < 1, "Heavy operations took too long: {:?}", duration);
+    assert!(duration.as_secs() < 1, "Heavy operations took too long: {duration:?}");
     
     println!("✓ Memory usage bounds test passed");
 }
@@ -338,7 +338,7 @@ fn test_comprehensive_functionality() {
     
     for dep_type in types_to_test {
         let level = suite.type_system.check_type_formation(&dep_type).unwrap();
-        assert!(level > 0, "Type formation failed for {:?}", dep_type);
+        assert!(level > 0, "Type formation failed for {dep_type:?}");
     }
     
     // Test multiple value conversions
@@ -356,7 +356,7 @@ fn test_comprehensive_functionality() {
     for value in values_to_test {
         let mut integration = SchemeIntegration::new().unwrap();
         let dep_type_result = integration.value_to_type(&value);
-        assert!(dep_type_result.is_ok(), "Value conversion failed for {:?}", value);
+        assert!(dep_type_result.is_ok(), "Value conversion failed for {value:?}");
     }
     
     // Test gradual typing transitions
@@ -417,10 +417,10 @@ fn test_stress_type_checking() {
     }
     
     let duration = start_time.elapsed();
-    println!("1000 type checking operations completed in: {:?}", duration);
+    println!("1000 type checking operations completed in: {duration:?}");
     
     // Should complete in reasonable time (less than 5 seconds)
-    assert!(duration.as_secs() < 5, "Stress test took too long: {:?}", duration);
+    assert!(duration.as_secs() < 5, "Stress test took too long: {duration:?}");
     
     println!("✓ Type checking stress test passed");
 }
@@ -439,10 +439,10 @@ fn test_stress_scheme_conversion() {
     }
     
     let duration = start_time.elapsed();
-    println!("1000 scheme conversions completed in: {:?}", duration);
+    println!("1000 scheme conversions completed in: {duration:?}");
     
     // Should complete in reasonable time (less than 5 seconds)
-    assert!(duration.as_secs() < 5, "Stress test took too long: {:?}", duration);
+    assert!(duration.as_secs() < 5, "Stress test took too long: {duration:?}");
     
     println!("✓ Scheme conversion stress test passed");
 }

@@ -109,7 +109,8 @@ impl<'a> OptimizedLexer<'a> {
                 continue;
             }
 
-            let optimized_token = self.create_optimized_token(token.kind, token.span, &token.text);
+            let text = token.text().to_string();
+            let optimized_token = self.create_optimized_token(token.kind, token.span, &text);
             optimized_tokens.push(optimized_token);
         }
 
@@ -269,7 +270,7 @@ mod tests {
         for (regular, optimized) in regular_tokens.iter().zip(optimized_tokens.iter()) {
             assert_eq!(regular.kind, optimized.kind);
             assert_eq!(regular.span, optimized.span);
-            assert_eq!(regular.text, optimized.text);
+            assert_eq!(regular.text(), optimized.text());
         }
     }
 
@@ -313,8 +314,8 @@ mod tests {
         assert!(optimized_time.as_nanos() > 0);
         assert!(stats.interned_strings > 0);
 
-        println!("Regular lexer: {:?}", regular_time);
-        println!("Optimized lexer: {:?}", optimized_time);
-        println!("Stats: {:?}", stats);
+        println!("Regular lexer: {regular_time:?}");
+        println!("Optimized lexer: {optimized_time:?}");
+        println!("Stats: {stats:?}");
     }
 }

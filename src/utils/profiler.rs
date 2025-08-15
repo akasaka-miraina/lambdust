@@ -718,7 +718,7 @@ mod tests {
         
         // Profile multiple operations in the same category
         for i in 0..5 {
-            let _session = profiler.start_profile(ProfileCategory::Parsing, &format!("operation_{}", i).as_str());
+            let _session = profiler.start_profile(ProfileCategory::Parsing, format!("operation_{i}").as_str());
             thread::sleep(Duration::from_millis(1));
         }
         

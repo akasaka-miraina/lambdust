@@ -619,6 +619,10 @@ pub fn ffi_memory_stats() -> MemoryStats {
     GLOBAL_FFI_MEMORY_MANAGER.stats()
 }
 
+// Safety: FfiMemoryManager uses appropriate synchronization primitives for thread safety
+unsafe impl Send for FfiMemoryManager {}
+unsafe impl Sync for FfiMemoryManager {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -713,7 +717,3 @@ mod tests {
         manager.deallocate(ptr1).unwrap();
     }
 }
-
-// Safety: FfiMemoryManager uses appropriate synchronization primitives for thread safety
-unsafe impl Send for FfiMemoryManager {}
-unsafe impl Sync for FfiMemoryManager {}

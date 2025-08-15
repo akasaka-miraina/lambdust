@@ -923,10 +923,10 @@ mod tests {
     #[test]
     fn test_charset_display() {
         let empty = CharSet::new();
-        assert_eq!(format!("{}", empty), "#<char-set empty>");
+        assert_eq!(format!("{empty}"), "#<char-set empty>");
 
         let abc = CharSet::from_string("abc");
-        let display = format!("{}", abc);
+        let display = format!("{abc}");
         assert!(display.contains("size=3"));
         assert!(display.contains("{a b c}"));
     }

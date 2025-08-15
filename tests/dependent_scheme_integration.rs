@@ -211,7 +211,7 @@ fn test_cache_functionality_and_performance() {
     assert_eq!(cache_size_after_second, 1, "Cache size should remain the same");
     
     // Cache should improve performance (though with such simple operations, this might not always be measurable)
-    println!("First conversion: {:?}, Second conversion: {:?}", first_elapsed, second_elapsed);
+    println!("First conversion: {first_elapsed:?}, Second conversion: {second_elapsed:?}");
     
     // Test cache clearing
     integration.clear_cache();
@@ -312,13 +312,13 @@ fn test_performance_comprehensive() {
     assert!(cache_size <= test_values.len(), "Cache should not exceed number of unique values");
     
     let elapsed = start.elapsed();
-    println!("Comprehensive performance test completed in {:?}", elapsed);
+    println!("Comprehensive performance test completed in {elapsed:?}");
     
     // Target: less than 100ms for all operations
     assert!(elapsed.as_millis() < 100, 
-           "Performance test should complete in less than 100ms, took {:?}", elapsed);
+           "Performance test should complete in less than 100ms, took {elapsed:?}");
     
-    println!("✅ Performance test passed ({:?} < 100ms)", elapsed);
+    println!("✅ Performance test passed ({elapsed:?} < 100ms)");
 }
 
 /// Test Martin-Löf type theory correctness
@@ -424,6 +424,6 @@ fn test_comprehensive_scheme_integration() {
     assert!(final_mapping_size > 0, "Mappings should exist");
     
     println!("\n🎉 All Scheme integration tests passed!");
-    println!("Cache entries: {}, Primitive mappings: {}", final_cache_size, final_mapping_size);
+    println!("Cache entries: {final_cache_size}, Primitive mappings: {final_mapping_size}");
     println!("The dependent type Scheme integration is working correctly with R7RS compliance.");
 }

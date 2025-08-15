@@ -23,29 +23,29 @@ mod tests {
         ];
 
         for (input, expected) in test_cases {
-            println!("Testing: {}", input);
+            println!("Testing: {input}");
             
             // Step 1: Lexing
             let mut lexer = Lexer::new(input, Some("test"));
-            let tokens = lexer.tokenize().expect(&format!("Failed to tokenize: {}", input));
+            let tokens = lexer.tokenize().unwrap_or_else(|_| panic!("Failed to tokenize: {input}"));
             
             // Should have 2 tokens: Character token + EOF
-            assert_eq!(tokens.len(), 2, "Expected 2 tokens for {}", input);
-            assert_eq!(tokens[0].kind, crate::lexer::TokenKind::Character, "First token should be Character for {}", input);
+            assert_eq!(tokens.len(), 2, "Expected 2 tokens for {input}");
+            assert_eq!(tokens[0].kind, crate::lexer::TokenKind::Character, "First token should be Character for {input}");
             
             // Step 2: Parse the character literal
             let mut parser = Parser::new(tokens);
-            let expr = parser.parse_character().expect(&format!("Failed to parse character: {}", input));
+            let expr = parser.parse_character().unwrap_or_else(|_| panic!("Failed to parse character: {input}"));
             
             // Step 3: Check the AST
             match expr.inner {
                 Expr::Literal(Literal::Character(ch)) => {
-                    assert_eq!(ch, expected, "Character value mismatch for {}: got '{}', expected '{}'", input, ch, expected);
+                    assert_eq!(ch, expected, "Character value mismatch for {input}: got '{ch}', expected '{expected}'");
                 }
                 _ => panic!("Expected character literal, got: {:?}", expr.inner),
             }
             
-            println!("  Success: {} -> '{}'", input, expected);
+            println!("  Success: {input} -> '{expected}'");
         }
     }
 
@@ -56,13 +56,13 @@ mod tests {
         ];
 
         for input in invalid_cases {
-            println!("Testing invalid: {}", input);
+            println!("Testing invalid: {input}");
             
             let mut lexer = Lexer::new(input, Some("test"));
             let result = lexer.tokenize();
             
             if let Ok(tokens) = result {
-                println!("  Tokens: {:?}", tokens.iter().map(|t| &t.text).collect::<Vec<_>>());
+                println!("  Tokens: {:?}", tokens.iter().map(|t| t.text()).collect::<Vec<_>>());
                 
                 // The lexer should produce multiple tokens for invalid named characters
                 // For "#\invalid_name", we expect "#\i" (character) + "nvalid_name" (identifier)
@@ -70,7 +70,7 @@ mod tests {
                     let mut parser = Parser::new(tokens);
                     let result = parser.parse_character();
                     // The parsing should succeed for the character part "#\i"
-                    assert!(result.is_ok(), "Expected successful parsing of character part for: {}", input);
+                    assert!(result.is_ok(), "Expected successful parsing of character part for: {input}");
                     match result.unwrap().inner {
                         crate::ast::Expr::Literal(crate::ast::Literal::Character(ch)) => {
                             assert_eq!(ch, 'i', "Expected 'i' from #\\invalid_name");
@@ -99,10 +99,10 @@ mod tests {
 
         for (input, expected) in r7rs_named {
             let mut lexer = Lexer::new(input, Some("test"));
-            let tokens = lexer.tokenize().expect(&format!("Failed to tokenize: {}", input));
+            let tokens = lexer.tokenize().unwrap_or_else(|_| panic!("Failed to tokenize: {input}"));
             
             let mut parser = Parser::new(tokens);
-            let expr = parser.parse_character().expect(&format!("Failed to parse character: {}", input));
+            let expr = parser.parse_character().unwrap_or_else(|_| panic!("Failed to parse character: {input}"));
             
             match expr.inner {
                 Expr::Literal(Literal::Character(ch)) => {

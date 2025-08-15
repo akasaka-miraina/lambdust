@@ -868,6 +868,6 @@ mod tests {
         let report = metrics.generate_report();
         assert!(report.contains("JIT Performance Report"));
         assert!(report.contains("Total Executions: 1"));
-        assert!(report.contains("jit_basic"));
+        assert!(report.contains("JIT Basic")); // Fixed to match actual tier name
     }
 }

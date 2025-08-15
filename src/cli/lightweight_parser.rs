@@ -494,13 +494,13 @@ mod tests {
         let cli = LightweightCli::new("test")
             .arg(ArgDef::new("verbose").short('v').long("verbose"));
         
-        let parsed = cli.parse(&["--verbose"]).unwrap();
+        let parsed = cli.parse(["--verbose"]).unwrap();
         assert!(parsed.get_flag("verbose"));
         
-        let parsed = cli.parse(&["-v"]).unwrap();
+        let parsed = cli.parse(["-v"]).unwrap();
         assert!(parsed.get_flag("verbose"));
         
-        let parsed = cli.parse(&[]).unwrap();
+        let parsed = cli.parse(&[] as &[&str]).unwrap();
         assert!(!parsed.get_flag("verbose"));
     }
 
@@ -509,10 +509,10 @@ mod tests {
         let cli = LightweightCli::new("test")
             .arg(ArgDef::new("file").short('f').long("file").takes_value());
         
-        let parsed = cli.parse(&["--file", "test.txt"]).unwrap();
+        let parsed = cli.parse(["--file", "test.txt"]).unwrap();
         assert_eq!(parsed.get_one::<String>("file"), Some("test.txt"));
         
-        let parsed = cli.parse(&["-f", "test.txt"]).unwrap();
+        let parsed = cli.parse(["-f", "test.txt"]).unwrap();
         assert_eq!(parsed.get_one::<String>("file"), Some("test.txt"));
     }
 
@@ -521,7 +521,7 @@ mod tests {
         let cli = LightweightCli::new("test")
             .arg(ArgDef::new("input").index(0).value_name("FILE"));
         
-        let parsed = cli.parse(&["input.txt"]).unwrap();
+        let parsed = cli.parse(["input.txt"]).unwrap();
         assert_eq!(parsed.get_one::<String>("input"), Some("input.txt"));
         assert_eq!(parsed.get_positional(0), Some("input.txt"));
     }
@@ -545,10 +545,10 @@ mod tests {
         let cli = LightweightCli::new("test")
             .arg(ArgDef::new("mode").long("mode").takes_value().possible_values(&["full", "minimal"]));
         
-        let parsed = cli.parse(&["--mode", "full"]).unwrap();
+        let parsed = cli.parse(["--mode", "full"]).unwrap();
         assert_eq!(parsed.get_one::<String>("mode"), Some("full"));
         
-        let result = cli.parse(&["--mode", "invalid"]);
+        let result = cli.parse(["--mode", "invalid"]);
         assert!(result.is_err());
         assert!(matches!(result.unwrap_err(), CliError::InvalidValue { .. }));
     }

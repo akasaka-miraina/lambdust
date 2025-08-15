@@ -822,8 +822,8 @@ mod tests {
     #[test]
     fn test_benchmark_suite_creation() {
         let suite = SchemeBenchmarkSuite::new();
-        assert!(suite.get_all_benchmarks().len() > 0);
-        assert!(suite.get_categories().len() > 0);
+        assert!(!suite.get_all_benchmarks().is_empty());
+        assert!(!suite.get_categories().is_empty());
     }
 
     #[test]

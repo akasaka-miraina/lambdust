@@ -751,7 +751,7 @@ mod tests {
         hierarchy.solve_constraints().unwrap();
         
         let assignment = hierarchy.get_level_assignment("α").unwrap();
-        assert!(assignment >= 2 && assignment <= 5);
+        assert!((2..=5).contains(&assignment));
     }
 
     #[test]

@@ -381,8 +381,8 @@ mod tests {
     #[test]
     fn test_numeric_comparator() {
         let comp = Comparator::numeric();
-        let v1 = Value::number(std::f64::consts::PI as f64);
-        let v2 = Value::number(2.71 as f64);
+        let v1 = Value::number(std::f64::consts::PI);
+        let v2 = Value::number(2.71_f64);
         let v3 = Value::string("not a number");
         
         assert_eq!(comp.compare(&v1, &v2), Ordering::Greater);

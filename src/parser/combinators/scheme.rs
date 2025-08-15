@@ -641,13 +641,13 @@ mod tests {
         let result = parser.parse("#t");
         assert!(result.is_ok());
         let (remaining, boolean) = result.unwrap();
-        assert_eq!(boolean, true);
+        assert!(boolean);
         assert_eq!(remaining, "");
         
         let result = parser.parse("#f");
         assert!(result.is_ok());
         let (remaining, boolean) = result.unwrap();
-        assert_eq!(boolean, false);
+        assert!(!boolean);
         assert_eq!(remaining, "");
     }
     

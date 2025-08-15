@@ -5,7 +5,8 @@
 
 #![allow(missing_docs)]
 
-use super::{Type, TypeVar, Substitution, TypeConstraint};
+use super::{Type, TypeVar, TypeConstraint};
+use crate::types::substitution::Substitution;
 use crate::diagnostics::{Error, Span};
 use std::collections::{HashMap, HashSet};
 use std::fmt;
@@ -520,7 +521,7 @@ mod tests {
         if !result.errors.is_empty() {
             println!("Constraint solver errors:");
             for error in &result.errors {
-                println!("  {}", error);
+                println!("  {error}");
             }
         }
         

@@ -56,6 +56,18 @@ pub struct ErrorLabel {
     pub style: LabelStyle,
 }
 
+impl ErrorLabel {
+    /// Get the span for this error label
+    pub fn span(&self) -> crate::diagnostics::span::Span {
+        self.span
+    }
+    
+    /// Get the message for this error label
+    pub fn message(&self) -> &str {
+        self.message.as_ref().map(|s| s.as_str()).unwrap_or("")
+    }
+}
+
 /// Style for error labels.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LabelStyle {

@@ -198,7 +198,7 @@ impl Parser {
                     )))
                 }
                 
-                literals.push(parser.current_token().text.clone());
+                literals.push(parser.current_token().text().to_string());
                 parser.advance();
                 parser.skip_whitespace();
             }
@@ -417,7 +417,7 @@ impl Parser {
             
             // Parse values list or else
             let values = if self.check(&TokenKind::Identifier) 
-                && self.current_token().text == "else" {
+                && self.current_token().text() == "else" {
                 // else clause - no values
                 self.advance(); // consume 'else'
                 Vec::new()
@@ -555,7 +555,7 @@ impl Parser {
                 )))
             }
             
-            let variable = parser.current_token().text.clone();
+            let variable = parser.current_token().text().to_string();
             parser.advance();
             parser.skip_whitespace();
             
@@ -574,7 +574,7 @@ impl Parser {
                 let mut arrow = None;
                 let mut body = Vec::new();
                 
-                if parser.check(&TokenKind::Identifier) && parser.current_token().text == "=>" {
+                if parser.check(&TokenKind::Identifier) && parser.current_token().text() == "=>" {
                     // => clause: (test => proc)
                     parser.advance(); // consume '=>'
                     parser.skip_whitespace();
@@ -706,7 +706,7 @@ impl Parser {
                         )))
                     }
                     
-                    let rest_name = self.current_token().text.clone();
+                    let rest_name = self.current_token().text().to_string();
                     self.advance();
                     rest = Some(rest_name);
                     break;
@@ -714,9 +714,9 @@ impl Parser {
                     // Keyword parameter: #:key [default]
                     seen_keyword = true;
                     let keyword_token = self.current_token();
-                    let keyword_name = keyword_token.text
+                    let keyword_name = keyword_token.text()
                         .strip_prefix("#:")
-                        .unwrap_or(&keyword_token.text)
+                        .unwrap_or(keyword_token.text())
                         .to_string();
                     self.advance();
                     self.skip_whitespace();
@@ -741,7 +741,7 @@ impl Parser {
                         )))
                     }
                     
-                    let param_name = self.current_token().text.clone();
+                    let param_name = self.current_token().text().to_string();
                     self.advance();
                     fixed.push(param_name);
                 } else {
@@ -782,7 +782,7 @@ impl Parser {
             
         } else if self.check(&TokenKind::Identifier) {
             // Single identifier - variable arity
-            let name = self.current_token().text.clone();
+            let name = self.current_token().text().to_string();
             
             // Validate the identifier
             Parser::validate_identifier(&name, self.current_span())?;
@@ -848,7 +848,7 @@ impl Parser {
                 )))
             }
             
-            let name = self.current_token().text.clone();
+            let name = self.current_token().text().to_string();
             self.advance();
             self.skip_whitespace();
             
@@ -984,7 +984,7 @@ impl Parser {
             let mut name_parts = Vec::new();
             while !parser.check(&TokenKind::RightParen) && !parser.is_at_end() {
                 if parser.check(&TokenKind::Identifier) || parser.check(&TokenKind::IntegerNumber) {
-                    let name = parser.current_token().text.clone();
+                    let name = parser.current_token().text().to_string();
                     name_parts.push(name);
                     parser.advance();
                 } else {
@@ -1019,7 +1019,7 @@ impl Parser {
                     parser.skip_whitespace();
                     
                     if parser.check(&TokenKind::Identifier) {
-                        let keyword = parser.current_token().text.clone();
+                        let keyword = parser.current_token().text().to_string();
                         parser.advance();
                         parser.skip_whitespace();
                         

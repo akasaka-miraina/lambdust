@@ -651,7 +651,7 @@ mod tests {
             NumericValue::rational(3, 4)
         ]);
 
-        let display_str = format!("{}", vec);
+        let display_str = format!("{vec}");
         assert!(display_str.starts_with("#("));
         assert!(display_str.ends_with(")"));
     }

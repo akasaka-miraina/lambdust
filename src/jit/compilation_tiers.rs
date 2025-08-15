@@ -502,7 +502,7 @@ mod tests {
     fn test_tier_manager() {
         let mut manager = TierManager::new(TierConfig::default()).unwrap();
         let expr = Expr::Literal(Literal::ExactInteger(42));
-        let profile = ExecutionProfile::new();
+        let profile = ExecutionProfile::new("test_expr".to_string(), expr.clone());
         
         let tier = manager.select_tier(&expr, &profile).unwrap();
         assert_eq!(tier, CompilationTier::Interpreter);

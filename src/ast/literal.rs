@@ -3,9 +3,18 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use crate::utils::InternedString;
+
+/// Greatest common divisor calculation for rational number normalization.
+fn gcd(a: u64, b: u64) -> u64 {
+    if b == 0 { a } else { gcd(b, a % b) }
+}
 
 /// Literal values in the Lambdust language.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// 
+/// This enum is optimized for memory usage by boxing large variants
+/// to reduce the overall size from 32 bytes to approximately 16 bytes.
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Literal {
     /// Exact integer numbers (preserves exactness)
     ExactInteger(i64),
@@ -17,14 +26,17 @@ pub enum Literal {
     #[deprecated(note = "Use ExactInteger or InexactReal instead")]
     Number(f64),
     
-    /// Rational numbers (exact fractions)
-    Rational { numerator: i64, denominator: i64 },
+    /// Rational numbers (exact fractions) - boxed for size optimization
+    Rational(Box<RationalLiteral>),
     
-    /// Complex numbers (can be exact or inexact depending on components)
-    Complex { real: f64, imaginary: f64 },
+    /// Complex numbers (can be exact or inexact depending on components) - boxed for size optimization
+    Complex(Box<ComplexLiteral>),
     
-    /// String literals
-    String(String),
+    /// String literals (traditional) - boxed for size optimization
+    String(Box<String>),
+    
+    /// Interned string literals (memory-optimized)
+    InternedString(InternedString),
     
     /// Character literals
     Character(char),
@@ -32,14 +44,85 @@ pub enum Literal {
     /// Boolean values
     Boolean(bool),
     
-    /// Bytevector literals
-    Bytevector(Vec<u8>),
+    /// Bytevector literals - boxed for size optimization
+    Bytevector(Box<Vec<u8>>),
     
     /// The empty list (nil)
     Nil,
     
     /// Unspecified value (result of side-effecting operations)
     Unspecified,
+}
+
+/// Rational number representation.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct RationalLiteral {
+    /// Numerator of the rational number
+    pub numerator: i64,
+    /// Denominator of the rational number (always positive and non-zero)
+    pub denominator: i64,
+}
+
+impl RationalLiteral {
+    /// Creates a new rational literal with normalization.
+    pub fn new(numerator: i64, denominator: i64) -> Self {
+        if denominator == 0 {
+            panic!("Rational number cannot have zero denominator");
+        }
+        
+        // Normalize the rational number
+        let gcd = gcd(numerator.unsigned_abs(), denominator.unsigned_abs()) as i64;
+        let num = numerator / gcd;
+        let den = denominator / gcd;
+        
+        // Ensure denominator is positive
+        if den < 0 {
+            Self { numerator: -num, denominator: -den }
+        } else {
+            Self { numerator: num, denominator: den }
+        }
+    }
+    
+    /// Converts to floating-point approximation.
+    pub fn to_f64(&self) -> f64 {
+        self.numerator as f64 / self.denominator as f64
+    }
+    
+    /// Returns true if this represents an integer (denominator is 1).
+    pub fn is_integer(&self) -> bool {
+        self.denominator == 1
+    }
+}
+
+/// Complex number representation.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ComplexLiteral {
+    /// Real part of the complex number
+    pub real: f64,
+    /// Imaginary part of the complex number
+    pub imaginary: f64,
+}
+
+impl ComplexLiteral {
+    /// Creates a new complex literal.
+    pub fn new(real: f64, imaginary: f64) -> Self {
+        Self { real, imaginary }
+    }
+    
+    /// Returns true if this is a real number (imaginary part is zero).
+    pub fn is_real(&self) -> bool {
+        self.imaginary == 0.0
+    }
+    
+    /// Returns true if this is an integer (real part is integer and imaginary is zero).
+    pub fn is_integer(&self) -> bool {
+        self.imaginary == 0.0 && self.real.fract() == 0.0 && self.real.is_finite()
+    }
+    
+    /// Returns true if this is exact (both parts are exact).
+    pub fn is_exact(&self) -> bool {
+        self.real.fract() == 0.0 && self.imaginary.fract() == 0.0
+    }
 }
 
 impl Literal {
@@ -64,31 +147,38 @@ impl Literal {
 
     /// Creates a rational literal.
     pub fn rational(numerator: i64, denominator: i64) -> Self {
-        if denominator == 0 {
-            panic!("Rational number cannot have zero denominator");
-        }
-        
-        // Normalize the rational number
-        let gcd = gcd(numerator.unsigned_abs(), denominator.unsigned_abs()) as i64;
-        let num = numerator / gcd;
-        let den = denominator / gcd;
-        
-        // Ensure denominator is positive
-        if den < 0 {
-            Self::Rational { numerator: -num, denominator: -den }
-        } else {
-            Self::Rational { numerator: num, denominator: den }
-        }
+        Self::Rational(Box::new(RationalLiteral::new(numerator, denominator)))
     }
 
     /// Creates a complex literal.
     pub fn complex(real: f64, imaginary: f64) -> Self {
-        Self::Complex { real, imaginary }
+        Self::Complex(Box::new(ComplexLiteral::new(real, imaginary)))
     }
 
-    /// Creates a string literal.
+    /// Creates a string literal (traditional).
     pub fn string(value: impl Into<String>) -> Self {
-        Self::String(value.into())
+        Self::String(Box::new(value.into()))
+    }
+    
+    /// Creates an interned string literal (memory-optimized).
+    pub fn interned_string(s: &str) -> Self {
+        use crate::utils::intern;
+        Self::InternedString(intern(s))
+    }
+    
+    /// Creates a string literal, choosing interned vs regular based on heuristics.
+    /// Short, common strings are interned for memory efficiency.
+    pub fn smart_string(s: impl Into<String>) -> Self {
+        let string = s.into();
+        
+        // Heuristics for when to intern:
+        // 1. Short strings (likely to be repeated)
+        // 2. Common patterns (empty, single char, etc.)
+        if string.len() <= 32 || crate::ast::literal_helpers::is_common_string(&string) {
+            Self::InternedString(crate::utils::intern(&string))
+        } else {
+            Self::String(Box::new(string))
+        }
     }
 
     /// Creates a character literal.
@@ -103,7 +193,7 @@ impl Literal {
 
     /// Creates a bytevector literal.
     pub fn bytevector(value: Vec<u8>) -> Self {
-        Self::Bytevector(value)
+        Self::Bytevector(Box::new(value))
     }
 
     /// Returns true if this literal is a number.
@@ -112,20 +202,17 @@ impl Literal {
             Literal::ExactInteger(_) | 
             Literal::InexactReal(_) |
             Literal::Number(_) |
-            Literal::Rational { .. } | 
-            Literal::Complex { .. }
+            Literal::Rational(_) | 
+            Literal::Complex(_)
         )
     }
 
     /// Returns true if this literal is exact (integer or rational).
     pub fn is_exact(&self) -> bool {
         match self {
-            Literal::ExactInteger(_) | Literal::Rational { .. } => true,
+            Literal::ExactInteger(_) | Literal::Rational(_) => true,
             Literal::Number(n) => n.fract() == 0.0 && n.is_finite(),
-            Literal::Complex { real, imaginary } => {
-                // Complex is exact only if both parts are exact (represent as rationals)
-                real.fract() == 0.0 && imaginary.fract() == 0.0
-            }
+            Literal::Complex(c) => c.is_exact(),
             _ => false,
         }
     }
@@ -135,10 +222,7 @@ impl Literal {
         match self {
             Literal::InexactReal(_) => true,
             Literal::Number(n) => n.fract() != 0.0 || !n.is_finite(),
-            Literal::Complex { real, imaginary } => {
-                // Complex is inexact if any part is inexact
-                real.fract() != 0.0 || imaginary.fract() != 0.0 || !real.is_finite() || !imaginary.is_finite()
-            }
+            Literal::Complex(c) => !c.is_exact(),
             _ => false,
         }
     }
@@ -149,8 +233,8 @@ impl Literal {
             Literal::ExactInteger(_) |
             Literal::InexactReal(_) | 
             Literal::Number(_) |
-            Literal::Rational { .. }
-        ) || matches!(self, Literal::Complex { imaginary, .. } if *imaginary == 0.0)
+            Literal::Rational(_)
+        ) || matches!(self, Literal::Complex(c) if c.is_real())
     }
 
     /// Returns true if this literal is an integer.
@@ -159,11 +243,9 @@ impl Literal {
             Literal::ExactInteger(_) => true,
             Literal::InexactReal(n) => n.fract() == 0.0 && n.is_finite(),
             Literal::Number(n) => n.fract() == 0.0 && n.is_finite(),
-            Literal::Rational { denominator, .. } => *denominator == 1,
-            Literal::Complex { real, imaginary } => {
-                *imaginary == 0.0 && real.fract() == 0.0 && real.is_finite()
-            }
-            Literal::String(_) | Literal::Character(_) | Literal::Boolean(_) 
+            Literal::Rational(r) => r.is_integer(),
+            Literal::Complex(c) => c.is_integer(),
+            Literal::String(_) | Literal::InternedString(_) | Literal::Character(_) | Literal::Boolean(_) 
             | Literal::Bytevector(_) | Literal::Nil | Literal::Unspecified => false,
         }
     }
@@ -174,10 +256,8 @@ impl Literal {
             Literal::ExactInteger(n) => Some(*n as f64),
             Literal::InexactReal(n) => Some(*n),
             Literal::Number(n) => Some(*n),
-            Literal::Rational { numerator, denominator } => {
-                Some(*numerator as f64 / *denominator as f64)
-            }
-            Literal::Complex { real, imaginary } if *imaginary == 0.0 => Some(*real),
+            Literal::Rational(r) => Some(r.to_f64()),
+            Literal::Complex(c) if c.is_real() => Some(c.real),
             _ => None,
         }
     }
@@ -194,7 +274,7 @@ impl Literal {
                 let i = *n as i64;
                 if i as f64 == *n { Some(i) } else { None }
             }
-            Literal::Rational { numerator, denominator } if *denominator == 1 => Some(*numerator),
+            Literal::Rational(r) if r.is_integer() => Some(r.numerator),
             _ => None,
         }
     }
@@ -219,6 +299,29 @@ impl Literal {
     pub fn is_falsy(&self) -> bool {
         matches!(self, Literal::Boolean(false))
     }
+    
+    /// Returns true if this literal is a string (regular or interned).
+    pub fn is_string(&self) -> bool {
+        matches!(self, Literal::String(_) | Literal::InternedString(_))
+    }
+    
+    /// Gets the string value if this is a string literal (regular or interned).
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            Literal::String(s) => Some(s),
+            Literal::InternedString(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+    
+    /// Gets the string value as an owned String if this is a string literal.
+    pub fn to_string_value(&self) -> Option<String> {
+        match self {
+            Literal::String(s) => Some((**s).clone()),
+            Literal::InternedString(s) => Some(s.to_string()),
+            _ => None,
+        }
+    }
 
     /// Helper: Extract numeric value as f64 for compatibility during migration
     /// This allows existing code that pattern matches on `Number(n)` to work
@@ -227,10 +330,8 @@ impl Literal {
             Literal::ExactInteger(i) => Some(*i as f64),
             Literal::InexactReal(f) => Some(*f),
             Literal::Number(n) => Some(*n),
-            Literal::Rational { numerator, denominator } => {
-                Some(*numerator as f64 / *denominator as f64)
-            }
-            Literal::Complex { real, imaginary } if *imaginary == 0.0 => Some(*real),
+            Literal::Rational(r) => Some(r.to_f64()),
+            Literal::Complex(c) if c.is_real() => Some(c.real),
             _ => None,
         }
     }
@@ -287,37 +388,38 @@ impl fmt::Display for Literal {
                     write!(f, "{n}")
                 }
             }
-            Literal::Rational { numerator, denominator } => {
-                if *denominator == 1 {
-                    write!(f, "{numerator}")
+            Literal::Rational(r) => {
+                if r.denominator == 1 {
+                    write!(f, "{}", r.numerator)
                 } else {
-                    write!(f, "{numerator}/{denominator}")
+                    write!(f, "{}/{}", r.numerator, r.denominator)
                 }
             }
-            Literal::Complex { real, imaginary } => {
-                if *real == 0.0 {
-                    if *imaginary == 1.0 {
+            Literal::Complex(c) => {
+                if c.real == 0.0 {
+                    if c.imaginary == 1.0 {
                         write!(f, "i")
-                    } else if *imaginary == -1.0 {
+                    } else if c.imaginary == -1.0 {
                         write!(f, "-i")
                     } else {
-                        write!(f, "{imaginary}i")
+                        write!(f, "{}i", c.imaginary)
                     }
-                } else if *imaginary == 0.0 {
-                    write!(f, "{real}")
-                } else if *imaginary > 0.0 {
-                    if *imaginary == 1.0 {
-                        write!(f, "{real}+i")
+                } else if c.imaginary == 0.0 {
+                    write!(f, "{}", c.real)
+                } else if c.imaginary > 0.0 {
+                    if c.imaginary == 1.0 {
+                        write!(f, "{}+i", c.real)
                     } else {
-                        write!(f, "{real}+{imaginary}i")
+                        write!(f, "{}+{}i", c.real, c.imaginary)
                     }
-                } else if *imaginary == -1.0 {
-                    write!(f, "{real}-i")
+                } else if c.imaginary == -1.0 {
+                    write!(f, "{}-i", c.real)
                 } else {
-                    write!(f, "{real}{imaginary}i")
+                    write!(f, "{}{}i", c.real, c.imaginary)
                 }
             }
             Literal::String(s) => write!(f, "\"{}\"", escape_string(s)),
+            Literal::InternedString(s) => write!(f, "\"{}\"", escape_string(s.as_str())),
             Literal::Character(c) => {
                 match c {
                     ' ' => write!(f, "#\\space"),
@@ -360,14 +462,6 @@ fn escape_string(s: &str) -> String {
         .collect()
 }
 
-/// Computes the greatest common divisor of two numbers.
-fn gcd(a: u64, b: u64) -> u64 {
-    if b == 0 {
-        a
-    } else {
-        gcd(b, a % b)
-    }
-}
 
 impl Hash for Literal {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -387,18 +481,22 @@ impl Hash for Literal {
                 10u8.hash(state);
                 n.to_bits().hash(state);
             }
-            Literal::Rational { numerator, denominator } => {
+            Literal::Rational(r) => {
                 2u8.hash(state);
-                numerator.hash(state);
-                denominator.hash(state);
+                r.numerator.hash(state);
+                r.denominator.hash(state);
             }
-            Literal::Complex { real, imaginary } => {
+            Literal::Complex(c) => {
                 3u8.hash(state);
-                real.to_bits().hash(state);
-                imaginary.to_bits().hash(state);
+                c.real.to_bits().hash(state);
+                c.imaginary.to_bits().hash(state);
             }
             Literal::String(s) => {
                 4u8.hash(state);
+                s.hash(state);
+            }
+            Literal::InternedString(s) => {
+                11u8.hash(state);
                 s.hash(state);
             }
             Literal::Character(c) => {
@@ -446,9 +544,9 @@ mod tests {
         let rat = Literal::rational(3, 4);
         
         match rat {
-            Literal::Rational { numerator, denominator } => {
-                assert_eq!(numerator, 3);
-                assert_eq!(denominator, 4);
+            Literal::Rational(r) => {
+                assert_eq!(r.numerator, 3);
+                assert_eq!(r.denominator, 4);
             }
             _ => panic!("Expected rational"),
         }
@@ -463,9 +561,9 @@ mod tests {
         let rat = Literal::rational(6, 8);
         
         match rat {
-            Literal::Rational { numerator, denominator } => {
-                assert_eq!(numerator, 3);
-                assert_eq!(denominator, 4);
+            Literal::Rational(r) => {
+                assert_eq!(r.numerator, 3);
+                assert_eq!(r.denominator, 4);
             }
             _ => panic!("Expected rational"),
         }
@@ -485,7 +583,7 @@ mod tests {
         assert!(Literal::boolean(true).is_truthy());
         assert!(!Literal::boolean(false).is_truthy());
         assert!(Literal::integer(0).is_truthy()); // 0 is truthy in Scheme
-        assert!(Literal::string("").is_truthy()); // empty string is truthy
+        assert!(Literal::String("").is_truthy()); // empty string is truthy
         assert!(Literal::Nil.is_truthy()); // empty list is truthy
     }
 
@@ -498,7 +596,7 @@ mod tests {
         assert_eq!(format!("{}", Literal::complex(3.0, 4.0)), "3+4i");
         assert_eq!(format!("{}", Literal::complex(0.0, 1.0)), "i");
         assert_eq!(format!("{}", Literal::complex(3.0, -1.0)), "3-i");
-        assert_eq!(format!("{}", Literal::string("hello".to_string())), "\"hello\"");
+        assert_eq!(format!("{}", Literal::String("hello".to_string())), "\"hello\"");
         assert_eq!(format!("{}", Literal::character('a')), "#\\a");
         assert_eq!(format!("{}", Literal::character(' ')), "#\\space");
         assert_eq!(format!("{}", Literal::boolean(true)), "#t");
@@ -517,4 +615,67 @@ mod tests {
         let escaped = escape_string(s);
         assert_eq!(escaped, "hello\\n\\\"world\\\"");
     }
+    
+    #[test]
+    fn test_interned_string_creation() {
+        let regular = Literal::String("hello");
+        let interned = Literal::interned_string("hello");
+        let smart = Literal::smart_string("hello"); // Should be interned due to length
+        
+        // They should be equal
+        assert_eq!(regular, interned);
+        assert_eq!(regular, smart);
+        
+        // String extraction
+        assert_eq!(regular.as_str(), Some("hello"));
+        assert_eq!(interned.as_str(), Some("hello"));
+        assert_eq!(smart.as_str(), Some("hello"));
+        
+        // Both should be strings
+        assert!(regular.is_string());
+        assert!(interned.is_string());
+        assert!(smart.is_string());
+    }
+    
+    #[test]
+    fn test_smart_string_heuristics() {
+        // Short strings should be interned
+        let short = Literal::smart_string("hi");
+        assert!(matches!(short, Literal::InternedString(_)));
+        
+        // Common strings should be interned
+        let common = Literal::smart_string("error");
+        assert!(matches!(common, Literal::InternedString(_)));
+        
+        // Long uncommon strings should stay regular
+        let long = Literal::smart_string("this is a very long and uncommon string that should not be interned");
+        assert!(matches!(long, Literal::String(_)));
+    }
 }
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Literal::ExactInteger(a), Literal::ExactInteger(b)) => a == b,
+            (Literal::InexactReal(a), Literal::InexactReal(b)) => a == b,
+            (Literal::Number(a), Literal::Number(b)) => a == b,
+            (Literal::Rational(r1), Literal::Rational(r2)) => r1 == r2,
+            (Literal::Complex(c1), Literal::Complex(c2)) => c1 == c2,
+            
+            // String comparison handles both regular and interned strings
+            (Literal::String(s1), Literal::String(s2)) => s1 == s2,
+            (Literal::InternedString(s1), Literal::InternedString(s2)) => s1 == s2,
+            (Literal::String(s1), Literal::InternedString(s2)) => s1.as_str() == s2.as_str(),
+            (Literal::InternedString(s1), Literal::String(s2)) => s1.as_str() == s2.as_str(),
+            
+            (Literal::Character(a), Literal::Character(b)) => a == b,
+            (Literal::Boolean(a), Literal::Boolean(b)) => a == b,
+            (Literal::Bytevector(a), Literal::Bytevector(b)) => a == b,
+            (Literal::Nil, Literal::Nil) => true,
+            (Literal::Unspecified, Literal::Unspecified) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Literal {}

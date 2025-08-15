@@ -658,7 +658,7 @@ mod tests {
         assert!(pipeline.is_ok());
         
         let pipeline = pipeline.unwrap();
-        assert!(pipeline.passes.len() > 0);
+        assert!(!pipeline.passes.is_empty());
     }
     
     #[test]

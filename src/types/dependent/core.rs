@@ -27,6 +27,84 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+/// Proof obligation for dependent type checking
+#[derive(Debug, Clone, PartialEq)]
+pub struct ProofObligation {
+    /// The proposition that needs to be proven
+    pub proposition: String,
+    /// Context in which the proof is required
+    pub context: String,
+    /// Whether this obligation can be eliminated at compile time
+    pub eliminable: bool,
+    /// Complexity score for proof checking (using OrderedFloat to enable Eq and Hash)
+    pub complexity: u32, // Changed to u32 to avoid f64 Eq/Hash issues
+}
+
+impl ProofObligation {
+    /// Creates a new proof obligation
+    pub fn new(proposition: String, context: String) -> Self {
+        Self {
+            proposition,
+            context,
+            eliminable: false,
+            complexity: 1,
+        }
+    }
+    
+    /// Creates an eliminable proof obligation
+    pub fn eliminable(proposition: String, context: String, complexity: u32) -> Self {
+        Self {
+            proposition,
+            context,
+            eliminable: true,
+            complexity,
+        }
+    }
+    
+    /// Check if this proof can be eliminated at compile time
+    pub fn is_eliminable(&self) -> bool {
+        self.eliminable
+    }
+}
+
+/// Simple dependent type representation for JIT specialization
+/// This is separate from the full DependentType enum to avoid conflicts
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct JitDependentType {
+    /// Base type
+    pub base_type: String,
+    /// Type parameters with dependencies
+    pub parameters: Vec<String>,
+    /// Constraints on the type
+    pub constraints: Vec<String>,
+    /// Universe level
+    pub universe: u32,
+}
+
+impl JitDependentType {
+    /// Creates a new dependent type
+    pub fn new(base_type: String, universe: u32) -> Self {
+        Self {
+            base_type,
+            parameters: Vec::new(),
+            constraints: Vec::new(),
+            universe,
+        }
+    }
+    
+    /// Adds a parameter to the dependent type
+    pub fn with_parameter(mut self, param: String) -> Self {
+        self.parameters.push(param);
+        self
+    }
+    
+    /// Adds a constraint to the dependent type
+    pub fn with_constraint(mut self, constraint: String) -> Self {
+        self.constraints.push(constraint);
+        self
+    }
+}
+
 /// Universe levels for the type hierarchy.
 ///
 /// Type₀ : Type₁ : Type₂ : ... prevents Russell's paradox by stratifying types.

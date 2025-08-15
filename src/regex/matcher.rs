@@ -334,7 +334,8 @@ mod tests {
     
     #[test]
     fn test_alternation_match() {
-        let (_engine, mut matcher) = create_matcher("a|b");
+        let engine = create_matcher("a|b");
+        let mut matcher = Matcher::new(&engine);
         
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("b").is_some());
@@ -347,7 +348,8 @@ mod tests {
     
     #[test]
     fn test_star_quantifier() {
-        let (_engine, mut matcher) = create_matcher("a*");
+        let engine = create_matcher("a*");
+        let mut matcher = Matcher::new(&engine);
         
         // Should match empty string
         let m = matcher.find("").unwrap();
@@ -370,7 +372,8 @@ mod tests {
     
     #[test]
     fn test_plus_quantifier() {
-        let (_engine, mut matcher) = create_matcher("a+");
+        let engine = create_matcher("a+");
+        let mut matcher = Matcher::new(&engine);
         
         // Should not match empty string
         assert!(matcher.find("").is_none());
@@ -391,7 +394,8 @@ mod tests {
     
     #[test]
     fn test_question_quantifier() {
-        let (_engine, mut matcher) = create_matcher("a?");
+        let engine = create_matcher("a?");
+        let mut matcher = Matcher::new(&engine);
         
         // Should match empty string
         let m = matcher.find("").unwrap();
@@ -411,7 +415,8 @@ mod tests {
     
     #[test]
     fn test_any_char() {
-        let (_engine, mut matcher) = create_matcher(".");
+        let engine = create_matcher(".");
+        let mut matcher = Matcher::new(&engine);
         
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("1").is_some());
@@ -424,7 +429,8 @@ mod tests {
     
     #[test]
     fn test_character_class() {
-        let (_engine, mut matcher) = create_matcher("[abc]");
+        let engine = create_matcher("[abc]");
+        let mut matcher = Matcher::new(&engine);
         
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("b").is_some());
@@ -435,7 +441,8 @@ mod tests {
     
     #[test]
     fn test_digit_class() {
-        let (_engine, mut matcher) = create_matcher(r"\d");
+        let engine = create_matcher(r"\d");
+        let mut matcher = Matcher::new(&engine);
         
         assert!(matcher.find("5").is_some());
         assert!(matcher.find("0").is_some());
@@ -449,7 +456,8 @@ mod tests {
     
     #[test]
     fn test_word_class() {
-        let (_engine, mut matcher) = create_matcher(r"\w");
+        let engine = create_matcher(r"\w");
+        let mut matcher = Matcher::new(&engine);
         
         assert!(matcher.find("a").is_some());
         assert!(matcher.find("Z").is_some());
@@ -461,7 +469,8 @@ mod tests {
     
     #[test]
     fn test_complex_pattern() {
-        let (_engine, mut matcher) = create_matcher(r"\d+\.\d*");
+        let engine = create_matcher(r"\d+\.\d*");
+        let mut matcher = Matcher::new(&engine);
         
         let m = matcher.find("3.14").unwrap();
         assert_eq!(m.as_str(), "3.14");
@@ -475,7 +484,8 @@ mod tests {
     
     #[test] 
     fn test_find_positions() {
-        let (_engine, mut matcher) = create_matcher("ab");
+        let engine = create_matcher("ab");
+        let mut matcher = Matcher::new(&engine);
         
         let m = matcher.find("xyzab123").unwrap();
         assert_eq!(m.start, 3);

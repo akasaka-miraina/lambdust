@@ -250,7 +250,7 @@ impl TypeInference {
             Literal::Number(_) => Ok(Type::Number),
             Literal::Rational { .. } => Ok(Type::Number),
             Literal::Complex { .. } => Ok(Type::Number),
-            Literal::String(_) => Ok(Type::String),
+            Literal::String(_) | Literal::InternedString(_) => Ok(Type::String),
             Literal::Character(_) => Ok(Type::Char),
             Literal::Boolean(_) => Ok(Type::Boolean),
             Literal::Bytevector(_) => Ok(Type::Bytevector),

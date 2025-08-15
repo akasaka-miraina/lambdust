@@ -680,6 +680,22 @@ pub fn validate_template(
     }
 }
 
+impl SyntaxRulesTransformer {
+    /// Creates a new syntax-rules transformer with specified SRFI-149 mode.
+    pub fn with_srfi_149_mode(
+        mut self,
+        enable_srfi_149: bool,
+    ) -> Self {
+        self.srfi_149_mode = enable_srfi_149;
+        self
+    }
+
+    /// Checks if SRFI-149 advanced template features are enabled.
+    pub fn is_srfi_149_enabled(&self) -> bool {
+        self.srfi_149_mode
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -804,21 +820,5 @@ mod tests {
         // Invalid template (unbound variable)
         let template = Template::Variable("y".to_string());
         assert!(validate_template(&template, &pattern_vars, &ellipsis_vars).is_err());
-    }
-}
-
-impl SyntaxRulesTransformer {
-    /// Creates a new syntax-rules transformer with specified SRFI-149 mode.
-    pub fn with_srfi_149_mode(
-        mut self,
-        enable_srfi_149: bool,
-    ) -> Self {
-        self.srfi_149_mode = enable_srfi_149;
-        self
-    }
-
-    /// Checks if SRFI-149 advanced template features are enabled.
-    pub fn is_srfi_149_enabled(&self) -> bool {
-        self.srfi_149_mode
     }
 }

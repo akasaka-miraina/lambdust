@@ -4,8 +4,8 @@
 //! that dependent type terms are well-behaved (both strongly normalizing and confluent).
 
 use lambdust::types::dependent::{
-    DependentType, DependentTerm, StrongNormalizationChecker, ChurchRosserChecker,
-    TerminationConfluenceSystem, NormalizationEngine, TerminationConfig, ConfluenceConfig,
+    DependentType, DependentTerm, StrongNormalizationChecker,
+    TerminationConfluenceSystem, NormalizationEngine, TerminationConfig,
     ComplexityMeasure,
 };
 
@@ -83,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn analyze_term(term: &DependentTerm, description: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("Analyzing term: {}", description);
+    println!("Analyzing term: {description}");
 
     // Create termination and confluence system
     let system = TerminationConfluenceSystem::new();
@@ -107,13 +107,13 @@ fn analyze_term(term: &DependentTerm, description: &str) -> Result<(), Box<dyn s
     if !report.recommendations.is_empty() {
         println!("  Recommendations:");
         for rec in &report.recommendations {
-            println!("    • {}", rec);
+            println!("    • {rec}");
         }
     }
 
     // Show complexity measure
     let complexity = ComplexityMeasure::for_term(term);
-    println!("  Complexity: {}", complexity);
+    println!("  Complexity: {complexity}");
 
     Ok(())
 }
@@ -211,11 +211,11 @@ fn demonstrate_safe_normalization() -> Result<(), Box<dyn std::error::Error>> {
     
     // Check if term is well-behaved
     let (normalizing, confluent) = engine.is_well_behaved(&term)?;
-    println!("  Is well-behaved: normalizing={}, confluent={}", normalizing, confluent);
+    println!("  Is well-behaved: normalizing={normalizing}, confluent={confluent}");
     
     // Get complexity measure
     let complexity = engine.get_complexity_measure(&term);
-    println!("  Complexity: {}", complexity);
+    println!("  Complexity: {complexity}");
     
     // Show statistics
     let stats = engine.get_statistics();

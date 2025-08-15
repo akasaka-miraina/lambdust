@@ -417,7 +417,7 @@ fn get_value_type_name(value: &Value) -> String {
             crate::ast::Literal::Number(_) => "number".to_string(),
             crate::ast::Literal::Rational { .. } => "rational".to_string(),
             crate::ast::Literal::Complex { .. } => "complex".to_string(),
-            crate::ast::Literal::String(_) => "string".to_string(),
+            crate::ast::Literal::String(_) | crate::ast::Literal::InternedString(_) => "string".to_string(),
             crate::ast::Literal::Character(_) => "character".to_string(),
             crate::ast::Literal::Boolean(_) => "boolean".to_string(),
             crate::ast::Literal::Bytevector(_) => "bytevector".to_string(),

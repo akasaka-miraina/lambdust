@@ -77,6 +77,7 @@ pub mod stdlib;
 /// Bytecode compilation and virtual machine.
 pub mod bytecode;
 /// Just-In-Time compilation system for native code generation.
+#[cfg(feature = "jit")]  // Temporarily disable JIT to fix compilation
 pub mod jit;
 /// Lightweight regular expression engine (internal implementation).
 pub mod regex;

@@ -3376,9 +3376,9 @@ mod tests {
         let mut_str = Value::mutable_string("test");
         let not_str = Value::integer(42);
         
-        assert_eq!(primitive_string_p(&vec![immut_str]).unwrap(), Value::boolean(true));
-        assert_eq!(primitive_string_p(&vec![mut_str]).unwrap(), Value::boolean(true));
-        assert_eq!(primitive_string_p(&vec![not_str]).unwrap(), Value::boolean(false));
+        assert_eq!(primitive_string_p(&[immut_str]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_string_p(&[mut_str]).unwrap(), Value::boolean(true));
+        assert_eq!(primitive_string_p(&[not_str]).unwrap(), Value::boolean(false));
     }
 
     #[test]
@@ -3386,27 +3386,25 @@ mod tests {
         // Test comprehensive error handling for all functions
         
         // Wrong argument count for make-string
-        assert!(primitive_make_string(&vec![]).is_err());
-        assert!(primitive_make_string(&vec![Value::integer(1), Value::Literal(crate::ast::Literal::Character('x')), Value::integer(2)]).is_err());
+        assert!(primitive_make_string(&[]).is_err());
+        assert!(primitive_make_string(&[Value::integer(1), Value::Literal(crate::ast::Literal::Character('x')), Value::integer(2)]).is_err());
         
         // Non-integer length for make-string
-        assert!(primitive_make_string(&vec![Value::string("not-a-number")]).is_err());
+        assert!(primitive_make_string(&[Value::string("not-a-number")]).is_err());
         
         // Negative length for make-string
-        assert!(primitive_make_string(&vec![Value::integer(-1)]).is_err());
+        assert!(primitive_make_string(&[Value::integer(-1)]).is_err());
         
         // Wrong argument count for string-set!
-        assert!(primitive_string_set(&vec![]).is_err());
-        assert!(primitive_string_set(&vec![Value::mutable_string("test")]).is_err());
+        assert!(primitive_string_set(&[]).is_err());
+        assert!(primitive_string_set(&[Value::mutable_string("test")]).is_err());
         
         // Wrong argument types for string-set!
-        assert!(primitive_string_set(&vec![
-            Value::integer(42),
+        assert!(primitive_string_set(&[Value::integer(42),
             Value::integer(0),
-            Value::Literal(crate::ast::Literal::Character('a'))
-        ]).is_err());
+            Value::Literal(crate::ast::Literal::Character('a'))]).is_err());
         
         // Wrong argument count for string-fill!
-        assert!(primitive_string_fill(&vec![Value::mutable_string("test")]).is_err());
+        assert!(primitive_string_fill(&[Value::mutable_string("test")]).is_err());
     }
 }

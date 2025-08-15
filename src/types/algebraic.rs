@@ -567,7 +567,7 @@ fn literal_to_type(lit: &crate::ast::Literal) -> Type {
         crate::ast::Literal::Number(_) => Type::Number,
         crate::ast::Literal::Rational { .. } => Type::Number,
         crate::ast::Literal::Complex { .. } => Type::Number,
-        crate::ast::Literal::String(_) => Type::String,
+        crate::ast::Literal::String(_) | crate::ast::Literal::InternedString(_) => Type::String,
         crate::ast::Literal::Boolean(_) => Type::Boolean,
         crate::ast::Literal::Character(_) => Type::Char,
         crate::ast::Literal::Bytevector(_) => Type::Bytevector,

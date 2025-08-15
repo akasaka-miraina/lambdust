@@ -5,7 +5,8 @@
 
 #![allow(missing_docs)]
 
-use super::{Type, TypeVar, Substitution, Row, Effect};
+use super::{Type, TypeVar, Row, Effect};
+use crate::types::substitution::Substitution;
 use crate::diagnostics::{Error, Result, Span};
 use std::collections::HashSet;
 

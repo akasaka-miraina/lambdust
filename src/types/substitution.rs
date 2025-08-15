@@ -3,7 +3,8 @@
 //! This module implements substitutions that map type variables to types,
 //! which are essential for the unification algorithm and type inference.
 
-use super::{Type, TypeVar, TypeScheme, Constraint, Effect, Row};
+use super::{Type, TypeVar, Constraint, Effect, Row};
+use crate::types::type_scheme::TypeScheme;
 use std::collections::HashMap;
 use std::fmt;
 

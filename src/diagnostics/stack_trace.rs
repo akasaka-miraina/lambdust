@@ -364,7 +364,7 @@ mod tests {
         let mut stack = CallStack::with_limit(2);
         
         for i in 1..=5 {
-            stack.push(CallFrame::new(format!("function{}", i)));
+            stack.push(CallFrame::new(format!("function{i}")));
         }
         
         assert_eq!(stack.depth(), 5);

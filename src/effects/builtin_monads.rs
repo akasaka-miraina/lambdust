@@ -1406,7 +1406,7 @@ mod tests {
     #[test]
     fn test_reader_monad() {
         let computation = Reader::<String, String>::ask()
-            .bind(|env| Reader::pure(format!("Hello, {}!", env)));
+            .bind(|env| Reader::pure(format!("Hello, {env}!")));
         
         let result = computation.run_reader("World".to_string()).unwrap();
         assert_eq!(result, "Hello, World!");
@@ -1647,7 +1647,7 @@ mod tests {
         let mut writer = Writer::<String, i32>::pure(0);
         
         for i in 0..1000 {
-            writer = writer.bind(|n| Writer::new(n + 1, format!("step {} ", i)));
+            writer = writer.bind(|n| Writer::new(n + 1, format!("step {i} ")));
         }
         
         let (value, output) = writer.run_writer();

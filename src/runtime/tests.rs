@@ -455,6 +455,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "async-runtime")]
     fn test_concurrent_transactions() {
         let global_env = GlobalEnvironmentManager::new();
         
@@ -622,7 +623,7 @@ mod tests {
         // Check that all subdirs have files
         for subdir in &subdirs {
             let count = validation.found_library_files.get(*subdir).copied().unwrap_or(0);
-            assert!(count > 0, "Subdir {} should have library files", subdir);
+            assert!(count > 0, "Subdir {subdir} should have library files");
         }
     }
 

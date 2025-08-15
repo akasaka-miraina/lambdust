@@ -875,7 +875,7 @@ mod tests {
         
         if let Ok(Value::Literal(crate::ast::Literal::String(platform))) = result {
             assert!(!platform.is_empty());
-            println!("Detected platform: {}", platform);
+            println!("Detected platform: {platform}");
         } else {
             panic!("Expected string result");
         }

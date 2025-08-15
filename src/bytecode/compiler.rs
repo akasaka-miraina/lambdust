@@ -315,6 +315,7 @@ impl BytecodeCompiler {
                 ConstantValue::Number(*real)
             }
             Literal::String(s) => ConstantValue::String(s.clone()),
+            Literal::InternedString(s) => ConstantValue::String(s.to_string()),
             Literal::Boolean(b) => ConstantValue::Boolean(*b),
             Literal::Character(c) => ConstantValue::String(c.to_string()), // Store as string for simplicity
             Literal::Bytevector(_bytes) => {
@@ -981,7 +982,7 @@ mod tests {
         
         let result = compiler.compile_expression(&expr).unwrap();
         
-        assert!(result.bytecode.instructions.len() > 0);
+        assert!(!result.bytecode.instructions.is_empty());
         assert_eq!(result.constant_pool.len(), 1);
         
         // Should have LoadConst and Halt instructions

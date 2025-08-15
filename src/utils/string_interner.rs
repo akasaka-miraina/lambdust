@@ -16,7 +16,7 @@ pub struct StringInterner {
 }
 
 /// An interned string identifier.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub struct InternedId(usize);
 
 /// An interned string that can be cheaply cloned and compared.
@@ -477,11 +477,32 @@ mod tests {
         let s = intern("test_operations");
         
         assert_eq!(s.to_string(), "test_operations");
-        assert_eq!(format!("{}", s), "test_operations");
+        assert_eq!(format!("{s}"), "test_operations");
         assert_eq!(s.as_ref(), "test_operations");
         
         // Test deref
         assert_eq!(s.len(), "test_operations".len());
         assert!(s.starts_with("test"));
+    }
+}
+
+impl serde::Serialize for InternedString {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // Serialize just the string content
+        self.content.as_ref().serialize(serializer)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for InternedString {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        // Deserialize as string and intern it
+        let s = String::deserialize(deserializer)?;
+        Ok(intern(&s))
     }
 }

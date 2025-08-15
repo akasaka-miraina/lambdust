@@ -355,7 +355,7 @@ mod tests {
         let mut builder = OptimizedTextBuilder::new();
         
         for i in 0..1000 {
-            builder.push_str(&format!("item{} ", i));
+            builder.push_str(&format!("item{i} "));
         }
         
         let text = builder.build();
@@ -496,11 +496,11 @@ mod tests {
         let start = Instant::now();
         
         for i in 0..1000 {
-            let _text = Text::from_string(format!("benchmark text {}", i));
+            let _text = Text::from_string(format!("benchmark text {i}"));
         }
         
         let duration = start.elapsed();
-        println!("Text creation benchmark: {:?}", duration);
+        println!("Text creation benchmark: {duration:?}");
         
         // Should complete reasonably quickly
         assert!(duration.as_millis() < 1000);
@@ -518,7 +518,7 @@ mod tests {
         }
         
         let duration = start.elapsed();
-        println!("Text concatenation benchmark: {:?}", duration);
+        println!("Text concatenation benchmark: {duration:?}");
         
         assert_eq!(result.char_length(), 4000); // "base" * 1000
         assert!(duration.as_millis() < 5000);
@@ -536,7 +536,7 @@ mod tests {
         }
         
         let duration = start.elapsed();
-        println!("Regex search benchmark: {:?}", duration);
+        println!("Regex search benchmark: {duration:?}");
         
         assert!(duration.as_millis() < 5000);
     }
@@ -562,8 +562,8 @@ mod tests {
         }
         let kmp_duration = start.elapsed();
         
-        println!("Boyer-Moore benchmark: {:?}", bm_duration);
-        println!("KMP benchmark: {:?}", kmp_duration);
+        println!("Boyer-Moore benchmark: {bm_duration:?}");
+        println!("KMP benchmark: {kmp_duration:?}");
         
         assert!(bm_duration.as_millis() < 5000);
         assert!(kmp_duration.as_millis() < 5000);
@@ -580,7 +580,7 @@ mod tests {
         }
         
         let duration = start.elapsed();
-        println!("Unicode normalization benchmark: {:?}", duration);
+        println!("Unicode normalization benchmark: {duration:?}");
         
         assert!(duration.as_millis() < 5000);
     }
@@ -609,7 +609,7 @@ mod tests {
         
         // Create many small texts
         for i in 0..10000 {
-            texts.push(Text::from_string(format!("text{}", i)));
+            texts.push(Text::from_string(format!("text{i}")));
         }
         
         assert_eq!(texts.len(), 10000);
@@ -625,7 +625,7 @@ mod tests {
         
         // Deep concatenation chain
         for i in 0..1000 {
-            let next = Text::from_string(format!("-{}", i));
+            let next = Text::from_string(format!("-{i}"));
             result = result.concat(&next);
         }
         
@@ -739,7 +739,7 @@ mod benchmarks {
         }
         
         let duration = start.elapsed();
-        println!("{}: {:?} ({} iterations)", name, duration, iterations);
+        println!("{name}: {duration:?} ({iterations} iterations)");
         duration
     }
 

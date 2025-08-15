@@ -37,6 +37,11 @@ pub mod generator;
 pub mod comparator;
 pub mod benchmarks;
 
+// Container context optimization modules
+pub mod context_optimization;
+pub mod optimization_benchmarks;
+pub mod integration_utils;
+
 // Re-export main types for convenience
 pub use hash_table::{HashTable, ThreadSafeHashTable};
 pub use ideque::{Ideque, PersistentIdeque};
@@ -49,6 +54,19 @@ pub use bag::{Bag, ThreadSafeBag};
 pub use generator::{Generator, ThreadSafeGenerator};
 pub use comparator::{Comparator, HashComparator};
 pub use benchmarks::{ContainerBenchmarks, BenchmarkResult, run_quick_benchmark};
+
+// Container optimization exports
+pub use context_optimization::{
+    OptimizedContainer, ArenaVector, ArenaHashTable, ContainerPool, ContainerContext,
+    AccessPattern, OptimizationPriority, ContainerMetrics, PoolStats
+};
+pub use optimization_benchmarks::{
+    ContainerOptimizationBenchmarks, OptimizationBenchmarkResult, MemoryImprovement, CachePerformance, quick_container_demo
+};
+pub use integration_utils::{
+    OptimizedContainerFactory, ContainerType, UsagePatternAnalyzer, ContainerMigrator,
+    OptimizationAdvisor, VectorUsageHint, HashTableUsageHint, UsageAnalysis, convenience
+};
 
 /// Common traits for all container types
 pub trait Container {
@@ -411,6 +429,7 @@ pub mod utils {
         match lit {
             Literal::ExactInteger(_) | Literal::InexactReal(_) | Literal::Number(_) => std::mem::size_of::<f64>(),
             Literal::String(s) => std::mem::size_of::<String>() + s.len(),
+            Literal::InternedString(_) => std::mem::size_of::<usize>() * 2, // ID + Arc pointer
             Literal::Character(_) => std::mem::size_of::<char>(),
             Literal::Boolean(_) => std::mem::size_of::<bool>(),
             Literal::Bytevector(bv) => std::mem::size_of::<Vec<u8>>() + bv.len(),

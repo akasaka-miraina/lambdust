@@ -15,6 +15,8 @@ pub mod suggestions;
 pub mod gc_diagnostics;
 pub mod custom_error;
 pub mod lightweight_diagnostic;
+pub mod unified_error;
+pub mod error_macros;
 
 pub use error::*;
 pub use position::*;
@@ -26,10 +28,15 @@ pub use gc_diagnostics::{
     GcDiagnosticManager, GcDiagnosticConfig, DiagnosticId, PreservedError,
     ErrorKind, ErrorContext, GcAwareError, DiagnosticStatistics
 };
-pub use custom_error::{LambdustError, ErrorLabel, LabelStyle, RuntimeError, utils as error_utils};
+pub use custom_error::{LambdustError, ErrorLabel, LabelStyle, RuntimeError as CustomRuntimeError, utils as error_utils};
 pub use lightweight_diagnostic::{
     LightweightDiagnostic, DiagnosticLabel, DiagnosticLabelStyle, DiagnosticSeverity,
     DiagnosticReporter, report_diagnostic
+};
+pub use unified_error::{
+    UnifiedError, UnifiedResult, ErrorCategory, ErrorSeverity, ErrorContext as UnifiedErrorContext, IntoErrorCategory,
+    LexicalError, SyntaxError, TypeError, RuntimeError, JitError, MacroError, 
+    FfiError, IoError, ModuleError, InternalError, ExceptionError
 };
 
 /// Result type used throughout the Lambdust implementation.
@@ -315,7 +322,7 @@ impl Error {
     /// Creates an unexpected token error.
     pub fn unexpected_token(token: &crate::lexer::Token, expected: &str) -> Self {
         Self::ParseError {
-            message: format!("Unexpected token '{}', expected {}", token.lexeme, expected),
+            message: format!("Unexpected token '{}', expected {}", token.lexeme(), expected),
             span: token.span,
         }
     }
@@ -323,7 +330,7 @@ impl Error {
     /// Creates an expected token error.
     pub fn expected_token(token: &crate::lexer::Token, expected: &crate::lexer::TokenKind, context: &str) -> Self {
         Self::ParseError {
-            message: format!("{}, found '{}'", context, token.lexeme),
+            message: format!("{}, found '{}'", context, token.lexeme()),
             span: token.span,
         }
     }

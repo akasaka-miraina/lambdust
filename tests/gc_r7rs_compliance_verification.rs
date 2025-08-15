@@ -185,8 +185,7 @@ fn test_exact_arithmetic_preservation() {
     gc_system.register_mutator_thread();
     
     // Test that exact arithmetic is preserved through GC
-    let exact_values = vec![
-        Value::Literal(Literal::ExactInteger(123456789)),
+    let exact_values = [Value::Literal(Literal::ExactInteger(123456789)),
         Value::Literal(Literal::ExactInteger(-987654321)),
         Value::Literal(Literal::Rational { 
             numerator: 1, 
@@ -195,8 +194,7 @@ fn test_exact_arithmetic_preservation() {
         Value::Literal(Literal::Rational { 
             numerator: -22, 
             denominator: 7 
-        }),
-    ];
+        })];
     
     let allocated_objects: Vec<_> = exact_values.iter()
         .map(|v| gc_system.allocate(v.clone(), 64).unwrap())
@@ -336,11 +334,9 @@ fn test_closure_environment_capture_with_gc() {
     
     for i in 0..50 {
         // Simulate captured environment variables
-        let captured_vars = vec![
-            Value::Literal(Literal::InexactReal(i as f64)),
-            Value::Symbol(intern_symbol(&format!("var_{}", i))),
-            Value::Literal(Literal::String(format!("closure_{}", i))),
-        ];
+        let captured_vars = [Value::Literal(Literal::InexactReal(i as f64)),
+            Value::Symbol(intern_symbol(format!("var_{i}"))),
+            Value::Literal(Literal::String(format!("closure_{i}")))];
         
         let env_objects: Vec<_> = captured_vars.iter()
             .map(|v| gc_system.allocate(v.clone(), 64).unwrap())
@@ -366,7 +362,7 @@ fn test_closure_environment_capture_with_gc() {
         }
         
         if let Value::Literal(Literal::String(s)) = env[2].value.as_ref() {
-            assert_eq!(*s, format!("closure_{}", i), "Closure string corrupted");
+            assert_eq!(*s, format!("closure_{i}"), "Closure string corrupted");
         }
     }
     
@@ -420,7 +416,7 @@ fn test_stress_allocation_and_collection() {
     // Verify stress test results
     assert!(allocation_count > 9000, "Should have allocated many objects");
     assert!(elapsed < Duration::from_secs(10), "Stress test should complete quickly");
-    assert!(stats.is_healthy(), "GC should remain healthy under stress: {:?}", stats);
+    assert!(stats.is_healthy(), "GC should remain healthy under stress: {stats:?}");
     
     // Verify survivors are still valid
     for obj in &survived_objects {
@@ -516,13 +512,11 @@ fn test_performance_regression_detection() {
     // GC overhead should be reasonable
     let overhead_ratio = gc_time.as_nanos() as f64 / baseline_time.as_nanos() as f64;
     
-    println!("Performance: baseline={:?}, gc={:?}, overhead={:.2}x", 
-             baseline_time, gc_time, overhead_ratio);
+    println!("Performance: baseline={baseline_time:?}, gc={gc_time:?}, overhead={overhead_ratio:.2}x");
     
     // Allow up to 10x overhead for debug builds with instrumentation
     assert!(overhead_ratio < 10.0, 
-            "GC overhead too high: {:.2}x (baseline: {:?}, gc: {:?})", 
-            overhead_ratio, baseline_time, gc_time);
+            "GC overhead too high: {overhead_ratio:.2}x (baseline: {baseline_time:?}, gc: {gc_time:?})");
 }
 
 #[test]

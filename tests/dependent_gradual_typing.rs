@@ -67,7 +67,7 @@ fn test_dynamic_level_basic_operations() {
         match inferred_type {
             GradualType::Dynamic => {}, // Expected
             GradualType::Contract { .. } => {}, // Also acceptable if contract inference is available
-            _ => panic!("Unexpected type inference in dynamic mode: {:?}", inferred_type),
+            _ => panic!("Unexpected type inference in dynamic mode: {inferred_type:?}"),
         }
     }
     
@@ -381,9 +381,9 @@ fn test_boundary_type_casting() {
                 // Note: The actual implementation may infer broader types (e.g., "real" for integers)
                 // This is acceptable in gradual typing systems
                 if name == expected_contract {
-                    println!("Correctly refined to expected contract: {}", name);
+                    println!("Correctly refined to expected contract: {name}");
                 } else {
-                    println!("Refined to broader contract '{}' instead of '{}', which is acceptable in gradual typing", name, expected_contract);
+                    println!("Refined to broader contract '{name}' instead of '{expected_contract}', which is acceptable in gradual typing");
                     // Don't fail the test - this is expected behavior
                 }
             },
@@ -470,10 +470,10 @@ fn test_memory_efficiency() {
     
     // Add many contracts to test memory usage
     for i in 0..100 {
-        let contract_name = format!("test-contract-{}", i);
+        let contract_name = format!("test-contract-{i}");
         suite.system.add_contract(
             contract_name.clone(),
-            Value::symbol_from_str(&format!("test-predicate-{}?", i))
+            Value::symbol_from_str(format!("test-predicate-{i}?"))
         );
     }
     
@@ -563,8 +563,8 @@ fn test_mixed_level_programs() {
     let dynamic_var_type = suite.system.lookup_type("dynamic_var").unwrap();
     let contract_var_type = suite.system.lookup_type("contract_var").unwrap();
     
-    println!("Dynamic var type: {:?}", dynamic_var_type);
-    println!("Contract var type: {:?}", contract_var_type);
+    println!("Dynamic var type: {dynamic_var_type:?}");
+    println!("Contract var type: {contract_var_type:?}");
     
     match (dynamic_var_type, contract_var_type) {
         (GradualType::Static { .. }, GradualType::Static { .. }) => {
@@ -591,7 +591,7 @@ fn test_mixed_level_programs() {
             // Both might remain in their original forms
             println!("Types remained close to their original forms, which is acceptable");
         },
-        _ => panic!("Unexpected type combination after migration: dynamic={:?}, contract={:?}", dynamic_var_type, contract_var_type),
+        _ => panic!("Unexpected type combination after migration: dynamic={dynamic_var_type:?}, contract={contract_var_type:?}"),
     }
 }
 

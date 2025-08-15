@@ -89,14 +89,14 @@ mod correctness_tests {
         // Create 50 levels of nesting
         for i in 1..=50 {
             env = env.extend(i);
-            env.define(format!("level{}", i), Value::integer(i as i64));
+            env.define(format!("level{i}"), Value::integer(i as i64));
             
             // Test equivalence at each level
             let cached_env = CachedEnvironment::new(env.clone());
             
             assert_eq!(env.lookup("global"), cached_env.lookup("global"));
-            assert_eq!(env.lookup(&format!("level{}", i)), 
-                      cached_env.lookup(&format!("level{}", i)));
+            assert_eq!(env.lookup(&format!("level{i}")), 
+                      cached_env.lookup(&format!("level{i}")));
         }
     }
     
@@ -136,7 +136,7 @@ mod performance_tests {
         for i in 0..100 {
             env = env.extend(i);
             for j in 0..5 {
-                env.define(format!("var{}_{}", i, j), Value::integer((i * 5 + j) as i64));
+                env.define(format!("var{i}_{j}"), Value::integer((i * 5 + j) as i64));
             }
         }
         
@@ -162,7 +162,7 @@ mod performance_tests {
         let cached_time = start.elapsed();
         
         // Cache should be faster for repeated lookups
-        println!("Traditional: {:?}, Cached: {:?}", traditional_time, cached_time);
+        println!("Traditional: {traditional_time:?}, Cached: {cached_time:?}");
         
         // In deep chains with repeated lookups, cache should provide improvement
         if env.variable_names().len() > 50 {
@@ -194,7 +194,7 @@ mod performance_tests {
         
         // Calculate hit ratio
         let hit_ratio = cached_env.cache_hit_ratio();
-        assert!(hit_ratio >= 0.0 && hit_ratio <= 100.0);
+        assert!((0.0..=100.0).contains(&hit_ratio));
     }
 }
 

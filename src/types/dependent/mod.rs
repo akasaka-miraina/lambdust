@@ -48,6 +48,9 @@ pub mod sigma_types;
 pub mod identity_types;
 pub mod universe;
 
+// Re-export core types
+pub use core::{ProofObligation, DependentType, JitDependentType};
+
 // Memory-optimized arena allocation system
 pub mod arena;
 

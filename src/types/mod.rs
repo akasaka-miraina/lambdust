@@ -15,6 +15,7 @@ use std::fmt;
 pub mod substitution;
 pub mod unification;
 pub mod constraints;
+pub mod unified_type_errors;
 pub mod inference;
 pub mod type_classes;
 pub mod gradual;
@@ -23,6 +24,19 @@ pub mod advanced_type_classes;
 pub mod r7rs_integration;
 pub mod integration_bridge;
 pub mod dependent;
+
+// New Generic Type System Framework
+#[cfg(feature = "experimental-type-system")]
+pub mod generic_type_system;
+#[cfg(feature = "experimental-type-system")]
+pub mod hindley_milner_system;
+#[cfg(feature = "experimental-type-system")]
+pub mod monad_aware_system;
+#[cfg(feature = "experimental-type-system")]
+pub mod dependent_type_system;
+#[cfg(feature = "experimental-type-system")]
+pub mod generic_type_inference;
+
 // Note: Temporarily disabled modules that depend on old dependent type system
 // pub mod dependent_bridge;
 // pub mod gradual_dependent;
@@ -51,6 +65,19 @@ pub use advanced_type_classes::*;
 pub use r7rs_integration::*;
 pub use integration_bridge::*;
 pub use dependent::*;
+
+// Re-export generic type system framework - temporarily disable problematic modules
+#[cfg(feature = "experimental-type-system")]
+pub use generic_type_system::{TypeSystem, TypeRepr, TypeContext, ConstraintSystem, InferenceEngine, TypeSystemCapabilities, ExpressionRepr, ExpressionVisitor};
+#[cfg(feature = "experimental-type-system")]
+pub use hindley_milner_system::*;
+#[cfg(feature = "experimental-type-system")]
+pub use monad_aware_system::*;
+#[cfg(feature = "experimental-type-system")]
+pub use dependent_type_system::*;
+#[cfg(feature = "experimental-type-system")]
+pub use generic_type_inference::{GenericInferenceEngine, InferenceResult};
+
 // pub use gradual_dependent::*;
 // pub use type_level_computation::*;
 // pub use scheme_dependent_integration::*;

@@ -759,15 +759,13 @@ mod tests {
         let mut lexer = InternalLexer::new(source, None);
         let tokens = lexer.tokenize().unwrap();
         
-        let expected_kinds = vec![
-            TokenKind::LeftParen,
+        let expected_kinds = [TokenKind::LeftParen,
             TokenKind::RightParen,
             TokenKind::LeftBracket,
             TokenKind::RightBracket,
             TokenKind::LeftBrace,
             TokenKind::RightBrace,
-            TokenKind::Eof,
-        ];
+            TokenKind::Eof];
         
         assert_eq!(tokens.len(), expected_kinds.len());
         for (token, expected) in tokens.iter().zip(expected_kinds.iter()) {
@@ -781,12 +779,10 @@ mod tests {
         let mut lexer = InternalLexer::new(source, None);
         let tokens = lexer.tokenize().unwrap();
         
-        let expected_kinds = vec![
-            TokenKind::Quote,
+        let expected_kinds = [TokenKind::Quote,
             TokenKind::Quasiquote,
             TokenKind::Unquote,
-            TokenKind::Eof,
-        ];
+            TokenKind::Eof];
         
         assert_eq!(tokens.len(), expected_kinds.len());
         for (token, expected) in tokens.iter().zip(expected_kinds.iter()) {
@@ -802,7 +798,7 @@ mod tests {
         
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].kind, TokenKind::UnquoteSplicing);
-        assert_eq!(tokens[0].text, ",@");
+        assert_eq!(tokens[0].text(), ",@");
     }
 
     #[test]
@@ -813,7 +809,7 @@ mod tests {
         
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].kind, TokenKind::TypeAnnotation);
-        assert_eq!(tokens[0].text, "::");
+        assert_eq!(tokens[0].text(), "::");
     }
 
     #[test]
@@ -824,7 +820,7 @@ mod tests {
         
         assert_eq!(tokens.len(), 2);
         assert_eq!(tokens[0].kind, TokenKind::Identifier);
-        assert_eq!(tokens[0].text, "hello-world");
+        assert_eq!(tokens[0].text(), "hello-world");
     }
 
     #[test]
@@ -836,9 +832,9 @@ mod tests {
         // Should have: a, b, EOF
         assert_eq!(tokens.len(), 3);
         assert_eq!(tokens[0].kind, TokenKind::Identifier);
-        assert_eq!(tokens[0].text, "a");
+        assert_eq!(tokens[0].text(), "a");
         assert_eq!(tokens[1].kind, TokenKind::Identifier);
-        assert_eq!(tokens[1].text, "b");
+        assert_eq!(tokens[1].text(), "b");
         assert_eq!(tokens[2].kind, TokenKind::Eof);
     }
 
@@ -855,16 +851,16 @@ mod tests {
         assert_eq!(number_tokens.len(), 4);
         
         assert_eq!(number_tokens[0].kind, TokenKind::IntegerNumber);
-        assert_eq!(number_tokens[0].text, "42");
+        assert_eq!(number_tokens[0].text(), "42");
         
         assert_eq!(number_tokens[1].kind, TokenKind::IntegerNumber);
-        assert_eq!(number_tokens[1].text, "+123");
+        assert_eq!(number_tokens[1].text(), "+123");
         
         assert_eq!(number_tokens[2].kind, TokenKind::IntegerNumber);
-        assert_eq!(number_tokens[2].text, "-456");
+        assert_eq!(number_tokens[2].text(), "-456");
         
         assert_eq!(number_tokens[3].kind, TokenKind::IntegerNumber);
-        assert_eq!(number_tokens[3].text, "0");
+        assert_eq!(number_tokens[3].text(), "0");
     }
 
     #[test]
@@ -883,11 +879,11 @@ mod tests {
             assert_eq!(token.kind, TokenKind::RealNumber);
         }
         
-        assert_eq!(number_tokens[0].text, "3.14");
-        assert_eq!(number_tokens[1].text, "-2.5");
-        assert_eq!(number_tokens[2].text, ".5");
-        assert_eq!(number_tokens[3].text, "1.0e10");
-        assert_eq!(number_tokens[4].text, "-5.2e-3");
+        assert_eq!(number_tokens[0].text(), "3.14");
+        assert_eq!(number_tokens[1].text(), "-2.5");
+        assert_eq!(number_tokens[2].text(), ".5");
+        assert_eq!(number_tokens[3].text(), "1.0e10");
+        assert_eq!(number_tokens[4].text(), "-5.2e-3");
     }
 
     #[test]
@@ -906,9 +902,9 @@ mod tests {
             assert_eq!(token.kind, TokenKind::RationalNumber);
         }
         
-        assert_eq!(number_tokens[0].text, "22/7");
-        assert_eq!(number_tokens[1].text, "-3/4");
-        assert_eq!(number_tokens[2].text, "+1/2");
+        assert_eq!(number_tokens[0].text(), "22/7");
+        assert_eq!(number_tokens[1].text(), "-3/4");
+        assert_eq!(number_tokens[2].text(), "+1/2");
     }
 
     #[test]
@@ -927,12 +923,12 @@ mod tests {
             assert_eq!(token.kind, TokenKind::ComplexNumber);
         }
         
-        assert_eq!(number_tokens[0].text, "3+4i");
-        assert_eq!(number_tokens[1].text, "-2-5i");
-        assert_eq!(number_tokens[2].text, "1.5+2.7i");
-        assert_eq!(number_tokens[3].text, "+i");
-        assert_eq!(number_tokens[4].text, "-i");
-        assert_eq!(number_tokens[5].text, "0+0i");
+        assert_eq!(number_tokens[0].text(), "3+4i");
+        assert_eq!(number_tokens[1].text(), "-2-5i");
+        assert_eq!(number_tokens[2].text(), "1.5+2.7i");
+        assert_eq!(number_tokens[3].text(), "+i");
+        assert_eq!(number_tokens[4].text(), "-i");
+        assert_eq!(number_tokens[5].text(), "0+0i");
     }
 
     #[test]
@@ -951,9 +947,9 @@ mod tests {
             assert_eq!(token.kind, TokenKind::Identifier);
         }
         
-        assert_eq!(ident_tokens[0].text, "+");
-        assert_eq!(ident_tokens[1].text, "-");
-        assert_eq!(ident_tokens[2].text, "+add");
-        assert_eq!(ident_tokens[3].text, "-sub");
+        assert_eq!(ident_tokens[0].text(), "+");
+        assert_eq!(ident_tokens[1].text(), "-");
+        assert_eq!(ident_tokens[2].text(), "+add");
+        assert_eq!(ident_tokens[3].text(), "-sub");
     }
 }

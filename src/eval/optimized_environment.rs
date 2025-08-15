@@ -513,7 +513,7 @@ mod tests {
     #[test]
     fn test_environment_stats() {
         let mut env = OptimizedEnvironment::new();
-        let symbols: Vec<_> = (0..5).map(|i| intern_symbol(&format!("var_{}", i))).collect();
+        let symbols: Vec<_> = (0..5).map(|i| intern_symbol(format!("var_{i}"))).collect();
         
         // Bind variables
         for (i, &symbol) in symbols.iter().enumerate() {

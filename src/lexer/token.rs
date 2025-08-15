@@ -65,7 +65,7 @@ impl Token {
             return None;
         }
 
-        match self.text.as_str() {
+        match self.text() {
             // Highest precedence (tightest binding)
             "^" | "expt" => Some(7),
             
@@ -96,7 +96,7 @@ impl Token {
             return false;
         }
 
-        matches!(self.text.as_str(), "^" | "expt" | "cons")
+        matches!(self.text(), "^" | "expt" | "cons")
     }
 
     /// Returns true if this token represents a binary operator.
@@ -156,16 +156,16 @@ impl Token {
     pub fn parse_number(&self) -> Option<NumericValue> {
         match self.kind {
             TokenKind::IntegerNumber => {
-                parse_integer(&self.text).map(NumericValue::Integer)
+                parse_integer(self.text()).map(NumericValue::Integer)
             }
             TokenKind::RealNumber => {
-                parse_real(&self.text).map(NumericValue::Real)
+                parse_real(self.text()).map(NumericValue::Real)
             }
             TokenKind::RationalNumber => {
-                parse_rational(&self.text).map(NumericValue::Rational)
+                parse_rational(self.text()).map(NumericValue::Rational)
             }
             TokenKind::ComplexNumber => {
-                parse_complex(&self.text).map(NumericValue::Complex)
+                parse_complex(self.text()).map(NumericValue::Complex)
             }
             _ => None,
         }
@@ -180,7 +180,8 @@ impl Token {
         }
         
         // Remove surrounding quotes
-        let content = &self.text[1..self.text.len()-1];
+        let text = self.text();
+        let content = &text[1..text.len()-1];
         unescape_string(content)
     }
     
@@ -193,7 +194,8 @@ impl Token {
         }
         
         // Remove #\ prefix
-        let content = &self.text[2..];
+        let text = self.text();
+        let content = &text[2..];
         parse_character_literal(content)
     }
 
@@ -204,7 +206,7 @@ impl Token {
             return None;
         }
 
-        match self.text.as_str() {
+        match self.text() {
             // Arithmetic - variable arity
             "+" | "*" => Some(Arity::Variable(0)),
             "-" | "/" => Some(Arity::Variable(1)),
