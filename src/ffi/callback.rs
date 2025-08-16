@@ -416,14 +416,14 @@ impl CallbackRegistry {
                 CType::CString => {
                     let c_str_ptr = unsafe { *(arg_ptr as *const *const libc::c_char) };
                     if c_str_ptr.is_null() {
-                        Value::Literal(Literal::String("".to_string()))
+                        Value::Literal(Literal::String(Box::new("".to_string())))
                     } else {
                         let c_str = unsafe { std::ffi::CStr::from_ptr(c_str_ptr) };
                         let rust_str = c_str.to_str()
                             .map_err(|e| CallbackError::ConversionError(
                                 ConversionError::StringConversion(e.to_string())
                             ))?;
-                        Value::Literal(Literal::String(rust_str.to_string()))
+                        Value::Literal(Literal::String(Box::new(rust_str.to_string())))
                     }
                 }
                 _ => Value::Nil, // Simplified

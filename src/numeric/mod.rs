@@ -300,11 +300,11 @@ impl NumericValue {
         match lit {
             Literal::ExactInteger(n) => Some(Self::Integer(*n)),
             Literal::InexactReal(n) => Some(Self::Real(*n)),
-            Literal::Rational { numerator, denominator } => {
-                Some(Self::Rational(Rational::new(*numerator, *denominator)))
+            Literal::Rational(rational) => {
+                Some(Self::Rational(Rational::new(rational.numerator, rational.denominator)))
             }
-            Literal::Complex { real, imaginary } => {
-                Some(Self::Complex(Complex::new(*real, *imaginary)))
+            Literal::Complex(complex) => {
+                Some(Self::Complex(Complex::new(complex.real, complex.imaginary)))
             }
             _ => None,
         }
@@ -323,19 +323,19 @@ impl NumericValue {
                     Literal::InexactReal(n.to_f64().unwrap_or(f64::INFINITY))
                 }
             }
-            Self::Rational(r) => Literal::Rational {
+            Self::Rational(r) => Literal::Rational(Box::new(crate::ast::RationalLiteral {
                 numerator: r.numerator,
                 denominator: r.denominator,
-            },
+            })),
             Self::Real(r) => Literal::InexactReal(*r),
-            Self::Complex(c) => Literal::Complex {
+            Self::Complex(c) => Literal::Complex(Box::new(crate::ast::ComplexLiteral {
                 real: c.real,
                 imaginary: c.imaginary,
-            },
+            })),
             Self::Vector(_) => {
                 // Vectors are represented as strings for now
                 // In the future, this could be a Vector literal type
-                Literal::String(format!("{self}"))
+                Literal::String(Box::new(format!("{self}")))
             }
         }
     }

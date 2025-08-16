@@ -67,7 +67,7 @@ impl ToValue for i32 {
 impl FromValue for String {
     fn from_value(value: Value) -> Result<Self> {
         match value {
-            Value::Literal(Literal::String(s)) => Ok(s),
+            Value::Literal(Literal::String(s)) => Ok(*s),
             _ => Err(Box::new(Error::type_error("Expected string", Span::new(0, 0)))),
         }
     }
@@ -75,7 +75,7 @@ impl FromValue for String {
 
 impl ToValue for String {
     fn to_value(self) -> Value {
-        Value::Literal(Literal::String(self))
+        Value::Literal(Literal::String(Box::new(self)))
     }
 }
 

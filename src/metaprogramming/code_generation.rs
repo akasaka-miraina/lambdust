@@ -637,7 +637,7 @@ impl TemplateSystem {
     /// Converts a value to its string representation for templates.
     fn value_to_string(&self, value: &Value) -> String {
         match value {
-            Value::Literal(Literal::String(s)) => s.clone(),
+            Value::Literal(Literal::String(s)) => (**s).clone(),
             Value::Literal(Literal::ExactInteger(n)) => n.to_string(),
             Value::Literal(Literal::InexactReal(n)) => n.to_string(),
             Value::Literal(Literal::Boolean(b)) => if *b { "#t".to_string() } else { "#f".to_string() },

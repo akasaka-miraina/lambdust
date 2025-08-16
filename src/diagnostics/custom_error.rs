@@ -64,7 +64,7 @@ impl ErrorLabel {
     
     /// Get the message for this error label
     pub fn message(&self) -> &str {
-        self.message.as_ref().map(|s| s.as_str()).unwrap_or("")
+        self.message.as_deref().unwrap_or("")
     }
 }
 

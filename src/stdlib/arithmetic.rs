@@ -1568,10 +1568,10 @@ fn extract_number(value: &Value, operation: &str) -> Result<NumberValue> {
     match value {
         Value::Literal(Literal::ExactInteger(n)) => Ok(NumberValue::Integer(*n)),
         Value::Literal(Literal::InexactReal(n)) => Ok(NumberValue::Float(*n)),
-        Value::Literal(Literal::Rational { numerator, denominator }) => 
-            Ok(NumberValue::Rational { numerator: *numerator, denominator: *denominator }),
-        Value::Literal(Literal::Complex { real, imaginary }) => 
-            Ok(NumberValue::Complex { real: *real, imaginary: *imaginary }),
+        Value::Literal(Literal::Rational(rational)) => 
+            Ok(NumberValue::Rational { numerator: rational.numerator, denominator: rational.denominator }),
+        Value::Literal(Literal::Complex(complex)) => 
+            Ok(NumberValue::Complex { real: complex.real, imaginary: complex.imaginary }),
         _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires numeric arguments"),
             None,
@@ -1584,10 +1584,10 @@ fn try_extract_number(value: &Value) -> Option<NumberValue> {
     match value {
         Value::Literal(Literal::ExactInteger(n)) => Some(NumberValue::Integer(*n)),
         Value::Literal(Literal::InexactReal(n)) => Some(NumberValue::Float(*n)),
-        Value::Literal(Literal::Rational { numerator, denominator }) => 
-            Some(NumberValue::Rational { numerator: *numerator, denominator: *denominator }),
-        Value::Literal(Literal::Complex { real, imaginary }) => 
-            Some(NumberValue::Complex { real: *real, imaginary: *imaginary }),
+        Value::Literal(Literal::Rational(rational)) => 
+            Some(NumberValue::Rational { numerator: rational.numerator, denominator: rational.denominator }),
+        Value::Literal(Literal::Complex(complex)) => 
+            Some(NumberValue::Complex { real: complex.real, imaginary: complex.imaginary }),
         _ => None,
     }
 }

@@ -197,7 +197,7 @@ impl ValueConstructorService {
                 let opt_cdr = self.construct_optimized(cdr)?;
                 Ok(OptimizedValue::pair(opt_car, opt_cdr))
             }
-            Value::Literal(Literal::String(s)) => {
+            Value::Literal(Literal::String(s)) => (**s).clone()),
                 Ok(OptimizedValue::string(s.clone()))
             }
             _ => Err(crate::diagnostics::Error::custom("Invalid small boxed value")),

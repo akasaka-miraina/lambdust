@@ -303,18 +303,18 @@ impl BytecodeCompiler {
             Literal::ExactInteger(i) => ConstantValue::Number(*i as f64),
             Literal::InexactReal(f) => ConstantValue::Number(*f),
             Literal::Number(f) => ConstantValue::Number(*f),
-            Literal::Rational { numerator, denominator } => {
+            Literal::Rational(rational) => {
                 // Convert rational to float for now
-                ConstantValue::Number(*numerator as f64 / *denominator as f64)
+                ConstantValue::Number(rational.numerator as f64 / rational.denominator as f64)
             }
-            Literal::Complex { real, imaginary } => {
+            Literal::Complex(complex) => {
                 // For now, just use the real part (TODO: proper complex number support)
-                if *imaginary != 0.0 {
+                if complex.imaginary != 0.0 {
                     return Err(Box::new(Error::compilation_error("Complex literals not yet fully supported in bytecode".to_string())));
                 }
-                ConstantValue::Number(*real)
+                ConstantValue::Number(complex.real)
             }
-            Literal::String(s) => ConstantValue::String(s.clone()),
+            Literal::String(s) => ConstantValue::String((**s).clone()),
             Literal::InternedString(s) => ConstantValue::String(s.to_string()),
             Literal::Boolean(b) => ConstantValue::Boolean(*b),
             Literal::Character(c) => ConstantValue::String(c.to_string()), // Store as string for simplicity

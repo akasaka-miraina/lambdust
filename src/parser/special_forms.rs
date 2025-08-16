@@ -262,7 +262,7 @@ impl Parser {
         let name_expr = self.parse_expression()?;
         let name = match name_expr.inner {
             Expr::Identifier(name) => name,
-            Expr::Literal(crate::ast::Literal::String(name)) => name,
+            Expr::Literal(crate::ast::Literal::String(name)) => *name,
             _ => return Err(crate::diagnostics::Error::parse_error(
                 "Expected symbol or string in primitive",
                 name_expr.span,

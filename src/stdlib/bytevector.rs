@@ -118,7 +118,7 @@ pub fn bind_bytevector_operations(env: &Arc<ThreadSafeEnvironment>) {
 /// Extracts a bytevector from a Value.
 fn extract_bytevector(value: &Value, operation: &str) -> Result<Vec<u8>> {
     match value {
-        Value::Literal(Literal::Bytevector(bv)) => Ok(bv.clone()),
+        Value::Literal(Literal::Bytevector(bv)) => Ok((**bv).clone()),
         _ => Err(Box::new(Error::runtime_error(
             format!("{operation} requires a bytevector argument"),
             None,
@@ -130,7 +130,7 @@ fn extract_bytevector(value: &Value, operation: &str) -> Result<Vec<u8>> {
 /// Note: In a functional language, this simulates mutation through COW semantics.
 fn extract_bytevector_mut(value: &Value, operation: &str) -> Result<Vec<u8>> {
     match value {
-        Value::Literal(Literal::Bytevector(bv)) => Ok(bv.clone()),
+        Value::Literal(Literal::Bytevector(bv)) => Ok((**bv).clone()),
         _ => Err(Box::new(Error::runtime_error(
             format!("{operation} requires a bytevector argument"),
             None,
@@ -185,7 +185,7 @@ fn extract_byte(value: &Value, operation: &str) -> Result<u8> {
 /// Extracts a string from a Value.
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
-        Value::Literal(Literal::String(s)) => Ok(s.clone()),
+        Value::Literal(Literal::String(s)) => Ok((**s).clone()),
         _ => Err(Box::new(Error::runtime_error(
             format!("{operation} requires a string argument"),
             None,

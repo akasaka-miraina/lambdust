@@ -338,7 +338,7 @@ fn primitive_define_record_type_helper(args: &[Value]) -> Result<Value> {
         Value::Literal(crate::ast::Literal::String(name)) => name.clone(),
         Value::Symbol(sym_id) => {
             if let Some(name) = crate::utils::symbol_name(*sym_id) {
-                name
+                Box::new(name)
             } else {
                 return Err(Box::new(Error::runtime_error(
                     "Invalid symbol for record type name".to_string(),
@@ -367,7 +367,7 @@ fn primitive_define_record_type_helper(args: &[Value]) -> Result<Value> {
             for field in field_list {
                 match &field {
                     Value::Literal(crate::ast::Literal::String(name)) => {
-                        names.push(name.clone());
+                        names.push((**name).clone());
                     }
                     Value::Symbol(sym_id) => {
                         if let Some(name) = crate::utils::symbol_name(*sym_id) {
@@ -399,7 +399,7 @@ fn primitive_define_record_type_helper(args: &[Value]) -> Result<Value> {
     
     let record_type = RecordType {
         id: type_id,
-        name: type_name,
+        name: *type_name,
         field_names,
         constructor_name: None,
         predicate_name: None,

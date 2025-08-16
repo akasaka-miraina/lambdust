@@ -689,7 +689,7 @@ pub fn primitive_tcp_write(args: &[Value]) -> Result<Value> {
     }
     
     let data = match &args[1] {
-        Value::Literal(crate::ast::Literal::String(s)) => s.as_bytes().to_vec(),
+        Value::Literal(crate::ast::Literal::String(s)) => (**s).as_bytes().to_vec(),
         Value::Literal(crate::ast::Literal::Bytevector(bv)) => bv.clone(),
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
@@ -1072,7 +1072,7 @@ pub fn primitive_network_interface_list(_args: &[Value]) -> Result<Value> {
 /// Extracts a string from a Value.
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
-        Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
+        Value::Literal(crate::ast::Literal::String(s)) => Ok((**s).clone()),
         _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires string arguments"),
             None,

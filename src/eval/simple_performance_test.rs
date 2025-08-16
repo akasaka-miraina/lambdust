@@ -24,6 +24,12 @@ pub struct SimpleTestResult {
 /// Simple performance verifier
 pub struct SimplePerformanceVerifier;
 
+impl Default for SimplePerformanceVerifier {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SimplePerformanceVerifier {
     /// Create a new verifier
     pub fn new() -> Self {
@@ -180,7 +186,7 @@ impl SimplePerformanceVerifier {
             
         if !performance_improvements.is_empty() {
             let avg_improvement = performance_improvements.iter().sum::<f64>() / performance_improvements.len() as f64;
-            println!("Average Performance Improvement: {:.1}%", avg_improvement);
+            println!("Average Performance Improvement: {avg_improvement:.1}%");
         }
         
         let memory_savings: Vec<f64> = results.iter()
@@ -190,7 +196,7 @@ impl SimplePerformanceVerifier {
             
         if !memory_savings.is_empty() {
             let avg_savings = memory_savings.iter().sum::<f64>() / memory_savings.len() as f64;
-            println!("Average Memory Savings: {:.1}%", avg_savings);
+            println!("Average Memory Savings: {avg_savings:.1}%");
         }
     }
 }

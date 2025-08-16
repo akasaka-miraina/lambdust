@@ -469,8 +469,8 @@ impl TypeMarshaller {
         match literal {
             Literal::ExactInteger(i) => Some(*i as f64),
             Literal::InexactReal(f) => Some(*f),
-            Literal::Rational { numerator, denominator } => Some(*numerator as f64 / *denominator as f64),
-            Literal::Complex { real, imaginary: _ } => Some(*real), // Use real part only
+            Literal::Rational(rational) => Some(rational.numerator as f64 / rational.denominator as f64),
+            Literal::Complex(complex) => Some(complex.real), // Use real part only
             _ => None,
         }
     }
@@ -619,12 +619,12 @@ impl TypeMarshaller {
                 CType::CString  => {
                     let c_str_ptr = *(ptr as *const *const libc::c_char);
                     if c_str_ptr.is_null() {
-                        Value::Literal(Literal::String("".to_string()))
+                        Value::Literal(Literal::String(Box::new("".to_string())))
                     } else {
                         let c_str = CStr::from_ptr(c_str_ptr);
                         let rust_str = c_str.to_str()
                             .map_err(|e| ConversionError::StringConversion(e.to_string()))?;
-                        Value::Literal(Literal::String(rust_str.to_string()))
+                        Value::Literal(Literal::String(Box::new(rust_str.to_string())))
                     }
                 }
                 _  => {

@@ -185,7 +185,7 @@ impl FormalSpec for BMethodSpec {
             Value::Literal(crate::ast::Literal::Boolean(b)) => {
                 Ok(BValue::Boolean(*b))
             }
-            Value::Literal(crate::ast::Literal::String(s)) => {
+            Value::Literal(crate::ast::Literal::String(s)) => (**s).clone()),
                 Ok(BValue::String(s.clone()))
             }
             Value::Nil => {

@@ -370,7 +370,7 @@ impl Phase2CompoundValues {
                         analysis.vector_patterns.record_vector_usage(&elements);
                     }
                 }
-                Value::Literal(Literal::String(s)) => {
+                Value::Literal(Literal::String(s)) => (**s).clone()),
                     analysis.string_patterns.record_string_usage(s);
                 }
                 _ => {}

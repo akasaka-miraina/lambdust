@@ -108,11 +108,11 @@ impl ArenaDemo {
             },
         };
         
-        println!("  List size: {} elements", LIST_SIZE);
-        println!("  Iterations: {}", ITERATIONS);
-        println!("  Heap time: {:?}", heap_time);
-        println!("  Arena time: {:?}", arena_time);
-        println!("  Speedup: {:.2}x", speedup);
+        println!("  List size: {LIST_SIZE} elements");
+        println!("  Iterations: {ITERATIONS}");
+        println!("  Heap time: {heap_time:?}");
+        println!("  Arena time: {arena_time:?}");
+        println!("  Speedup: {speedup:.2}x");
         println!("  Memory saved: {:.1}KB", result.memory_usage.memory_saved_bytes as f64 / 1024.0);
         
         Ok(result)
@@ -168,11 +168,11 @@ impl ArenaDemo {
             },
         };
         
-        println!("  Nesting depth: {}", DEPTH);
-        println!("  Iterations: {}", ITERATIONS);
-        println!("  Heap time: {:?}", heap_time);
-        println!("  Arena time: {:?}", arena_time);
-        println!("  Speedup: {:.2}x", speedup);
+        println!("  Nesting depth: {DEPTH}");
+        println!("  Iterations: {ITERATIONS}");
+        println!("  Heap time: {heap_time:?}");
+        println!("  Arena time: {arena_time:?}");
+        println!("  Speedup: {speedup:.2}x");
         println!("  Cache locality improvement: {:.1}%", 
                  result.memory_usage.fragmentation_reduction * 100.0);
         
@@ -227,11 +227,11 @@ impl ArenaDemo {
             },
         };
         
-        println!("  Vector size: {} elements", VECTOR_SIZE);
-        println!("  Iterations: {}", ITERATIONS);
-        println!("  Heap time: {:?}", heap_time);
-        println!("  Arena time: {:?}", arena_time);
-        println!("  Speedup: {:.2}x", speedup);
+        println!("  Vector size: {VECTOR_SIZE} elements");
+        println!("  Iterations: {ITERATIONS}");
+        println!("  Heap time: {heap_time:?}");
+        println!("  Arena time: {arena_time:?}");
+        println!("  Speedup: {speedup:.2}x");
         
         Ok(result)
     }
@@ -302,11 +302,11 @@ impl ArenaDemo {
             },
         };
         
-        println!("  Expressions evaluated: {}", EXPRESSIONS);
-        println!("  Iterations: {}", ITERATIONS);
-        println!("  Heap time: {:?}", heap_time);
-        println!("  Arena time: {:?}", arena_time);
-        println!("  Speedup: {:.2}x", speedup);
+        println!("  Expressions evaluated: {EXPRESSIONS}");
+        println!("  Iterations: {ITERATIONS}");
+        println!("  Heap time: {heap_time:?}");
+        println!("  Arena time: {arena_time:?}");
+        println!("  Speedup: {speedup:.2}x");
         println!("  GC pressure reduction: {:.1}%", 
                  result.memory_usage.fragmentation_reduction * 100.0);
         
@@ -330,7 +330,7 @@ impl ArenaDemo {
             .map(|r| r.memory_usage.fragmentation_reduction)
             .sum::<f64>() / results.len() as f64;
         
-        println!("  Average speedup: {:.2}x", total_speedup);
+        println!("  Average speedup: {total_speedup:.2}x");
         println!("  Total memory saved: {:.1}KB", total_memory_saved as f64 / 1024.0);
         println!("  Average fragmentation reduction: {:.1}%", avg_fragmentation_reduction * 100.0);
         
@@ -380,9 +380,9 @@ pub fn quick_demo() -> Result<()> {
     
     let speedup = heap_time.as_nanos() as f64 / arena_time.as_nanos() as f64;
     
-    println!("Heap allocation: {:?}", heap_time);
-    println!("Arena allocation: {:?}", arena_time);
-    println!("Speedup: {:.2}x", speedup);
+    println!("Heap allocation: {heap_time:?}");
+    println!("Arena allocation: {arena_time:?}");
+    println!("Speedup: {speedup:.2}x");
     
     if speedup > 1.5 {
         println!("✅ Arena allocation is significantly faster!");

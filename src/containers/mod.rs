@@ -358,14 +358,14 @@ pub mod utils {
             (Literal::Character(c_a), Literal::Character(c_b)) => c_a.cmp(c_b),
             (Literal::Boolean(b_a), Literal::Boolean(b_b)) => b_a.cmp(b_b),
             (Literal::Bytevector(bv_a), Literal::Bytevector(bv_b)) => bv_a.cmp(bv_b),
-            (Literal::Rational { numerator: n_a, denominator: d_a }, Literal::Rational { numerator: n_b, denominator: d_b }) => {
-                let val_a = *n_a as f64 / *d_a as f64;
-                let val_b = *n_b as f64 / *d_b as f64;
+            (Literal::Rational(rational_a), Literal::Rational(rational_b)) => {
+                let val_a = rational_a.numerator as f64 / rational_a.denominator as f64;
+                let val_b = rational_b.numerator as f64 / rational_b.denominator as f64;
                 val_a.partial_cmp(&val_b).unwrap_or(Ordering::Equal)
             }
-            (Literal::Complex { real: r_a, imaginary: i_a }, Literal::Complex { real: r_b, imaginary: i_b }) => {
-                match r_a.partial_cmp(r_b) {
-                    Some(Ordering::Equal) => i_a.partial_cmp(i_b).unwrap_or(Ordering::Equal),
+            (Literal::Complex(complex_a), Literal::Complex(complex_b)) => {
+                match complex_a.real.partial_cmp(&complex_b.real) {
+                    Some(Ordering::Equal) => complex_a.imaginary.partial_cmp(&complex_b.imaginary).unwrap_or(Ordering::Equal),
                     Some(ord) => ord,
                     None => Ordering::Equal,
                 }

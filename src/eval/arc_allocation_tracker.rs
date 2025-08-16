@@ -22,7 +22,7 @@ use std::thread;
 use std::fmt;
 
 /// Global Arc allocation tracker instance
-static GLOBAL_TRACKER: std::sync::LazyLock<ArcAllocationTracker> = std::sync::LazyLock::new(|| ArcAllocationTracker::new());
+static GLOBAL_TRACKER: std::sync::LazyLock<ArcAllocationTracker> = std::sync::LazyLock::new(ArcAllocationTracker::new);
 
 /// Thread-safe Arc allocation tracker
 pub struct ArcAllocationTracker {
@@ -67,7 +67,7 @@ pub struct TypeAllocationStats {
 
 /// Per-thread allocation statistics
 #[derive(Debug, Clone, Default)]
-struct ThreadAllocationStats {
+pub struct ThreadAllocationStats {
     allocations: usize,
     deallocations: usize,
     peak_usage: usize,

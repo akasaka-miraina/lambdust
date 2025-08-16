@@ -744,7 +744,7 @@ fn install_assert_macro(expander: &mut MacroExpander) {
         ]),
         Template::list(vec![
             Template::identifier("error"),
-            Template::literal(Literal::String("assertion failed".to_string())),
+            Template::literal(Literal::String(Box::new("assertion failed".to_string()))),
             Template::list(vec![
                 Template::identifier("quote"),
                 Template::variable("expr"),

@@ -402,7 +402,7 @@ fn primitive_string_to_symbol(args: &[Value]) -> Result<Value> {
         Value::Literal(crate::ast::Literal::String(s)) => {
             // Intern the string as a symbol
             use crate::utils::symbol::intern_symbol;
-            let symbol_id = intern_symbol(s.clone());
+            let symbol_id = intern_symbol((**s).clone());
             Ok(Value::symbol(symbol_id))
         },
         _ => Err(Box::new(DiagnosticError::runtime_error(

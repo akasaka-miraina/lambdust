@@ -414,7 +414,7 @@ fn primitive_error(args: &[Value]) -> Result<Value> {
     
     // First argument must be a string (the message)
     let message = match &args[0] {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
+        Value::Literal(crate::ast::Literal::String(s)) => (**s).clone(),
         _ => return Err(Box::new(DiagnosticError::runtime_error(
             "error message must be a string".to_string(),
             None,

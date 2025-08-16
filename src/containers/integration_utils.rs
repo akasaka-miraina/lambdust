@@ -375,7 +375,7 @@ impl OptimizationAdvisor {
     /// Get or create analyzer for a container
     pub fn get_analyzer(&mut self, container_name: &str) -> &mut UsagePatternAnalyzer {
         self.analyzers.entry(container_name.to_string())
-            .or_insert_with(UsagePatternAnalyzer::new)
+            .or_default()
     }
     
     /// Generate recommendations for all tracked containers
@@ -394,7 +394,7 @@ impl OptimizationAdvisor {
         let recommendations = self.generate_recommendations();
         
         for (name, analysis) in recommendations {
-            report.push_str(&format!("Container: {}\n", name));
+            report.push_str(&format!("Container: {name}\n"));
             report.push_str(&format!("  Total operations: {}\n", analysis.total_operations));
             report.push_str(&format!("  Read ratio: {:.1}%\n", analysis.read_ratio * 100.0));
             report.push_str(&format!("  Sequential ratio: {:.1}%\n", analysis.sequential_ratio * 100.0));
@@ -402,7 +402,7 @@ impl OptimizationAdvisor {
             report.push_str(&format!("  Avg size: {:.1}\n", analysis.avg_size));
             report.push_str(&format!("  Recommended pattern: {:?}\n", analysis.recommended_context.access_pattern));
             report.push_str(&format!("  Recommended priority: {:?}\n", analysis.recommended_context.optimization_priority));
-            report.push_str("\n");
+            report.push('\n');
         }
         
         report

@@ -98,7 +98,7 @@ impl LegacyValueBridge {
     }
     
     /// Creates a bridge with default configuration
-    pub fn default() -> Self {
+    pub fn new_default() -> Self {
         Self::new(BridgeConfig::default())
     }
     
@@ -174,19 +174,19 @@ impl LegacyValueBridge {
             
             // Phase 1: Numeric values
             Value::Literal(Literal::InexactReal(f)) => OptimizedValue::number(*f),
-            Value::Literal(Literal::Rational { numerator, denominator }) => {
-                OptimizedValue::number(*numerator as f64 / *denominator as f64)
+            Value::Literal(Literal::Rational(rational)) => {
+                OptimizedValue::number(rational.numerator as f64 / rational.denominator as f64)
             }
-            Value::Literal(Literal::Complex { real, imaginary: _ }) => {
+            Value::Literal(Literal::Complex(complex)) => {
                 // Simplified: just use real part for now
-                OptimizedValue::number(*real)
+                OptimizedValue::number(complex.real)
             }
             
             // Phase 1: Symbols (inline storage for small IDs)
             Value::Symbol(id) => OptimizedValue::symbol(*id),
             
             // Phase 1: Strings
-            Value::Literal(Literal::String(s)) => OptimizedValue::string(s.clone()),
+            Value::Literal(Literal::String(s)) => OptimizedValue::string((**s).clone()),
             Value::Keyword(k) => OptimizedValue::string(format!("#{k}")),
             
             // Phase 2: Compound values (Arc reduction)
@@ -212,7 +212,7 @@ impl LegacyValueBridge {
             
             // Phase 2: Bytevectors
             Value::Literal(Literal::Bytevector(bytes)) => {
-                OptimizedValue::bytevector(bytes.clone())
+                OptimizedValue::bytevector((**bytes).clone())
             }
             
             // Conservative fallback: For complex values not yet optimized,
@@ -254,9 +254,9 @@ impl LegacyValueBridge {
             }
             ValueTag::String => {
                 if let Some(s) = optimized.as_string() {
-                    Value::Literal(Literal::String(s.to_string()))
+                    Value::Literal(Literal::String(Box::new(s.to_string())))
                 } else {
-                    Value::Literal(Literal::String(String::new()))
+                    Value::Literal(Literal::String(Box::default()))
                 }
             }
             ValueTag::Number => {
@@ -284,7 +284,7 @@ impl LegacyValueBridge {
             }
             ValueTag::Bytevector => {
                 // Create empty bytevector as fallback
-                Value::Literal(Literal::Bytevector(Vec::new()))
+                Value::Literal(Literal::Bytevector(Box::default()))
             }
             _ => {
                 // For unhandled optimized values, create a placeholder
@@ -322,7 +322,7 @@ impl OptimizedConstructors {
     
     /// Creates an optimized string value
     pub fn string(s: impl Into<String>) -> Value {
-        Value::Literal(Literal::String(s.into()))
+        Value::Literal(Literal::String(Box::new(s.into())))
     }
     
     /// Creates an optimized symbol value

@@ -655,7 +655,7 @@ impl From<char> for Text {
 
 impl From<Text> for Value {
     fn from(text: Text) -> Self {
-        Value::Literal(crate::ast::Literal::String(text.as_string()))
+        Value::Literal(crate::ast::Literal::String(Box::new(text.as_string())))
     }
 }
 
@@ -664,7 +664,7 @@ impl TryFrom<&Value> for Text {
 
     fn try_from(value: &Value) -> Result<Self> {
         match value {
-            Value::Literal(crate::ast::Literal::String(s)) => Ok(Text::from_string(s.clone())),
+            Value::Literal(crate::ast::Literal::String(s)) => Ok(Text::from_string((**s).clone())),
             _ => Err(Box::new(DiagnosticError::runtime_error(
                 "Expected text/string value".to_string(),
                 None,

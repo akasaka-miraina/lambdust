@@ -58,7 +58,7 @@ pub struct ValueProperties {
 /// Default implementation for SemanticTestSuite
 impl Default for SemanticTestSuite {
     fn default() -> Self {
-        let bridge = LegacyValueBridge::default();
+        let bridge = LegacyValueBridge::new_default();
         let optimizer = ValueOptimizer::default();
         let test_cases = Self::generate_test_cases();
         
@@ -268,7 +268,7 @@ impl SemanticTestSuite {
             TestCase {
                 name: "empty_string".to_string(),
                 description: "An empty string".to_string(),
-                original_value: Value::Literal(Literal::String("".to_string())),
+                original_value: Value::Literal(Literal::String(Box::new("".to_string()))),
                 expected_properties: ValueProperties {
                     is_truthy: true,
                     is_falsy: false,
@@ -288,7 +288,7 @@ impl SemanticTestSuite {
             TestCase {
                 name: "simple_string".to_string(),
                 description: "A simple string".to_string(),
-                original_value: Value::Literal(Literal::String("hello".to_string())),
+                original_value: Value::Literal(Literal::String(Box::new("hello".to_string()))),
                 expected_properties: ValueProperties {
                     is_truthy: true,
                     is_falsy: false,
@@ -423,7 +423,7 @@ impl SemanticTestSuite {
             TestCase {
                 name: "string_with_escapes".to_string(),
                 description: "String containing escape sequences".to_string(),
-                original_value: Value::Literal(Literal::String("hello\nworld\t!".to_string())),
+                original_value: Value::Literal(Literal::String(Box::new("hello\nworld\t!".to_string()))),
                 expected_properties: ValueProperties {
                     is_truthy: true,
                     is_falsy: false,
@@ -596,7 +596,7 @@ impl SemanticTestSuite {
         if let (Some(orig), Some(rest)) = (original_props.numeric_value, restored_props.numeric_value) {
             if (orig - rest).abs() > f64::EPSILON {
                 result.passed = false;
-                result.errors.push(format!("numeric_value mismatch: {} != {}", orig, rest));
+                result.errors.push(format!("numeric_value mismatch: {orig} != {rest}"));
             }
         } else if original_props.numeric_value != restored_props.numeric_value {
             result.passed = false;
@@ -633,7 +633,7 @@ impl SemanticTestSuite {
                                                        original: T, restored: T) {
         if original != restored {
             result.passed = false;
-            result.errors.push(format!("{} mismatch: {:?} != {:?}", property_name, original, restored));
+            result.errors.push(format!("{property_name} mismatch: {original:?} != {restored:?}"));
         }
     }
     
@@ -644,7 +644,7 @@ impl SemanticTestSuite {
         for i in 0..iterations {
             let random_value = self.generate_random_value(i);
             let test_case = TestCase {
-                name: format!("property_test_{}", i),
+                name: format!("property_test_{i}"),
                 description: "Generated test case for property testing".to_string(),
                 original_value: random_value.clone(),
                 expected_properties: Self::extract_properties(&random_value),
@@ -679,10 +679,10 @@ impl SemanticTestSuite {
             1 => Value::Literal(Literal::Boolean(seed % 2 == 0)),
             2 => Value::Literal(Literal::ExactInteger((seed as i64) % 1000 - 500)),
             3 => Value::Literal(Literal::InexactReal((seed as f64) / 100.0)),
-            4 => Value::Literal(Literal::Character(('A' as u8 + (seed % 26) as u8) as char)),
-            5 => Value::Literal(Literal::String(format!("test_{}", seed))),
+            4 => Value::Literal(Literal::Character((b'A' + (seed % 26) as u8) as char)),
+            5 => Value::Literal(Literal::String(Box::new(format!("test_{seed}")))),
             6 => Value::Symbol(SymbolId::new(seed)),
-            7 => Value::Keyword(format!("key_{}", seed)),
+            7 => Value::Keyword(format!("key_{seed}")),
             8 => {
                 // Simple pair
                 Value::Pair(
@@ -823,7 +823,7 @@ mod tests {
     
     #[test]
     fn test_string_properties() {
-        let str_val = Value::Literal(Literal::String("hello".to_string()));
+        let str_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let props = SemanticTestSuite::extract_properties(&str_val);
         
         assert!(props.is_truthy);

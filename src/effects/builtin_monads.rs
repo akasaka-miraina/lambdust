@@ -1292,7 +1292,7 @@ impl From<Writer<String, Value>> for Value {
         } else {
             Value::Pair(
                 Arc::new(value),
-                Arc::new(Value::Literal(crate::ast::Literal::String(output))),
+                Arc::new(Value::Literal(crate::ast::Literal::String(Box::new(output)))),
             )
         }
     }

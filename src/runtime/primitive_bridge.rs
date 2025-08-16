@@ -1020,7 +1020,7 @@ fn primitive_string_to_symbol(args: &[Value]) -> Result<Value> {
     match &args[0] {
         Value::Literal(Literal::String(s)) => {
             use crate::utils::intern_symbol;
-            let symbol_id = intern_symbol(s.clone());
+            let symbol_id = intern_symbol((**s).clone());
             Ok(Value::symbol(symbol_id))
         }
         _ => Err(Box::new(Error::runtime_error("string->symbol expects a string".to_string(), None))),
@@ -1224,7 +1224,7 @@ fn primitive_error(args: &[Value]) -> Result<Value> {
     }
     
     let message = match &args[0] {
-        Value::Literal(Literal::String(s)) => s.clone(),
+        Value::Literal(Literal::String(s)) => (**s).clone(),
         _ => format!("{}", args[0]),
     };
     

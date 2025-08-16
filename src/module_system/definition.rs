@@ -234,7 +234,7 @@ fn parse_metadata(elements: &[Spanned<Expr>], _span: Span) -> Result<ModuleMetad
                 };
                 
                 let value = match &pair[1].inner {
-                    Expr::Literal(crate::ast::Literal::String(s)) => s.clone(),
+                    Expr::Literal(crate::ast::Literal::String(s)) => (**s).clone(),
                     Expr::Symbol(s) => s.clone(),
                     _ => return Err(Box::new(Error::syntax_error(
                         "Metadata value must be a string or symbol".to_string(),

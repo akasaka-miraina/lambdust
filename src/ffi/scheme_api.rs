@@ -701,7 +701,7 @@ fn ffi_load_library(args: &[Value]) -> Result<Value> {
     }
 
     let _library_name = match &args[0] {
-        Value::Literal(Literal::String(s)) => s.clone(),
+        Value::Literal(Literal::String(s)) => (**s).clone(),
         _ => return Err(Box::new(Error::runtime_error("Library name must be a string".to_string(), None))),
     };
 
@@ -727,12 +727,12 @@ fn ffi_call(args: &[Value]) -> Result<Value> {
     }
 
     let _library_name = match &args[0] {
-        Value::Literal(Literal::String(s)) => s.clone(),
+        Value::Literal(Literal::String(s)) => (**s).clone(),
         _ => return Err(Box::new(Error::runtime_error("Library name must be a string".to_string(), None))),
     };
 
     let _function_name = match &args[1] {
-        Value::Literal(Literal::String(s)) => s.clone(),
+        Value::Literal(Literal::String(s)) => (**s).clone(),
         _ => return Err(Box::new(Error::runtime_error("Function name must be a string".to_string(), None))),
     };
 

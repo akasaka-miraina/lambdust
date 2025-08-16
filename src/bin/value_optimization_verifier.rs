@@ -18,8 +18,6 @@ use lambdust::eval::arc_allocation_tracker::{
 use std::time::Duration;
 use std::env;
 use std::fs;
-use std::path::Path;
-use serde_json;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("🚀 Value Optimization Performance Verifier");
@@ -40,8 +38,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Cache Analysis: {}", config.enable_cache_analysis);
     println!("  Production Assessment: {}", config.enable_production_assessment);
     println!("  Benchmark Iterations: {}", config.benchmark_iterations);
-    println!("  Report Format: {:?}", report_format);
-    println!("");
+    println!("  Report Format: {report_format:?}");
+    println!();
 
     // Create and run verification suite
     let suite = PerformanceVerificationSuite::new(config);
@@ -51,12 +49,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     match report_format {
         ReportFormat::Text => {
             let report_text = report.generate_detailed_report();
-            println!("{}", report_text);
+            println!("{report_text}");
             
             // Save to file
             let output_path = "value_optimization_report.txt";
             fs::write(output_path, &report_text)?;
-            println!("\n📁 Detailed report saved to: {}", output_path);
+            println!("\n📁 Detailed report saved to: {output_path}");
         }
         
         ReportFormat::Json => {
@@ -66,13 +64,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Save to file
             let output_path = "value_optimization_report.json";
             fs::write(output_path, serde_json::to_string_pretty(&json_report)?)?;
-            println!("\n📁 JSON report saved to: {}", output_path);
+            println!("\n📁 JSON report saved to: {output_path}");
         }
         
         ReportFormat::Both => {
             // Text report
             let report_text = report.generate_detailed_report();
-            println!("{}", report_text);
+            println!("{report_text}");
             fs::write("value_optimization_report.txt", &report_text)?;
             
             // JSON report
@@ -132,7 +130,7 @@ fn parse_config(args: &[String]) -> Result<VerificationConfig, Box<dyn std::erro
                             config.test_timeout = Duration::from_secs(600);
                         }
                         _ => {
-                            return Err(format!("Unknown config type: {}", config_type).into());
+                            return Err(format!("Unknown config type: {config_type}").into());
                         }
                     }
                 }

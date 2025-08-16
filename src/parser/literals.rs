@@ -127,7 +127,7 @@ impl Parser {
         
         self.advance();
         
-        Ok(Spanned::new(Expr::Literal(Literal::String(content)), span))
+        Ok(Spanned::new(Expr::Literal(Literal::String(Box::new(content))), span))
     }
 
     /// Parses a character literal.

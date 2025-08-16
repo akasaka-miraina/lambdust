@@ -112,13 +112,14 @@ pub enum ValueLifetime {
 }
 
 /// High-level arena allocation interface
+#[derive(Debug)]
 pub struct ArenaAllocator {
     config: ArenaConfig,
     stats: Arc<RwLock<AllocationStats>>,
 }
 
 /// Statistics for arena allocation performance analysis
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct AllocationStats {
     /// Total arena allocations
     pub arena_allocations: u64,
@@ -284,12 +285,14 @@ impl ArenaAllocator {
         });
         
         let global_stats = GLOBAL_ARENA.lock()
-            .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Span::new(0, 0)))?
+            .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Some(Span::new(0, 0))))?
             .memory_stats();
         
-        let allocation_stats = self.stats.read()
-            .map_err(|_| Error::runtime_error("Failed to read allocation stats".to_string(), Span::new(0, 0)))?
-            .clone();
+        let allocation_stats = {
+            let stats_guard = self.stats.read()
+                .map_err(|_| Error::runtime_error("Failed to read allocation stats".to_string(), Some(Span::new(0, 0))))?;
+            stats_guard.clone()
+        };
         
         Ok(GlobalArenaStats {
             thread_arenas: thread_stats,
@@ -310,7 +313,7 @@ impl ArenaAllocator {
     /// Force garbage collection of global arena  
     pub fn collect_global_arena(&self) -> Result<()> {
         let mut global = GLOBAL_ARENA.lock()
-            .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Span::new(0, 0)))?;
+            .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Some(Span::new(0, 0))))?;
         
         global.compact()?;
         Ok(())
@@ -332,7 +335,7 @@ impl ArenaAllocator {
             }
             
             // Large containers: hybrid allocation to balance memory and performance
-            (Value::Vector(v), _) if v.read().map_or(false, |vec| vec.len() > 100) => {
+            (Value::Vector(v), _) if v.read().is_ok_and(|vec| vec.len() > 100) => {
                 AllocationStrategy::Hybrid
             }
             
@@ -368,12 +371,12 @@ impl ArenaAllocator {
         let value_ref = match hint.lifetime {
             ValueLifetime::Program => {
                 let mut global = GLOBAL_ARENA.lock()
-                    .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Span::new(0, 0)))?;
-                allocate_fn(&*global)?
+                    .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Some(Span::new(0, 0))))?;
+                allocate_fn(&global)?
             }
             _ => {
                 THREAD_ARENA.with(|arena| {
-                    allocate_fn(&*arena.borrow())
+                    allocate_fn(&arena.borrow())
                 })?
             }
         };
@@ -397,12 +400,12 @@ impl ArenaAllocator {
         
         if arena_id.thread_id == self.get_current_thread_id() {
             THREAD_ARENA.with(|arena| {
-                resolve_fn(&*arena.borrow())
+                resolve_fn(&arena.borrow())
             })
         } else {
             let global = GLOBAL_ARENA.lock()
-                .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Span::new(0, 0)))?;
-            resolve_fn(&*global)
+                .map_err(|_| Error::runtime_error("Failed to lock global arena".to_string(), Some(Span::new(0, 0))))?;
+            resolve_fn(&global)
         }
     }
     
@@ -436,7 +439,13 @@ impl ArenaAllocator {
     
     /// Get current thread ID (simplified implementation)
     fn get_current_thread_id(&self) -> u64 {
-        std::thread::current().id().as_u64().get()
+        // Use a hash of the thread ID as a stable substitute
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        
+        let mut hasher = DefaultHasher::new();
+        std::thread::current().id().hash(&mut hasher);
+        hasher.finish()
     }
     
     /// Update allocation statistics
@@ -566,7 +575,7 @@ impl std::fmt::Display for GlobalArenaStats {
         writeln!(f, "Global Arena: {}", self.global_arena)?;
         writeln!(f, "Thread Arenas: {}", self.thread_arenas.len())?;
         for (i, arena) in self.thread_arenas.iter().enumerate() {
-            writeln!(f, "  Thread {}: {}", i, arena)?;
+            writeln!(f, "  Thread {i}: {arena}")?;
         }
         Ok(())
     }
@@ -584,7 +593,7 @@ pub mod arena_utils {
         
         // Initialize global arena
         *GLOBAL_ARENA.lock()
-            .map_err(|_| Error::runtime_error("Failed to initialize global arena".to_string(), Span::new(0, 0)))?
+            .map_err(|_| Error::runtime_error("Failed to initialize global arena".to_string(), Some(Span::new(0, 0))))?
             = ValueArena::with_config(config);
         
         Ok(())

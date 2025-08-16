@@ -249,7 +249,7 @@ impl IsabelleExporter {
             Value::Literal(crate::ast::Literal::Boolean(b)) => {
                 Ok(IsabelleTerm::Const(if *b { "True" } else { "False" }.to_string()))
             }
-            Value::Literal(crate::ast::Literal::String(s)) => {
+            Value::Literal(crate::ast::Literal::String(s)) => (**s).clone()),
                 Ok(IsabelleTerm::Const(format!("\"{s}\"")))
             }
             Value::Symbol(sym_id) => {

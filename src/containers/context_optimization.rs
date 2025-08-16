@@ -87,7 +87,7 @@ pub enum OptimizationPriority {
 }
 
 /// Performance metrics for container operations
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct ContainerMetrics {
     /// Total operations performed
     pub operations_count: u64,
@@ -153,7 +153,7 @@ pub struct ContainerPool {
 }
 
 /// Statistics for container pool operations
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct PoolStats {
     /// Vector pool hits
     pub vector_pool_hits: u64,
@@ -205,9 +205,9 @@ impl<T> OptimizedContainer<T> {
     
     /// Get performance metrics
     pub fn metrics(&self) -> Result<ContainerMetrics> {
-        self.metrics.read()
-            .map(|guard| guard.clone())
-            .map_err(|_| Error::runtime_error("Failed to read container metrics".to_string(), Span::new(0, 0)))
+        Ok(self.metrics.read()
+            .map(|guard| (*guard).clone())
+            .map_err(|_| Error::runtime_error("Failed to read container metrics".to_string(), Some(Span::new(0, 0))))?)
     }
     
     /// Update optimization context
@@ -265,7 +265,7 @@ impl ArenaVector {
         
         // TODO: Proper arena integration - for now use placeholder
         // This is a simplified implementation pending full arena integration
-        let placeholder_ref = PlaceholderValueRef { index: self.elements.len() as u32, generation: 0 };
+        let placeholder_ref = PlaceholderValueRef::new(self.elements.len() as u32, 0);
         self.elements.push(placeholder_ref);
         
         let allocation_time = start_time.elapsed().as_nanos() as u64;
@@ -279,10 +279,10 @@ impl ArenaVector {
         let start_time = Instant::now();
         
         if index >= self.elements.len() {
-            return Err(Error::runtime_error(
+            return Err(Box::new(Error::runtime_error(
                 format!("Index {} out of bounds for vector of length {}", index, self.elements.len()),
-                Span::new(0, 0)
-            ));
+                Some(Span::new(0, 0))
+            )));
         }
         
         let _value_ref = self.elements[index];
@@ -382,8 +382,8 @@ impl ArenaHashTable {
         let arena_value = self.allocator.alloc_value(value, hint)?;
         
         // For simplified implementation, use placeholder refs
-        let key_ref = PlaceholderValueRef { index: 0, generation: 0 };
-        let value_ref = PlaceholderValueRef { index: 1, generation: 0 };
+        let key_ref = PlaceholderValueRef::new(0, 0);
+        let value_ref = PlaceholderValueRef::new(1, 0);
         
         // Simple hash function for demonstration
         let hash = 0u64; // TODO: Implement proper hashing
@@ -391,7 +391,7 @@ impl ArenaHashTable {
         
         // Check for existing key
         let bucket = &mut self.buckets[bucket_index];
-        for (_i, (_existing_key_ref, _existing_value_ref)) in bucket.iter_mut().enumerate() {
+        for (_existing_key_ref, _existing_value_ref) in bucket.iter_mut() {
             // TODO: Compare keys properly through arena system
             // For now, assume no duplicates
         }
@@ -553,9 +553,9 @@ impl ContainerPool {
     
     /// Get pool statistics
     pub fn stats(&self) -> Result<PoolStats> {
-        self.stats.read()
-            .map(|guard| guard.clone())
-            .map_err(|_| Error::runtime_error("Failed to read pool stats".to_string(), Span::new(0, 0)))
+        Ok(self.stats.read()
+            .map(|guard| (*guard).clone())
+            .map_err(|_| Error::runtime_error("Failed to read pool stats".to_string(), Some(Span::new(0, 0))))?)
     }
     
     /// Record vector pool hit
@@ -706,7 +706,7 @@ impl std::fmt::Display for OptimizationRecommendation {
         writeln!(f, "  Recommended Priority: {:?}", self.recommended_priority)?;
         writeln!(f, "  Suggested Improvements:")?;
         for improvement in &self.suggested_improvements {
-            writeln!(f, "    - {}", improvement)?;
+            writeln!(f, "    - {improvement}")?;
         }
         Ok(())
     }

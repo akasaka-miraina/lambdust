@@ -41,7 +41,7 @@ impl SRFI23ErrorObject {
     /// Validates that the message is a string (SRFI-23 requirement)
     pub fn validate_message(value: &Value) -> Result<String> {
         match value {
-            Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
+            Value::Literal(crate::ast::Literal::String(s)) => Ok((**s).clone()),
             _ => Err(Box::new(DiagnosticError::runtime_error(
                 "SRFI-23 error: message must be a string".to_string(),
                 None,

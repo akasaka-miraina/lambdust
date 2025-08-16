@@ -209,7 +209,7 @@ impl ValueOptimizer {
         
         // Check cache first if enabled
         if self.config.enable_caching {
-            let cache_key = format!("string:{}", string_val);
+            let cache_key = format!("string:{string_val}");
             
             // Try cache lookup
             if let Ok(cache) = self.cache.read() {
@@ -226,13 +226,13 @@ impl ValueOptimizer {
             }
         }
         
-        let result = Value::Literal(Literal::String(string_val.clone()));
+        let result = Value::Literal(Literal::String(Box::new(string_val.clone())));
         
         // Update cache if enabled and not full
         if self.config.enable_caching {
             if let Ok(mut cache) = self.cache.write() {
                 if cache.len() < self.config.max_cache_size {
-                    let cache_key = format!("string:{}", string_val);
+                    let cache_key = format!("string:{string_val}");
                     cache.insert(cache_key, result.clone());
                 }
             }
@@ -399,12 +399,12 @@ pub mod hot_path_optimized {
     
     /// Common single-character strings
     pub fn single_char_string(ch: char) -> Value {
-        Value::Literal(Literal::String(ch.to_string()))
+        Value::Literal(Literal::String(Box::new(ch.to_string())))
     }
     
     /// Common small strings (could benefit from interning)
     pub fn small_string(s: &'static str) -> Value {
-        Value::Literal(Literal::String(s.to_string()))
+        Value::Literal(Literal::String(Box::new(s.to_string())))
     }
 }
 

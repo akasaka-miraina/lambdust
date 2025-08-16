@@ -676,7 +676,7 @@ impl Parser<Value> {
                 Parser::string("\"".to_string())
                     .then(Parser::satisfy(|ch| ch != '"').many())
                     .skip(Parser::char('"'))
-                    .map(|chars| Value::Literal(crate::ast::Literal::String(chars.into_iter().collect())))
+                    .map(|chars| Value::Literal(crate::ast::Literal::String(Box::new(chars.into_iter().collect()))))
             )
             .choice(
                 Parser::string("#t".to_string()).map(|_| Value::Literal(crate::ast::Literal::Boolean(true)))

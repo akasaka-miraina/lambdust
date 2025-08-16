@@ -710,7 +710,7 @@ impl Value {
     /// - Other values use their standard Display representation
     pub fn display_string(&self) -> String {
         match self {
-            Value::Literal(Literal::String(s)) => s.clone(),
+            Value::Literal(Literal::String(s)) => (**s).clone(),
             Value::Literal(Literal::Character(c)) => c.to_string(),
             _ => format!("{self}"),
         }
@@ -811,7 +811,7 @@ impl Value {
     /// Gets the string content as an owned String (works with both immutable and mutable strings).
     pub fn as_string_owned(&self) -> Option<String> {
         match self {
-            Value::Literal(Literal::String(s)) => Some(s.clone()),
+            Value::Literal(Literal::String(s)) => Some((**s).clone()),
             Value::MutableString(chars) => {
                 chars.read().ok().map(|guard| guard.iter().collect())
             }
@@ -884,7 +884,7 @@ impl Value {
 
     /// Creates a new immutable string value.
     pub fn string(s: impl Into<String>) -> Self {
-        Value::Literal(Literal::String(s.into()))
+        Value::Literal(Literal::String(Box::new(s.into())))
     }
 
     /// Creates a new mutable string value.
@@ -949,7 +949,7 @@ impl Value {
 
     /// Creates a new bytevector value.
     pub fn bytevector(bytes: Vec<u8>) -> Self {
-        Value::Literal(Literal::Bytevector(bytes))
+        Value::Literal(Literal::Bytevector(Box::new(bytes)))
     }
 
     /// Creates a new character set value.
@@ -1437,8 +1437,8 @@ impl Value {
             Value::Literal(Literal::ExactInteger(_)) => true,
             Value::Literal(Literal::InexactReal(f)) => f.is_finite(),
             Value::Literal(Literal::Rational { .. }) => true,
-            Value::Literal(Literal::Complex { real, imaginary }) => {
-                real.is_finite() && imaginary.is_finite()
+            Value::Literal(Literal::Complex(complex)) => {
+                complex.real.is_finite() && complex.imaginary.is_finite()
             }
             _ => false,
         }
@@ -1448,8 +1448,8 @@ impl Value {
     pub fn is_infinite_number(&self) -> bool {
         match self {
             Value::Literal(Literal::InexactReal(f)) => f.is_infinite(),
-            Value::Literal(Literal::Complex { real, imaginary }) => {
-                real.is_infinite() || imaginary.is_infinite()
+            Value::Literal(Literal::Complex(complex)) => {
+                complex.real.is_infinite() || complex.imaginary.is_infinite()
             }
             _ => false,
         }
@@ -1459,8 +1459,8 @@ impl Value {
     pub fn is_nan_number(&self) -> bool {
         match self {
             Value::Literal(Literal::InexactReal(f)) => f.is_nan(),
-            Value::Literal(Literal::Complex { real, imaginary }) => {
-                real.is_nan() || imaginary.is_nan()
+            Value::Literal(Literal::Complex(complex)) => {
+                complex.real.is_nan() || complex.imaginary.is_nan()
             }
             _ => false,
         }

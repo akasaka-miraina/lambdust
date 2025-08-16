@@ -156,12 +156,12 @@ impl ContainerOptimizationBenchmarks {
             },
         };
         
-        println!("  Vector size: {} elements", VECTOR_SIZE);
-        println!("  Iterations: {}", ITERATIONS);
-        println!("  Standard time: {:?}", standard_time);
-        println!("  Optimized time: {:?}", optimized_time);
-        println!("  Speedup: {:.2}x", speedup);
-        println!("  Memory reduction: {:.1}%", reduction_percentage);
+        println!("  Vector size: {VECTOR_SIZE} elements");
+        println!("  Iterations: {ITERATIONS}");
+        println!("  Standard time: {standard_time:?}");
+        println!("  Optimized time: {optimized_time:?}");
+        println!("  Speedup: {speedup:.2}x");
+        println!("  Memory reduction: {reduction_percentage:.1}%");
         
         Ok(result)
     }
@@ -176,7 +176,7 @@ impl ContainerOptimizationBenchmarks {
         
         // Create test data
         let key_values: Vec<(Value, Value)> = (0..TABLE_SIZE)
-            .map(|i| (Value::string(&format!("key_{}", i)), Value::integer(i as i64)))
+            .map(|i| (Value::string(format!("key_{i}")), Value::integer(i as i64)))
             .collect();
         
         // Benchmark standard hash table operations
@@ -249,12 +249,12 @@ impl ContainerOptimizationBenchmarks {
             },
         };
         
-        println!("  Table size: {} entries", TABLE_SIZE);
-        println!("  Iterations: {}", ITERATIONS);
-        println!("  Standard time: {:?}", standard_time);
-        println!("  Optimized time: {:?}", optimized_time);
-        println!("  Speedup: {:.2}x", speedup);
-        println!("  Memory reduction: {:.1}%", reduction_percentage);
+        println!("  Table size: {TABLE_SIZE} entries");
+        println!("  Iterations: {ITERATIONS}");
+        println!("  Standard time: {standard_time:?}");
+        println!("  Optimized time: {optimized_time:?}");
+        println!("  Speedup: {speedup:.2}x");
+        println!("  Memory reduction: {reduction_percentage:.1}%");
         
         Ok(result)
     }
@@ -314,12 +314,12 @@ impl ContainerOptimizationBenchmarks {
             },
         };
         
-        println!("  Pool operations: {}", POOL_OPERATIONS);
-        println!("  Iterations: {}", ITERATIONS);
-        println!("  Standard time: {:?}", standard_time);
-        println!("  Optimized time: {:?}", optimized_time);
-        println!("  Speedup: {:.2}x", speedup);
-        println!("  Memory efficiency: {:.1}%", reduction_percentage);
+        println!("  Pool operations: {POOL_OPERATIONS}");
+        println!("  Iterations: {ITERATIONS}");
+        println!("  Standard time: {standard_time:?}");
+        println!("  Optimized time: {optimized_time:?}");
+        println!("  Speedup: {speedup:.2}x");
+        println!("  Memory efficiency: {reduction_percentage:.1}%");
         
         Ok(result)
     }
@@ -402,11 +402,11 @@ impl ContainerOptimizationBenchmarks {
             },
         };
         
-        println!("  Elements: {}", ELEMENTS);
-        println!("  Iterations: {}", ITERATIONS);
-        println!("  Standard time: {:?}", standard_time);
-        println!("  Optimized time: {:?}", optimized_time);
-        println!("  Speedup: {:.2}x", speedup);
+        println!("  Elements: {ELEMENTS}");
+        println!("  Iterations: {ITERATIONS}");
+        println!("  Standard time: {standard_time:?}");
+        println!("  Optimized time: {optimized_time:?}");
+        println!("  Speedup: {speedup:.2}x");
         println!("  Cache locality score: {:.1}%", result.cache_performance.locality_score * 100.0);
         
         Ok(result)
@@ -473,10 +473,10 @@ impl ContainerOptimizationBenchmarks {
             },
         };
         
-        println!("  Sizing iterations: {}", SIZING_ITERATIONS);
-        println!("  Standard time: {:?}", standard_time);
-        println!("  Optimized time: {:?}", optimized_time);
-        println!("  Speedup: {:.2}x", speedup);
+        println!("  Sizing iterations: {SIZING_ITERATIONS}");
+        println!("  Standard time: {standard_time:?}");
+        println!("  Optimized time: {optimized_time:?}");
+        println!("  Speedup: {speedup:.2}x");
         println!("  Reallocation reduction: {:.1}%", result.memory_improvement.reduction_percentage);
         
         Ok(result)
@@ -503,8 +503,8 @@ impl ContainerOptimizationBenchmarks {
             .map(|r| r.cache_performance.locality_score)
             .sum::<f64>() / results.len() as f64;
         
-        println!("  Average speedup: {:.2}x", total_speedup);
-        println!("  Average memory reduction: {:.1}%", total_memory_reduction);
+        println!("  Average speedup: {total_speedup:.2}x");
+        println!("  Average memory reduction: {total_memory_reduction:.1}%");
         println!("  Average cache hit rate: {:.1}%", avg_cache_hit_rate * 100.0);
         println!("  Average locality score: {:.1}%", avg_locality_score * 100.0);
         
@@ -561,9 +561,9 @@ pub fn quick_container_demo() -> Result<()> {
     
     let speedup = std_time.as_nanos() as f64 / arena_time.as_nanos() as f64;
     
-    println!("Standard vector: {:?}", std_time);
-    println!("Arena vector: {:?}", arena_time);
-    println!("Speedup: {:.2}x", speedup);
+    println!("Standard vector: {std_time:?}");
+    println!("Arena vector: {arena_time:?}");
+    println!("Speedup: {speedup:.2}x");
     
     if speedup > 1.2 {
         println!("✅ Arena optimization is significantly beneficial!");

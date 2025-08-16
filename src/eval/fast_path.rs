@@ -870,7 +870,7 @@ fn convert_value_to_optimized(value: &Value) -> Result<OptimizedValue> {
             }
         }
         Value::Literal(Literal::Character(ch)) => Ok(OptimizedValue::character(*ch)),
-        Value::Literal(Literal::String(s)) => Ok(OptimizedValue::string(s.clone())),
+        Value::Literal(Literal::String(s)) => Ok(OptimizedValue::string((**s).clone())),
         Value::Unspecified => Ok(OptimizedValue::unspecified()),
         _ => {
             // For complex types, this would need more sophisticated conversion

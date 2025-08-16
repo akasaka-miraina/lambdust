@@ -984,7 +984,7 @@ pub fn primitive_secure_file_write(args: &[Value]) -> Result<Value> {
     
     let (data, data_len) = match &args[1] {
         Value::Literal(crate::ast::Literal::String(s)) => (s.as_bytes().to_vec(), s.len()),
-        Value::Literal(crate::ast::Literal::Bytevector(bv)) => (bv.clone(), bv.len()),
+        Value::Literal(crate::ast::Literal::Bytevector(bv)) => ((**bv).clone(), bv.len()),
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "secure-file-write requires string or bytevector data".to_string(),
@@ -1102,7 +1102,7 @@ pub fn primitive_validate_file_path(args: &[Value]) -> Result<Value> {
 /// Extracts a string from a Value.
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
-        Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
+        Value::Literal(crate::ast::Literal::String(s)) => Ok((**s).clone()),
         _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires string arguments"),
             None,

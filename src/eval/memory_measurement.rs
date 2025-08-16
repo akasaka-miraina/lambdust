@@ -29,13 +29,19 @@ pub struct TrackedAllocator {
 }
 
 #[derive(Debug, Clone, Default)]
-struct AllocationStats {
+pub struct AllocationStats {
     total_allocated: usize,
     total_deallocated: usize,
     peak_usage: usize,
     current_usage: usize,
     allocation_count: usize,
     deallocation_count: usize,
+}
+
+impl Default for TrackedAllocator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TrackedAllocator {
@@ -151,10 +157,10 @@ impl MemoryMeasurer {
         G: Fn() -> Value,
     {
         // Measure legacy implementation
-        let legacy_measurement = self.measure_value_creation(&format!("{}_legacy", name), legacy_fn);
+        let legacy_measurement = self.measure_value_creation(&format!("{name}_legacy"), legacy_fn);
         
         // Measure optimized implementation  
-        let optimized_measurement = self.measure_value_creation(&format!("{}_optimized", name), optimized_fn);
+        let optimized_measurement = self.measure_value_creation(&format!("{name}_optimized"), optimized_fn);
         
         let memory_saved = legacy_measurement.memory_used.saturating_sub(optimized_measurement.memory_used);
         let savings_percentage = if legacy_measurement.memory_used > 0 {
@@ -312,8 +318,8 @@ impl MemoryMeasurer {
         report.compound_benchmarks.push(
             self.benchmark_optimization(
                 "string_value",
-                || Value::Literal(crate::ast::Literal::String("hello world".to_string())),
-                || Value::Literal(crate::ast::Literal::String("hello world".to_string()))
+                || Value::Literal(crate::ast::Literal::String(Box::new("hello world".to_string()))),
+                || Value::Literal(crate::ast::Literal::String(Box::new("hello world".to_string())))
             )
         );
         
@@ -495,8 +501,8 @@ impl ArcAnalyzer {
                 
                 // Try to analyze contents if locks can be acquired
                 if let (Ok(car_guard), Ok(cdr_guard)) = (car.read(), cdr.read()) {
-                    Self::analyze_value_recursive(&*car_guard, result, visited, depth + 1);
-                    Self::analyze_value_recursive(&*cdr_guard, result, visited, depth + 1);
+                    Self::analyze_value_recursive(&car_guard, result, visited, depth + 1);
+                    Self::analyze_value_recursive(&cdr_guard, result, visited, depth + 1);
                 }
             }
             Value::Vector(vec_arc) => {

@@ -61,10 +61,7 @@ impl TypeErrorKind {
 
     /// Returns whether this error kind is recoverable.
     pub fn is_recoverable(&self) -> bool {
-        match self {
-            Self::MissingAnnotation | Self::AmbiguousType => true,
-            _ => false,
-        }
+        matches!(self, Self::MissingAnnotation | Self::AmbiguousType)
     }
 
     /// Returns the default severity for this error kind.
@@ -119,7 +116,7 @@ impl TypeUnifiedError {
         let severity = type_kind.default_severity();
         let base = UnifiedError::new(TypeError, message)
             .with_severity(severity)
-            .with_context("type_kind", format!("{:?}", type_kind));
+            .with_context("type_kind", format!("{type_kind:?}"));
 
         Self {
             base,
@@ -136,8 +133,8 @@ impl TypeUnifiedError {
         self.expected_type = Some(expected.clone());
         self.actual_type = Some(actual.clone());
         self.base = self.base
-            .with_context("expected_type", format!("{:?}", expected))
-            .with_context("actual_type", format!("{:?}", actual));
+            .with_context("expected_type", format!("{expected:?}"))
+            .with_context("actual_type", format!("{actual:?}"));
         self
     }
 
@@ -166,14 +163,14 @@ impl TypeUnifiedError {
     /// Builder pattern: adds failed constraint.
     pub fn with_failed_constraint(mut self, constraint: TypeConstraint) -> Self {
         self.failed_constraint = Some(constraint.clone());
-        self.base = self.base.with_context("constraint", format!("{:?}", constraint));
+        self.base = self.base.with_context("constraint", format!("{constraint:?}"));
         self
     }
 
     /// Builder pattern: adds current substitution context.
     pub fn with_substitution(mut self, substitution: Substitution) -> Self {
         self.type_context.current_substitution = Some(substitution.clone());
-        self.base = self.base.with_context("substitution", format!("{:?}", substitution));
+        self.base = self.base.with_context("substitution", format!("{substitution:?}"));
         self
     }
 
@@ -211,7 +208,7 @@ impl TypeUnifiedError {
                     self.format_type(ty))
             }
             (TypeErrorKind::MissingAnnotation, _, _) => {
-                format!("Type annotation required for ambiguous expression")
+                "Type annotation required for ambiguous expression".to_string()
             }
             _ => self.base.message.clone(),
         }
@@ -220,7 +217,7 @@ impl TypeUnifiedError {
     /// Formats a type for user-friendly display.
     fn format_type(&self, ty: &Type) -> String {
         // This would be implemented with proper type formatting
-        format!("{:?}", ty)
+        format!("{ty:?}")
     }
 
     /// Returns suggested fixes for this error.
@@ -231,7 +228,7 @@ impl TypeUnifiedError {
             TypeErrorKind::MissingAnnotation => {
                 fixes.push("Add a type annotation to disambiguate".to_string());
                 if let Some(func) = &self.type_context.function_name {
-                    fixes.push(format!("Add type signature for function '{}'", func));
+                    fixes.push(format!("Add type signature for function '{func}'"));
                 }
             }
             TypeErrorKind::ApplicationMismatch => {
@@ -323,9 +320,7 @@ impl TypeUnifiedError {
     pub fn unification_failed(expected: Type, actual: Type, span: Option<Span>) -> Self {
         let mut error = Self::new(
             TypeErrorKind::UnificationFailure,
-            format!("Cannot unify {} with {}", 
-                format!("{:?}", expected), 
-                format!("{:?}", actual))
+            format!("Cannot unify {expected:?} with {actual:?}")
         ).with_type_mismatch(expected, actual);
         
         if let Some(span) = span {
@@ -357,7 +352,7 @@ impl TypeUnifiedError {
     pub fn occurs_check_failed(type_var: TypeVar, ty: Type) -> Self {
         Self::new(
             TypeErrorKind::OccursCheck,
-            format!("Type variable {:?} occurs in type {:?}", type_var, ty)
+            format!("Type variable {type_var:?} occurs in type {ty:?}")
         ).with_type_mismatch(Type::Variable(type_var), ty)
     }
 
@@ -378,8 +373,8 @@ impl TypeUnifiedError {
         
         for (i, candidate) in candidates.iter().enumerate() {
             error.base = error.base.with_context(
-                format!("candidate_{}", i), 
-                format!("{:?}", candidate)
+                format!("candidate_{i}"), 
+                format!("{candidate:?}")
             );
         }
         

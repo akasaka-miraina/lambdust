@@ -381,7 +381,7 @@ fn primitive_string_length(args: &[Value]) -> Result<Value> {
     }
     
     match &args[0] {
-        Value::Literal(crate::ast::Literal::String(s)) => {
+        Value::Literal(crate::ast::Literal::String(s)) => (**s).clone()),
             Ok(Value::integer(s.len() as i64))
         }
         _ => Err(crate::diagnostics::Error::runtime_error(

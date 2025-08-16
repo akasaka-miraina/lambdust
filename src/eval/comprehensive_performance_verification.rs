@@ -394,13 +394,13 @@ impl PerformanceVerificationSuite {
         results.push(self.memory_measurer.benchmark_optimization(
             "nil",
             || Value::Nil,
-            || ValueOptimizer::nil()
+            ValueOptimizer::nil
         ));
         
         results.push(self.memory_measurer.benchmark_optimization(
             "unspecified",
             || Value::Unspecified,
-            || ValueOptimizer::unspecified()
+            ValueOptimizer::unspecified
         ));
         
         results
@@ -473,7 +473,7 @@ impl PerformanceVerificationSuite {
         ));
         
         // Large vector
-        let large_vector_data: Vec<Value> = (0..1000).map(|i| Value::integer(i)).collect();
+        let large_vector_data: Vec<Value> = (0..1000).map(Value::integer).collect();
         let large_vector_optimized: Vec<Value> = (0..1000).map(|i| optimizer.integer(i)).collect();
         results.push(self.memory_measurer.benchmark_optimization(
             "large_vector",
@@ -511,25 +511,21 @@ impl PerformanceVerificationSuite {
         let optimizer = ValueOptimizer::default();
         
         // Create a variety of immediate values
-        let _immediate_values = vec![
-            optimizer.boolean(true),
+        let _immediate_values = [optimizer.boolean(true),
             optimizer.boolean(false),
             optimizer.integer(42),
             optimizer.character('A'),
             ValueOptimizer::nil(),
-            ValueOptimizer::unspecified(),
-        ];
+            ValueOptimizer::unspecified()];
         
         let immediate_after = GLOBAL_ARC_COUNTER.load(Ordering::SeqCst);
         report.immediate_arc_usage = immediate_after - immediate_before;
         
         // Test compound values
         let compound_before = GLOBAL_ARC_COUNTER.load(Ordering::SeqCst);
-        let _compound_values = vec![
-            optimizer.pair(optimizer.integer(1), optimizer.integer(2)),
+        let _compound_values = [optimizer.pair(optimizer.integer(1), optimizer.integer(2)),
             optimizer.list(vec![optimizer.integer(1), optimizer.integer(2), optimizer.integer(3)]),
-            optimizer.string("hello world"),
-        ];
+            optimizer.string("hello world")];
         let compound_after = GLOBAL_ARC_COUNTER.load(Ordering::SeqCst);
         report.compound_arc_usage = compound_after - compound_before;
         
@@ -851,7 +847,7 @@ impl SemanticEquivalenceVerifier {
             for (legacy, optimized) in &test.test_data {
                 if !(test.test_fn)(legacy, optimized) {
                     passed = false;
-                    failures.push(format!("Failed for values: {:?} vs {:?}", legacy, optimized));
+                    failures.push(format!("Failed for values: {legacy:?} vs {optimized:?}"));
                 }
             }
             
@@ -1013,7 +1009,7 @@ impl ComprehensiveVerificationReport {
             report.push_str(&format!("{}. {}: {} bytes saved ({:.1}%)\n", 
                 i + 1, result.name, result.memory_saved, result.savings_percentage));
         }
-        report.push_str("\n");
+        report.push('\n');
         
         // Arc Analysis
         report.push_str("🔗 ARC ALLOCATION ANALYSIS\n");
@@ -1091,7 +1087,7 @@ impl ComprehensiveVerificationReport {
         if let Ok(duration) = self.timestamp.duration_since(UNIX_EPOCH) {
             report.push_str(&format!("{}", duration.as_secs()));
         }
-        report.push_str("\n");
+        report.push('\n');
         
         report
     }

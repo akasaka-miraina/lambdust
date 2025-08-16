@@ -844,7 +844,7 @@ mod tests {
         let result = inference.infer(&number_expr).unwrap();
         assert_eq!(result.type_, Type::Number);
         
-        let string_expr = spanned(Expr::Literal(Literal::String("hello".to_string())), Span::new(0, 7));
+        let string_expr = spanned(Expr::Literal(Literal::String(Box::new("hello".to_string()))), Span::new(0, 7));
         let result = inference.infer(&string_expr).unwrap();
         assert_eq!(result.type_, Type::String);
     }

@@ -714,7 +714,7 @@ fn primitive_error(args: &[Value]) -> Result<Value> {
     }
     
     let message = match &args[0] {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
+        Value::Literal(crate::ast::Literal::String(s)) => (**s).clone(),
         _ => format!("{}", args[0]),
     };
     

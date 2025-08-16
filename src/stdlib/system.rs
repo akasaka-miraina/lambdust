@@ -230,8 +230,8 @@ pub fn primitive_exit(args: &[Value]) -> Result<Value> {
                 }
             }
             // Keep old rational case for safety, though it should be caught above
-            Value::Literal(crate::ast::Literal::Rational { numerator, denominator }) => {
-                let value = (*numerator as f64 / *denominator as f64) as i64;
+            Value::Literal(crate::ast::Literal::Rational(rational)) => {
+                let value = (rational.numerator as f64 / rational.denominator as f64) as i64;
                 value.clamp(0, 255) as i32
             }
             // All other values default to failure
@@ -270,8 +270,8 @@ pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
                     0
                 }
             }
-            Value::Literal(crate::ast::Literal::Rational { numerator, denominator }) => {
-                let value = (*numerator as f64 / *denominator as f64) as i64;
+            Value::Literal(crate::ast::Literal::Rational(rational)) => {
+                let value = (rational.numerator as f64 / rational.denominator as f64) as i64;
                 value.clamp(0, 255) as i32
             }
             _ => 1,
@@ -319,7 +319,7 @@ pub fn primitive_get_environment_variable(args: &[Value]) -> Result<Value> {
 
     // Extract the variable name
     let var_name = match &args[0] {
-        Value::Literal(crate::ast::Literal::String(s)) => s.clone(),
+        Value::Literal(crate::ast::Literal::String(s)) => (**s).clone(),
         _ => {
             return Err(Box::new(DiagnosticError::runtime_error(
                 "get-environment-variable requires a string argument".to_string(),

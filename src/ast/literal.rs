@@ -583,7 +583,7 @@ mod tests {
         assert!(Literal::boolean(true).is_truthy());
         assert!(!Literal::boolean(false).is_truthy());
         assert!(Literal::integer(0).is_truthy()); // 0 is truthy in Scheme
-        assert!(Literal::String("").is_truthy()); // empty string is truthy
+        assert!(Literal::String(Box::new("".to_string())).is_truthy()); // empty string is truthy
         assert!(Literal::Nil.is_truthy()); // empty list is truthy
     }
 
@@ -596,7 +596,7 @@ mod tests {
         assert_eq!(format!("{}", Literal::complex(3.0, 4.0)), "3+4i");
         assert_eq!(format!("{}", Literal::complex(0.0, 1.0)), "i");
         assert_eq!(format!("{}", Literal::complex(3.0, -1.0)), "3-i");
-        assert_eq!(format!("{}", Literal::String("hello".to_string())), "\"hello\"");
+        assert_eq!(format!("{}", Literal::String(Box::new("hello".to_string()))), "\"hello\"");
         assert_eq!(format!("{}", Literal::character('a')), "#\\a");
         assert_eq!(format!("{}", Literal::character(' ')), "#\\space");
         assert_eq!(format!("{}", Literal::boolean(true)), "#t");
@@ -618,7 +618,7 @@ mod tests {
     
     #[test]
     fn test_interned_string_creation() {
-        let regular = Literal::String("hello");
+        let regular = Literal::String(Box::new("hello".to_string()));
         let interned = Literal::interned_string("hello");
         let smart = Literal::smart_string("hello"); // Should be interned due to length
         

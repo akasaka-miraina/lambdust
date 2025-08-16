@@ -856,7 +856,7 @@ pub fn primitive_pipeline_execute(_args: &[Value]) -> Result<Value> {
 /// Extracts a string from a Value.
 fn extract_string(value: &Value, operation: &str) -> Result<String> {
     match value {
-        Value::Literal(crate::ast::Literal::String(s)) => Ok(s.clone()),
+        Value::Literal(crate::ast::Literal::String(s)) => Ok((**s).clone()),
         _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires string arguments"),
             None,
@@ -898,7 +898,7 @@ fn extract_integer(value: &Value, operation: &str) -> Result<i64> {
 /// Extracts a bytevector from a Value.
 fn extract_bytevector(value: &Value, operation: &str) -> Result<Vec<u8>> {
     match value {
-        Value::Literal(crate::ast::Literal::Bytevector(bv)) => Ok(bv.clone()),
+        Value::Literal(crate::ast::Literal::Bytevector(bv)) => Ok((**bv).clone()),
         _ => Err(Box::new(DiagnosticError::runtime_error(
             format!("{operation} requires bytevector arguments"),
             None,

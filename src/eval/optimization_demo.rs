@@ -44,7 +44,7 @@ fn demonstrate_basic_optimization() {
     println!("1. Basic Optimization");
     println!("---------------------");
     
-    let bridge = LegacyValueBridge::default();
+    let bridge = LegacyValueBridge::new_default();
     
     // Create various value types
     let values = vec![
@@ -55,7 +55,7 @@ fn demonstrate_basic_optimization() {
         ("Large Integer", Value::Literal(Literal::ExactInteger(i64::MAX))),
         ("Float", Value::Literal(Literal::InexactReal(std::f64::consts::PI))),
         ("Character", Value::Literal(Literal::Character('λ'))),
-        ("String", Value::Literal(Literal::String("Hello, World!".to_string()))),
+        ("String", Value::Literal(Literal::String(Box::new("Hello, World!".to_string())))),
         ("Symbol", Value::Symbol(SymbolId::new(123))),
     ];
     
@@ -63,11 +63,11 @@ fn demonstrate_basic_optimization() {
         let optimized = bridge.optimize_value(&value);
         let restored = bridge.deoptimize_value(&optimized);
         
-        println!("  {}: {} -> Optimized -> {}", name, value, restored);
+        println!("  {name}: {value} -> Optimized -> {restored}");
         
         // Verify semantic equivalence
         let equivalent = format!("{value}") == format!("{restored}");
-        println!("    Semantically equivalent: {}", equivalent);
+        println!("    Semantically equivalent: {equivalent}");
     }
     
     let metrics = bridge.metrics();
@@ -117,7 +117,7 @@ fn demonstrate_performance_improvement() {
     let benchmarks: Vec<(&str, Box<dyn Fn() -> Value>, Box<dyn Fn() -> Value>)> = vec![
         ("Boolean creation", 
          Box::new(|| Value::Literal(Literal::Boolean(true))),
-         Box::new(|| hot_path_optimized::true_val())),
+         Box::new(hot_path_optimized::true_val)),
         
         ("Integer creation",
          Box::new(|| Value::Literal(Literal::ExactInteger(42))),
@@ -244,10 +244,10 @@ fn demonstrate_hot_path_optimization() {
         0.0
     };
     
-    println!("  Hot Path Performance (Boolean creation, {} iterations):", iterations);
-    println!("    Traditional: {:?}", traditional_time);
-    println!("    Optimized: {:?}", optimized_time);
-    println!("    Improvement: {:.1}%", improvement);
+    println!("  Hot Path Performance (Boolean creation, {iterations} iterations):");
+    println!("    Traditional: {traditional_time:?}");
+    println!("    Optimized: {optimized_time:?}");
+    println!("    Improvement: {improvement:.1}%");
     
     let stats = optimizer.performance_stats();
     println!("\n  Optimizer Statistics:");
@@ -263,7 +263,7 @@ fn create_complex_value_structure() -> Value {
     let elements = vec![
         Value::Literal(Literal::Boolean(true)),
         Value::Literal(Literal::ExactInteger(42)),
-        Value::Literal(Literal::String("test".to_string())),
+        Value::Literal(Literal::String(Box::new("test".to_string()))),
         Value::Symbol(SymbolId::new(123)),
         Value::Pair(
             Arc::new(Value::Literal(Literal::ExactInteger(1))),
@@ -303,19 +303,19 @@ pub fn example_usage() {
     // 3. Create a list using the optimized constructor
     let scheme_list = optimizer.list(values);
     
-    println!("Created optimized list: {}", scheme_list);
+    println!("Created optimized list: {scheme_list}");
     
     // 4. Use the bridge for gradual migration
-    let bridge = LegacyValueBridge::default();
+    let bridge = LegacyValueBridge::new_default();
     
     // Convert legacy values to optimized form
     let legacy_value = Value::Pair(
-        Arc::new(Value::Literal(Literal::String("old".to_string()))),
-        Arc::new(Value::Literal(Literal::String("style".to_string())))
+        Arc::new(Value::Literal(Literal::String(Box::new("old".to_string())))),
+        Arc::new(Value::Literal(Literal::String(Box::new("style".to_string()))))
     );
     
     let optimized = bridge.optimize_value(&legacy_value);
-    println!("Optimized legacy value: {:?}", optimized);
+    println!("Optimized legacy value: {optimized:?}");
     
     // 5. Check performance metrics
     let metrics = bridge.metrics();

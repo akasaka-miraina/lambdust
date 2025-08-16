@@ -123,7 +123,7 @@ impl EvalUnifiedError {
         let severity = eval_kind.default_severity();
         let base = UnifiedError::new(RuntimeError, message)
             .with_severity(severity)
-            .with_context("eval_kind", format!("{:?}", eval_kind));
+            .with_context("eval_kind", format!("{eval_kind:?}"));
 
         Self {
             base,
@@ -141,7 +141,7 @@ impl EvalUnifiedError {
         self.actual_value = Some(actual.clone());
         self.base = self.base
             .with_context("expected_type", expected_str)
-            .with_context("actual_value", format!("{:?}", actual));
+            .with_context("actual_value", format!("{actual:?}"));
         self
     }
 
@@ -161,7 +161,7 @@ impl EvalUnifiedError {
 
     /// Builder pattern: adds expression context.
     pub fn with_expression_context(mut self, expr: &Expr) -> Self {
-        let expr_str = format!("{:?}", expr);
+        let expr_str = format!("{expr:?}");
         self.eval_context.current_expression = Some(expr_str.clone());
         self.base = self.base.with_context("expression", expr_str);
         self
@@ -211,7 +211,7 @@ impl EvalUnifiedError {
             }
             (EvalErrorKind::ArityMismatch, _, _) => {
                 if let Some(func) = &self.eval_context.current_function {
-                    format!("Wrong number of arguments to function '{}'", func)
+                    format!("Wrong number of arguments to function '{func}'")
                 } else {
                     "Wrong number of arguments".to_string()
                 }
@@ -261,7 +261,7 @@ impl EvalUnifiedError {
         match self.eval_kind {
             EvalErrorKind::TypeMismatch => {
                 if let Some(expected) = &self.expected_type {
-                    fixes.push(format!("Ensure the value is of type {}", expected));
+                    fixes.push(format!("Ensure the value is of type {expected}"));
                     fixes.push("Check function argument types".to_string());
                 }
             }
@@ -382,8 +382,7 @@ impl EvalUnifiedError {
         let name = function_name.into();
         Self::new(
             EvalErrorKind::ArityMismatch,
-            format!("Function '{}' expects {} arguments, got {}", 
-                name, expected, actual)
+            format!("Function '{name}' expects {expected} arguments, got {actual}")
         ).with_function_context(name)
     }
 
@@ -392,7 +391,7 @@ impl EvalUnifiedError {
         let var_name = variable_name.into();
         let mut error = Self::new(
             EvalErrorKind::UndefinedVariable,
-            format!("Undefined variable: '{}'", var_name)
+            format!("Undefined variable: '{var_name}'")
         );
         error.base = error.base.with_context("variable_name", var_name);
         error
@@ -410,7 +409,7 @@ impl EvalUnifiedError {
     pub fn stack_overflow(depth: usize) -> Self {
         Self::new(
             EvalErrorKind::StackOverflow,
-            format!("Stack overflow at depth {}", depth)
+            format!("Stack overflow at depth {depth}")
         ).with_stack_context(depth, false)
     }
 

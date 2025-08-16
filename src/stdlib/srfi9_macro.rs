@@ -84,7 +84,7 @@ fn extract_type_name(value: &Value) -> Result<String> {
                 )))
             }
         }
-        Value::Literal(Literal::String(name)) => Ok(name.clone()),
+        Value::Literal(Literal::String(name)) => Ok((**name).clone()),
         _ => Err(Box::new(Error::runtime_error(
             "Record type name must be a symbol or string".to_string(),
             None,

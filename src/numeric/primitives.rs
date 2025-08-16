@@ -491,7 +491,7 @@ pub fn primitive_constant(args: &[Value]) -> Result<Value> {
     }
     
     let name = match &args[0] {
-        Value::Literal(Literal::String(s)) => s.clone(),
+        Value::Literal(Literal::String(s)) => (**s).clone(),
         Value::Symbol(id) => {
             // Convert symbol to string for lookup
             if let Some(name) = crate::utils::symbol_name(*id) {

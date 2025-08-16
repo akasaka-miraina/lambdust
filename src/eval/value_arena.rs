@@ -46,6 +46,13 @@ pub struct ValueRef {
     generation: u32,
 }
 
+impl ValueRef {
+    /// Create a new ValueRef for placeholder/testing purposes
+    pub fn new(index: u32, generation: u32) -> Self {
+        Self { index, generation }
+    }
+}
+
 /// Arena-allocated storage for runtime values.
 ///
 /// This structure manages memory-efficient storage of Lambdust runtime values
@@ -296,7 +303,7 @@ impl ValueArena {
         if value_ref.index as usize >= storage.len() {
             return Err(Box::new(Error::runtime_error(
                 format!("Invalid value reference: index {} out of bounds", value_ref.index),
-                Span::new(0, 0)
+                Some(Span::new(0, 0))
             )));
         }
         
@@ -305,7 +312,7 @@ impl ValueArena {
         if !entry.valid || entry.generation != value_ref.generation {
             return Err(Box::new(Error::runtime_error(
                 "Invalid value reference: generation mismatch or invalidated".to_string(),
-                Span::new(0, 0)
+                Some(Span::new(0, 0))
             )));
         }
         
@@ -459,7 +466,7 @@ impl ValueArena {
                 // For complex types, fall back to external storage
                 Err(Box::new(Error::runtime_error(
                     "Cannot convert complex arena value to standard value".to_string(),
-                    Span::new(0, 0)
+                    Some(Span::new(0, 0))
                 )))
             }
         }
