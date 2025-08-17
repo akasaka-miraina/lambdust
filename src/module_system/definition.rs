@@ -385,7 +385,7 @@ mod tests {
 
     fn make_string(s: &str) -> Spanned<Expr> {
         Spanned {
-            inner: Expr::Literal(Literal::String(s.to_string())),
+            inner: Expr::Literal(Literal::String(Box::new(s.to_string()))),
             span: make_span(),
         }
     }

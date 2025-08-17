@@ -34,8 +34,6 @@ pub mod primitives;
 pub mod integration;
 /// Performance optimizations and specialized algorithms.
 pub mod optimization;
-/// Demonstration and example code for numeric operations.
-pub mod demo;
 /// SIMD-optimized numeric operations for performance.
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub mod simd_optimization;
@@ -44,7 +42,6 @@ pub mod simd_optimization;
 pub mod simd_optimization_stub;
 /// SIMD performance benchmarking and analysis suite.
 #[cfg(feature = "simd-benchmarks")]
-pub mod simd_benchmarks;
 
 pub use complex::*;
 pub use rational::*;
@@ -55,7 +52,6 @@ pub use constants::*;
 pub use primitives::*;
 pub use integration::*;
 pub use optimization::*;
-pub use demo::*;
 
 #[cfg(any(target_arch = "x86", target_arch = "x86_64"))]
 pub use simd_optimization::{
@@ -116,7 +112,7 @@ pub enum NumericValue {
     /// IEEE 754 double precision floating point
     Real(f64),
     /// Complex number (real + imaginary parts)
-    Complex(Complex),
+    Complex(complex::Complex),
     /// Vector of numeric values for SIMD optimization
     Vector(Vec<NumericValue>),
 }
@@ -161,7 +157,7 @@ impl NumericValue {
 
     /// Creates a complex value
     pub fn complex(real: f64, imag: f64) -> Self {
-        Self::Complex(Complex::new(real, imag))
+        Self::Complex(complex::Complex::new(real, imag))
     }
 
     /// Creates a vector value
@@ -304,7 +300,7 @@ impl NumericValue {
                 Some(Self::Rational(Rational::new(rational.numerator, rational.denominator)))
             }
             Literal::Complex(complex) => {
-                Some(Self::Complex(Complex::new(complex.real, complex.imaginary)))
+                Some(Self::Complex(complex::Complex::new(complex.real, complex.imaginary)))
             }
             _ => None,
         }
@@ -584,7 +580,7 @@ mod tests {
 
     #[test]
     fn test_literal_conversion() {
-        let lit = Literal::Rational { numerator: 3, denominator: 4 };
+        let lit = Literal::rational(3, 4);
         let num_val = NumericValue::from_literal(&lit).unwrap();
         let back_lit = num_val.to_literal();
 

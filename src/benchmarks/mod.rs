@@ -10,23 +10,12 @@
 
 pub mod scheme_comparison;
 pub mod performance_analysis;
-pub mod performance_tester;
 pub mod scheme_benchmark_suite;
 pub mod comprehensive_benchmark_suite;
 pub mod environment_optimization;
-pub mod statistical_analysis;
-pub mod statistical_analyzer;
-pub mod statistical_tests;
 pub mod effect_analysis;
 pub mod outlier_normality;
-pub mod correlation_statistics;
-pub mod regression_detection;
-pub mod regression_detector;
-pub mod baseline_manager;
 pub mod performance_measurement;
-pub mod trend_analyzer;
-pub mod anomaly_detector;
-pub mod detection_results;
 pub mod analysis_support;
 pub mod external_integration;
 pub mod benchmark_config;
@@ -43,11 +32,6 @@ pub use performance_analysis::{
     BaselineComparison, BaselineMetrics,
 };
 
-pub use performance_tester::{
-    PerformanceTester, PerformanceTestConfig, PerformanceTestResults,
-    MicroBenchmarkResults, MacroBenchmarkResults, SimdOptimizationResults,
-    MemoryPoolResults, EnvironmentOptimizationResults,
-};
 
 pub use scheme_benchmark_suite::{
     SchemeBenchmarkSuite, SchemeBenchmark, SchemeBenchmarkResult,
@@ -72,19 +56,7 @@ pub use benchmark_config::{
     OutputConfig, OutputFormat, ChartType, ResourceConfig, SystemResourceLimits,
 };
 
-pub use statistical_analysis::{
-    StatisticalAnalyzer, StatisticalAnalysisConfig, StatisticalAnalysisResult,
-    DescriptiveStatistics, PairwiseComparison, EffectSize, ConfidenceInterval,
-    AnovaResult, OutlierAnalysis, NormalityTest, CorrelationMatrix,
-    generate_statistical_report,
-};
 
-pub use regression_detection::{
-    RegressionDetector, RegressionDetectionConfig, RegressionDetectionResult,
-    PerformanceRegression, PerformanceImprovement, TrendAnalysis, PerformanceAnomaly,
-    BaselineData, PerformanceMeasurement, OverallAssessment, ActionRecommendation,
-    generate_regression_report,
-};
 
 pub use external_integration::{
     ExternalReporting, GitHubConfig, DashboardConfig, NotificationConfig,

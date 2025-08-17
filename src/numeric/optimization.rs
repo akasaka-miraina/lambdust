@@ -3,7 +3,7 @@
 //! Provides SIMD-accelerated operations, lookup tables, and specialized
 //! algorithms for high-performance numeric computing.
 
-use super::{Complex, Rational};
+use super::{complex::Complex, Rational};
 use std::sync::OnceLock;
 
 /// Fast lookup tables for common mathematical functions
@@ -222,7 +222,7 @@ impl Complex {
         let min = a.min(b);
         let r = min / max;
         
-        max * (1.0 + r * r).sqrt()
+        max * (1.0_f64 + r * r).sqrt()
     }
 
     /// Fast power using binary exponentiation for integer exponents

@@ -989,7 +989,7 @@ mod tests {
                 span: Span::default(),
             }),
             operands: vec![Spanned {
-                inner: Expr::Literal(Literal::String("Hello".to_string())),
+                inner: Expr::Literal(Literal::String(Box::new("Hello".to_string()))),
                 span: Span::default(),
             }],
         };

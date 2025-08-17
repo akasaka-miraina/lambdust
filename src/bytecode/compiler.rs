@@ -1009,7 +1009,7 @@ mod tests {
     #[test]
     fn test_compiler_stats() {
         let mut compiler = BytecodeCompiler::new(CompilerOptions::default());
-        let expr = Expr::Literal(Literal::String("hello".to_string()));
+        let expr = Expr::Literal(Literal::String(Box::new("hello".to_string())));
         
         let _result = compiler.compile_expression(&expr).unwrap();
         let stats = compiler.get_stats();

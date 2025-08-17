@@ -38,8 +38,6 @@ pub mod profile_guided_optimizer;
 pub mod config;
 /// Performance monitoring and metrics
 pub mod metrics;
-/// Security and verification framework
-pub mod security_verification;
 /// Deoptimization system
 pub mod deoptimization;
 /// JIT runtime coordination
@@ -74,7 +72,6 @@ pub use config::EvictionPolicy;
 pub use profile_guided_optimizer::{ProfileGuidedOptimizer, RuntimeProfile};
 pub use config::{JitConfig, CompilationStrategy};
 pub use metrics::{JitMetrics, PerformanceCounters};
-pub use security_verification::{JitSecurityFramework, SecurityVerificationResult, ExecutionPermissions};
 pub use deoptimization::{DeoptimizationManager, DeoptimizationReason};
 pub use jit_runtime::{JitRuntime, JitExecutionContext};
 pub use r7rs_compliance::{R7RSComplianceVerifier, R7RSComplianceLevel, R7RSSemanticRequirements, CORE_R7RS_PRIMITIVES};

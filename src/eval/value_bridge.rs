@@ -474,7 +474,7 @@ mod tests {
     
     #[test]
     fn test_immediate_value_optimization() {
-        let bridge = LegacyValueBridge::default();
+        let bridge = LegacyValueBridge::new_default();
         
         // Test boolean optimization
         let true_val = Value::Literal(Literal::Boolean(true));
@@ -494,7 +494,7 @@ mod tests {
     
     #[test]
     fn test_integer_optimization() {
-        let bridge = LegacyValueBridge::default();
+        let bridge = LegacyValueBridge::new_default();
         
         // Small integer should become fixnum
         let small_int = Value::Literal(Literal::ExactInteger(42));
@@ -510,9 +510,9 @@ mod tests {
     
     #[test]
     fn test_string_optimization() {
-        let bridge = LegacyValueBridge::default();
+        let bridge = LegacyValueBridge::new_default();
         
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let opt_string = bridge.optimize_value(&string_val);
         assert_eq!(opt_string.tag, ValueTag::String);
         assert_eq!(opt_string.as_string(), Some("hello"));
@@ -524,7 +524,7 @@ mod tests {
     
     #[test]
     fn test_pair_optimization() {
-        let bridge = LegacyValueBridge::default();
+        let bridge = LegacyValueBridge::new_default();
         
         let car = Value::Literal(Literal::ExactInteger(1));
         let cdr = Value::Literal(Literal::ExactInteger(2));
@@ -542,7 +542,7 @@ mod tests {
     
     #[test]
     fn test_metrics_tracking() {
-        let bridge = LegacyValueBridge::default();
+        let bridge = LegacyValueBridge::new_default();
         bridge.reset_metrics();
         
         // Perform several optimizations
@@ -578,7 +578,7 @@ mod tests {
     
     #[test]
     fn test_semantic_equivalence() {
-        let bridge = LegacyValueBridge::default();
+        let bridge = LegacyValueBridge::new_default();
         
         // Test various value types for semantic preservation
         let test_values = vec![
@@ -587,7 +587,7 @@ mod tests {
             Value::Literal(Literal::Boolean(false)),
             Value::Literal(Literal::ExactInteger(42)),
             Value::Literal(Literal::InexactReal(3.14)),
-            Value::Literal(Literal::String("test".to_string())),
+            Value::Literal(Literal::String(Box::new("test".to_string()))),
             Value::Literal(Literal::Character('X')),
         ];
         

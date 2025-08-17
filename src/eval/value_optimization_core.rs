@@ -613,7 +613,7 @@ mod tests {
             Value::Nil,
             Value::Literal(Literal::Boolean(true)),
             Value::Literal(Literal::ExactInteger(42)),
-            Value::Literal(Literal::String("hello".to_string())),
+            Value::Literal(Literal::String(Box::new("hello".to_string()))),
             Value::Symbol(SymbolId::new(1)),
         ];
         

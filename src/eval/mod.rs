@@ -20,18 +20,14 @@ pub mod continuation_gc;
 // Arena allocation modules
 pub mod value_arena;
 pub mod arena_integration;
-pub mod arena_demo;
 
 // Value optimization modules
 pub mod value_bridge;
 pub mod value_optimization_core;
 pub mod memory_measurement;
 pub mod semantic_tests;
-pub mod optimization_demo;
-pub mod simple_performance_test;
 
 // Performance verification modules
-pub mod comprehensive_performance_verification;
 pub mod arc_allocation_tracker;
 
 // New monadic architecture modules
@@ -40,13 +36,10 @@ pub mod continuation_domain;
 pub mod monadic_architecture;
 pub mod effect_integration;
 pub mod evaluator_integration;
-pub mod testing_architecture;
 
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-mod environment_integration_tests;
 
 // Re-export public types and functions
 pub use value::{
@@ -77,15 +70,7 @@ pub use memory_measurement::{
 pub use semantic_tests::{
     SemanticTestSuite, SemanticTestResults, PropertyTestResults, ValueProperties
 };
-pub use optimization_demo::{run_optimization_demo, example_usage};
-pub use simple_performance_test::{SimplePerformanceVerifier, SimpleTestResult, run_simple_verification};
 
-// Performance verification exports
-pub use comprehensive_performance_verification::{
-    PerformanceVerificationSuite, VerificationConfig, ComprehensiveVerificationReport,
-    MemoryAnalysisReport, ArcAnalysisReport, SemanticVerificationReport, CacheAnalysisReport,
-    ProductionReadinessReport, PerformanceBenchmarkResult, OperationPerformance
-};
 pub use arc_allocation_tracker::{
     ArcAllocationTracker, AllocationStats, DetailedAllocationReport, AllocationPatternAnalysis,
     ValueTypeAnalyzer, ValueTypeClassification, HierarchyAnalysis, TrackedArc,
@@ -109,4 +94,3 @@ pub use arena_integration::{
     ArenaAllocator, ArenaAwareValue, AllocationHint, ValueLifetime, CallFrameRef,
     GlobalArenaStats, arena_utils
 };
-pub use arena_demo::{ArenaDemo, BenchmarkResult as ArenaBenchmarkResult, MemoryUsage, quick_demo};

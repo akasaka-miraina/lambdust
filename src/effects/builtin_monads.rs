@@ -1624,7 +1624,7 @@ mod tests {
         
         // Test conversion to Value
         let writer_value: Value = Writer::new(
-            Value::Literal(Literal::String("result".to_string())),
+            Value::Literal(Literal::String(Box::new("result".to_string()))),
             "log output".to_string()
         ).into();
         

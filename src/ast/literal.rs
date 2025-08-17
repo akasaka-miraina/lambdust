@@ -543,7 +543,7 @@ mod tests {
     fn test_rational_creation() {
         let rat = Literal::rational(3, 4);
         
-        match rat {
+        match &rat {
             Literal::Rational(r) => {
                 assert_eq!(r.numerator, 3);
                 assert_eq!(r.denominator, 4);
@@ -560,7 +560,7 @@ mod tests {
     fn test_rational_normalization() {
         let rat = Literal::rational(6, 8);
         
-        match rat {
+        match &rat {
             Literal::Rational(r) => {
                 assert_eq!(r.numerator, 3);
                 assert_eq!(r.denominator, 4);

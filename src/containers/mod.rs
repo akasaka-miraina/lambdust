@@ -39,7 +39,6 @@ pub mod benchmarks;
 
 // Container context optimization modules
 pub mod context_optimization;
-pub mod optimization_benchmarks;
 pub mod integration_utils;
 
 // Re-export main types for convenience
@@ -59,9 +58,6 @@ pub use benchmarks::{ContainerBenchmarks, BenchmarkResult, run_quick_benchmark};
 pub use context_optimization::{
     OptimizedContainer, ArenaVector, ArenaHashTable, ContainerPool, ContainerContext,
     AccessPattern, OptimizationPriority, ContainerMetrics, PoolStats
-};
-pub use optimization_benchmarks::{
-    ContainerOptimizationBenchmarks, OptimizationBenchmarkResult, MemoryImprovement, CachePerformance, quick_container_demo
 };
 pub use integration_utils::{
     OptimizedContainerFactory, ContainerType, UsagePatternAnalyzer, ContainerMigrator,

@@ -761,7 +761,7 @@ mod tests {
         assert!(result.is_ok());
 
         // Invalid call - wrong type
-        let args = vec![Value::Literal(Literal::String("hello".to_string()))];
+        let args = vec![Value::Literal(Literal::String(Box::new("hello".to_string())))];
         let result = validator.validate_function_call("test_function", &args, ptr::null());
         assert!(matches!(result, Err(ref err) if matches!(**err, SafetyError::RuntimeTypeCheck { .. })));
     }
@@ -781,7 +781,7 @@ mod tests {
         validator.register_function_signature(signature).unwrap();
 
         // Valid call
-        let args = vec![Value::Literal(Literal::String("hello".to_string()))];
+        let args = vec![Value::Literal(Literal::String(Box::new("hello".to_string())))];
         let result = validator.validate_function_call("test_function", &args, ptr::null());
         assert!(result.is_ok());
 

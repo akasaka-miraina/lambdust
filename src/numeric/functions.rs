@@ -3,7 +3,7 @@
 //! Implements special functions, statistical distributions, and numerical algorithms
 //! required for comprehensive mathematical computing.
 
-use super::Complex;
+use super::complex::Complex;
 use std::f64::consts::{PI, TAU};
 
 

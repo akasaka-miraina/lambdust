@@ -1247,7 +1247,7 @@ mod tests {
         assert!(result.is_ok());
         
         if let Ok(Value::Literal(crate::ast::Literal::String(content))) = result {
-            assert_eq!(content, "Hello, secure world!");
+            assert_eq!(content.as_str(), "Hello, secure world!");
         } else {
             panic!("Expected string result");
         }

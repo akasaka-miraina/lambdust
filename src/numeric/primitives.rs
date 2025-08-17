@@ -560,7 +560,7 @@ mod tests {
     #[test]
     fn test_type_predicates() {
         let number_val = Value::Literal(Literal::Number(std::f64::consts::PI));
-        let string_val = Value::Literal(Literal::String("hello".to_string()));
+        let string_val = Value::Literal(Literal::String(Box::new("hello".to_string())));
         
         let result = primitive_number_p(&[number_val.clone()]).unwrap();
         assert_eq!(result, Value::boolean(true));

@@ -502,7 +502,7 @@ mod tests {
                 // First element should be "lambdust"
                 match car.as_ref() {
                     Value::Literal(crate::ast::Literal::String(s)) => {
-                        assert_eq!(s, "lambdust");
+                        assert_eq!(**s, "lambdust");
                     }
                     _ => panic!("Expected string"),
                 }

@@ -687,7 +687,7 @@ mod tests {
     #[test] 
     fn test_string_conversion() {
         let mut marshaller = TypeMarshaller::new();
-        let value = Value::Literal(Literal::String("hello".to_string()));
+        let value = Value::Literal(Literal::String(Box::new("hello".to_string())));
         let buffer = marshaller.to_c_data(&value, &CType::CString).unwrap();
         
         unsafe {

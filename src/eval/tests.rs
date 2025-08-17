@@ -60,11 +60,11 @@ mod literal_evaluation {
         let mut evaluator = Evaluator::new();
         let env = test_env();
         
-        let expr = spanned(Expr::Literal(Literal::String("hello")));
+        let expr = spanned(Expr::Literal(Literal::String(Box::new("hello".to_string()))));
         let result = evaluator.eval(&expr, env).unwrap();
         
         match result {
-            Value::Literal(Literal::String(s)) => assert_eq!(s, "hello"),
+            Value::Literal(Literal::String(s)) => assert_eq!(*s, "hello"),
             _ => panic!("Expected string literal, got: {result:?}"),
         }
     }

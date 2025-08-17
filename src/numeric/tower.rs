@@ -4,7 +4,7 @@
 //! Implements the Scheme numeric tower: Integer → Rational → Real → Complex
 //! with automatic type promotion, precision preservation, and optimized operations.
 
-use super::{NumericValue, NumericType, Complex, Rational, BigInt};
+use super::{NumericValue, NumericType, complex::Complex, Rational, BigInt};
 use std::cmp::Ordering;
 
 /// Automatic type promotion following the numeric tower
