@@ -1,0 +1,171 @@
+name: Continuous Integration
+
+on:
+  push:
+    branches: [ main, develop, '0.2.0' ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Code Quality Checks
+  check:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ci
+          cache-on-failure: true
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy (library)
+        run: cargo clippy --lib --all-targets --all-features -- -D warnings
+
+      - name: Run clippy (binaries)
+        run: cargo clippy --bins --all-targets --all-features -- -D warnings
+
+      - name: Check library compilation
+        run: cargo check --lib --all-features
+
+      - name: Check binary compilation
+        run: cargo check --bins --all-features
+
+  # Unit and Integration Tests
+  test:
+    name: Test Suite
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        rust: [stable, beta]
+        exclude:
+          - os: windows-latest
+            rust: beta
+          - os: macos-latest
+            rust: beta
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: test-${{ matrix.os }}-${{ matrix.rust }}
+          cache-on-failure: true
+
+      - name: Run unit tests
+        run: cargo test --lib --all-features
+
+      - name: Run integration tests
+        run: cargo test --test '*' --all-features
+
+      - name: Run doctests
+        run: cargo test --doc --all-features
+
+  # Build Verification
+  build:
+    name: Build Verification
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        profile: [dev, release]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: build-${{ matrix.os }}-${{ matrix.profile }}
+          cache-on-failure: true
+
+      - name: Build library
+        run: cargo build --lib ${{ matrix.profile == 'release' && '--release' || '' }}
+
+      - name: Build binaries
+        run: cargo build --bins ${{ matrix.profile == 'release' && '--release' || '' }}
+
+      - name: Build examples
+        run: cargo build --examples ${{ matrix.profile == 'release' && '--release' || '' }}
+
+  # Feature-specific Testing
+  features:
+    name: Feature Testing
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        features:
+          - "minimal-repl"
+          - "enhanced-repl"
+          - "async-runtime"
+          - "network-io"
+          - "ffi"
+          - "minimal-repl,async-runtime"
+          - "enhanced-repl,network-io,ffi"
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: features-${{ matrix.features }}
+          cache-on-failure: true
+
+      - name: Test with features
+        run: cargo test --no-default-features --features "${{ matrix.features }}"
+
+      - name: Build with features
+        run: cargo build --no-default-features --features "${{ matrix.features }}"
+
+  # Minimum Supported Rust Version
+  msrv:
+    name: MSRV (1.75.0)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust 1.75.0
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.75.0
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: msrv
+          cache-on-failure: true
+
+      - name: Check MSRV compilation
+        run: cargo check --lib --all-features
+
+      - name: Test MSRV
+        run: cargo test --lib --all-features

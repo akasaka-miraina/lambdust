@@ -7,6 +7,8 @@ This directory contains architecture and design documents for the Lambdust R7RS-
 ### Core Architecture
 - **[jit_architecture_design.md](jit_architecture_design.md)** - JIT compilation system architecture and design
 - **[dependent_type_theory.md](dependent_type_theory.md)** - Dependent type system implementation and theory
+- **[DOMAIN_DRIVEN_VALUE_OPTIMIZATION_ARCHITECTURE.md](DOMAIN_DRIVEN_VALUE_OPTIMIZATION_ARCHITECTURE.md)** - Value optimization domain-driven design
+- **[TECHNICAL_IMPLEMENTATION_ROADMAP.md](TECHNICAL_IMPLEMENTATION_ROADMAP.md)** - Technical implementation roadmap and milestones
 
 ### Formal Semantics
 - **[LambdustFormalSemantics.md](LambdustFormalSemantics.md)** - Formal semantics specification

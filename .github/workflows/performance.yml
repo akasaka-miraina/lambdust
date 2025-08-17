@@ -1,0 +1,232 @@
+name: Performance Testing
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run performance tests nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Benchmark Tests
+  benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: benchmarks
+          cache-on-failure: true
+
+      - name: Run all benchmarks
+        run: cargo bench --all-features | tee benchmark-results.txt
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results-${{ github.sha }}
+          path: benchmark-results.txt
+
+  # Performance Monitoring
+  performance-monitor:
+    name: Performance Monitor
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: performance-monitor
+          cache-on-failure: true
+
+      - name: Build performance monitor
+        run: cargo build --release --bin performance-monitor
+
+      - name: Run performance analysis
+        run: |
+          cargo run --release --bin performance-monitor -- \
+            --output performance-report.json \
+            --threshold 15.0
+
+      - name: Generate performance report
+        run: |
+          cargo run --release --bin performance-monitor -- \
+            --report \
+            --output performance-report.json
+
+      - name: Upload performance report
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-report-${{ github.sha }}
+          path: performance-report.json
+
+  # Memory Usage Analysis
+  memory-analysis:
+    name: Memory Usage Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: memory-analysis
+          cache-on-failure: true
+
+      - name: Build for memory analysis
+        run: cargo build --release --all-features
+
+      - name: Run memory analysis with Valgrind
+        run: |
+          valgrind --tool=massif --stacks=yes \
+            --massif-out-file=massif.out \
+            cargo run --release -- \
+            --eval "(define (factorial n) (if (<= n 1) 1 (* n (factorial (- n 1))))) (factorial 1000)"
+
+      - name: Generate memory report
+        run: |
+          ms_print massif.out > memory-analysis.txt
+
+      - name: Upload memory analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-analysis-${{ github.sha }}
+          path: memory-analysis.txt
+
+  # Regression Detection
+  regression-check:
+    name: Performance Regression Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout PR code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: regression-pr
+          cache-on-failure: true
+
+      - name: Run PR benchmarks
+        run: cargo bench --all-features | tee pr-benchmarks.txt
+
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          path: main-branch
+
+      - name: Setup Rust cache for main
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: regression-main
+          cache-on-failure: true
+          workspaces: main-branch
+
+      - name: Run main benchmarks
+        working-directory: main-branch
+        run: cargo bench --all-features | tee ../main-benchmarks.txt
+
+      - name: Compare performance
+        run: |
+          echo "## Performance Comparison" > performance-comparison.md
+          echo "" >> performance-comparison.md
+          echo "### Main Branch Results" >> performance-comparison.md
+          echo '```' >> performance-comparison.md
+          head -20 main-benchmarks.txt >> performance-comparison.md
+          echo '```' >> performance-comparison.md
+          echo "" >> performance-comparison.md
+          echo "### PR Results" >> performance-comparison.md
+          echo '```' >> performance-comparison.md
+          head -20 pr-benchmarks.txt >> performance-comparison.md
+          echo '```' >> performance-comparison.md
+
+      - name: Comment PR with results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const comparison = fs.readFileSync('performance-comparison.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comparison
+            });
+
+  # JIT Performance Testing
+  jit-performance:
+    name: JIT Performance Testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: jit-performance
+          cache-on-failure: true
+
+      - name: Build with JIT optimizations
+        run: cargo build --release --all-features
+
+      - name: Run JIT performance tests
+        run: |
+          echo "Testing JIT compilation performance..."
+          cargo run --release -- \
+            --eval '
+            (define (fibonacci n)
+              (if (<= n 1)
+                  n
+                  (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))
+            
+            (time (fibonacci 30))
+            (time (fibonacci 30))
+            (time (fibonacci 30))
+            ' > jit-performance.txt
+
+      - name: Analyze JIT performance
+        run: |
+          echo "JIT Performance Analysis:" >> jit-performance.txt
+          echo "First run should be slower (compilation overhead)" >> jit-performance.txt
+          echo "Subsequent runs should be faster (optimized code)" >> jit-performance.txt
+
+      - name: Upload JIT performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: jit-performance-${{ github.sha }}
+          path: jit-performance.txt

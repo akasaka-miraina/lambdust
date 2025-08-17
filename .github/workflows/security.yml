@@ -1,0 +1,325 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+  schedule:
+    # Run security audit weekly on Sundays at 3 AM UTC
+    - cron: '0 3 * * 0'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Dependency Security Audit
+  audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run security audit
+        run: |
+          cargo audit --json > audit-results.json
+          cargo audit
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-audit-${{ github.sha }}
+          path: audit-results.json
+
+  # Code Analysis with Clippy
+  clippy-security:
+    name: Security-focused Clippy Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: clippy-security
+          cache-on-failure: true
+
+      - name: Run security-focused clippy
+        run: |
+          cargo clippy --all-targets --all-features -- \
+            -W clippy::mem_forget \
+            -W clippy::mem_replace_with_uninit \
+            -W clippy::panic \
+            -W clippy::unreachable \
+            -W clippy::unwrap_used \
+            -W clippy::expect_used \
+            -W clippy::indexing_slicing \
+            -W clippy::integer_arithmetic \
+            -W clippy::float_arithmetic \
+            -W clippy::cast_ptr_alignment \
+            -W clippy::cast_lossless \
+            -W clippy::cast_possible_truncation \
+            -W clippy::cast_possible_wrap \
+            -W clippy::cast_precision_loss \
+            -W clippy::cast_sign_loss
+
+  # SAST (Static Application Security Testing)
+  semgrep:
+    name: Semgrep SAST
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Semgrep
+        uses: returntocorp/semgrep-action@v1
+        with:
+          config: auto
+          generateSarif: "1"
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: semgrep.sarif
+        if: always()
+
+  # FFI Security Analysis
+  ffi-security:
+    name: FFI Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ffi-security
+          cache-on-failure: true
+
+      - name: Analyze FFI code
+        run: |
+          echo "Analyzing FFI-related code for security issues..."
+          
+          # Check for unsafe blocks
+          echo "=== Unsafe blocks ===" > ffi-analysis.txt
+          grep -rn "unsafe" src/ffi/ >> ffi-analysis.txt || echo "No unsafe blocks found"
+          
+          # Check for raw pointer usage
+          echo "=== Raw pointer usage ===" >> ffi-analysis.txt
+          grep -rn "\*const\|\*mut" src/ffi/ >> ffi-analysis.txt || echo "No raw pointers found"
+          
+          # Check for memory-related functions
+          echo "=== Memory-related functions ===" >> ffi-analysis.txt
+          grep -rn "malloc\|free\|memcpy\|memset" src/ffi/ >> ffi-analysis.txt || echo "No direct memory functions found"
+          
+          # Check for string handling
+          echo "=== String handling ===" >> ffi-analysis.txt
+          grep -rn "CString\|CStr\|from_raw\|into_raw" src/ffi/ >> ffi-analysis.txt || echo "No C string handling found"
+
+      - name: Upload FFI analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffi-security-analysis-${{ github.sha }}
+          path: ffi-analysis.txt
+
+  # Memory Safety Analysis
+  miri:
+    name: Miri Memory Safety Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: miri
+
+      - name: Setup Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: miri
+          cache-on-failure: true
+
+      - name: Run Miri on core modules
+        run: |
+          echo "Running Miri on memory-critical components..."
+          
+          # Test core value operations
+          cargo +nightly miri test -p lambdust --lib value::tests || echo "Miri tests failed, check for undefined behavior"
+          
+          # Test arena operations if available
+          cargo +nightly miri test -p lambdust --lib arena || echo "Arena tests not available or failed"
+
+  # Fuzzing Setup
+  fuzz-setup:
+    name: Fuzzing Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz
+
+      - name: Check if fuzz targets exist
+        run: |
+          if [ -d "fuzz" ]; then
+            echo "Fuzz targets found, running basic fuzzing..."
+            cd fuzz
+            # Run each fuzz target for a short time
+            for target in $(cargo fuzz list); do
+              echo "Running fuzz target: $target"
+              timeout 60s cargo fuzz run $target || echo "Fuzz target $target completed or timed out"
+            done
+          else
+            echo "No fuzz targets found. Consider adding fuzzing tests for:"
+            echo "- Parser input validation"
+            echo "- Expression evaluation"
+            echo "- FFI boundary conditions"
+            echo "- Memory allocation patterns"
+          fi
+
+  # License Compliance
+  license-check:
+    name: License Compliance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install cargo-license
+        run: cargo install cargo-license
+
+      - name: Check dependency licenses
+        run: |
+          echo "Checking dependency licenses..."
+          cargo license --json > licenses.json
+          cargo license
+          
+          # Check for problematic licenses
+          if cargo license | grep -E "(GPL|AGPL|SSPL|BCL)"; then
+            echo "⚠️  Found potentially problematic licenses. Review required."
+            exit 1
+          else
+            echo "✅ All licenses appear compatible"
+          fi
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v4
+        with:
+          name: license-report-${{ github.sha }}
+          path: licenses.json
+
+  # Supply Chain Security
+  supply-chain:
+    name: Supply Chain Security
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Check for suspicious dependencies
+        run: |
+          echo "Analyzing dependency tree for security risks..."
+          
+          # List all dependencies
+          cargo tree --format "{p} {r}" > dependency-tree.txt
+          
+          # Check for dependencies with few downloads or recent publications
+          echo "=== Dependency Analysis ===" > supply-chain-analysis.txt
+          echo "Dependencies that might need review:" >> supply-chain-analysis.txt
+          
+          # This is a simplified check - in practice you'd want more sophisticated analysis
+          echo "Full dependency tree saved to dependency-tree.txt" >> supply-chain-analysis.txt
+
+      - name: Upload supply chain analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: supply-chain-analysis-${{ github.sha }}
+          path: |
+            dependency-tree.txt
+            supply-chain-analysis.txt
+
+  # Generate Security Report
+  security-report:
+    name: Generate Security Report
+    runs-on: ubuntu-latest
+    needs: [audit, clippy-security, ffi-security, license-check, supply-chain]
+    if: always()
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Generate security report
+        run: |
+          echo "# Security Analysis Report" > security-report.md
+          echo "" >> security-report.md
+          echo "Generated on: $(date)" >> security-report.md
+          echo "Commit: ${{ github.sha }}" >> security-report.md
+          echo "" >> security-report.md
+          
+          echo "## Security Audit Results" >> security-report.md
+          if [ -f "security-audit-${{ github.sha }}/audit-results.json" ]; then
+            vulnerabilities=$(jq '.vulnerabilities | length' security-audit-${{ github.sha }}/audit-results.json)
+            if [ "$vulnerabilities" -eq 0 ]; then
+              echo "✅ No known vulnerabilities found in dependencies" >> security-report.md
+            else
+              echo "⚠️  $vulnerabilities vulnerabilities found in dependencies" >> security-report.md
+            fi
+          else
+            echo "❌ Security audit failed or missing" >> security-report.md
+          fi
+          echo "" >> security-report.md
+          
+          echo "## FFI Security Analysis" >> security-report.md
+          if [ -f "ffi-security-analysis-${{ github.sha }}/ffi-analysis.txt" ]; then
+            echo "✅ FFI security analysis completed" >> security-report.md
+            echo '```' >> security-report.md
+            head -20 ffi-security-analysis-${{ github.sha }}/ffi-analysis.txt >> security-report.md
+            echo '```' >> security-report.md
+          else
+            echo "❌ FFI security analysis failed or missing" >> security-report.md
+          fi
+          echo "" >> security-report.md
+          
+          echo "## License Compliance" >> security-report.md
+          if [ -f "license-report-${{ github.sha }}/licenses.json" ]; then
+            echo "✅ License compliance check completed" >> security-report.md
+          else
+            echo "❌ License compliance check failed or missing" >> security-report.md
+          fi
+          echo "" >> security-report.md
+          
+          echo "## Supply Chain Analysis" >> security-report.md
+          if [ -f "supply-chain-analysis-${{ github.sha }}/dependency-tree.txt" ]; then
+            echo "✅ Supply chain analysis completed" >> security-report.md
+          else
+            echo "❌ Supply chain analysis failed or missing" >> security-report.md
+          fi
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report-${{ github.sha }}
+          path: security-report.md

@@ -1,5 +1,11 @@
 # Lambdust
 
+[![CI](https://github.com/username/lambdust/workflows/Continuous%20Integration/badge.svg)](https://github.com/akasaka-miraina/lambdust/actions/workflows/ci.yml)
+[![Performance](https://github.com/username/lambdust/workflows/Performance%20Testing/badge.svg)](https://github.com/akasaka-miraina/lambdust/actions/workflows/performance.yml)
+[![R7RS Compliance](https://github.com/username/lambdust/workflows/R7RS%20Compliance%20Testing/badge.svg)](https://github.com/akasaka-miraina/lambdust/actions/workflows/r7rs-compliance.yml)
+[![Security](https://github.com/username/lambdust/workflows/Security%20Audit/badge.svg)](https://github.com/username/akasaka-miraina/actions/workflows/security.yml)
+[![Documentation](https://github.com/username/lambdust/workflows/Documentation/badge.svg)](https://github.com/username/akasaka-miraina/actions/workflows/docs.yml)
+
 A comprehensive R7RS-large compliant Scheme interpreter written in Rust, featuring advanced type systems, effect handling, and high-performance concurrent execution.
 
 ## Features
@@ -55,8 +61,16 @@ cargo run --bin performance-monitor
 
 ## Documentation
 
-For comprehensive documentation, see:
-- [English Documentation](docs/DOCUMENTATION.md)
+### For Users
+- [User Guide](docs/user_guide.md) - Getting started and usage examples
+- [Features Overview](FEATURES.md) - Complete feature list
+- [Roadmap](NEXT_STEPS_ROADMAP.md) - Development roadmap
+
+### For Developers  
+- [Development Documentation](docs/development/README.md) - API references and implementation guides
+- [Architecture Documentation](docs/architecture/README.md) - System architecture and design
+
+### Language Support
 - [Japanese Documentation](docs/ja/DOCUMENTATION.md)
 
 ## Building
@@ -95,7 +109,7 @@ Lambdust is designed for high performance with:
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](docs/CONTRIBUTING.md) for details.
+We welcome contributions! Please see our [Development Documentation](docs/development/README.md) for contribution guidelines.
 
 1. Fork the repository
 2. Create a feature branch
