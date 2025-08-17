@@ -171,22 +171,34 @@ impl OptimizedContainerFactory {
 /// Usage hint for vector creation
 #[derive(Debug, Clone)]
 pub struct VectorUsageHint {
+    /// Expected lifetime of the vector
     pub lifetime: ValueLifetime,
+    /// Expected number of elements (for pre-allocation)
     pub expected_size: Option<usize>,
+    /// How the vector will be accessed
     pub access_pattern: AccessPattern,
+    /// Whether the vector will be shared across threads
     pub sharing_expected: bool,
+    /// Optimization priority level
     pub optimization_priority: OptimizationPriority,
+    /// Optional name for debugging
     pub name: Option<String>,
 }
 
 /// Usage hint for hash table creation
 #[derive(Debug, Clone)]
 pub struct HashTableUsageHint {
+    /// Expected lifetime of the hash table
     pub lifetime: ValueLifetime,
+    /// Expected number of key-value pairs
     pub expected_size: Option<usize>,
+    /// How the hash table will be accessed
     pub access_pattern: AccessPattern,
+    /// Whether the hash table will be shared across threads
     pub sharing_expected: bool,
+    /// Optimization priority level
     pub optimization_priority: OptimizationPriority,
+    /// Optional name for debugging
     pub name: Option<String>,
 }
 
@@ -306,11 +318,17 @@ impl UsagePatternAnalyzer {
 /// Usage analysis results
 #[derive(Debug, Clone)]
 pub struct UsageAnalysis {
+    /// Total number of operations performed
     pub total_operations: u64,
+    /// Ratio of read operations to total operations
     pub read_ratio: f64,
+    /// Ratio of sequential accesses to total accesses
     pub sequential_ratio: f64,
+    /// Maximum container size observed
     pub max_size: usize,
+    /// Average container size
     pub avg_size: f64,
+    /// Recommended container context based on analysis
     pub recommended_context: ContainerContext,
 }
 
@@ -332,6 +350,7 @@ impl ContainerMigrator {
     }
     
     /// Migrate standard HashMap to ArenaHashTable
+    #[allow(clippy::mutable_key_type)]
     pub fn migrate_hash_map(&self, map: HashMap<Value, Value>, context: ContainerContext) -> Result<ArenaHashTable> {
         let mut arena_table = ArenaHashTable::with_context(context);
         

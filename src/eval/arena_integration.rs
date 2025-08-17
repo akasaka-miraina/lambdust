@@ -54,13 +54,18 @@ pub enum ArenaAwareValue {
     Heap(Value),
     /// Arena-allocated value with lifetime management
     Arena {
+        /// Reference to the value in the arena
         value_ref: ValueRef,
+        /// Identifier of the owning arena
         arena_id: ArenaId,
     },
     /// Hybrid value with some arena-allocated components
     Hybrid {
+        /// Base value stored on the heap
         base: Value,
+        /// Arena-allocated components with their paths
         arena_components: Vec<(ComponentPath, ValueRef)>,
+        /// Identifier of the arena containing components
         arena_id: ArenaId,
     },
 }
@@ -482,16 +487,22 @@ enum AllocationStrategy {
 /// Reference to an arena-allocated call frame
 #[derive(Debug, Clone)]
 pub struct CallFrameRef {
+    /// Reference to the procedure being called
     pub procedure_ref: ValueRef,
+    /// References to the argument values
     pub arg_refs: Vec<ValueRef>,
+    /// Identifier of the arena containing the frame
     pub arena_id: ArenaId,
 }
 
 /// Global statistics across all arena instances
 #[derive(Debug)]
 pub struct GlobalArenaStats {
+    /// Statistics for each thread-local arena
     pub thread_arenas: Vec<ArenaMemoryStats>,
+    /// Statistics for the global shared arena
     pub global_arena: ArenaMemoryStats,
+    /// Overall allocation statistics
     pub allocation_stats: AllocationStats,
 }
 

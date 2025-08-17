@@ -29,6 +29,9 @@ use std::sync::{Arc, RwLock, Mutex};
 use std::cell::RefCell;
 use std::time::Instant;
 
+/// Type alias for complex hash table bucket pool structure
+type HashTableBucketPool = Vec<Vec<(ArenaValueRef, ArenaValueRef)>>;
+
 /// Context-optimized container wrapper that provides enhanced performance
 /// through arena allocation and adaptive memory management.
 #[derive(Debug, Clone)]
@@ -145,7 +148,7 @@ pub struct ContainerPool {
     /// Pool of reusable vectors
     vector_pool: Mutex<Vec<Vec<ArenaValueRef>>>,
     /// Pool of reusable hash table buckets
-    hash_table_pool: Mutex<Vec<Vec<Vec<(ArenaValueRef, ArenaValueRef)>>>>,
+    hash_table_pool: Mutex<Vec<HashTableBucketPool>>,
     /// Arena allocator
     allocator: Arc<ArenaAllocator>,
     /// Pool statistics
@@ -690,10 +693,15 @@ pub mod optimization_utils {
 /// Optimization recommendation based on usage analysis
 #[derive(Debug, Clone)]
 pub struct OptimizationRecommendation {
+    /// Cache hit rate as a percentage (0.0-1.0)
     pub cache_hit_rate: f64,
+    /// Arena allocation rate as a percentage (0.0-1.0)
     pub arena_allocation_rate: f64,
+    /// Memory efficiency score (0.0-1.0)
     pub memory_efficiency: f64,
+    /// Recommended optimization priority level
     pub recommended_priority: OptimizationPriority,
+    /// List of suggested optimization improvements
     pub suggested_improvements: Vec<String>,
 }
 

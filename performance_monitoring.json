@@ -8,10 +8,56 @@
       "load_average": 1.0
     },
     "performance_metrics": {
-      "arithmetic_ops_per_sec": 29223744.292237442,
+      "arithmetic_ops_per_sec": 29223744.29223744,
       "list_ops_per_sec": 158152775.58121145,
       "memory_allocation_ops_per_sec": 9355630.920360193,
-      "function_call_overhead_ns": 255.64170000000001,
+      "function_call_overhead_ns": 255.6417,
+      "gc_collections_per_sec": 0.0
+    },
+    "memory_usage": {
+      "heap_size_mb": 64.0,
+      "allocated_objects": 10000,
+      "gc_pressure": 0.3,
+      "memory_fragmentation": 0.15
+    },
+    "execution_profile": {
+      "hot_functions": [
+        {
+          "name": "arithmetic_operations",
+          "call_count": 1000000,
+          "total_time_ms": 50.0,
+          "avg_time_per_call_ns": 50.0
+        },
+        {
+          "name": "list_operations",
+          "call_count": 500000,
+          "total_time_ms": 75.0,
+          "avg_time_per_call_ns": 150.0
+        }
+      ],
+      "bottlenecks": [
+        "Memory allocation overhead",
+        "Symbol interning contention"
+      ],
+      "optimization_opportunities": [
+        "Consider SIMD optimizations for numeric operations",
+        "Implement memory pooling for small objects"
+      ]
+    }
+  },
+  {
+    "timestamp": 1755425983,
+    "system_info": {
+      "cpu_cores": 8,
+      "memory_total_mb": 8192,
+      "platform": "macos",
+      "load_average": 1.0
+    },
+    "performance_metrics": {
+      "arithmetic_ops_per_sec": 1000000.0,
+      "list_ops_per_sec": 500000.0,
+      "memory_allocation_ops_per_sec": 1000000.0,
+      "function_call_overhead_ns": 150.0,
       "gc_collections_per_sec": 0.0
     },
     "memory_usage": {

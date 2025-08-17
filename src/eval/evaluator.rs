@@ -2546,6 +2546,7 @@ impl Evaluator {
     }
     
     /// Extract a function identifier for JIT compilation
+    #[allow(clippy::only_used_in_recursion)]
     fn extract_function_identifier(&self, expr: &Expr) -> String {
         match expr {
             Expr::Identifier(name) => name.clone(),

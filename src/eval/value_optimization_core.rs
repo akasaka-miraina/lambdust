@@ -105,10 +105,6 @@ impl ValueOptimizer {
         }
     }
     
-    /// Creates a value optimizer with default settings
-    pub fn default() -> Self {
-        Self::new(OptimizationConfig::default())
-    }
     
     /// Gets current performance statistics
     pub fn performance_stats(&self) -> PerformanceStats {
@@ -125,6 +121,13 @@ impl ValueOptimizer {
         *self.stats.write().unwrap() = PerformanceStats::default();
         self.bridge.reset_metrics();
         self.cache.write().unwrap().clear();
+    }
+}
+
+impl Default for ValueOptimizer {
+    /// Creates a value optimizer with default settings
+    fn default() -> Self {
+        Self::new(OptimizationConfig::default())
     }
 }
 

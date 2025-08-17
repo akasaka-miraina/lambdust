@@ -226,6 +226,7 @@ impl LegacyValueBridge {
     }
     
     /// Internal conversion from OptimizedValue to Value
+    #[allow(clippy::only_used_in_recursion)]
     fn convert_from_optimized(&self, optimized: &OptimizedValue) -> Value {
         match optimized.tag {
             ValueTag::Nil => Value::Nil,

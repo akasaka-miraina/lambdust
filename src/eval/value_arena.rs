@@ -157,16 +157,23 @@ pub enum ArenaValue {
     
     /// Procedure with arena-allocated environment
     Procedure {
+        /// Formal parameters for the procedure
         formals: crate::ast::Formals,
+        /// Procedure body expressions
         body: Vec<crate::diagnostics::Spanned<crate::ast::Expr>>,
+        /// Reference to the closure environment
         environment_ref: ValueRef,
+        /// Optional procedure name for debugging
         name: Option<String>,
     },
     
     /// Continuation with arena-allocated stack
     Continuation {
+        /// Reference to the continuation stack
         stack_ref: ValueRef,
+        /// Reference to the continuation environment
         environment_ref: ValueRef,
+        /// Unique continuation identifier
         id: u64,
     },
     
@@ -568,25 +575,40 @@ impl ValueArena {
 /// Memory usage statistics for the value arena
 #[derive(Debug, Clone)]
 pub struct ArenaMemoryStats {
+    /// Count of short-lived values (< 1KB)
     pub short_count: usize,
+    /// Count of medium-lived values (1KB - 10KB)
     pub medium_count: usize,
+    /// Count of long-lived values (> 10KB)
     pub long_count: usize,
+    /// Count of currently valid entries
     pub valid_count: usize,
+    /// Total number of allocated values
     pub total_allocated: usize,
+    /// Memory used by short-lived values in bytes
     pub short_memory: usize,
+    /// Memory used by medium-lived values in bytes
     pub medium_memory: usize,
+    /// Memory used by long-lived values in bytes
     pub long_memory: usize,
+    /// Size of the literal value cache
     pub literal_cache_size: usize,
+    /// Size of the symbol cache
     pub symbol_cache_size: usize,
+    /// Size of the pair cache
     pub pair_cache_size: usize,
+    /// Total allocation count since startup
     pub allocation_count: u64,
 }
 
 /// Statistics from arena compaction
 #[derive(Debug, Clone, Default)]
 pub struct CompactionStats {
+    /// Number of invalid entries removed during compaction
     pub entries_removed: usize,
+    /// Amount of memory reclaimed in bytes
     pub memory_reclaimed: usize,
+    /// Time taken for compaction in milliseconds
     pub compaction_time_ms: u64,
 }
 

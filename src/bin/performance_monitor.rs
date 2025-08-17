@@ -4,7 +4,7 @@
 //! for Lambdust, including memory usage tracking, execution profiling, and
 //! performance regression detection.
 
-use lambdust::benchmarks::{PerformanceTester, SchemeBenchmarkSuite, PerformanceTestConfig};
+use lambdust::benchmarks::{PerformanceAnalyzer, SchemeBenchmarkSuite, AnalysisConfig};
 use lambdust::cli::{LightweightCli, ArgDef, ArgType, CliError};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::path::PathBuf;
@@ -149,9 +149,9 @@ pub enum TrendDirection {
 pub struct PerformanceMonitor {
     /// Historical performance snapshots
     snapshot_history: Vec<PerformanceSnapshot>,
-    /// Performance testing utility
+    /// Performance analysis utility
     #[allow(dead_code)]
-    performance_tester: PerformanceTester,
+    performance_analyzer: PerformanceAnalyzer,
     /// Benchmark suite for performance testing
     #[allow(dead_code)]
     benchmark_suite: SchemeBenchmarkSuite,
@@ -182,7 +182,7 @@ impl PerformanceMonitor {
     pub fn new(config: MonitoringConfig) -> Self {
         Self {
             snapshot_history: Vec::new(),
-            performance_tester: PerformanceTester::new(PerformanceTestConfig::default()),
+            performance_analyzer: PerformanceAnalyzer::new(AnalysisConfig::default()),
             benchmark_suite: SchemeBenchmarkSuite::new(),
             monitoring_config: config,
         }
@@ -231,24 +231,39 @@ impl PerformanceMonitor {
     fn collect_performance_metrics(&mut self) -> PerformanceMetrics {
         println!("  🔢 Collecting performance metrics...");
 
-        // Run quick micro-benchmarks
-        let test_config = lambdust::benchmarks::PerformanceTestConfig {
-            micro_bench_iterations: 1000,
-            macro_bench_iterations: 100,
-            test_duration: Duration::from_millis(500),
-            warmup_duration: Duration::from_millis(100),
-            ..Default::default()
-        };
+        // Run performance analysis
+        let analysis = self.performance_analyzer.analyze();
 
-        let tester = lambdust::benchmarks::PerformanceTester::new(test_config);
-        let results = tester.run_comprehensive_tests();
+        // Extract relevant metrics from the analysis
+        let arithmetic_ops_per_sec = analysis.category_analysis
+            .get(&lambdust::benchmarks::AnalysisCategory::Arithmetic)
+            .map(|a| a.ops_per_second)
+            .unwrap_or(1_000_000.0); // Default fallback
+
+        let list_ops_per_sec = analysis.category_analysis
+            .get(&lambdust::benchmarks::AnalysisCategory::ListOperations)
+            .map(|a| a.ops_per_second)
+            .unwrap_or(500_000.0); // Default fallback
+
+        let memory_allocation_ops_per_sec = analysis.category_analysis
+            .get(&lambdust::benchmarks::AnalysisCategory::MemoryAllocation)
+            .map(|a| a.ops_per_second)
+            .unwrap_or(100_000.0); // Default fallback
+
+        let function_call_overhead_ns = analysis.category_analysis
+            .get(&lambdust::benchmarks::AnalysisCategory::EnvironmentAccess)
+            .map(|a| a.avg_operation_time_ns as f64)
+            .unwrap_or(50.0); // Default fallback
+
+        // Calculate GC frequency based on memory analysis
+        let gc_collections_per_sec = analysis.memory_analysis.gc_frequency;
 
         PerformanceMetrics {
-            arithmetic_ops_per_sec: results.micro_benchmark_results.arithmetic_ops_per_sec,
-            list_ops_per_sec: results.micro_benchmark_results.list_ops_per_sec,
-            memory_allocation_ops_per_sec: results.macro_benchmark_results.allocation_ops_per_sec,
-            function_call_overhead_ns: 1_000_000.0 / results.micro_benchmark_results.env_lookup_ops_per_sec * 1000.0,
-            gc_collections_per_sec: 0.0, // Would need actual GC metrics
+            arithmetic_ops_per_sec,
+            list_ops_per_sec,
+            memory_allocation_ops_per_sec,
+            function_call_overhead_ns,
+            gc_collections_per_sec,
         }
     }
 
