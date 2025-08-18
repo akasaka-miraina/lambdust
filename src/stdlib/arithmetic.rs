@@ -621,7 +621,7 @@ fn bind_math_functions(env: &Arc<ThreadSafeEnvironment>) {
     })));
 }
 
-// ============= ARITHMETIC IMPLEMENTATIONS =============
+// Arithmetic operations
 
 /// Addition operation (+)
 fn primitive_add(args: &[Value]) -> Result<Value> {
@@ -855,7 +855,7 @@ fn primitive_truncate_remainder(args: &[Value]) -> Result<Value> {
     Ok(number_value_to_value(remainder_numbers(n1, n2)?))
 }
 
-// ============= CONVERSION IMPLEMENTATIONS =============
+// Number conversions
 
 /// Exact to inexact conversion
 fn primitive_exact_to_inexact(args: &[Value]) -> Result<Value> {
@@ -959,7 +959,7 @@ fn primitive_rationalize(args: &[Value]) -> Result<Value> {
 
 // Continue with comparison implementations...
 
-// ============= COMPARISON IMPLEMENTATIONS =============
+// Number comparisons
 
 /// Numeric equality (=)
 fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
@@ -1127,7 +1127,7 @@ fn primitive_even_p(args: &[Value]) -> Result<Value> {
     Ok(Value::boolean(is_even(num)?))
 }
 
-// ============= PREDICATE IMPLEMENTATIONS =============
+// Number predicates
 
 /// Number predicate (number?)
 fn primitive_number_p(args: &[Value]) -> Result<Value> {
@@ -1235,7 +1235,7 @@ fn primitive_inexact_p(args: &[Value]) -> Result<Value> {
 
 // Continue with math function implementations...
 
-// ============= MATH FUNCTION IMPLEMENTATIONS =============
+// Math functions
 
 /// Maximum function (max)
 fn primitive_max(args: &[Value]) -> Result<Value> {
@@ -1552,7 +1552,7 @@ fn primitive_nan_p(args: &[Value]) -> Result<Value> {
     }
 }
 
-// ============= HELPER TYPES AND FUNCTIONS =============
+// Helper types and functions
 
 /// Internal number representation for arithmetic operations.
 #[derive(Debug, Clone, PartialEq)]
@@ -2327,7 +2327,7 @@ fn rationalize_number(x: NumberValue, e: NumberValue) -> Result<NumberValue> {
     }
 }
 
-// ============= UTILITY FUNCTIONS =============
+// Utility functions
 
 /// Convert float to rational approximation
 fn float_to_rational(f: f64) -> (i64, i64) {
@@ -3116,7 +3116,7 @@ fn is_nan_number(a: NumberValue) -> bool {
     }
 }
 
-// ============= COMPLEX NUMBER PRIMITIVE IMPLEMENTATIONS =============
+// Complex number primitives
 
 /// Make rectangular complex number
 fn primitive_make_rectangular(args: &[Value]) -> Result<Value> {
@@ -3239,7 +3239,7 @@ fn primitive_angle(args: &[Value]) -> Result<Value> {
     }
 }
 
-// ============= HELPER FUNCTIONS =============
+// Helper functions
 
 /// Convert a NumberValue to f64
 fn to_float(num: NumberValue) -> Result<f64> {
