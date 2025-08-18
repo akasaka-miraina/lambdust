@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 pub struct GenericInferenceEngine<T, C>
 where
     T: TypeRepr,
-    C: TypeContext<Type = T>,
+    C: TypeContext<T>,
 {
     /// Inference algorithm to use
     algorithm: InferenceAlgorithm,
@@ -111,7 +111,7 @@ pub struct InferenceResult<T: TypeRepr> {
     /// Generated constraints
     pub constraints: Vec<InferenceConstraint<T>>,
     /// Substitution applied
-    pub substitution: Box<dyn Substitution<Type = T>>,
+    pub substitution: Box<dyn Substitution<T>>,
     /// Generalized type scheme (if applicable)
     pub type_scheme: Option<TypeScheme<T>>,
 }
@@ -166,7 +166,7 @@ pub enum CaTTConstraint<T: TypeRepr> {
 pub struct InferenceContext<T, C>
 where
     T: TypeRepr,
-    C: TypeContext<Type = T>,
+    C: TypeContext<T>,
 {
     /// Base type context
     pub type_context: C,
@@ -507,7 +507,7 @@ where
     fn solve_constraints(
         &mut self,
         constraints: &[InferenceConstraint<T>],
-    ) -> UnifiedResult<Box<dyn Substitution<Type = T>>> {
+    ) -> UnifiedResult<Box<dyn Substitution<T>>> {
         let mut substitution = HashMap::new();
         
         for constraint in constraints {
@@ -610,7 +610,7 @@ impl Default for InferenceConfig {
 /// Unification result
 #[derive(Debug)]
 pub struct UnificationResult<T: TypeRepr> {
-    pub substitution: Box<dyn Substitution<Type = T>>,
+    pub substitution: Box<dyn Substitution<T>>,
     pub constraints: Vec<InferenceConstraint<T>>,
 }
 
@@ -618,7 +618,7 @@ pub struct UnificationResult<T: TypeRepr> {
 struct TypeSynthesisVisitor<'a, T, C>
 where
     T: TypeRepr,
-    C: TypeContext<Type = T>,
+    C: TypeContext<T>,
 {
     engine: &'a mut GenericInferenceEngine<T, C>,
     context: &'a mut InferenceContext<T, C>,
@@ -720,7 +720,7 @@ where
 struct ConstraintGenerationVisitor<'a, T, C>
 where
     T: TypeRepr,
-    C: TypeContext<Type = T>,
+    C: TypeContext<T>,
 {
     constraints: &'a mut Vec<InferenceConstraint<T>>,
     context: &'a C,
@@ -729,7 +729,7 @@ where
 impl<'a, T, C> ConstraintGenerationVisitor<'a, T, C>
 where
     T: TypeRepr + Clone,
-    C: TypeContext<Type = T>,
+    C: TypeContext<T>,
 {
     fn new(constraints: &'a mut Vec<InferenceConstraint<T>>, context: &'a C) -> Self {
         ConstraintGenerationVisitor { constraints, context }
@@ -739,7 +739,7 @@ where
 impl<'a, T, C> ExpressionVisitor for ConstraintGenerationVisitor<'a, T, C>
 where
     T: TypeRepr + Clone,
-    C: TypeContext<Type = T>,
+    C: TypeContext<T>,
 {
     type Result = UnifiedResult<()>;
     
@@ -809,11 +809,11 @@ impl<T: TypeRepr> Substitution<T> for EmptySubstitution<T> {
         ty.clone()
     }
     
-    fn compose(&self, _other: &dyn Substitution<Type = T>) -> Box<dyn Substitution<Type = T>> {
+    fn compose(&self, _other: &dyn Substitution<T>) -> Box<dyn Substitution<T>> {
         Box::new(EmptySubstitution::new())
     }
     
-    fn identity() -> Box<dyn Substitution<Type = T>> {
+    fn identity() -> Box<dyn Substitution<T>> {
         Box::new(EmptySubstitution::new())
     }
     
@@ -825,6 +825,7 @@ impl<T: TypeRepr> Substitution<T> for EmptySubstitution<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::types::generic_type_system;
     
     // Mock type implementation for testing
     #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -839,7 +840,8 @@ mod tests {
     #[derive(Debug, Clone)]
     struct MockContext;
     
-    impl super::generic_type_system::UniverseLevel for MockUniverse {
+    #[cfg(feature = "experimental-type-system")]
+    impl generic_type_system::UniverseLevel for MockUniverse {
         fn succ(&self) -> Self { MockUniverse(self.0 + 1) }
         fn max(&self, other: &Self) -> Self { MockUniverse(self.0.max(other.0)) }
         fn zero() -> Self { MockUniverse(0) }

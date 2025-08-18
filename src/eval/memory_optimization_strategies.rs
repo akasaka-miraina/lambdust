@@ -241,10 +241,10 @@ impl MemoryOptimizationEngine {
         let arc_reduction_percentage = 1.0 - (optimized_arc_count as f64 / original_arc_count as f64);
         
         if arc_reduction_percentage < 0.9 {
-            return Err(Error::custom(format!(
+            return Err(Box::new(Error::custom(format!(
                 "Failed to achieve 90% Arc reduction target. Achieved: {:.1}%",
                 arc_reduction_percentage * 100.0
-            )));
+            )}))
         }
 
         Ok(FinalOptimizationMetrics {
@@ -619,7 +619,7 @@ impl SmartPointerConsolidator {
             }
         }
         
-        Err(Error::custom("No suitable consolidation strategy found"))
+        Err(Box::new(Error::custom("No suitable consolidation strategy found"))
     }
 
     fn create_consolidation_strategies() -> Vec<ConsolidationStrategy> {
@@ -675,7 +675,7 @@ impl SelectiveArcEliminator {
                 let elimination = self.perform_arc_elimination(candidate).await?;
                 result.successful_eliminations.push(elimination);
             } else {
-                result.rejected_eliminations.push(candidate.clone());
+                result.rejected_eliminations.push(candidate.clone(}))
             }
         }
 
@@ -1711,7 +1711,7 @@ mod tests {
     #[test]
     fn test_memory_pool_management() {
         let manager = MemoryPoolManager::new();
-        assert!(manager.size_pools.is_empty());
+        assert!(manager.size_pools.is_empty(}))
         assert_eq!(manager.allocation_stats.total_allocations, 0);
     }
 
@@ -1722,7 +1722,7 @@ mod tests {
         
         let access_patterns = AccessPatterns::new();
         for strategy in &strategies {
-            assert!(strategy.is_applicable(&access_patterns));
+            assert!(strategy.is_applicable(&access_patterns}))
         }
     }
 
@@ -1749,7 +1749,7 @@ mod tests {
     #[test]
     fn test_thread_safety_analysis() {
         let analyzer = ThreadSafetyAnalyzer::new();
-        assert!(analyzer.safety_checks.is_empty());
-        assert!(analyzer.concurrency_validators.is_empty());
+        assert!(analyzer.safety_checks.is_empty(}))
+        assert!(analyzer.concurrency_validators.is_empty(}))
     }
 }

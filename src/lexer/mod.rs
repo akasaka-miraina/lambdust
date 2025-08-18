@@ -58,7 +58,13 @@ pub enum TokenKind {
     Dot,
 
     // === Lambdust Extensions ===
-    TypeAnnotation,
+    TypeAnnotation,  // ::
+    Colon,           // : (for parameter type annotations)
+    Arrow,           // -> (for function types)
+    FatArrow,        // => (for constraints)
+    Pipe,            // | (for variant types and row rest)
+    Tilde,           // ~ (for effects)
+    TildeArrow,      // ~> (for effectful function types)
 
     // === Numbers ===
     ComplexNumber,
@@ -120,6 +126,12 @@ impl fmt::Display for TokenKind {
             TokenKind::UnquoteSplicing => ",@",
             TokenKind::Dot => ".",
             TokenKind::TypeAnnotation => "::",
+            TokenKind::Colon => ":",
+            TokenKind::Arrow => "->",
+            TokenKind::FatArrow => "=>",
+            TokenKind::Pipe => "|",
+            TokenKind::Tilde => "~",
+            TokenKind::TildeArrow => "~>",
             TokenKind::Keyword => "keyword",
             TokenKind::Identifier => "identifier",
             TokenKind::IntegerNumber | TokenKind::RealNumber | TokenKind::RationalNumber | TokenKind::ComplexNumber => "number",

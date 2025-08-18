@@ -1017,9 +1017,9 @@ mod tests {
         let promoted = support.promote_value(&int_val, &NumericType::ExactRational);
         assert!(promoted.is_ok());
         match promoted.unwrap() {
-            Value::Literal(Literal::Rational { numerator, denominator }) => {
-                assert_eq!(numerator, 5);
-                assert_eq!(denominator, 1);
+            Value::Literal(Literal::Rational(rational)) => {
+                assert_eq!(rational.numerator, 5);
+                assert_eq!(rational.denominator, 1);
             }
             _ => panic!("Expected exact rational"),
         }
@@ -1028,9 +1028,9 @@ mod tests {
         let promoted = support.promote_value(&int_val, &NumericType::InexactComplex);
         assert!(promoted.is_ok());
         match promoted.unwrap() {
-            Value::Literal(Literal::Complex { real, imaginary }) => {
-                assert_eq!(real, 5.0);
-                assert_eq!(imaginary, 0.0);
+            Value::Literal(Literal::Complex(complex)) => {
+                assert_eq!(complex.real, 5.0);
+                assert_eq!(complex.imaginary, 0.0);
             }
             _ => panic!("Expected complex"),
         }

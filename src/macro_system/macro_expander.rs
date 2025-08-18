@@ -132,7 +132,7 @@ impl MacroExpander {
                 }
             }
             // Special forms that contain expressions to expand
-            Expr::Lambda { formals, metadata, body } => {
+            Expr::Lambda { formals, metadata, body, .. } => {
                 let expanded_body = self.expand_body(body)?;
                 let expanded_metadata = self.expand_metadata(metadata)?;
                 Ok(Spanned::new(
@@ -140,6 +140,7 @@ impl MacroExpander {
                         formals: formals.clone(),
                         metadata: expanded_metadata,
                         body: expanded_body,
+                        return_type: None,
                     },
                     expr.span,
                 ))
@@ -161,7 +162,7 @@ impl MacroExpander {
                     expr.span,
                 ))
             }
-            Expr::Define { name, value, metadata } => {
+            Expr::Define { name, value, metadata, .. } => {
                 let expanded_value = self.expand_inner(value, expansion_trail)?;
                 let expanded_metadata = self.expand_metadata(metadata)?;
                 Ok(Spanned::new(
@@ -169,6 +170,7 @@ impl MacroExpander {
                         name: name.clone(),
                         value: Box::new(expanded_value),
                         metadata: expanded_metadata,
+                        return_type: None,
                     },
                     expr.span,
                 ))

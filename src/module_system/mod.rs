@@ -69,6 +69,14 @@ pub enum ModuleError {
     ExportError(String),
     /// Module compilation error
     CompilationError(String),
+    /// Runtime instantiation error
+    InstantiationError(String),
+    /// Library binding resolution error
+    BindingResolutionError(String),
+    /// Dynamic loading error
+    DynamicLoadingError(String),
+    /// Hot-reload error
+    HotReloadError(String),
 }
 
 impl std::fmt::Display for ModuleError {
@@ -84,6 +92,10 @@ impl std::fmt::Display for ModuleError {
             ModuleError::ImportError(msg) => write!(f, "Import error: {msg}"),
             ModuleError::ExportError(msg) => write!(f, "Export error: {msg}"),
             ModuleError::CompilationError(msg) => write!(f, "Module compilation error: {msg}"),
+            ModuleError::InstantiationError(msg) => write!(f, "Library instantiation failed: {msg}"),
+            ModuleError::BindingResolutionError(msg) => write!(f, "Binding resolution failed: {msg}"),
+            ModuleError::DynamicLoadingError(msg) => write!(f, "Dynamic loading failed: {msg}"),
+            ModuleError::HotReloadError(msg) => write!(f, "Hot-reload failed: {msg}"),
         }
     }
 }
@@ -91,7 +103,7 @@ impl std::fmt::Display for ModuleError {
 impl std::error::Error for ModuleError {}
 
 impl ModuleError {
-    /// Converts this ModuleError into a Box<ModuleError> for use with Result types.
+    /// Converts this `ModuleError` into a `Box<ModuleError>` for use with Result types.
     pub fn boxed(self) -> Box<ModuleError> {
         Box::new(self)
     }
@@ -134,6 +146,30 @@ impl From<ModuleError> for crate::diagnostics::Error {
             ModuleError::CompilationError(msg) => {
                 crate::diagnostics::Error::runtime_error(msg, None)
             }
+            ModuleError::InstantiationError(msg) => {
+                crate::diagnostics::Error::runtime_error(
+                    format!("Library instantiation failed: {msg}"),
+                    None,
+                )
+            }
+            ModuleError::BindingResolutionError(msg) => {
+                crate::diagnostics::Error::runtime_error(
+                    format!("Binding resolution failed: {msg}"),
+                    None,
+                )
+            }
+            ModuleError::DynamicLoadingError(msg) => {
+                crate::diagnostics::Error::runtime_error(
+                    format!("Dynamic loading failed: {msg}"),
+                    None,
+                )
+            }
+            ModuleError::HotReloadError(msg) => {
+                crate::diagnostics::Error::runtime_error(
+                    format!("Hot-reload failed: {msg}"),
+                    None,
+                )
+            }
         }
     }
 }
@@ -148,8 +184,62 @@ pub fn parse_module_id(s: &str) -> Result<ModuleId> {
 // Re-export key types from scheme_loader for convenience
 pub use scheme_loader::{
     SchemeLibraryLoader, CompiledSchemeLibrary, SchemeLibraryCache, 
-    BootstrapConfig, CompilationContext, HotReloadManager, CacheStatistics
+    BootstrapConfig, CompilationContext, CacheStatistics
 };
+
+/// Re-export runtime integration types
+pub use runtime_integration::{
+    LibraryInstantiator, LibraryInstantiationContext, LibraryBinding,
+    InstantiationError, LibraryInstance, ExportResolution, ImportSpecResolver,
+    ImportResolution
+};
+
+/// Re-export enhanced system types
+pub use enhanced_module_system::{
+    EnhancedModuleSystem, AutoLoadingConfig, SystemValidationReport
+};
+
+/// Re-export dynamic loading types
+pub use dynamic_loader::{
+    DynamicLibraryLoader, DynamicLibraryInstance, HotReloadManager,
+    ReloadEvent, FileMonitorConfig, DynamicLoadingStatistics
+};
+
+/// Re-export enhanced dependency resolution types
+pub use enhanced_dependency_resolver::{
+    EnhancedDependencyResolver, DependencyGraph, DependencyCycle,
+    CycleType, CycleImpact, ResolutionStatistics
+};
+
+/// Re-export R7RS compliance types
+pub use r7rs_compliance::{
+    R7RSLibrarySystem, ComplianceConfig, ComplianceReport, ExportSpecResolver,
+    ExportBinding, ExportType, StandardLibraryInfo, R7RSVersion
+};
+
+/// Re-export comprehensive system types
+pub use comprehensive_library_system::{
+    ComprehensiveLibrarySystem, LibrarySystemConfig, SystemStatus,
+    PerformanceSummary, PerformanceMonitor
+};
+
+/// Runtime integration module for library instantiation
+pub mod runtime_integration;
+
+/// Enhanced module system with runtime integration
+pub mod enhanced_module_system;
+
+/// Enhanced dependency resolution with advanced cycle detection
+pub mod enhanced_dependency_resolver;
+
+/// Dynamic library loading and hot-reload support
+pub mod dynamic_loader;
+
+/// R7RS compliance validation and standard library support
+pub mod r7rs_compliance;
+
+/// Comprehensive library system integration
+pub mod comprehensive_library_system;
 
 #[cfg(test)]
 mod tests {

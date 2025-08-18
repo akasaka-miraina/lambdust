@@ -368,7 +368,7 @@ impl AstTransformer {
                 ))
             }
             
-            Expr::Lambda { formals, metadata, body } => {
+            Expr::Lambda { formals, metadata, body, .. } => {
                 let mut new_body = Vec::new();
                 for expr in body {
                     new_body.push(self.transform(expr)?);
@@ -379,6 +379,7 @@ impl AstTransformer {
                         formals: formals.clone(),
                         metadata: metadata.clone(), // Simplified
                         body: new_body,
+                        return_type: None,
                     },
                     expr.span,
                 ))

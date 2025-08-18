@@ -183,7 +183,7 @@ impl Eq for Set {}
 
 /// Thread-safe wrapper for Set operations.
 ///
-/// This provides a thread-safe interface to Set operations using Arc<RwLock<Set>>.
+/// This provides a thread-safe interface to `Set` operations using `Arc<RwLock<Set>>`.
 #[derive(Debug, Clone)]
 pub struct ThreadSafeSet {
     inner: Arc<RwLock<Set>>,

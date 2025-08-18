@@ -195,9 +195,9 @@ fn extract_string(value: &Value, operation: &str) -> Result<String> {
 
 // ============= R7RS SECTION 6.9 IMPLEMENTATIONS =============
 
-/// make-bytevector k [byte] → bytevector
+/// make-bytevector k [fill-byte] → bytevector
 /// 
-/// Returns a newly allocated bytevector of length k. If byte is given, 
+/// Returns a newly allocated bytevector of length k. If fill-byte is given, 
 /// it is used to initialize each element of the bytevector. Otherwise 
 /// the initial contents are unspecified.
 pub fn primitive_make_bytevector(args: &[Value]) -> Result<Value> {
@@ -231,7 +231,7 @@ pub fn primitive_bytevector(args: &[Value]) -> Result<Value> {
     Ok(Value::bytevector(bytes))
 }
 
-/// bytevector-copy bytevector [start [end]] → bytevector
+/// bytevector-copy bytevector [start [end-index]] → bytevector
 /// 
 /// Returns a newly allocated bytevector whose elements are copied from the 
 /// bytes of bytevector between start and end.
@@ -356,7 +356,7 @@ pub fn primitive_bytevector_u8_set(args: &[Value]) -> Result<Value> {
     Ok(Value::Unspecified)
 }
 
-/// bytevector->list bytevector [start [end]] → list
+/// bytevector->list bytevector [start [end-index]] → list
 /// 
 /// Returns a newly allocated list of the bytes of bytevector between start and end.
 pub fn primitive_bytevector_to_list(args: &[Value]) -> Result<Value> {
@@ -424,7 +424,7 @@ pub fn primitive_list_to_bytevector(args: &[Value]) -> Result<Value> {
     Ok(Value::bytevector(bytes))
 }
 
-/// string->utf8 string [start [end]] → bytevector
+/// string->utf8 string [start [end-index]] → bytevector
 /// 
 /// Returns a newly allocated bytevector whose elements are the UTF-8 encoding 
 /// of the given portion of string.
@@ -468,7 +468,7 @@ pub fn primitive_string_to_utf8(args: &[Value]) -> Result<Value> {
     }
 }
 
-/// utf8->string bytevector [start [end]] → string
+/// utf8->string bytevector [start [end-index]] → string
 /// 
 /// Returns a newly allocated string whose characters are the decoding of the 
 /// UTF-8 bytes in the given portion of bytevector.

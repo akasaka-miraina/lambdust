@@ -43,10 +43,10 @@ impl R7RSComplianceTestSuite {
             "0.0" => Value::Literal(Literal::InexactReal(0.0)),
             "#t" => Value::Literal(Literal::Boolean(true)),
             "#f" => Value::Literal(Literal::Boolean(false)),
-            "\"hello\"" => Value::Literal(Literal::String("hello".to_string())),
-            "\"\"" => Value::Literal(Literal::String("".to_string())),
-            "\"unicode: λ∀∃\"" => Value::Literal(Literal::String("unicode: λ∀∃".to_string())),
-            "\"test\"" => Value::Literal(Literal::String("test".to_string())),
+            "\"hello\"" => Value::Literal(Literal::String(Box::new("hello".to_string()))),
+            "\"\"" => Value::Literal(Literal::String(Box::new("".to_string()))),
+            "\"unicode: λ∀∃\"" => Value::Literal(Literal::String(Box::new("unicode: λ∀∃".to_string()))),
+            "\"test\"" => Value::Literal(Literal::String(Box::new("test".to_string()))),
             "'()" => Value::Nil,
             _ if trimmed.starts_with("'") => {
                 let symbol = &trimmed[1..];
@@ -469,6 +469,6 @@ fn test_helper_functions() {
     // Test that our helper functions work correctly
     assert!(check_r7rs_compliance(&Value::Literal(Literal::ExactInteger(42))));
     assert!(check_r7rs_compliance(&Value::Literal(Literal::Boolean(true))));
-    assert!(check_r7rs_compliance(&Value::Literal(Literal::String("test".to_string()))));
+    assert!(check_r7rs_compliance(&Value::Literal(Literal::String(Box::new("test".to_string())))));
     assert!(check_r7rs_compliance(&Value::Nil));
 }

@@ -99,7 +99,7 @@ fn test_regression_scheme_integration() {
     let test_values = vec![
         Value::Literal(Literal::ExactInteger(42)),
         Value::Literal(Literal::Boolean(true)),
-        Value::Literal(Literal::String("test".to_string())),
+        Value::Literal(Literal::String(Box::new("test".to_string()))),
         Value::Nil,
     ];
     
@@ -348,7 +348,7 @@ fn test_comprehensive_functionality() {
         Value::Literal(Literal::ExactInteger(-17)),
         Value::Literal(Literal::Boolean(true)),
         Value::Literal(Literal::Boolean(false)),
-        Value::Literal(Literal::String("test".to_string())),
+        Value::Literal(Literal::String(Box::new("test".to_string()))),
         Value::Literal(Literal::String("".to_string())),
         Value::Nil,
     ];

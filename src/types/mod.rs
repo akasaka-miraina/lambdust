@@ -19,11 +19,17 @@ pub mod unified_type_errors;
 pub mod inference;
 pub mod type_classes;
 pub mod gradual;
+pub mod gradual_inference;
+pub mod gradual_evaluator_integration;
+pub mod gradual_consistency;
+pub mod gradual_contract_integration;
+pub mod gradual_system;
 pub mod algebraic;
 pub mod advanced_type_classes;
 pub mod r7rs_integration;
 pub mod integration_bridge;
 pub mod dependent;
+pub mod type_expr_bridge;
 
 // New Generic Type System Framework
 #[cfg(feature = "experimental-type-system")]
@@ -60,11 +66,17 @@ pub use unification::*;
 pub use inference::*;
 pub use type_classes::*;
 pub use gradual::*;
+pub use gradual_inference::*;
+pub use gradual_evaluator_integration::*;
+pub use gradual_consistency::*;
+pub use gradual_contract_integration::*;
+pub use gradual_system::*;
 pub use algebraic::*;
 pub use advanced_type_classes::*;
 pub use r7rs_integration::*;
 pub use integration_bridge::*;
 pub use dependent::*;
+pub use type_expr_bridge::*;
 
 // Re-export generic type system framework - temporarily disable problematic modules
 #[cfg(feature = "experimental-type-system")]

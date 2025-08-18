@@ -327,6 +327,42 @@ fn bind_string_bytevector_ports(env: &Arc<ThreadSafeEnvironment>) {
         implementation: PrimitiveImpl::RustFn(primitive_get_output_bytevector),
         effects: vec![Effect::Pure],
     })));
+    
+    // call-with-input-string
+    env.define("call-with-input-string".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "call-with-input-string".to_string(),
+        arity_min: 2,
+        arity_max: Some(2),
+        implementation: PrimitiveImpl::RustFn(primitive_call_with_input_string),
+        effects: vec![Effect::IO],
+    })));
+    
+    // call-with-output-string
+    env.define("call-with-output-string".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "call-with-output-string".to_string(),
+        arity_min: 1,
+        arity_max: Some(1),
+        implementation: PrimitiveImpl::RustFn(primitive_call_with_output_string),
+        effects: vec![Effect::IO],
+    })));
+    
+    // call-with-input-bytevector
+    env.define("call-with-input-bytevector".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "call-with-input-bytevector".to_string(),
+        arity_min: 2,
+        arity_max: Some(2),
+        implementation: PrimitiveImpl::RustFn(primitive_call_with_input_bytevector),
+        effects: vec![Effect::IO],
+    })));
+    
+    // call-with-output-bytevector
+    env.define("call-with-output-bytevector".to_string(), Value::Primitive(Arc::new(PrimitiveProcedure {
+        name: "call-with-output-bytevector".to_string(),
+        arity_min: 1,
+        arity_max: Some(1),
+        implementation: PrimitiveImpl::RustFn(primitive_call_with_output_bytevector),
+        effects: vec![Effect::IO],
+    })));
 }
 
 // ============= R7RS SECTION 6.13.5: INPUT OPERATIONS =============
@@ -1140,6 +1176,362 @@ pub fn primitive_get_output_bytevector(args: &[Value]) -> Result<Value> {
             "get-output-bytevector requires a port argument".to_string(),
             None,
         ))),
+    }
+}
+
+// === Call-with Port Operations ===
+
+pub fn primitive_call_with_input_string(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-input-string expects 2 arguments, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let string = extract_string(&args[0], "call-with-input-string")?;
+    let proc = args[1].clone();
+    
+    // Validate memory allocation for large strings
+    if let Err(msg) = crate::eval::value::Port::validate_memory_allocation(string.len(), true) {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-input-string: {msg}"),
+            None,
+        )));
+    }
+    
+    // Validate procedure argument early
+    match &proc {
+        Value::Procedure(_) | Value::Primitive(_) => {}
+        _ => {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-input-string: second argument must be a procedure".to_string(),
+                None,
+            )));
+        }
+    }
+    
+    // Create string input port
+    let port = Port::new_string_input(string);
+    let port_value = Value::Port(Arc::new(port));
+    
+    // Ensure port is closed regardless of how we exit this function
+    struct PortGuard<'a> {
+        port: &'a Value,
+    }
+    
+    impl<'a> Drop for PortGuard<'a> {
+        fn drop(&mut self) {
+            if let Value::Port(port) = self.port {
+                port.close();
+            }
+        }
+    }
+    
+    let _guard = PortGuard { port: &port_value };
+    
+    // Call procedure with the port
+    match &proc {
+        Value::Procedure(_procedure) => {
+            // Procedure calls require evaluator support
+            Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-input-string: procedure calls require evaluator support (not yet implemented in primitive context)".to_string(),
+                None,
+            )))
+        },
+        Value::Primitive(prim) => {
+            match &prim.implementation {
+                crate::eval::value::PrimitiveImpl::RustFn(f) => {
+                    f(&[port_value.clone()]).map_err(|e| {
+                        Box::new(DiagnosticError::runtime_error(
+                            format!("call-with-input-string: procedure call failed: {e}"),
+                            None,
+                        ))
+                    })
+                },
+                _ => Err(Box::new(DiagnosticError::runtime_error(
+                    "call-with-input-string: unsupported primitive type".to_string(),
+                    None,
+                ))),
+            }
+        },
+        _ => unreachable!(), // We validated this above
+    }
+}
+
+pub fn primitive_call_with_output_string(args: &[Value]) -> Result<Value> {
+    if args.len() != 1 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-output-string expects 1 argument, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let proc = args[0].clone();
+    
+    // Validate procedure argument early
+    match &proc {
+        Value::Procedure(_) | Value::Primitive(_) => {}
+        _ => {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-output-string: argument must be a procedure".to_string(),
+                None,
+            )));
+        }
+    }
+    
+    // Create string output port
+    let port = Port::new_string_output();
+    let port_value = Value::Port(Arc::new(port));
+    
+    // Ensure port is closed regardless of how we exit this function
+    struct PortGuard<'a> {
+        port: &'a Value,
+    }
+    
+    impl<'a> Drop for PortGuard<'a> {
+        fn drop(&mut self) {
+            if let Value::Port(port) = self.port {
+                port.close();
+            }
+        }
+    }
+    
+    let _guard = PortGuard { port: &port_value };
+    
+    // Call procedure with the port
+    let proc_result = match &proc {
+        Value::Procedure(_procedure) => {
+            // Procedure calls require evaluator support
+            Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-output-string: procedure calls require evaluator support (not yet implemented in primitive context)".to_string(),
+                None,
+            )))
+        },
+        Value::Primitive(prim) => {
+            match &prim.implementation {
+                crate::eval::value::PrimitiveImpl::RustFn(f) => {
+                    f(&[port_value.clone()]).map_err(|e| {
+                        Box::new(DiagnosticError::runtime_error(
+                            format!("call-with-output-string: procedure call failed: {e}"),
+                            None,
+                        ))
+                    })
+                },
+                _ => Err(Box::new(DiagnosticError::runtime_error(
+                    "call-with-output-string: unsupported primitive type".to_string(),
+                    None,
+                ))),
+            }
+        },
+        _ => unreachable!(), // We validated this above
+    };
+    
+    // Get the accumulated string from the port before closing
+    let string_result = if let Value::Port(port) = &port_value {
+        match &port.implementation {
+            PortImpl::String { content, .. } => {
+                let result = content.read().map_err(|_| {
+                    Box::new(DiagnosticError::runtime_error(
+                        "call-with-output-string: failed to read port content".to_string(),
+                        None,
+                    ))
+                })?;
+                Ok(Value::string(result.clone()))
+            }
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-output-string: internal error - expected string port".to_string(),
+                None,
+            ))),
+        }
+    } else {
+        Err(Box::new(DiagnosticError::runtime_error(
+            "call-with-output-string: internal error - expected port".to_string(),
+            None,
+        )))
+    };
+    
+    // Return the string result, not the procedure result
+    match proc_result {
+        Ok(_) => string_result,
+        Err(e) => Err(e),
+    }
+}
+
+pub fn primitive_call_with_input_bytevector(args: &[Value]) -> Result<Value> {
+    if args.len() != 2 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-input-bytevector expects 2 arguments, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let bytevector = extract_bytevector(&args[0], "call-with-input-bytevector")?;
+    let proc = args[1].clone();
+    
+    // Validate memory allocation for large bytevectors
+    if let Err(msg) = crate::eval::value::Port::validate_memory_allocation(bytevector.len(), false) {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-input-bytevector: {msg}"),
+            None,
+        )));
+    }
+    
+    // Validate procedure argument early
+    match &proc {
+        Value::Procedure(_) | Value::Primitive(_) => {}
+        _ => {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-input-bytevector: second argument must be a procedure".to_string(),
+                None,
+            )));
+        }
+    }
+    
+    // Create bytevector input port
+    let port = Port::new_bytevector_input(bytevector);
+    let port_value = Value::Port(Arc::new(port));
+    
+    // Ensure port is closed regardless of how we exit this function
+    struct PortGuard<'a> {
+        port: &'a Value,
+    }
+    
+    impl<'a> Drop for PortGuard<'a> {
+        fn drop(&mut self) {
+            if let Value::Port(port) = self.port {
+                port.close();
+            }
+        }
+    }
+    
+    let _guard = PortGuard { port: &port_value };
+    
+    // Call procedure with the port
+    match &proc {
+        Value::Procedure(_procedure) => {
+            // Procedure calls require evaluator support
+            Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-input-bytevector: procedure calls require evaluator support (not yet implemented in primitive context)".to_string(),
+                None,
+            )))
+        },
+        Value::Primitive(prim) => {
+            match &prim.implementation {
+                crate::eval::value::PrimitiveImpl::RustFn(f) => {
+                    f(&[port_value.clone()]).map_err(|e| {
+                        Box::new(DiagnosticError::runtime_error(
+                            format!("call-with-input-bytevector: procedure call failed: {e}"),
+                            None,
+                        ))
+                    })
+                },
+                _ => Err(Box::new(DiagnosticError::runtime_error(
+                    "call-with-input-bytevector: unsupported primitive type".to_string(),
+                    None,
+                ))),
+            }
+        },
+        _ => unreachable!(), // We validated this above
+    }
+}
+
+pub fn primitive_call_with_output_bytevector(args: &[Value]) -> Result<Value> {
+    if args.len() != 1 {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            format!("call-with-output-bytevector expects 1 argument, got {}", args.len()),
+            None,
+        )));
+    }
+    
+    let proc = args[0].clone();
+    
+    // Validate procedure argument early
+    match &proc {
+        Value::Procedure(_) | Value::Primitive(_) => {}
+        _ => {
+            return Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-output-bytevector: argument must be a procedure".to_string(),
+                None,
+            )));
+        }
+    }
+    
+    // Create bytevector output port
+    let port = Port::new_bytevector_output();
+    let port_value = Value::Port(Arc::new(port));
+    
+    // Ensure port is closed regardless of how we exit this function
+    struct PortGuard<'a> {
+        port: &'a Value,
+    }
+    
+    impl<'a> Drop for PortGuard<'a> {
+        fn drop(&mut self) {
+            if let Value::Port(port) = self.port {
+                port.close();
+            }
+        }
+    }
+    
+    let _guard = PortGuard { port: &port_value };
+    
+    // Call procedure with the port
+    let proc_result = match &proc {
+        Value::Procedure(_procedure) => {
+            // Procedure calls require evaluator support
+            Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-output-bytevector: procedure calls require evaluator support (not yet implemented in primitive context)".to_string(),
+                None,
+            )))
+        },
+        Value::Primitive(prim) => {
+            match &prim.implementation {
+                crate::eval::value::PrimitiveImpl::RustFn(f) => {
+                    f(&[port_value.clone()]).map_err(|e| {
+                        Box::new(DiagnosticError::runtime_error(
+                            format!("call-with-output-bytevector: procedure call failed: {e}"),
+                            None,
+                        ))
+                    })
+                },
+                _ => Err(Box::new(DiagnosticError::runtime_error(
+                    "call-with-output-bytevector: unsupported primitive type".to_string(),
+                    None,
+                ))),
+            }
+        },
+        _ => unreachable!(), // We validated this above
+    };
+    
+    // Get the accumulated bytevector from the port before closing
+    let bytevector_result = if let Value::Port(port) = &port_value {
+        match &port.implementation {
+            PortImpl::Bytevector { content, .. } => {
+                let result = content.read().map_err(|_| {
+                    Box::new(DiagnosticError::runtime_error(
+                        "call-with-output-bytevector: failed to read port content".to_string(),
+                        None,
+                    ))
+                })?;
+                Ok(Value::bytevector(result.clone()))
+            }
+            _ => Err(Box::new(DiagnosticError::runtime_error(
+                "call-with-output-bytevector: internal error - expected bytevector port".to_string(),
+                None,
+            ))),
+        }
+    } else {
+        Err(Box::new(DiagnosticError::runtime_error(
+            "call-with-output-bytevector: internal error - expected port".to_string(),
+            None,
+        )))
+    };
+    
+    // Return the bytevector result, not the procedure result
+    match proc_result {
+        Ok(_) => bytevector_result,
+        Err(e) => Err(e),
     }
 }
 
@@ -2069,6 +2461,14 @@ fn expr_to_value(expr: crate::ast::Expr) -> Result<Value> {
                 None,
             )))
         }
+        crate::ast::Expr::DefineContract { .. } | 
+        crate::ast::Expr::Contract(_) | 
+        crate::ast::Expr::ContractApplication { .. } => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "read: contract expressions are not supported in I/O operations".to_string(),
+                None,
+            )))
+        }
     }
 }
 
@@ -2914,6 +3314,315 @@ mod tests {
                 assert_eq!(prim.name, *proc_name);
                 // All these procedures should take at least 1 argument
                 assert!(prim.arity_min >= 1);
+            } else {
+                panic!("Procedure {proc_name} should be a primitive");
+            }
+        }
+    }
+
+    // ========== Tests for New Call-with-* Functions ==========
+
+    #[test]
+    fn test_call_with_input_string_binding() {
+        // Test that call-with-input-string procedure binding exists and has correct arity
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_string_bytevector_ports(&env);
+        
+        let proc = env.lookup("call-with-input-string").unwrap();
+        if let Value::Primitive(prim) = proc {
+            assert_eq!(prim.name, "call-with-input-string");
+            assert_eq!(prim.arity_min, 2);
+            assert_eq!(prim.arity_max, Some(2));
+        } else {
+            panic!("call-with-input-string should be a primitive procedure");
+        }
+    }
+
+    #[test]
+    fn test_call_with_output_string_binding() {
+        // Test that call-with-output-string procedure binding exists and has correct arity
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_string_bytevector_ports(&env);
+        
+        let proc = env.lookup("call-with-output-string").unwrap();
+        if let Value::Primitive(prim) = proc {
+            assert_eq!(prim.name, "call-with-output-string");
+            assert_eq!(prim.arity_min, 1);
+            assert_eq!(prim.arity_max, Some(1));
+        } else {
+            panic!("call-with-output-string should be a primitive procedure");
+        }
+    }
+
+    #[test]
+    fn test_call_with_input_bytevector_binding() {
+        // Test that call-with-input-bytevector procedure binding exists and has correct arity
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_string_bytevector_ports(&env);
+        
+        let proc = env.lookup("call-with-input-bytevector").unwrap();
+        if let Value::Primitive(prim) = proc {
+            assert_eq!(prim.name, "call-with-input-bytevector");
+            assert_eq!(prim.arity_min, 2);
+            assert_eq!(prim.arity_max, Some(2));
+        } else {
+            panic!("call-with-input-bytevector should be a primitive procedure");
+        }
+    }
+
+    #[test]
+    fn test_call_with_output_bytevector_binding() {
+        // Test that call-with-output-bytevector procedure binding exists and has correct arity
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_string_bytevector_ports(&env);
+        
+        let proc = env.lookup("call-with-output-bytevector").unwrap();
+        if let Value::Primitive(prim) = proc {
+            assert_eq!(prim.name, "call-with-output-bytevector");
+            assert_eq!(prim.arity_min, 1);
+            assert_eq!(prim.arity_max, Some(1));
+        } else {
+            panic!("call-with-output-bytevector should be a primitive procedure");
+        }
+    }
+
+    #[test]
+    fn test_call_with_input_string_error_handling() {
+        // Test error handling for wrong number of arguments
+        let result = primitive_call_with_input_string(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 2 arguments"));
+
+        let result = primitive_call_with_input_string(&[Value::string("test")]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 2 arguments"));
+
+        // Test error handling for non-string input
+        let dummy_prim = Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "dummy".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(|_| Ok(Value::integer(42))),
+            effects: vec![],
+        }));
+        
+        let result = primitive_call_with_input_string(&[
+            Value::integer(42),
+            dummy_prim.clone()
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("requires string arguments"));
+
+        // Test error handling for non-procedure argument
+        let result = primitive_call_with_input_string(&[
+            Value::string("test"),
+            Value::integer(42)
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("must be a procedure"));
+    }
+
+    #[test]
+    fn test_call_with_output_string_error_handling() {
+        // Test error handling for wrong number of arguments
+        let result = primitive_call_with_output_string(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 1 argument"));
+
+        let result = primitive_call_with_output_string(&[Value::integer(1), Value::integer(2)]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 1 argument"));
+
+        // Test error handling for non-procedure argument
+        let result = primitive_call_with_output_string(&[Value::integer(42)]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("must be a procedure"));
+    }
+
+    #[test]
+    fn test_call_with_input_bytevector_error_handling() {
+        // Test error handling for wrong number of arguments
+        let result = primitive_call_with_input_bytevector(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 2 arguments"));
+
+        // Test error handling for non-bytevector input
+        let dummy_prim = Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "dummy".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(|_| Ok(Value::integer(42))),
+            effects: vec![],
+        }));
+        
+        let result = primitive_call_with_input_bytevector(&[
+            Value::integer(42),
+            dummy_prim.clone()
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("bytevector argument"));
+
+        // Test error handling for non-procedure argument
+        let result = primitive_call_with_input_bytevector(&[
+            Value::bytevector(vec![1, 2, 3]),
+            Value::integer(42)
+        ]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("must be a procedure"));
+    }
+
+    #[test]
+    fn test_call_with_output_bytevector_error_handling() {
+        // Test error handling for wrong number of arguments
+        let result = primitive_call_with_output_bytevector(&[]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("expects 1 argument"));
+
+        // Test error handling for non-procedure argument
+        let result = primitive_call_with_output_bytevector(&[Value::integer(42)]);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("must be a procedure"));
+    }
+
+    #[test] 
+    fn test_port_memory_management() {
+        // Test memory usage tracking
+        let port = Port::new_string_input("hello world".to_string());
+        let usage = port.memory_usage();
+        assert!(usage >= "hello world".len());
+        
+        // Test memory limits validation
+        let large_size = crate::eval::value::port_limits::MAX_STRING_PORT_SIZE + 1;
+        let result = Port::validate_memory_allocation(large_size, true);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("exceeds limit"));
+
+        // Test reasonable size validation passes
+        let reasonable_size = 1024;
+        let result = Port::validate_memory_allocation(reasonable_size, true);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_port_resource_cleanup() {
+        // Test that ports are properly closed
+        let port = Port::new_string_output();
+        assert!(port.is_open());
+        
+        port.close();
+        assert!(!port.is_open());
+        
+        // Test that memory is freed after closing
+        let usage_after_close = port.memory_usage();
+        // After closing, the buffer should be cleared and shrunk
+        assert_eq!(usage_after_close, 0);
+    }
+
+    #[test]
+    fn test_port_capacity_optimization() {
+        // Test that capacity hints work correctly
+        let port_without_capacity = Port::new_string_output();
+        let port_with_capacity = Port::new_string_output_with_capacity(1024);
+        
+        // Both should be functional
+        assert!(port_without_capacity.is_open());
+        assert!(port_with_capacity.is_open());
+        
+        // The one with capacity should have pre-allocated memory
+        let usage_with_capacity = port_with_capacity.memory_usage();
+        assert!(usage_with_capacity >= 1024);
+    }
+
+    #[test]
+    fn test_r7rs_compliance_call_with_string_ports() {
+        // Test R7RS Section 6.13.4 compliance for call-with-input-string
+        // R7RS specifies that these functions should:
+        // 1. Accept the correct number of arguments
+        // 2. Create appropriate port types
+        // 3. Handle errors correctly
+        // 4. Return the correct results
+        
+        // Test argument validation
+        let result = primitive_call_with_input_string(&[]);
+        assert!(result.is_err(), "Should reject wrong argument count");
+        
+        let result = primitive_call_with_output_string(&[Value::integer(1), Value::integer(2)]);
+        assert!(result.is_err(), "Should reject wrong argument count");
+        
+        // Test type validation
+        let dummy_prim = Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "dummy".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(|_| Ok(Value::integer(42))),
+            effects: vec![],
+        }));
+        
+        let result = primitive_call_with_input_string(&[
+            Value::integer(42), // Wrong type
+            dummy_prim.clone()
+        ]);
+        assert!(result.is_err(), "Should reject non-string input");
+        
+        let result = primitive_call_with_input_string(&[
+            Value::string("test"),
+            Value::integer(42) // Wrong type
+        ]);
+        assert!(result.is_err(), "Should reject non-procedure argument");
+    }
+
+    #[test]
+    fn test_r7rs_compliance_call_with_bytevector_ports() {
+        // Test R7RS Section 6.13.4 compliance for call-with-input-bytevector
+        let dummy_prim = Value::Primitive(Arc::new(PrimitiveProcedure {
+            name: "dummy".to_string(),
+            arity_min: 1,
+            arity_max: Some(1),
+            implementation: PrimitiveImpl::RustFn(|_| Ok(Value::integer(42))),
+            effects: vec![],
+        }));
+        
+        // Test argument validation
+        let result = primitive_call_with_input_bytevector(&[]);
+        assert!(result.is_err(), "Should reject wrong argument count");
+        
+        // Test type validation
+        let result = primitive_call_with_input_bytevector(&[
+            Value::string("not a bytevector"), // Wrong type
+            dummy_prim.clone()
+        ]);
+        assert!(result.is_err(), "Should reject non-bytevector input");
+        
+        let result = primitive_call_with_input_bytevector(&[
+            Value::bytevector(vec![1, 2, 3]),
+            Value::string("not a procedure") // Wrong type
+        ]);
+        assert!(result.is_err(), "Should reject non-procedure argument");
+    }
+
+    #[test]
+    fn test_all_new_procedures_bound() {
+        // Test that all new call-with-* procedures are properly bound
+        let env = Arc::new(ThreadSafeEnvironment::new(None, 0));
+        bind_string_bytevector_ports(&env);
+        
+        let required_procedures = vec![
+            "call-with-input-string",
+            "call-with-output-string", 
+            "call-with-input-bytevector",
+            "call-with-output-bytevector",
+        ];
+        
+        for proc_name in &required_procedures {
+            let value = env.lookup(proc_name);
+            assert!(value.is_some(), "Procedure {proc_name} should be bound");
+            
+            if let Some(Value::Primitive(prim)) = value {
+                assert_eq!(prim.name, *proc_name);
+                // All these procedures should take at least 1 argument
+                assert!(prim.arity_min >= 1);
+                // Verify effects are correctly set
+                assert!(prim.effects.contains(&Effect::IO));
             } else {
                 panic!("Procedure {proc_name} should be a primitive");
             }

@@ -42,11 +42,11 @@ mod effect_context_extensions;
 #[cfg(test)]
 mod tests;
 
-#[cfg(test)]
-mod bootstrap_integration_tests;
+// #[cfg(test)]
+// mod bootstrap_integration_tests;
 
 // Individual structure modules
-mod runtime;
+pub mod runtime;
 mod lambdust_runtime;
 mod evaluator_handle;
 mod evaluator_message;

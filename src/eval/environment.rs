@@ -64,7 +64,7 @@ impl EnvironmentBuilder {
 }
 
 /// Gets or creates the global environment.
-/// Each thread gets its own copy since Rc<Environment> is not thread-safe.
+/// Each thread gets its own copy since `Rc<Environment>` is not thread-safe.
 pub fn global_environment() -> Rc<Environment> {
     thread_local! {
         static GLOBAL_ENV: std::cell::OnceCell<Rc<Environment>> = const { std::cell::OnceCell::new() };

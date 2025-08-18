@@ -1,7 +1,7 @@
 use crate::ast::{Expr, Formals, KeywordParam, Program};
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::lexer::{Token, TokenKind};
-use super::ParserConfig;
+use crate::parser::parser_config::ParserConfig;
 use std::collections::HashMap;
 
 /// The main parser for Lambdust.
@@ -161,7 +161,7 @@ impl Parser {
     /// Parses a single expression from the token stream.
     pub fn parse_single_expression(&mut self) -> Result<Spanned<Expr>> {
         if self.is_at_end() {
-            return Err(Error::unexpected_eof(self.current_span()).boxed())
+            return Err(Box::new(Error::unexpected_eof(self.current_span())))
         }
 
         let start_pos = self.position();
@@ -423,6 +423,43 @@ impl Parser {
                             span,
                         )))
                     }
+                }
+            }
+            Formals::Typed(typed_params) => {
+                for typed_param in typed_params {
+                    if !seen_names.insert(&typed_param.name) {
+                        return Err(Box::new(Error::parse_error(
+                            format!("Duplicate parameter name: {}", typed_param.name),
+                            span,
+                        )))
+                    }
+                }
+            }
+            Formals::TypedVariable(typed_param) => {
+                if typed_param.name.is_empty() {
+                    return Err(Box::new(Error::parse_error(
+                        "Parameter name cannot be empty",
+                        span
+                    )))
+                }
+            }
+            Formals::TypedMixed { fixed, rest } => {
+                // Check fixed typed parameters
+                for typed_param in fixed {
+                    if !seen_names.insert(&typed_param.name) {
+                        return Err(Box::new(Error::parse_error(
+                            format!("Duplicate parameter name: {}", typed_param.name),
+                            span,
+                        )))
+                    }
+                }
+                
+                // Check typed rest parameter
+                if !seen_names.insert(&rest.name) {
+                    return Err(Box::new(Error::parse_error(
+                        format!("Duplicate parameter name: {}", rest.name),
+                        span,
+                    )))
                 }
             }
         }

@@ -3,13 +3,13 @@
 #![allow(missing_docs)]
 
 use super::Parser;
-use crate::ast::{Binding, CaseClause, CaseLambdaClause, CondClause, Expr, Formals, GuardClause, KeywordParam, ParameterBinding};
+use crate::ast::{Binding, CaseClause, CaseLambdaClause, CondClause, Expr, Formals, GuardClause, KeywordParam, ParameterBinding, TypedParam, TypeExpr};
 use crate::diagnostics::{Error, Result, Span, Spanned};
 use crate::lexer::TokenKind;
 use std::collections::HashMap;
 
 impl Parser {
-    /// Parses a quote form: (quote <datum>)
+    /// Parses a quote form: `(quote datum)`
     pub fn parse_quote_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let expr = self.parse_expression()?;
         
@@ -20,9 +20,18 @@ impl Parser {
         Ok(Spanned::new(Expr::Quote(Box::new(expr)), span))
     }
 
-    /// Parses a lambda form: (lambda <formals> <body>)
+    /// Parses a lambda form: `(lambda formals [: return-type] body)`
     pub fn parse_lambda_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let formals = self.parse_formals()?;
+        
+        // Check for return type annotation
+        let return_type = if self.check(&TokenKind::Colon) {
+            self.advance(); // consume ':'
+            Some(self.parse_type_expression()?)
+        } else {
+            None
+        };
+        
         let metadata = self.parse_metadata_exprs()?;
         
         let mut body = Vec::new();
@@ -42,12 +51,12 @@ impl Parser {
         let span = start_span.combine(end_span);
         
         Ok(Spanned::new(
-            Expr::Lambda { formals, metadata, body },
+            Expr::Lambda { formals, return_type, metadata, body },
             span,
         ))
     }
 
-    /// Parses an if form: (if <test> <consequent> [<alternative>])
+    /// Parses an if form: `(if test consequent [alternative])`
     pub fn parse_if_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let test = Box::new(self.parse_expression()?);
         let consequent = Box::new(self.parse_expression()?);
@@ -68,14 +77,45 @@ impl Parser {
         ))
     }
 
-    /// Parses a define form: (define <identifier> <expression>) or (define (<identifier> <formals>) <body>)
+    /// Parses a define form: `(define identifier expression)` or `(define (identifier formals) [: return-type] body)`
     pub fn parse_define_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         self.with_context("define form", |parser| {
             let first = parser.parse_expression()?;
             
             match first.inner {
                 Expr::Identifier(name) => {
-                    // (define <identifier> <expression>)
+                    // Check for type annotation: (define (x : Type) value)
+                    if parser.check(&TokenKind::Colon) {
+                        parser.advance(); // consume ':'
+                        let type_annotation = parser.parse_type_expression()?;
+                        let value = Box::new(parser.parse_expression()?);
+                        
+                        let end_span = parser.current_span();
+                        parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after define")?;
+                        let span = start_span.combine(end_span);
+                        
+                        // Store type annotation in metadata for now
+                        let mut metadata = HashMap::new();
+                        metadata.insert("type".to_string(), Spanned::new(
+                            Expr::TypeAnnotation {
+                                expr: Box::new(Spanned::new(Expr::Identifier(name.clone()), first.span)),
+                                type_expr: Box::new(Spanned::new(
+                                    // Convert TypeExpr to Expr for storage
+                                    // This is a temporary solution
+                                    Expr::Identifier("TypeAnnotation".to_string()),
+                                    type_annotation.span,
+                                )),
+                            },
+                            span,
+                        ));
+                        
+                        return Ok(Spanned::new(
+                            Expr::Define { name, value, return_type: Some(type_annotation), metadata },
+                            span,
+                        ));
+                    }
+                    
+                    // (define identifier expression)
                     let metadata = parser.parse_metadata_exprs()?;
                     let value = Box::new(parser.parse_expression()?);
                     
@@ -84,16 +124,25 @@ impl Parser {
                     let span = start_span.combine(end_span);
                     
                     Ok(Spanned::new(
-                        Expr::Define { name, value, metadata },
+                        Expr::Define { name, value, return_type: None, metadata },
                         span,
                     ))
                 }
                 Expr::Application { operator, operands } => {
-                    // (define (<identifier> <formals>) <body>)
-                    // This is syntactic sugar for (define <identifier> (lambda <formals> <body>))
+                    // (define (identifier formals) [: return-type] body)
+                    // This is syntactic sugar for (define identifier (lambda formals [: return-type] body))
                     if let Expr::Identifier(name) = &operator.inner {
                         // Convert operands to formals
                         let formals = parser.operands_to_formals(operands)?;
+                        
+                        // Check for return type annotation
+                        let return_type = if parser.check(&TokenKind::Colon) {
+                            parser.advance(); // consume ':'
+                            Some(parser.parse_type_expression()?)
+                        } else {
+                            None
+                        };
+                        
                         let metadata = parser.parse_metadata_exprs()?;
                         
                         // Parse the body
@@ -106,7 +155,7 @@ impl Parser {
                         // Create a lambda expression as the value
                         let lambda_span = operator.span.combine(end_span);
                         let lambda_expr = Spanned::new(
-                            Expr::Lambda { formals, metadata: HashMap::new(), body },
+                            Expr::Lambda { formals, return_type: return_type.clone(), metadata: HashMap::new(), body },
                             lambda_span,
                         );
                         
@@ -114,6 +163,7 @@ impl Parser {
                             Expr::Define { 
                                 name: name.clone(), 
                                 value: Box::new(lambda_expr), 
+                                return_type,
                                 metadata 
                             },
                             span,
@@ -135,7 +185,7 @@ impl Parser {
         })
     }
 
-    /// Parses a set! form: (set! <identifier> <expression>)
+    /// Parses a set! form: `(set! identifier expression)`
     pub fn parse_set_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         self.with_context("set! form", |parser| {
             let name_expr = parser.parse_expression()?;
@@ -157,7 +207,7 @@ impl Parser {
         })
     }
 
-    /// Parses a define-syntax form: (define-syntax <identifier> <transformer>)
+    /// Parses a define-syntax form: `(define-syntax identifier transformer)`
     pub fn parse_define_syntax_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         self.with_context("define-syntax form", |parser| {
             let name_expr = parser.parse_expression()?;
@@ -246,7 +296,7 @@ impl Parser {
         })
     }
 
-    /// Parses a call/cc form: (call-with-current-continuation <procedure>)
+    /// Parses a call/cc form: `(call-with-current-continuation procedure)`
     pub fn parse_call_cc_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let expr = Box::new(self.parse_expression()?);
         
@@ -257,7 +307,7 @@ impl Parser {
         Ok(Spanned::new(Expr::CallCC(expr), span))
     }
 
-    /// Parses a primitive form: (primitive <symbol> <arguments>*)
+    /// Parses a primitive form: `(primitive symbol arguments*)`
     pub fn parse_primitive_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let name_expr = self.parse_expression()?;
         let name = match name_expr.inner {
@@ -281,7 +331,7 @@ impl Parser {
         Ok(Spanned::new(Expr::Primitive { name, args }, span))
     }
 
-    /// Parses a type annotation form: (:: <expression> <type>)
+    /// Parses a type annotation form: `(:: expression type)`
     pub fn parse_type_annotation_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let expr = Box::new(self.parse_expression()?);
         let type_expr = Box::new(self.parse_expression()?);
@@ -298,7 +348,7 @@ impl Parser {
 
     // Derived forms
 
-    /// Parses a begin form: (begin <expressions>+)
+    /// Parses a begin form: `(begin expressions+)`
     pub fn parse_begin_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let mut exprs = Vec::new();
         
@@ -320,7 +370,7 @@ impl Parser {
         Ok(Spanned::new(Expr::Begin(exprs), span))
     }
 
-    /// Parses a let form: (let (<bindings>*) <body>)
+    /// Parses a let form: `(let (bindings*) body)`
     pub fn parse_let_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let bindings = self.parse_bindings()?;
         let body = self.parse_body()?;
@@ -332,7 +382,7 @@ impl Parser {
         Ok(Spanned::new(Expr::Let { bindings, body }, span))
     }
 
-    /// Parses a let* form: (let* (<bindings>*) <body>)
+    /// Parses a let* form: `(let* (bindings*) body)`
     pub fn parse_let_star_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let bindings = self.parse_bindings()?;
         let body = self.parse_body()?;
@@ -344,7 +394,7 @@ impl Parser {
         Ok(Spanned::new(Expr::LetStar { bindings, body }, span))
     }
 
-    /// Parses a letrec form: (letrec (<bindings>*) <body>)
+    /// Parses a letrec form: `(letrec (bindings*) body)`
     pub fn parse_letrec_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let bindings = self.parse_bindings()?;
         let body = self.parse_body()?;
@@ -356,7 +406,7 @@ impl Parser {
         Ok(Spanned::new(Expr::LetRec { bindings, body }, span))
     }
 
-    /// Parses a cond form: (cond <clauses>+)
+    /// Parses a cond form: `(cond clauses+)`
     pub fn parse_cond_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let mut clauses = Vec::new();
         
@@ -403,7 +453,7 @@ impl Parser {
         Ok(Spanned::new(Expr::Cond(clauses), span))
     }
 
-    /// Parses a case form: (case <expression> <clauses>+)
+    /// Parses a case form: `(case expression clauses+)`
     pub fn parse_case_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let expr = Box::new(self.parse_expression()?);
         self.skip_whitespace();
@@ -472,7 +522,7 @@ impl Parser {
         Ok(Spanned::new(Expr::Case { expr, clauses }, span))
     }
 
-    /// Parses an and form: (and <expressions>*)
+    /// Parses an and form: `(and expressions*)`
     pub fn parse_and_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let mut exprs = Vec::new();
         
@@ -487,7 +537,7 @@ impl Parser {
         Ok(Spanned::new(Expr::And(exprs), span))
     }
 
-    /// Parses an or form: (or <expressions>*)
+    /// Parses an or form: `(or expressions*)`
     pub fn parse_or_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let mut exprs = Vec::new();
         
@@ -502,7 +552,7 @@ impl Parser {
         Ok(Spanned::new(Expr::Or(exprs), span))
     }
 
-    /// Parses a when form: (when <test> <expressions>+)
+    /// Parses a when form: `(when test expressions+)`
     pub fn parse_when_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let test = Box::new(self.parse_expression()?);
         let body = self.parse_body()?;
@@ -514,7 +564,7 @@ impl Parser {
         Ok(Spanned::new(Expr::When { test, body }, span))
     }
 
-    /// Parses an unless form: (unless <test> <expressions>+)
+    /// Parses an unless form: `(unless test expressions+)`
     pub fn parse_unless_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let test = Box::new(self.parse_expression()?);
         let body = self.parse_body()?;
@@ -526,7 +576,7 @@ impl Parser {
         Ok(Spanned::new(Expr::Unless { test, body }, span))
     }
 
-    /// Parses a parameterize form: (parameterize ((<parameter> <value>) ...) <body>)
+    /// Parses a parameterize form: `(parameterize ((parameter value) ...) body)`
     pub fn parse_parameterize_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         self.with_context("parameterize form", |parser| {
             let bindings = parser.parse_parameter_bindings()?;
@@ -540,7 +590,7 @@ impl Parser {
         })
     }
 
-    /// Parses a guard form: (guard (<variable> <clauses>*) <body>)
+    /// Parses a guard form: `(guard (variable clauses*) body)`
     pub fn parse_guard_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         self.with_context("guard form", |parser| {
             // Parse (variable clauses...)
@@ -621,9 +671,17 @@ impl Parser {
         })
     }
 
-    /// Parses a case-lambda form: (case-lambda (<formals1> <body1>...) (<formals2> <body2>...) ...)
+    /// Parses a case-lambda form: `(case-lambda [: return-type] (formals1 body1...) (formals2 body2...) ...)`
     pub fn parse_case_lambda_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         self.with_context("case-lambda form", |parser| {
+            // Check for return type annotation
+            let return_type = if parser.check(&TokenKind::Colon) {
+                parser.advance(); // consume ':'
+                Some(parser.parse_type_expression()?)
+            } else {
+                None
+            };
+            
             let metadata = HashMap::new(); // For now, no metadata support in case-lambda
             let mut clauses = Vec::new();
             
@@ -668,7 +726,7 @@ impl Parser {
             parser.consume(&TokenKind::RightParen, "Expected closing parenthesis after case-lambda")?;
             let span = start_span.combine(end_span);
             
-            Ok(Spanned::new(Expr::CaseLambda { clauses, metadata }, span))
+            Ok(Spanned::new(Expr::CaseLambda { clauses, return_type, metadata }, span))
         })
     }
 
@@ -676,17 +734,27 @@ impl Parser {
 
     /// Parses formal parameters for lambda expressions.
     /// 
-    /// Supports all R7RS parameter patterns plus Lambdust keyword extensions:
+    /// Supports all R7RS parameter patterns plus Lambdust typed parameter extensions:
     /// 1. Single identifier: x (variable arity)
     /// 2. List of identifiers: (x y z) (fixed arity)
     /// 3. Dotted pair: (x y . z) (mixed: fixed + rest)
     /// 4. Keyword parameters: (x y #:key default #:key2 default2)
     /// 5. Mixed keyword: (x #:key default . rest)
+    /// 6. Typed parameters: ((x : Type) (y : Type)) (typed fixed arity)
+    /// 7. Typed variable: (x : Type) (typed variable arity)
+    /// 8. Typed mixed: ((x : Type) (y : Type) . (rest : RestType))
     pub fn parse_formals(&mut self) -> Result<Formals> {
         
         if self.check(&TokenKind::LeftParen) {
             self.advance(); // consume '('
             self.skip_whitespace();
+            
+            // Check if this is a typed parameter list by looking ahead
+            let is_typed = self.is_typed_parameter_list();
+            
+            if is_typed {
+                return self.parse_typed_formals();
+            }
             
             let mut fixed = Vec::new();
             let mut rest = None;
@@ -781,13 +849,23 @@ impl Parser {
             Ok(formals)
             
         } else if self.check(&TokenKind::Identifier) {
-            // Single identifier - variable arity
+            // Could be a single identifier or start of typed variable
             let name = self.current_token().text().to_string();
-            
-            // Validate the identifier
-            Parser::validate_identifier(&name, self.current_span())?;
-            
+            let name_span = self.current_span();
             self.advance();
+            
+            // Check if this is a typed variable: (param : Type)
+            if self.check(&TokenKind::Colon) {
+                self.advance(); // consume ':'
+                let type_annotation = self.parse_type_expression()?;
+                let typed_param = TypedParam::new(name, type_annotation);
+                return Ok(Formals::TypedVariable(typed_param));
+            }
+            
+            // Single identifier - variable arity
+            // Validate the identifier
+            Parser::validate_identifier(&name, name_span)?;
+            
             Ok(Formals::Variable(name))
         } else {
             Err(Box::new(Error::parse_error(
@@ -950,7 +1028,7 @@ impl Parser {
         Ok(formals)
     }
 
-    /// Parses an import form: (import <import-spec>+)
+    /// Parses an import form: `(import import-spec+)`
     pub fn parse_import_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         let mut import_specs = Vec::new();
         
@@ -974,7 +1052,7 @@ impl Parser {
         Ok(Spanned::new(Expr::Import { import_specs }, span))
     }
 
-    /// Parses a define-library form: (define-library <name> <library-declaration>*)
+    /// Parses a define-library form: `(define-library name library-declaration*)`
     pub fn parse_define_library_form(&mut self, start_span: Span) -> Result<Spanned<Expr>> {
         self.with_context("define-library form", |parser| {
             // Parse library name (a list of identifiers/numbers)
@@ -1083,5 +1161,94 @@ impl Parser {
                 span,
             ))
         })
+    }
+    
+    /// Checks if the current position is the start of a typed parameter list.
+    /// This does a limited lookahead to detect patterns like ((x : Type) ...)
+    fn is_typed_parameter_list(&mut self) -> bool {
+        // Simple heuristic: if we see a '(' followed by identifier, colon, we assume typed
+        if self.check(&TokenKind::LeftParen) {
+            // Save current position for backtracking
+            let saved_pos = self.position();
+            
+            self.advance(); // consume '('
+            self.skip_whitespace();
+            
+            let is_typed = self.check(&TokenKind::Identifier) && {
+                self.advance(); // consume identifier
+                self.check(&TokenKind::Colon)
+            };
+            
+            // Restore position
+            self.position = saved_pos;
+            is_typed
+        } else {
+            false
+        }
+    }
+    
+    /// Parses typed formal parameters: ((x : Type) (y : Type) ...)
+    fn parse_typed_formals(&mut self) -> Result<Formals> {
+        let mut typed_params = Vec::new();
+        let mut rest_param = None;
+        
+        while !self.check(&TokenKind::RightParen) && !self.is_at_end() {
+            if self.check(&TokenKind::Dot) {
+                // Dotted pair syntax: ((x : Type) . (rest : RestType))
+                self.advance(); // consume '.'
+                self.skip_whitespace();
+                
+                if !self.check(&TokenKind::LeftParen) {
+                    return Err(Box::new(Error::parse_error(
+                        "Expected typed parameter after dot in typed formals",
+                        self.current_span(),
+                    )));
+                }
+                
+                let typed_param = self.parse_single_typed_parameter()?;
+                rest_param = Some(typed_param);
+                break;
+            }
+            
+            // Parse typed parameter: (name : Type)
+            let typed_param = self.parse_single_typed_parameter()?;
+            typed_params.push(typed_param);
+            
+            self.skip_whitespace();
+        }
+        
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis in typed formals")?;
+        
+        if let Some(rest) = rest_param {
+            Ok(Formals::TypedMixed {
+                fixed: typed_params,
+                rest,
+            })
+        } else {
+            Ok(Formals::Typed(typed_params))
+        }
+    }
+    
+    /// Parses a single typed parameter: (name : Type)
+    fn parse_single_typed_parameter(&mut self) -> Result<TypedParam> {
+        self.consume(&TokenKind::LeftParen, "Expected opening parenthesis for typed parameter")?;
+        self.skip_whitespace();
+        
+        if !self.check(&TokenKind::Identifier) {
+            return Err(Box::new(Error::parse_error(
+                "Expected parameter name in typed parameter",
+                self.current_span(),
+            )));
+        }
+        
+        let name = self.current_token_text();
+        self.advance();
+        
+        self.consume(&TokenKind::Colon, "Expected ':' after parameter name in typed parameter")?;
+        let type_annotation = self.parse_type_expression()?;
+        
+        self.consume(&TokenKind::RightParen, "Expected closing parenthesis for typed parameter")?;
+        
+        Ok(TypedParam::new(name, type_annotation))
     }
 }

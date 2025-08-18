@@ -438,7 +438,7 @@ impl MemoryAnalyzer {
     fn estimate_literal_size(literal: &Literal) -> usize {
         match literal {
             Literal::Boolean(_) | Literal::Character(_) => 0, // Inline in optimized form
-            Literal::ExactInteger(_) => 0, // Small integers inline in optimized form
+            Literal::ExactInteger(_) | Literal::Integer(_) => 0, // Small integers inline in optimized form
             Literal::InexactReal(_) => 8, // May require heap allocation
             Literal::String(s) => s.len() + 24, // String data + potential Arc overhead
             Literal::InternedString(s) => 8, // Just the reference to interned content

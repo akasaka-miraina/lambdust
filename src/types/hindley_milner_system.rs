@@ -10,6 +10,34 @@ use super::generic_type_system::*;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+/// Dummy term type for HM system (which doesn't use dependent types)
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HMTerm;
+
+impl TermRepr for HMTerm {
+    type Type = HMType;
+    
+    fn get_type(&self) -> Self::Type {
+        // Dummy type for unit term
+        HMType::Unit
+    }
+    
+    fn apply_substitution(&self, _subst: &impl TermSubstitution) -> Self {
+        // No-op for unit term
+        HMTerm
+    }
+    
+    fn reduce(&self) -> Self {
+        // Already in normal form
+        HMTerm
+    }
+    
+    fn compose_morphism(&self, _other: &Self) -> UnifiedResult<Self> {
+        // Composition of unit terms is unit
+        Ok(HMTerm)
+    }
+}
+
 /// Hindley-Milner type system implementation
 pub struct HindleyMilnerSystem {
     /// Next type variable ID to allocate
@@ -33,6 +61,8 @@ pub enum HMType {
     List(Box<HMType>),
     /// Pair type (a, b)
     Pair(Box<HMType>, Box<HMType>),
+    /// Unit type ()
+    Unit,
 }
 
 /// Base types in Hindley-Milner system
@@ -123,13 +153,13 @@ impl UniverseLevel for HMUniverse {
 
 /// Implementation of ProofWitness for HMProofWitness
 impl ProofWitness for HMProofWitness {
-    type Term = (); // HM doesn't use proof terms
+    type Term = HMTerm; // HM doesn't use proof terms
     
     fn from_term(_: Self::Term) -> Self {
         HMProofWitness
     }
     
-    fn validates(&self, _: &dyn TypeRepr) -> bool {
+    fn validates(&self, _: &impl TypeRepr) -> bool {
         true // Always valid in HM
     }
     
@@ -147,7 +177,7 @@ impl TypeRepr for HMType {
         HMUniverse(0) // HM is always at universe 0
     }
     
-    fn is_well_formed(&self, _context: &dyn TypeContext<Type = Self>) -> bool {
+    fn is_well_formed(&self, _context: &impl TypeContext<Self>) -> bool {
         match self {
             HMType::Base(_) => true,
             HMType::Function(param, ret) => {
@@ -171,7 +201,7 @@ impl TypeRepr for HMType {
         }
     }
     
-    fn apply_substitution(&self, subst: &dyn Substitution<Type = Self>) -> Self {
+    fn apply_substitution(&self, subst: &impl Substitution<Self>) -> Self {
         subst.apply(self)
     }
     
@@ -337,7 +367,7 @@ impl TypeContext<HMType> for HMContext {
         self.bindings.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
     }
     
-    fn extend_term(&self, var: String, _term: Box<dyn TermRepr>, ty: HMType) -> Self {
+    fn extend_term(&self, var: String, _term: impl TermRepr, ty: HMType) -> Self {
         // HM doesn't use term-level information
         self.extend(var, ty)
     }
@@ -408,7 +438,7 @@ impl Substitution<HMType> for HMSubstitution {
         }
     }
     
-    fn compose(&self, other: &dyn Substitution<Type = HMType>) -> Box<dyn Substitution<Type = HMType>> {
+    fn compose(&self, other: &dyn Substitution<HMType>) -> Box<dyn Substitution<HMType>> {
         // Apply other first, then self
         let other_hm = other.as_any().downcast_ref::<HMSubstitution>()
             .expect("Can only compose HM substitutions");
@@ -430,7 +460,7 @@ impl Substitution<HMType> for HMSubstitution {
         Box::new(HMSubstitution { mapping: new_mapping })
     }
     
-    fn identity() -> Box<dyn Substitution<Type = HMType>> {
+    fn identity() -> Box<dyn Substitution<HMType>> {
         Box::new(HMSubstitution { mapping: HashMap::new() })
     }
     
@@ -463,7 +493,7 @@ impl HMSubstitution {
 
 /// Implementation of ConstraintRepr for HMConstraint
 impl ConstraintRepr<HMType> for HMConstraint {
-    fn apply_substitution(&self, subst: &dyn Substitution<Type = HMType>) -> Self {
+    fn apply_substitution(&self, subst: &impl Substitution<HMType>) -> Self {
         match self {
             HMConstraint::Unify(t1, t2) => {
                 HMConstraint::Unify(subst.apply(t1), subst.apply(t2))
@@ -507,7 +537,7 @@ impl ConstraintSystem<HMType> for HMConstraintSystem {
         }
     }
     
-    fn solve(&self) -> UnifiedResult<Box<dyn Substitution<Type = HMType>>> {
+    fn solve(&self) -> UnifiedResult<Box<dyn Substitution<HMType>>> {
         let mut subst = HMSubstitution::empty();
         
         for constraint in &self.constraints {
@@ -635,14 +665,14 @@ impl TypeSystem for HindleyMilnerSystem {
 
 /// Implementation of InferenceEngine for HMInferenceEngine
 impl InferenceEngine<HMType, HMContext> for HMInferenceEngine {
-    fn infer(&self, expr: &dyn ExpressionRepr, context: &HMContext) -> UnifiedResult<HMType> {
+    fn infer(&self, expr: &impl ExpressionRepr, context: &HMContext) -> UnifiedResult<HMType> {
         // Placeholder implementation - would need actual expression AST
         // For now, return a fresh type variable
         let mut counter = self.var_counter;
         Ok(HMType::fresh_var(&mut counter))
     }
     
-    fn check(&self, expr: &dyn ExpressionRepr, ty: &HMType, context: &HMContext) -> UnifiedResult<()> {
+    fn check(&self, expr: &impl ExpressionRepr, ty: &HMType, context: &HMContext) -> UnifiedResult<()> {
         // Check if inferred type matches expected type
         let inferred_ty = self.infer(expr, context)?;
         let mut constraints = HMConstraintSystem::new();
@@ -658,8 +688,8 @@ impl InferenceEngine<HMType, HMContext> for HMInferenceEngine {
         }
     }
     
-    fn infer_with_proof(&self, _expr: &dyn ExpressionRepr, _context: &HMContext) 
-        -> UnifiedResult<(HMType, Box<dyn ProofTerm>)> {
+    fn infer_with_proof(&self, _expr: &impl ExpressionRepr, _context: &HMContext) 
+        -> UnifiedResult<(HMType, impl ProofTerm)> {
         Err(crate::diagnostics::UnifiedError::new(
             TypeError,
             "Proof terms not supported in Hindley-Milner".to_string()

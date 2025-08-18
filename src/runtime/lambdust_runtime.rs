@@ -147,7 +147,7 @@ impl LambdustRuntime {
         let (sender, receiver) = channel::bounded(1);
         
         let message = EvaluatorMessage::Evaluate {
-            expr,
+            expr: Box::new(expr),
             span,
             sender,
         };
@@ -175,7 +175,7 @@ impl LambdustRuntime {
             receivers.push(receiver);
             
             let message = EvaluatorMessage::Evaluate {
-                expr,
+                expr: Box::new(expr),
                 span,
                 sender,
             };

@@ -53,6 +53,9 @@ impl StandardLibrary {
         // Effect system integration
         crate::stdlib::effects::create_effect_bindings(env);
         
+        // Environment operations and dynamic evaluation (scheme eval)
+        crate::stdlib::eval_operations::create_eval_bindings(env);
+        
         // Exception handling (R7RS + SRFI-23 enhanced)
         crate::stdlib::exceptions::create_exception_bindings(env);
         

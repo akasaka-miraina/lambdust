@@ -14,11 +14,11 @@ pub trait TypeSystem: Send + Sync + 'static {
     /// The type representation used by this type system
     type Type: TypeRepr;
     /// The context/environment type for this system
-    type Context: TypeContext<Type = Self::Type>;
+    type Context: TypeContext<Self::Type>;
     /// The constraint system used
-    type Constraint: ConstraintSystem<Type = Self::Type>;
+    type Constraint: ConstraintSystem<Self::Type>;
     /// The inference engine for this system
-    type Inference: InferenceEngine<Type = Self::Type, Context = Self::Context>;
+    type Inference: InferenceEngine<Self::Type, Self::Context>;
     
     /// Creates a new instance of this type system
     fn new() -> UnifiedResult<Self> where Self: Sized;
@@ -44,10 +44,10 @@ pub trait TypeRepr: Clone + PartialEq + Eq + std::hash::Hash + Send + Sync {
     fn universe(&self) -> Self::Universe;
     
     /// Checks if this type is well-formed in the given context
-    fn is_well_formed(&self, context: &dyn TypeContext<Type = Self>) -> bool;
+    fn is_well_formed(&self, context: &impl TypeContext<Self>) -> bool;
     
     /// Applies a substitution to this type
-    fn apply_substitution(&self, subst: &dyn Substitution<Type = Self>) -> Self;
+    fn apply_substitution(&self, subst: &impl Substitution<Self>) -> Self;
     
     /// Returns the free type variables in this type
     fn free_variables(&self) -> HashSet<TypeVariable>;
@@ -83,7 +83,7 @@ pub trait TypeContext<Type: TypeRepr>: Clone + Send + Sync {
     fn bindings(&self) -> Vec<(String, Type)>;
     
     /// For dependent types: extends with term binding
-    fn extend_term(&self, var: String, term: Box<dyn TermRepr>, ty: Type) -> Self;
+    fn extend_term(&self, var: String, term: impl TermRepr, ty: Type) -> Self;
     
     /// Checks context well-formedness
     fn is_well_formed(&self) -> bool;
@@ -91,13 +91,13 @@ pub trait TypeContext<Type: TypeRepr>: Clone + Send + Sync {
 
 /// Constraint system abstraction for various solving approaches.
 pub trait ConstraintSystem<Type: TypeRepr>: Clone + Send + Sync {
-    type Constraint: ConstraintRepr<Type = Type>;
+    type Constraint: ConstraintRepr<Type>;
     
     /// Adds a constraint to the system
     fn add_constraint(&mut self, constraint: Self::Constraint);
     
     /// Solves all constraints, returning substitutions
-    fn solve(&self) -> UnifiedResult<Box<dyn Substitution<Type = Type>>>;
+    fn solve(&self) -> UnifiedResult<Box<dyn Substitution<Type>>> where Self: Sized;
     
     /// Checks if the constraint system is consistent
     fn is_consistent(&self) -> bool;
@@ -109,7 +109,7 @@ pub trait ConstraintSystem<Type: TypeRepr>: Clone + Send + Sync {
 /// Individual constraint representation.
 pub trait ConstraintRepr<Type: TypeRepr>: Clone + Send + Sync {
     /// Applies substitution to constraint
-    fn apply_substitution(&self, subst: &dyn Substitution<Type = Type>) -> Self;
+    fn apply_substitution(&self, subst: &impl Substitution<Type>) -> Self;
     
     /// Returns variables involved in this constraint
     fn variables(&self) -> HashSet<TypeVariable>;
@@ -121,14 +121,14 @@ pub trait ConstraintRepr<Type: TypeRepr>: Clone + Send + Sync {
 /// Inference engine abstraction supporting multiple algorithms.
 pub trait InferenceEngine<Type: TypeRepr, Context: TypeContext<Type>>: Send + Sync {
     /// Infers the type of an expression
-    fn infer(&self, expr: &dyn ExpressionRepr, context: &Context) -> UnifiedResult<Type>;
+    fn infer(&self, expr: &impl ExpressionRepr, context: &Context) -> UnifiedResult<Type>;
     
     /// Checks if an expression has the given type
-    fn check(&self, expr: &dyn ExpressionRepr, ty: &Type, context: &Context) -> UnifiedResult<()>;
+    fn check(&self, expr: &impl ExpressionRepr, ty: &Type, context: &Context) -> UnifiedResult<()>;
     
     /// For dependent types: infers with proof terms
-    fn infer_with_proof(&self, expr: &dyn ExpressionRepr, context: &Context) 
-        -> UnifiedResult<(Type, Box<dyn ProofTerm>)>;
+    fn infer_with_proof(&self, expr: &impl ExpressionRepr, context: &Context) 
+        -> UnifiedResult<(Type, impl ProofTerm)> where Self: Sized;
     
     /// Supports bidirectional type checking
     fn supports_bidirectional(&self) -> bool;
@@ -140,10 +140,10 @@ pub trait Substitution<Type: TypeRepr>: Send + Sync {
     fn apply(&self, ty: &Type) -> Type;
     
     /// Composes this substitution with another
-    fn compose(&self, other: &dyn Substitution<Type = Type>) -> Box<dyn Substitution<Type = Type>>;
+    fn compose(&self, other: &dyn Substitution<Type>) -> Box<dyn Substitution<Type>>;
     
     /// Identity substitution
-    fn identity() -> Box<dyn Substitution<Type = Type>>;
+    fn identity() -> Box<dyn Substitution<Type>> where Self: Sized;
     
     /// Returns the domain of this substitution
     fn domain(&self) -> HashSet<TypeVariable>;
@@ -172,7 +172,7 @@ pub trait ProofWitness: Clone + Send + Sync {
     fn from_term(term: Self::Term) -> Self;
     
     /// Checks if the witness is valid for the given proposition
-    fn validates(&self, proposition: &dyn TypeRepr) -> bool;
+    fn validates(&self, proposition: &impl TypeRepr) -> bool;
     
     /// Composition of proof witnesses
     fn compose(&self, other: &Self) -> UnifiedResult<Self>;
@@ -186,7 +186,7 @@ pub trait TermRepr: Clone + Send + Sync {
     fn get_type(&self) -> Self::Type;
     
     /// Applies term substitution
-    fn apply_substitution(&self, subst: &dyn TermSubstitution) -> Self;
+    fn apply_substitution(&self, subst: &impl TermSubstitution) -> Self;
     
     /// Reduces/evaluates the term
     fn reduce(&self) -> Self;
@@ -209,9 +209,9 @@ pub trait ExpressionVisitor {
     type Result;
     
     fn visit_variable(&mut self, name: &str) -> Self::Result;
-    fn visit_application(&mut self, func: &dyn ExpressionRepr, args: &[&dyn ExpressionRepr]) -> Self::Result;
-    fn visit_lambda(&mut self, param: &str, body: &dyn ExpressionRepr) -> Self::Result;
-    fn visit_let(&mut self, bindings: &[(String, &dyn ExpressionRepr)], body: &dyn ExpressionRepr) -> Self::Result;
+    fn visit_application(&mut self, func: &impl ExpressionRepr, args: &[impl ExpressionRepr]) -> Self::Result;
+    fn visit_lambda(&mut self, param: &str, body: &impl ExpressionRepr) -> Self::Result;
+    fn visit_let(&mut self, bindings: &[(String, impl ExpressionRepr)], body: &impl ExpressionRepr) -> Self::Result;
 }
 
 /// Capabilities supported by different type systems.
@@ -299,10 +299,10 @@ pub trait ProofTerm: Clone + Send + Sync {
 /// Term substitution for dependent systems.
 pub trait TermSubstitution: Send + Sync {
     /// Applies substitution to a term
-    fn apply(&self, term: &dyn TermRepr) -> Box<dyn TermRepr>;
+    fn apply(&self, term: &impl TermRepr) -> impl TermRepr;
     
     /// Composition with another substitution
-    fn compose(&self, other: &dyn TermSubstitution) -> Box<dyn TermSubstitution>;
+    fn compose(&self, other: &impl TermSubstitution) -> impl TermSubstitution;
 }
 
 /// Monad structure integration for CaTT compatibility.
@@ -565,8 +565,8 @@ mod tests {
         type Witness = ();
         
         fn universe(&self) -> Self::Universe { 0 }
-        fn is_well_formed(&self, _: &dyn TypeContext<Type = Self>) -> bool { true }
-        fn apply_substitution(&self, _: &dyn Substitution<Type = Self>) -> Self { self.clone() }
+        fn is_well_formed(&self, _: &dyn TypeContext<Self>) -> bool { true }
+        fn apply_substitution(&self, _: &dyn Substitution<Self>) -> Self { self.clone() }
         fn free_variables(&self) -> HashSet<TypeVariable> { HashSet::new() }
         fn compose_with(&self, _: &Self) -> UnifiedResult<Self> { Ok(self.clone()) }
         fn unit(&self) -> UnifiedResult<Self> { Ok(self.clone()) }

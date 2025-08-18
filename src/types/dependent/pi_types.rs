@@ -15,33 +15,33 @@
 //! # Type Rules for Π-types
 //!
 //! ## Formation Rule
-//! ```
+//! ```text
 //!   Γ ⊢ A type    Γ, x:A ⊢ B(x) type
 //!   ────────────────────────────────────
 //!        Γ ⊢ (x:A) → B(x) type
 //! ```
 //!
 //! ## Introduction Rule (λ-abstraction)
-//! ```
+//! ```text
 //!    Γ, x:A ⊢ t : B(x)
 //!   ─────────────────────────
 //!   Γ ⊢ λx:A.t : (x:A) → B(x)
 //! ```
 //!
 //! ## Elimination Rule (function application)
-//! ```
+//! ```text
 //!   Γ ⊢ f : (x:A) → B(x)    Γ ⊢ a : A
 //!   ──────────────────────────────────
 //!         Γ ⊢ f(a) : B(a)
 //! ```
 //!
 //! ## Computation Rule (β-reduction)
-//! ```
+//! ```text
 //!   (λx:A.t)(a) ≡ t[a/x] : B(a)
 //! ```
 //!
 //! ## Uniqueness Rule (η-expansion)
-//! ```
+//! ```text
 //!   λx:A.(f(x)) ≡ f : (x:A) → B(x)  (if x ∉ FV(f))
 //! ```
 

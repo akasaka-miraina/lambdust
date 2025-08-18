@@ -59,6 +59,8 @@ pub mod parser;
 pub mod macro_system;
 /// Type system with gradual typing capabilities.
 pub mod types;
+/// Contract system for runtime checking with blame tracking.
+pub mod contracts;
 /// Effect system for pure functional programming with transparent side effects.
 pub mod effects;
 /// Module system with R7RS-compatible libraries.
@@ -128,7 +130,7 @@ pub use diagnostics::{Error, Result, Span};
 pub use eval::{Evaluator, Value};
 pub use lexer::{Lexer, Token};
 pub use parser::Parser;
-pub use runtime::{Runtime, LambdustRuntime, ParallelResult, EvaluatorHandle};
+pub use runtime::{runtime::Runtime, LambdustRuntime, ParallelResult, EvaluatorHandle};
 
 // Re-export system interface utilities
 pub use stdlib::system;

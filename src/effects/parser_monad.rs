@@ -398,7 +398,7 @@ impl<T> Parser<T> {
         })
     }
     
-    /// Optional - make parser optional (returns Option<T>)
+    /// Optional - make parser optional (returns `Option<T>`)
     pub fn optional(self) -> Parser<Option<T>>
     where
         T: Clone + Send + Sync + 'static,

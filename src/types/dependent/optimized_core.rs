@@ -1,7 +1,7 @@
 //! Memory-optimized core definitions for Martin-Löf dependent type theory.
 //!
 //! This module provides a memory-efficient implementation of the core dependent type
-//! system using arena allocation instead of Box<T> for recursive types.
+//! system using arena allocation instead of `Box<T>` for recursive types.
 //!
 //! # Memory Optimization Strategy
 //!

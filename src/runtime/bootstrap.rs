@@ -13,7 +13,7 @@ use crate::diagnostics::{Result, Error, error::helpers};
 use crate::eval::Value;
 use crate::runtime::{GlobalEnvironmentManager, LibraryPathResolver};
 use crate::module_system::{SchemeLibraryLoader, BootstrapConfig};
-use crate::stdlib::StandardLibrary;
+use crate::stdlib::standard_library::StandardLibrary;
 use std::sync::Arc;
 use std::collections::HashMap;
 use std::time::{Instant, Duration};
@@ -242,7 +242,7 @@ impl BootstrapSystem {
         if self.config.lazy_loading {
             // For lazy loading, just verify libraries exist
             let _verified_libraries = self.scheme_loader.bootstrap()?;
-            return Ok(());
+            return Ok(())
         }
 
         // Load libraries in the specified order
@@ -529,7 +529,7 @@ fn extract_integer_value(value: &Value) -> Option<i64> {
 /// Addition primitive (+)
 fn primitive_add(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Ok(Value::integer(0));
+        return Ok(Value::integer(0))
     }
     
     let mut result = 0i64;
@@ -537,7 +537,7 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
         if let Some(n) = extract_integer_value(arg) {
             result += n;
         } else {
-            return Err(helpers::runtime_error_simple("+ expects numeric arguments"));
+            return Err(helpers::runtime_error_simple("+ expects numeric arguments"))
         }
     }
     Ok(Value::integer(result))
@@ -546,7 +546,7 @@ fn primitive_add(args: &[Value]) -> Result<Value> {
 /// Subtraction primitive (-)
 fn primitive_subtract(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(helpers::runtime_error_simple("- requires at least one argument"));
+        return Err(helpers::runtime_error_simple("- requires at least one argument"))
     }
     
     if args.len() == 1 {
@@ -561,14 +561,14 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
         let mut result = if let Some(n) = extract_integer_value(&args[0]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("- expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error("- expects numeric arguments", None)))
         };
         
         for arg in &args[1..] {
             if let Some(n) = extract_integer_value(arg) {
                 result -= n;
             } else {
-                return Err(Box::new(Error::runtime_error("- expects numeric arguments", None)));
+                return Err(Box::new(Error::runtime_error("- expects numeric arguments", None)))
             }
         }
         Ok(Value::integer(result))
@@ -578,7 +578,7 @@ fn primitive_subtract(args: &[Value]) -> Result<Value> {
 /// Multiplication primitive (*)
 fn primitive_multiply(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Ok(Value::integer(1));
+        return Ok(Value::integer(1))
     }
     
     let mut result = 1i64;
@@ -586,7 +586,7 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
         if let Some(n) = extract_integer_value(arg) {
             result *= n;
         } else {
-            return Err(Box::new(Error::runtime_error("* expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error("* expects numeric arguments", None)))
         }
     }
     Ok(Value::integer(result))
@@ -595,22 +595,22 @@ fn primitive_multiply(args: &[Value]) -> Result<Value> {
 /// Numeric equality primitive (=)
 fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("= requires at least 2 arguments", None)));
+        return Err(Box::new(Error::runtime_error("= requires at least 2 arguments", None)))
     }
     
     let first = if let Some(n) = extract_integer_value(&args[0]) {
         n
     } else {
-        return Err(Box::new(Error::runtime_error("= expects numeric arguments", None)));
+        return Err(Box::new(Error::runtime_error("= expects numeric arguments", None)))
     };
     
     for arg in &args[1..] {
         if let Some(n_val) = extract_integer_value(arg) {
             if first != n_val {
-                return Ok(Value::boolean(false));
+                return Ok(Value::boolean(false))
             }
         } else {
-            return Err(Box::new(Error::runtime_error("= expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error("= expects numeric arguments", None)))
         }
     }
     Ok(Value::boolean(true))
@@ -619,24 +619,24 @@ fn primitive_numeric_equal(args: &[Value]) -> Result<Value> {
 /// Less-than primitive (<)
 fn primitive_less_than(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
-        return Err(Box::new(Error::runtime_error("< requires at least 2 arguments", None)));
+        return Err(Box::new(Error::runtime_error("< requires at least 2 arguments", None)))
     }
     
     for i in 0..args.len() - 1 {
         let current = if let Some(n) = extract_integer_value(&args[i]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("< expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error("< expects numeric arguments", None)))
         };
         
         let next = if let Some(n) = extract_integer_value(&args[i + 1]) {
             n
         } else {
-            return Err(Box::new(Error::runtime_error("< expects numeric arguments", None)));
+            return Err(Box::new(Error::runtime_error("< expects numeric arguments", None)))
         };
         
         if current >= next {
-            return Ok(Value::boolean(false));
+            return Ok(Value::boolean(false))
         }
     }
     Ok(Value::boolean(true))
@@ -645,7 +645,7 @@ fn primitive_less_than(args: &[Value]) -> Result<Value> {
 /// cons primitive
 fn primitive_cons(args: &[Value]) -> Result<Value> {
     if args.len() != 2 {
-        return Err(Box::new(Error::runtime_error("cons requires exactly 2 arguments", None)));
+        return Err(Box::new(Error::runtime_error("cons requires exactly 2 arguments", None)))
     }
     Ok(Value::pair(args[0].clone(), args[1].clone()))
 }
@@ -653,7 +653,7 @@ fn primitive_cons(args: &[Value]) -> Result<Value> {
 /// car primitive
 fn primitive_car(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("car requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error("car requires exactly 1 argument", None)))
     }
     
     match &args[0] {
@@ -665,7 +665,7 @@ fn primitive_car(args: &[Value]) -> Result<Value> {
 /// cdr primitive
 fn primitive_cdr(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("cdr requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error("cdr requires exactly 1 argument", None)))
     }
     
     match &args[0] {
@@ -677,7 +677,7 @@ fn primitive_cdr(args: &[Value]) -> Result<Value> {
 /// null? primitive
 fn primitive_null_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("null? requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error("null? requires exactly 1 argument", None)))
     }
     
     Ok(Value::boolean(matches!(args[0], Value::Nil)))
@@ -686,7 +686,7 @@ fn primitive_null_p(args: &[Value]) -> Result<Value> {
 /// pair? primitive
 fn primitive_pair_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("pair? requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error("pair? requires exactly 1 argument", None)))
     }
     
     Ok(Value::boolean(matches!(args[0], Value::Pair(_, _))))
@@ -695,7 +695,7 @@ fn primitive_pair_p(args: &[Value]) -> Result<Value> {
 /// string? primitive
 fn primitive_string_p(args: &[Value]) -> Result<Value> {
     if args.len() != 1 {
-        return Err(Box::new(Error::runtime_error("string? requires exactly 1 argument", None)));
+        return Err(Box::new(Error::runtime_error("string? requires exactly 1 argument", None)))
     }
     
     Ok(Value::boolean(matches!(args[0], Value::Literal(crate::ast::Literal::String(_)))))
@@ -710,7 +710,7 @@ fn primitive_apply(_args: &[Value]) -> Result<Value> {
 /// error primitive
 fn primitive_error(args: &[Value]) -> Result<Value> {
     if args.is_empty() {
-        return Err(Box::new(Error::runtime_error("error requires at least 1 argument", None)));
+        return Err(Box::new(Error::runtime_error("error requires at least 1 argument", None)))
     }
     
     let message = match &args[0] {
@@ -718,13 +718,13 @@ fn primitive_error(args: &[Value]) -> Result<Value> {
         _ => format!("{}", args[0]),
     };
     
-    Err(Error::runtime_error(message, None).boxed())
+    Err(Box::new(Error::runtime_error(message, None)))
 }
 
 /// display primitive (R7RS-compliant)
 fn primitive_display(args: &[Value]) -> Result<Value> {
     if args.is_empty() || args.len() > 2 {
-        return Err(Box::new(Error::runtime_error("display requires 1 or 2 arguments", None)));
+        return Err(Box::new(Error::runtime_error("display requires 1 or 2 arguments", None)))
     }
     
     // Use the R7RS-compliant display formatting method from Value

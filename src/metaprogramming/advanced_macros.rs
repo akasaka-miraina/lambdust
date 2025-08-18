@@ -39,7 +39,7 @@ pub enum AdvancedPattern {
         /// The underlying pattern to match
         pattern: Box<AdvancedPattern>,
         /// The guard condition that must be satisfied
-        guard: GuardExpression,
+        guard: Box<GuardExpression>,
     },
     /// Typed pattern with type constraint
     Typed {
@@ -100,7 +100,7 @@ pub enum GuardExpression {
         /// Variable name for left side of comparison
         left: String,
         /// Value for right side of comparison
-        right: GuardValue,
+        right: Box<GuardValue>,
     },
     /// Boolean combination
     And(Vec<GuardExpression>),
@@ -135,7 +135,7 @@ pub enum GuardValue {
     /// Variable reference in guard expression
     Variable(String),
     /// Nested expression in guard
-    Expression(Spanned<Expr>),
+    Expression(Box<Spanned<Expr>>),
 }
 
 /// Type constraints for patterns.
@@ -718,7 +718,7 @@ impl ProceduralMacro {
                         None,
                     ))?;
 
-                let right_value = match right {
+                let right_value = match &**right {
                     GuardValue::Literal(val) => val,
                     GuardValue::Variable(var) => bindings.get(var)
                         .ok_or_else(|| Error::runtime_error(

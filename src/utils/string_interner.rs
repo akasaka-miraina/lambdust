@@ -120,7 +120,7 @@ impl InternedString {
         &self.content
     }
 
-    /// Gets the string content as an Arc<str>.
+    /// Gets the string content as an `Arc<str>`.
     pub fn as_arc_str(&self) -> &Arc<str> {
         &self.content
     }

@@ -29,16 +29,16 @@ pub trait Visitor {
             Expr::Quasiquote(expr) => self.visit_quasiquote(expr),
             Expr::Unquote(expr) => self.visit_unquote(expr),
             Expr::UnquoteSplicing(expr) => self.visit_unquote_splicing(expr),
-            Expr::Lambda { formals, metadata, body } => {
+            Expr::Lambda { formals, metadata, body, .. } => {
                 self.visit_lambda(formals, metadata, body)
             }
-            Expr::CaseLambda { clauses, metadata } => {
+            Expr::CaseLambda { clauses, metadata, .. } => {
                 self.visit_case_lambda(clauses, metadata)
             }
             Expr::If { test, consequent, alternative } => {
                 self.visit_if(test, consequent, alternative.as_ref().map(|boxed| boxed.as_ref()))
             }
-            Expr::Define { name, value, metadata } => {
+            Expr::Define { name, value, metadata, .. } => {
                 self.visit_define(name, value, metadata)
             }
             Expr::Set { name, value } => self.visit_set(name, value),
@@ -78,6 +78,15 @@ pub trait Visitor {
             }
             Expr::DefineLibrary { name, imports, exports, body } => {
                 self.visit_define_library(name, imports, exports, body)
+            }
+            Expr::DefineContract { name, contract, .. } => {
+                self.visit_define_contract(name, contract)
+            }
+            Expr::Contract(contract) => {
+                self.visit_contract(contract)
+            }
+            Expr::ContractApplication { contract, expr } => {
+                self.visit_contract_application(contract, expr)
             }
         }
     }
@@ -171,6 +180,12 @@ pub trait Visitor {
     fn visit_define_library(&mut self, name: &[String], imports: &[Spanned<Expr>], exports: &[Spanned<Expr>], body: &[Spanned<Expr>]) -> Self::Output;
     
     fn visit_list(&mut self, elements: &[Spanned<Expr>]) -> Self::Output;
+    
+    fn visit_define_contract(&mut self, name: &str, contract: &Spanned<crate::contracts::ast::ContractExpr>) -> Self::Output;
+    
+    fn visit_contract(&mut self, contract: &Spanned<crate::contracts::ast::ContractExpr>) -> Self::Output;
+    
+    fn visit_contract_application(&mut self, contract: &Spanned<crate::contracts::ast::ContractExpr>, expr: &Spanned<Expr>) -> Self::Output;
 }
 
 /// Mutable visitor trait for transforming AST nodes.
@@ -469,6 +484,19 @@ impl Visitor for NodeCounter {
     fn visit_list(&mut self, elements: &[Spanned<Expr>]) {
         self.total += 1;
         self.visit_expressions(elements);
+    }
+
+    fn visit_define_contract(&mut self, _name: &str, _contract: &Spanned<crate::contracts::ast::ContractExpr>) {
+        self.total += 1;
+    }
+
+    fn visit_contract(&mut self, _contract: &Spanned<crate::contracts::ast::ContractExpr>) {
+        self.total += 1;
+    }
+
+    fn visit_contract_application(&mut self, _contract: &Spanned<crate::contracts::ast::ContractExpr>, expr: &Spanned<Expr>) {
+        self.total += 1;
+        self.visit_expr(expr);
     }
 }
 

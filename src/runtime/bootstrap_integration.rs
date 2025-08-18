@@ -6,7 +6,7 @@
 use super::{BootstrapSystem, GlobalEnvironmentManager, LibraryPathResolver, LibraryPathConfig};
 use crate::module_system::BootstrapConfig;
 use crate::diagnostics::{Result, Error};
-use crate::stdlib::StandardLibrary;
+use crate::stdlib::standard_library::StandardLibrary;
 use std::sync::Arc;
 use std::time::{Instant, Duration};
 use std::path::PathBuf;

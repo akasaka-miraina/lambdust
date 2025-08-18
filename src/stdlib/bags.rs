@@ -140,6 +140,7 @@ impl ValueKey {
                 // For trait objects, we use the Arc pointer itself as the identity
                 ValueKeyType::MutableRef(Arc::as_ptr(opaque) as *const Arc<dyn std::any::Any + Send + Sync> as usize)
             }
+            Value::Environment(env) => ValueKeyType::MutableRef(Arc::as_ptr(env) as usize),
         };
         ValueKey { key_type }
     }

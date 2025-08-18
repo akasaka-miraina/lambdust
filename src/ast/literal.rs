@@ -52,6 +52,10 @@ pub enum Literal {
     
     /// Unspecified value (result of side-effecting operations)
     Unspecified,
+    
+    /// Legacy integer alias for compatibility
+    #[deprecated(note = "Use ExactInteger instead")]
+    Integer(i64),
 }
 
 /// Rational number representation.
@@ -240,7 +244,7 @@ impl Literal {
     /// Returns true if this literal is an integer.
     pub fn is_integer(&self) -> bool {
         match self {
-            Literal::ExactInteger(_) => true,
+            Literal::ExactInteger(_) | Literal::Integer(_) => true,
             Literal::InexactReal(n) => n.fract() == 0.0 && n.is_finite(),
             Literal::Number(n) => n.fract() == 0.0 && n.is_finite(),
             Literal::Rational(r) => r.is_integer(),
@@ -355,7 +359,7 @@ impl Literal {
 impl fmt::Display for Literal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Literal::ExactInteger(n) => {
+            Literal::ExactInteger(n) | Literal::Integer(n) => {
                 write!(f, "{n}")
             }
             Literal::InexactReal(n) => {
@@ -466,7 +470,7 @@ fn escape_string(s: &str) -> String {
 impl Hash for Literal {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Literal::ExactInteger(n) => {
+            Literal::ExactInteger(n) | Literal::Integer(n) => {
                 0u8.hash(state);
                 n.hash(state);
             }

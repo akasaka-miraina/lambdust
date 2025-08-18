@@ -87,7 +87,6 @@ criterion = { version = "0.5", optional = true }
 flame = { version = "0.2", optional = true }
 
 # CLI and utilities
-# clap = { version = "4.4", features = ["derive"] } # 廃止済み (2025年8月12日) - 内製軽量CLI parserに移行
 rustyline = { version = "13.0", optional = true } # REPL readline support
 colored = { version = "2.0", optional = true }
 dirs = { version = "5.0", optional = true }
@@ -205,11 +204,14 @@ ffi = ["libffi", "cc"]                              # FFI support
 jit = []                                            # JIT compilation support
 
 # Type System Features
-hindley-milner = []                                 # Hindley-Milner type inference
-monad-aware = ["hindley-milner"]                    # Monad-aware type system
-experimental-type-system = ["hindley-milner", "monad-aware"] # Advanced type system features
+hindley-milner = [] # Hindley-Milner type inference
+monad-aware = ["hindley-milner"] # Monad-aware type system
+experimental-type-system = [
+    "hindley-milner",
+    "monad-aware",
+] # Advanced type system features
 
-simd-benchmarks = ["benchmarks"]                    # SIMD optimization benchmarking
+simd-benchmarks = ["benchmarks"] # SIMD optimization benchmarking
 
 # Formal methods integration (advanced feature)
 formal-methods = [] # Event-B/B-Method integration

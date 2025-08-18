@@ -16,34 +16,34 @@
 //! # Type Rules for Σ-types
 //!
 //! ## Formation Rule
-//! ```
+//! ```text
 //!   Γ ⊢ A type    Γ, x:A ⊢ B(x) type
 //!   ────────────────────────────────────
 //!         Γ ⊢ (x:A) × B(x) type
 //! ```
 //!
 //! ## Introduction Rule (pair construction)
-//! ```
+//! ```text
 //!   Γ ⊢ a : A    Γ ⊢ b : B(a)
 //!   ─────────────────────────────
 //!   Γ ⊢ (a, b) : (x:A) × B(x)
 //! ```
 //!
 //! ## Elimination Rules (projections)
-//! ```
+//! ```text
 //!   Γ ⊢ p : (x:A) × B(x)       Γ ⊢ p : (x:A) × B(x)
 //!   ────────────────────       ─────────────────────
 //!      Γ ⊢ π₁(p) : A             Γ ⊢ π₂(p) : B(π₁(p))
 //! ```
 //!
 //! ## Computation Rules
-//! ```
+//! ```text
 //!   π₁((a, b)) ≡ a : A
 //!   π₂((a, b)) ≡ b : B(a)
 //! ```
 //!
 //! ## Uniqueness Rule (η-expansion)
-//! ```
+//! ```text
 //!   (π₁(p), π₂(p)) ≡ p : (x:A) × B(x)
 //! ```
 

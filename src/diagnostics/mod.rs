@@ -145,6 +145,14 @@ impl Error {
         }
     }
 
+    /// Creates a new error with span information (generic constructor).
+    pub fn new_spanned(message: impl Into<String>, span: Span) -> Self {
+        Self::ParseError {
+            message: message.into(),
+            span,
+        }
+    }
+
     /// Creates a new IO error.
     pub fn io_error(message: impl Into<String>) -> Self {
         Self::IoError {
@@ -342,7 +350,7 @@ impl Error {
         }
     }
 
-    /// Converts this Error into a Box<Error> for use with the Result type.
+    /// Converts this `Error` into a `Box<Error>` for use with the Result type.
     pub fn boxed(self) -> Box<Error> {
         Box::new(self)
     }

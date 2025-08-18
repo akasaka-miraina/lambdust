@@ -5,7 +5,7 @@
 //!
 //! # Memory Pool Architecture
 //!
-//! ```
+//! ```text
 //! Memory Pool System:
 //! ┌─────────────────────────────────────────────────────────┐
 //! │                   Pool Manager                          │

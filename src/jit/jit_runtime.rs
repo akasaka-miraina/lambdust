@@ -17,7 +17,7 @@ use crate::jit::specialized_compilation_tiers::{
     SpecializedCompilationResult, SpecializedNativeCode, SpecializedTierConfig
 };
 use crate::jit::deoptimization::{DeoptimizationContext, DeoptimizationConfig};
-use crate::jit::security_verification::{SecurityConfig, JitSecurityFramework as SecurityFramework};
+use crate::jit::security::{SecurityConfig, JitSecurityFramework as SecurityFramework, ExecutionPermissions};
 use crate::diagnostics::{Result, Error};
 use std::sync::{Arc, RwLock, Mutex};
 use std::collections::HashMap;
@@ -587,7 +587,7 @@ impl JitRuntime {
             let execution_start = Instant::now();
             
             // Create secure execution context
-            let permissions = crate::jit::security_verification::ExecutionPermissions::memory_access();
+            let permissions = ExecutionPermissions::memory_access();
             let secure_context = {
                 let mut security = self.security_framework.lock()
                     .map_err(|_| Error::runtime_error("Failed to acquire security framework lock".to_string(), None))?;

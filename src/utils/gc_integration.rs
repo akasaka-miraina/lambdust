@@ -151,6 +151,7 @@ impl ValueGcWrapper {
             #[cfg(feature = "async-runtime")]
             Value::DistributedNode(_) => 1024,
             Value::Opaque(_) => 64,
+            Value::Environment(_) => 128, // Environment with bindings
         }
     }
 

@@ -144,7 +144,7 @@ impl TypeInference {
             Expr::Keyword(_) => Ok(Type::Symbol), // Keywords are symbols
             
             // Lambda expressions
-            Expr::Lambda { formals, body, metadata } => {
+            Expr::Lambda { formals, body, metadata, .. } => {
                 self.infer_lambda(formals, body, metadata, expr.span)
             }
             
@@ -159,7 +159,7 @@ impl TypeInference {
             }
             
             // Variable definition
-            Expr::Define { name, value, metadata } => {
+            Expr::Define { name, value, metadata, .. } => {
                 self.infer_define(name, value, metadata, expr.span)
             }
             
@@ -245,7 +245,7 @@ impl TypeInference {
     /// Infers the type of a literal.
     fn infer_literal(&mut self, literal: &Literal) -> Result<Type> {
         match literal {
-            Literal::ExactInteger(_) => Ok(Type::Number),
+            Literal::ExactInteger(_) | Literal::Integer(_) => Ok(Type::Number),
             Literal::InexactReal(_) => Ok(Type::Number),
             Literal::Number(_) => Ok(Type::Number),
             Literal::Rational { .. } => Ok(Type::Number),
@@ -640,6 +640,34 @@ impl TypeInference {
                     bindings.push((rest.clone(), TypeScheme::monomorphic(list_type)));
                 }
             }
+            
+            Formals::Typed(typed_params) => {
+                for typed_param in typed_params {
+                    // Use the provided type annotation instead of creating fresh type var
+                    let param_type = self.type_from_type_expr(&typed_param.type_annotation)?;
+                    param_types.push(param_type.clone());
+                    bindings.push((typed_param.name.clone(), TypeScheme::monomorphic(param_type)));
+                }
+            }
+            
+            Formals::TypedVariable(typed_param) => {
+                // Use the provided type annotation for the variable parameter
+                let param_type = self.type_from_type_expr(&typed_param.type_annotation)?;
+                bindings.push((typed_param.name.clone(), TypeScheme::monomorphic(param_type)));
+            }
+            
+            Formals::TypedMixed { fixed, rest } => {
+                // Fixed typed parameters
+                for typed_param in fixed {
+                    let param_type = self.type_from_type_expr(&typed_param.type_annotation)?;
+                    param_types.push(param_type.clone());
+                    bindings.push((typed_param.name.clone(), TypeScheme::monomorphic(param_type)));
+                }
+                
+                // Typed rest parameter
+                let rest_type = self.type_from_type_expr(&rest.type_annotation)?;
+                bindings.push((rest.name.clone(), TypeScheme::monomorphic(rest_type)));
+            }
         }
         
         Ok((param_types, bindings))
@@ -694,6 +722,119 @@ impl TypeInference {
             }
             _ => Err(Box::new(Error::type_error(
                 "Invalid type expression".to_string(),
+                type_expr.span,
+            )))
+        }
+    }
+    
+    /// Parses a type from an expression (public interface).
+    pub fn type_from_expr(&mut self, type_expr: &Spanned<Expr>) -> Result<Type> {
+        self.parse_type_expression(type_expr)
+    }
+    
+    /// Parses a type from a type expression (for typed parameters).
+    pub fn type_from_type_expr(&mut self, type_expr: &Spanned<crate::ast::TypeExpr>) -> Result<Type> {
+        use crate::ast::TypeExpr;
+        
+        match &type_expr.inner {
+            TypeExpr::Identifier(name) => {
+                match name.as_str() {
+                    "Number" => Ok(Type::Number),
+                    "String" => Ok(Type::String),
+                    "Symbol" => Ok(Type::Symbol),
+                    "Boolean" => Ok(Type::Boolean),
+                    "Char" => Ok(Type::Char),
+                    "Dynamic" => Ok(Type::Dynamic),
+                    _ => {
+                        // Look up type constructor or create type variable
+                        if let Some(constructor) = self.env.constructors.get(name) {
+                            Ok(Type::Constructor {
+                                name: constructor.name.clone(),
+                                kind: constructor.kind.clone(),
+                            })
+                        } else {
+                            Ok(Type::named_var(name))
+                        }
+                    }
+                }
+            }
+            TypeExpr::Variable(name) => {
+                Ok(Type::named_var(name))
+            }
+            TypeExpr::Application { constructor, argument } => {
+                let constructor_type = self.type_from_type_expr(constructor)?;
+                let argument_type = self.type_from_type_expr(argument)?;
+                Ok(Type::Application {
+                    constructor: Box::new(constructor_type),
+                    argument: Box::new(argument_type),
+                })
+            }
+            TypeExpr::Parametric { name, args } => {
+                // Handle parametric types like (Maybe A) or (Either A B)
+                let mut result_type = if let Some(constructor) = self.env.constructors.get(name) {
+                    Type::Constructor {
+                        name: constructor.name.clone(),
+                        kind: constructor.kind.clone(),
+                    }
+                } else {
+                    Type::named_var(name)
+                };
+                
+                // Apply arguments to create nested applications
+                for arg in args {
+                    let arg_type = self.type_from_type_expr(arg)?;
+                    result_type = Type::Application {
+                        constructor: Box::new(result_type),
+                        argument: Box::new(arg_type),
+                    };
+                }
+                Ok(result_type)
+            }
+            TypeExpr::Function { params, return_type } => {
+                let mut param_types = Vec::new();
+                for param in params {
+                    param_types.push(self.type_from_type_expr(param)?);
+                }
+                let result_type = self.type_from_type_expr(return_type)?;
+                
+                // Build function type with all params and result
+                let function_type = Type::Function {
+                    params: param_types,
+                    return_type: Box::new(result_type),
+                };
+                Ok(function_type)
+            }
+            TypeExpr::Pair { first, second } => {
+                let first_type = self.type_from_type_expr(first)?;
+                let second_type = self.type_from_type_expr(second)?;
+                
+                // Represent pair as (Pair A B)
+                Ok(Type::Application {
+                    constructor: Box::new(Type::Application {
+                        constructor: Box::new(Type::named_var("Pair")),
+                        argument: Box::new(first_type),
+                    }),
+                    argument: Box::new(second_type),
+                })
+            }
+            TypeExpr::List { element_type } => {
+                let element = self.type_from_type_expr(element_type)?;
+                Ok(Type::Application {
+                    constructor: Box::new(Type::named_var("List")),
+                    argument: Box::new(element),
+                })
+            }
+            TypeExpr::Vector { element_type } => {
+                let element = self.type_from_type_expr(element_type)?;
+                Ok(Type::Application {
+                    constructor: Box::new(Type::named_var("Vector")),
+                    argument: Box::new(element),
+                })
+            }
+            // For now, we'll handle only the basic cases
+            // More complex cases like Forall, Exists, Record, etc. could be added later
+            _ => Err(Box::new(Error::type_error(
+                format!("Unsupported type expression: {:?}", type_expr.inner),
                 type_expr.span,
             )))
         }

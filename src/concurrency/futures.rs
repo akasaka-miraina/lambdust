@@ -230,7 +230,7 @@ impl Promise {
         if let Some(sender) = self.sender.take() {
             sender.send(Ok(value)).map_err(|_| ConcurrencyError::Cancelled.into())
         } else {
-            Err(Error::runtime_error("Promise already completed".to_string(), None).into())
+            Err(Box::new(Error::runtime_error("Promise already completed".to_string(), None).into()))
         }
     }
 
@@ -239,7 +239,7 @@ impl Promise {
         if let Some(sender) = self.sender.take() {
             sender.send(Err(error.into())).map_err(|_| ConcurrencyError::Cancelled.into())
         } else {
-            Err(Error::runtime_error("Promise already completed".to_string(), None).into())
+            Err(Box::new(Error::runtime_error("Promise already completed".to_string(), None).into()))
         }
     }
 
@@ -278,7 +278,7 @@ impl FutureOps {
     /// Races multiple futures, returning the first one to complete.
     pub fn race(futures: Vec<Future>) -> Future {
         if futures.is_empty() {
-            return Future::rejected(Error::runtime_error("No futures to race".to_string(), None));
+            return Future::rejected(Error::runtime_error("No futures to race".to_string(), None))
         }
 
         Future::new(async move {
@@ -321,14 +321,14 @@ impl FutureOps {
                             Value::symbol_from_str("fulfilled"),
                             value,
                         ];
-                        results.push(Value::from_vec(result));
+                        results.push(Value::from_vec(result))
                     }
                     Err(error) => {
                         let result = vec![
                             Value::symbol_from_str("rejected"),
                             Value::string(error.to_string()),
                         ];
-                        results.push(Value::from_vec(result));
+                        results.push(Value::from_vec(result))
                     }
                 }
             }

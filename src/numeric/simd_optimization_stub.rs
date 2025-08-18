@@ -192,10 +192,12 @@ impl SimdNumericOps {
         crate::numeric::simd_benchmarks::SimdBenchmarkResults {
             operation: "benchmark".to_string(),
             array_size: size,
-            simd_time_ns: 1000,
-            scalar_time_ns: 1000,
-            speedup: 1.0,
-            bandwidth_utilization: 0.5,
+            iterations: 1000,
+            simd_time: std::time::Duration::from_nanos(1000),
+            scalar_time: std::time::Duration::from_nanos(1000),
+            speedup_factor: 1.0,
+            simd_ops_per_sec: 1000000.0,
+            scalar_ops_per_sec: 1000000.0,
         }
     }
 }

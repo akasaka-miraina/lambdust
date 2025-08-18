@@ -124,7 +124,7 @@ impl SerializableValue {
                 }
                 crate::ast::Literal::Complex { real, imaginary: _ } => 
                     Ok(SerializableValue::Float(*real)), // Only serialize real part
-                crate::ast::Literal::String(s) => Ok(SerializableValue::String(s.clone())),
+                crate::ast::Literal::String(s) => Ok(SerializableValue::String((**s).clone())),
                 crate::ast::Literal::Character(c) => Ok(SerializableValue::String(c.to_string())),
                 // Handle other literal types
                 crate::ast::Literal::Bytevector(bytes) => 
@@ -177,7 +177,7 @@ impl SerializableValue {
             SerializableValue::Boolean(b) => Ok(Value::Literal(crate::ast::Literal::Boolean(*b))),
             SerializableValue::Integer(i) => Ok(Value::Literal(crate::ast::Literal::integer(*i))),
             SerializableValue::Float(f) => Ok(Value::Literal(crate::ast::Literal::float(*f))),
-            SerializableValue::String(s) => Ok(Value::Literal(crate::ast::Literal::String(s.clone()))),
+            SerializableValue::String(s) => Ok(Value::Literal(crate::ast::Literal::String(Box::new(s.clone())))),
             SerializableValue::Symbol(s) => {
                 // Extract symbol ID from the string (simplified)
                 Ok(Value::Symbol(crate::utils::SymbolId(s.len())))
@@ -290,7 +290,7 @@ impl RpcClient {
         
         match response.result {
             Ok(value) => value.to_value(),
-            Err(error) => Err(Error::runtime_error(error, None).boxed()),
+            Err(error) => Err(Box::new(Error::runtime_error(error, None).boxed())),
         }
     }
 }
@@ -612,7 +612,7 @@ impl DistributedOps {
         F: Fn(&Value) -> Result<Value> + Send + Sync + 'static,
     {
         if nodes.is_empty() {
-            return Err(Box::new(Error::runtime_error("No nodes available".to_string(), None)))
+            return Err(Box::new(Error::runtime_error("No nodes available".to_string(), None)));
         }
 
         let chunk_size = data.len().div_ceil(nodes.len());

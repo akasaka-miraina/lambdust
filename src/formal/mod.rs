@@ -16,24 +16,25 @@
 
 #![allow(missing_docs)]
 
-#[cfg(feature = "event-b")]
-pub mod eventb;
+// Temporarily disabled due to syntax errors
+// #[cfg(feature = "event-b")]
+// pub mod eventb;
 
-#[cfg(feature = "isabelle-hol")]
-pub mod isabelle;
+// #[cfg(feature = "isabelle-hol")]
+// pub mod isabelle;
 
-#[cfg(feature = "b-method")]
-pub mod bmethod;
+// #[cfg(feature = "b-method")]
+// pub mod bmethod;
 
 // Re-exports for convenience (conditional on features)
-#[cfg(feature = "event-b")]
-pub use eventb::*;
+// #[cfg(feature = "event-b")]
+// pub use eventb::*;
 
-#[cfg(feature = "isabelle-hol")]
-pub use isabelle::*;
+// #[cfg(feature = "isabelle-hol")]
+// pub use isabelle::*;
 
-#[cfg(feature = "b-method")]
-pub use bmethod::*;
+// #[cfg(feature = "b-method")]
+// pub use bmethod::*;
 
 use crate::eval::Value;
 use crate::diagnostics::{Error, Result, Span};
@@ -242,14 +243,14 @@ impl FormalTranslationManager {
         
         // Verify all proof obligations are discharged
         if session.progress.discharged_pos < session.progress.total_pos {
-            return Err(Error::runtime_error(
+            return Err(Box::new(Error::runtime_error(
                 format!(
                     "Cannot complete translation: {}/{} proof obligations discharged",
                     session.progress.discharged_pos,
                     session.progress.total_pos
                 ),
                 None
-            ).boxed());
+            ).boxed()))
         }
         
         let discharged_pos: Vec<String> = session.proof_obligations

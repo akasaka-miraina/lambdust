@@ -265,6 +265,7 @@ impl MemoryMeasurer {
             Value::DistributedNode(_) => 1,
             
             Value::Opaque(_) => 1, // Arc<dyn Any>
+            Value::Environment(_) => 1, // Arc<ThreadSafeEnvironment>
         }
     }
     

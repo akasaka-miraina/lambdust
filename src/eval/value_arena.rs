@@ -5,7 +5,7 @@
 //!
 //! - **Bulk Allocation**: Large contiguous memory regions instead of many small allocations
 //! - **Cache Locality**: Related values are stored near each other in memory
-//! - **Reduced Overhead**: Lightweight references instead of Arc<T> for common cases
+//! - **Reduced Overhead**: Lightweight references instead of `Arc<T>` for common cases
 //! - **Automatic Deduplication**: Common values are shared automatically
 //! - **Fast Collection**: Arena-scoped garbage collection
 //!
@@ -126,7 +126,7 @@ enum ArenaType {
 
 /// Arena-optimized value representation.
 ///
-/// This enum uses lightweight references instead of Arc<T> for heap-allocated
+/// This enum uses lightweight references instead of `Arc<T>` for heap-allocated
 /// components, enabling better cache locality and reduced memory overhead.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ArenaValue {
@@ -539,7 +539,7 @@ impl ValueArena {
         use std::collections::hash_map::DefaultHasher;
         
         let discriminant = match literal {
-            Literal::ExactInteger(_) => 0,
+            Literal::ExactInteger(_) | Literal::Integer(_) => 0,
             Literal::InexactReal(_) => 1,
             Literal::Number(_) => 2,
             Literal::Rational(_) => 3,

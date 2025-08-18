@@ -6,10 +6,35 @@
 
 #![allow(dead_code)]
 
+use crate::ast::Formals;
 use crate::diagnostics::{Error as DiagnosticError, Result};
 use crate::eval::value::{Value, PrimitiveProcedure, PrimitiveImpl, ThreadSafeEnvironment};
 use crate::effects::Effect;
 use std::sync::Arc;
+
+// Static error messages for better performance (avoid string allocations)
+const MAP_ARITY_ERROR: &str = "map requires at least 2 arguments";
+const MAP_PROCEDURE_ERROR: &str = "map: first argument must be a procedure";
+const FOR_EACH_ARITY_ERROR: &str = "for-each requires at least 2 arguments";
+const FOR_EACH_PROCEDURE_ERROR: &str = "for-each: first argument must be a procedure";
+
+/// Efficient type descriptor for error messages (avoids repeated pattern matching)
+fn get_value_type_name(value: &Value) -> &'static str {
+    match value {
+        Value::Literal(_) => "literal",
+        Value::Symbol(_) => "symbol", 
+        Value::Keyword(_) => "keyword",
+        Value::Pair(_, _) => "improper list",
+        Value::MutablePair(_, _) => "mutable pair",
+        Value::Vector(_) => "vector",
+        Value::Nil => "empty list",
+        Value::Unspecified => "unspecified",
+        Value::Primitive(_) => "primitive procedure",
+        Value::Procedure(_) => "procedure",
+        Value::Continuation(_) => "continuation",
+        _ => "unknown value"
+    }
+}
 
 /// Creates list operation bindings for the standard library.
 pub fn create_list_bindings(env: &Arc<ThreadSafeEnvironment>) {
@@ -1046,7 +1071,7 @@ fn set_list_element(list: &Value, index: i64, value: Value) -> Result<Value> {
 fn primitive_map(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            "map requires at least 2 arguments".to_string(),
+            MAP_ARITY_ERROR.to_string(),
             None,
         )));
     }
@@ -1129,7 +1154,7 @@ fn primitive_map(args: &[Value]) -> Result<Value> {
 fn primitive_for_each(args: &[Value]) -> Result<Value> {
     if args.len() < 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            "for-each requires at least 2 arguments".to_string(),
+            FOR_EACH_ARITY_ERROR.to_string(),
             None,
         )));
     }
@@ -3495,60 +3520,133 @@ fn apply_procedure_with_evaluator(
     }
 }
 
-/// Evaluator-integrated map function
+/// Evaluator-integrated map function - Optimized for performance
 fn evaluator_map(evaluator: &mut crate::eval::evaluator::Evaluator, args: &[Value]) -> crate::diagnostics::Result<Value> {
     use crate::diagnostics::Error as DiagnosticError;
     
     if args.len() < 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            "map requires at least 2 arguments".to_string(),
+            MAP_ARITY_ERROR.to_string(),
             None,
         )));
     }
     
     let procedure = &args[0];
+    let list_args = &args[1..];
     
-    // Verify the first argument is callable
+    // R7RS compliance: Verify the first argument is callable
     if !procedure.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
-            "map first argument must be a procedure".to_string(),
+            MAP_PROCEDURE_ERROR.to_string(),
             None,
         )));
     }
     
-    // Convert all list arguments to vectors for parallel iteration
-    let mut list_data = Vec::new();
-    let mut min_length = usize::MAX;
+    // R7RS compliance: Check procedure arity compatibility
+    check_procedure_arity(procedure, list_args.len())?;
+
+    // Special case: single list (most common case) - optimize for direct iteration
+    if list_args.len() == 1 {
+        return evaluator_map_single_list(evaluator, procedure, &list_args[0]);
+    }
     
-    for (i, arg) in args.iter().enumerate().skip(1) {
-        if let Some(list_values) = arg.as_list() {
-            let length = list_values.len();
-            if length < min_length {
-                min_length = length;
+    // Multi-list case: Use optimized approach with early termination
+    // Strategy: Find shortest list first to avoid unnecessary work
+    let mut shortest_length = usize::MAX;
+    let mut shortest_index = 0;
+    
+    // First pass: Find shortest list without materializing all lists
+    for (i, list_arg) in list_args.iter().enumerate() {
+        // Quick check for empty list before expensive as_list() call
+        if list_arg.is_nil() {
+            return Ok(Value::Nil);
+        }
+        
+        // Get length efficiently without full materialization if possible
+        let length = match list_arg.as_list() {
+            Some(list_values) => {
+                if list_values.is_empty() {
+                    return Ok(Value::Nil); // Early return for empty lists
+                }
+                list_values.len()
+            },
+            None => {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("map: argument {} must be a proper list, got {}", i + 2, 
+                        get_value_type_name(list_arg)),
+                    None,
+                )));
             }
-            list_data.push(list_values);
-        } else {
-            return Err(Box::new(DiagnosticError::runtime_error(
-                format!("map argument {} must be a list", i + 1),
-                None,
-            )));
+        };
+        
+        if length < shortest_length {
+            shortest_length = length;
+            shortest_index = i;
         }
     }
     
-    // If any list is empty, return empty list
-    if min_length == 0 || min_length == usize::MAX {
+    // Second pass: Materialize all lists only after we know we need them
+    let mut iterators = Vec::with_capacity(list_args.len());
+    for list_arg in list_args.iter() {
+        let list_values = list_arg.as_list().unwrap(); // Safe because we validated above
+        iterators.push(list_values);
+    }
+    
+    // Early return if no valid lists or all empty
+    if shortest_length == usize::MAX {
         return Ok(Value::Nil);
     }
     
-    // Apply procedure to each element across all lists
-    let mut results = Vec::new();
-    for i in 0..min_length {
-        let mut proc_args = Vec::new();
-        for list in &list_data {
+    // Pre-allocate results vector for better performance
+    let mut results = Vec::with_capacity(shortest_length);
+    
+    // Optimized iteration: avoid repeated allocations
+    let mut proc_args = Vec::with_capacity(iterators.len());
+    for i in 0..shortest_length {
+        proc_args.clear(); // Reuse vector allocation
+        for list in &iterators {
             proc_args.push(list[i].clone());
         }
         
         // Apply the procedure using evaluator integration
+        let result = apply_procedure_with_evaluator(evaluator, procedure, &proc_args)?;
+        results.push(result);
+    }
+    
+    Ok(Value::list(results))
+}
+
+/// Optimized single-list map implementation
+fn evaluator_map_single_list(
+    evaluator: &mut crate::eval::evaluator::Evaluator,
+    procedure: &Value,
+    list_arg: &Value,
+) -> crate::diagnostics::Result<Value> {
+    use crate::diagnostics::Error as DiagnosticError;
+    
+    // Quick check for empty list
+    if list_arg.is_nil() {
+        return Ok(Value::Nil);
+    }
+    
+    let list_values = list_arg.as_list().ok_or_else(|| {
+        Box::new(DiagnosticError::runtime_error(
+            format!("map: argument 2 must be a proper list, got {}", 
+                get_value_type_name(list_arg)),
+            None,
+        ))
+    })?;
+    
+    if list_values.is_empty() {
+        return Ok(Value::Nil);
+    }
+    
+    // Pre-allocate for better performance
+    let mut results = Vec::with_capacity(list_values.len());
+    let mut proc_args = vec![Value::Nil]; // Reuse single-element vector
+    
+    for element in list_values {
+        proc_args[0] = element.clone();
         let result = apply_procedure_with_evaluator(evaluator, procedure, &proc_args)?;
         results.push(result);
     }
@@ -3724,64 +3822,222 @@ fn evaluator_fold_right(evaluator: &mut crate::eval::evaluator::Evaluator, args:
     Ok(accumulator)
 }
 
-/// Evaluator-integrated for-each function
+/// Evaluator-integrated for-each function - Optimized for performance
 fn evaluator_for_each(evaluator: &mut crate::eval::evaluator::Evaluator, args: &[Value]) -> crate::diagnostics::Result<Value> {
     use crate::diagnostics::Error as DiagnosticError;
     
     if args.len() < 2 {
         return Err(Box::new(DiagnosticError::runtime_error(
-            "for-each requires at least 2 arguments".to_string(),
+            FOR_EACH_ARITY_ERROR.to_string(),
             None,
         )));
     }
     
     let procedure = &args[0];
+    let list_args = &args[1..];
     
-    // Verify the first argument is callable
+    // R7RS compliance: Verify the first argument is callable
     if !procedure.is_procedure() {
         return Err(Box::new(DiagnosticError::runtime_error(
-            "for-each first argument must be a procedure".to_string(),
+            FOR_EACH_PROCEDURE_ERROR.to_string(),
             None,
         )));
     }
     
-    // Convert all list arguments to vectors for parallel iteration
-    let mut list_data = Vec::new();
-    let mut min_length = usize::MAX;
+    // R7RS compliance: Check procedure arity compatibility
+    check_procedure_arity(procedure, list_args.len())?;
+
+    // Special case: single list (most common case) - optimize for direct iteration
+    if list_args.len() == 1 {
+        return evaluator_for_each_single_list(evaluator, procedure, &list_args[0]);
+    }
     
-    for (i, arg) in args.iter().enumerate().skip(1) {
-        if let Some(list_values) = arg.as_list() {
-            let length = list_values.len();
-            if length < min_length {
-                min_length = length;
+    // Multi-list case: Use optimized approach with early termination
+    // Strategy: Find shortest list first to avoid unnecessary work
+    let mut shortest_length = usize::MAX;
+    let mut shortest_index = 0;
+    
+    // First pass: Find shortest list without materializing all lists
+    for (i, list_arg) in list_args.iter().enumerate() {
+        // Quick check for empty list before expensive as_list() call
+        if list_arg.is_nil() {
+            return Ok(Value::Unspecified); // Empty list means no side effects
+        }
+        
+        // Get length efficiently without full materialization if possible
+        let length = match list_arg.as_list() {
+            Some(list_values) => {
+                if list_values.is_empty() {
+                    return Ok(Value::Unspecified); // Early return for empty lists
+                }
+                list_values.len()
+            },
+            None => {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("for-each: argument {} must be a proper list, got {}", i + 2, 
+                        get_value_type_name(list_arg)),
+                    None,
+                )));
             }
-            list_data.push(list_values);
-        } else {
-            return Err(Box::new(DiagnosticError::runtime_error(
-                format!("for-each argument {} must be a list", i + 1),
-                None,
-            )));
+        };
+        
+        if length < shortest_length {
+            shortest_length = length;
+            shortest_index = i;
         }
     }
     
-    // If any list is empty, return unspecified immediately
-    if min_length == 0 || min_length == usize::MAX {
+    // Second pass: Materialize all lists only after we know we need them
+    let mut iterators = Vec::with_capacity(list_args.len());
+    for list_arg in list_args.iter() {
+        let list_values = list_arg.as_list().unwrap(); // Safe because we validated above
+        iterators.push(list_values);
+    }
+    
+    // Early return if no valid lists or all empty
+    if shortest_length == usize::MAX {
         return Ok(Value::Unspecified);
     }
     
-    // Apply procedure to each element across all lists (for side effects)
-    for i in 0..min_length {
-        let mut proc_args = Vec::new();
-        for list in &list_data {
+    // Optimized iteration: avoid repeated allocations
+    let mut proc_args = Vec::with_capacity(iterators.len());
+    for i in 0..shortest_length {
+        proc_args.clear(); // Reuse vector allocation
+        for list in &iterators {
             proc_args.push(list[i].clone());
         }
         
-        // Apply the procedure using evaluator integration (ignore result)
+        // Apply the procedure using evaluator integration (ignore result for side effects)
         let _result = apply_procedure_with_evaluator(evaluator, procedure, &proc_args)?;
     }
     
     // for-each returns unspecified
     Ok(Value::Unspecified)
+}
+
+/// Optimized single-list for-each implementation
+fn evaluator_for_each_single_list(
+    evaluator: &mut crate::eval::evaluator::Evaluator,
+    procedure: &Value,
+    list_arg: &Value,
+) -> crate::diagnostics::Result<Value> {
+    use crate::diagnostics::Error as DiagnosticError;
+    
+    // Quick check for empty list
+    if list_arg.is_nil() {
+        return Ok(Value::Unspecified);
+    }
+    
+    let list_values = list_arg.as_list().ok_or_else(|| {
+        Box::new(DiagnosticError::runtime_error(
+            format!("for-each: argument 2 must be a proper list, got {}", 
+                get_value_type_name(list_arg)),
+            None,
+        ))
+    })?;
+    
+    if list_values.is_empty() {
+        return Ok(Value::Unspecified);
+    }
+    
+    // Reuse single-element vector to minimize allocations
+    let mut proc_args = vec![Value::Nil];
+    
+    for element in list_values {
+        proc_args[0] = element.clone();
+        // Apply procedure for side effects (ignore result)
+        let _result = apply_procedure_with_evaluator(evaluator, procedure, &proc_args)?;
+    }
+    
+    Ok(Value::Unspecified)
+}
+
+/// R7RS compliance: Check if procedure arity is compatible with the number of list arguments
+fn check_procedure_arity(procedure: &Value, num_lists: usize) -> crate::diagnostics::Result<()> {
+    use crate::diagnostics::Error as DiagnosticError;
+    
+    match procedure {
+        Value::Primitive(prim) => {
+            // Check if the primitive can handle the expected number of arguments
+            if num_lists < prim.arity_min {
+                return Err(Box::new(DiagnosticError::runtime_error(
+                    format!("procedure requires at least {} arguments, but {} lists provided", 
+                        prim.arity_min, num_lists),
+                    None,
+                )));
+            }
+            if let Some(max_arity) = prim.arity_max {
+                if num_lists > max_arity {
+                    return Err(Box::new(DiagnosticError::runtime_error(
+                        format!("procedure accepts at most {max_arity} arguments, but {num_lists} lists provided"),
+                        None,
+                    )));
+                }
+            }
+        }
+        Value::Procedure(proc) => {
+            // Check user-defined procedure arity
+            match &proc.formals {
+                Formals::Fixed(params) => {
+                    if num_lists != params.len() {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            format!("procedure expects exactly {} arguments, but {} lists provided", 
+                                params.len(), num_lists),
+                            None,
+                        )));
+                    }
+                }
+                Formals::Variable(_) => {
+                    // Variadic procedures can accept any number of arguments >= 0
+                }
+                Formals::Mixed { fixed, .. } => {
+                    if num_lists < fixed.len() {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            format!("procedure requires at least {} arguments, but {} lists provided", 
+                                fixed.len(), num_lists),
+                            None,
+                        )));
+                    }
+                }
+                Formals::Keyword { fixed, .. } => {
+                    if num_lists < fixed.len() {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            format!("procedure requires at least {} arguments, but {} lists provided", 
+                                fixed.len(), num_lists),
+                            None,
+                        )));
+                    }
+                }
+                Formals::Typed(params) => {
+                    if num_lists != params.len() {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            format!("procedure expects exactly {} arguments, but {} lists provided", 
+                                params.len(), num_lists),
+                            None,
+                        )));
+                    }
+                }
+                Formals::TypedVariable(_) => {
+                    // Typed variadic procedures can accept any number of arguments >= 0
+                }
+                Formals::TypedMixed { fixed, .. } => {
+                    if num_lists < fixed.len() {
+                        return Err(Box::new(DiagnosticError::runtime_error(
+                            format!("procedure requires at least {} arguments, but {} lists provided", 
+                                fixed.len(), num_lists),
+                            None,
+                        )));
+                    }
+                }
+            }
+        }
+        _ => {
+            // For other callable types (like continuations), we can't easily check arity
+            // so we'll allow them through
+        }
+    }
+    
+    Ok(())
 }
 
 #[cfg(test)]

@@ -437,7 +437,7 @@ impl SchemeLibraryLoader {
                     // Process body expressions (includes, begins, etc.)
                     for body_expr in body {
                         match &body_expr.inner {
-                            Expr::Define { name, value, metadata: def_meta } => {
+                            Expr::Define { name, value, metadata: def_meta, .. } => {
                                 let compiled_value = self.compile_expression(value, context)?;
                                 exports.insert(name.clone(), compiled_value);
                                 
@@ -470,7 +470,7 @@ impl SchemeLibraryLoader {
                 }
                 
                 // Handle define forms (create exportable bindings)
-                Expr::Define { name, value, metadata: def_meta } => {
+                Expr::Define { name, value, metadata: def_meta, .. } => {
                     let compiled_value = self.compile_expression(value, context)?;
                     exports.insert(name.clone(), compiled_value);
                     

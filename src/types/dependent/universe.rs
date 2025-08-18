@@ -18,20 +18,20 @@
 //! # Universe Rules
 //!
 //! ## Formation Rules
-//! ```
+//! ```text
 //!   ─────────────────    ──────────────────
 //!   ⊢ Type₀ : Type₁     ⊢ Type₁ : Type₂   ...
 //! ```
 //!
 //! ## Cumulativity Rules
-//! ```
+//! ```text
 //!   Γ ⊢ A : Type_i    i ≤ j
 //!   ─────────────────────────
 //!       Γ ⊢ A : Type_j
 //! ```
 //!
 //! ## Universe Polymorphism
-//! ```
+//! ```text
 //!   Γ, α:Level ⊢ A : Type_α
 //!   ──────────────────────────
 //!   Γ ⊢ ∀α:Level. A : Type_{α+1}

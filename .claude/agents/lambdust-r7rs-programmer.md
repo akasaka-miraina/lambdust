@@ -1,5 +1,5 @@
 ---
-name: lambdust-r7rs-expert
+name: lambdust-r7rs-programmer
 description: Use this agent when working with Lambdust programming language tasks, implementing R7RS Scheme specifications, working with SRFI (Scheme Requests for Implementation) libraries, debugging Scheme code, optimizing functional programming patterns, or need expert guidance on Scheme language features and best practices. Examples: <example>Context: User is implementing a new data structure in Lambdust and needs guidance on R7RS compliance. user: 'I'm trying to implement a persistent vector in Lambdust following R7RS standards' assistant: 'Let me use the lambdust-r7rs-expert agent to provide guidance on R7RS-compliant implementation patterns for persistent data structures'</example> <example>Context: User encounters an error with SRFI library integration. user: 'My SRFI-1 list operations are throwing errors in Lambdust' assistant: 'I'll use the lambdust-r7rs-expert agent to help debug the SRFI-1 integration issues and ensure proper implementation'</example>
 model: sonnet
 color: cyan

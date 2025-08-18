@@ -15,7 +15,7 @@ pub enum TokenText {
     Inline(SmallString),
     /// Interned string for common tokens
     Interned(InternedString),
-    /// Regular Arc<str> for larger strings
+    /// Regular `Arc<str>` for larger strings
     Shared(Arc<str>),
 }
 

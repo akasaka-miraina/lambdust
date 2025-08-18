@@ -170,6 +170,8 @@ pub enum TypeInfo {
         /// Opaque type name
         type_name: String
     },
+    /// Environment type for dynamic evaluation
+    Environment,
 }
 
 /// Arity information for procedures.
@@ -287,7 +289,7 @@ impl ObjectInspector {
 
         let type_info = match value {
             Value::Literal(Literal::Boolean(_)) => TypeInfo::Boolean,
-            Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::InexactReal(_)) | Value::Literal(Literal::Number(_)) => TypeInfo::Number,
+            Value::Literal(Literal::ExactInteger(_)) | Value::Literal(Literal::Integer(_)) | Value::Literal(Literal::InexactReal(_)) | Value::Literal(Literal::Number(_)) => TypeInfo::Number,
             Value::Literal(Literal::Rational { .. }) => TypeInfo::Number,
             Value::Literal(Literal::Complex { .. }) => TypeInfo::Number,
             Value::Literal(Literal::String(_)) | Value::Literal(Literal::InternedString(_)) => TypeInfo::String,
@@ -445,6 +447,10 @@ impl ObjectInspector {
                     type_name: "opaque".to_string(), // Placeholder - would extract actual type name
                 }
             }
+            
+            Value::Environment(_env) => {
+                TypeInfo::Environment
+            }
         };
 
         // Cache the result
@@ -507,6 +513,12 @@ impl ObjectInspector {
                 rest: true,
             },
             Formals::Keyword { fixed, .. } => ArityInfo::Variable {
+                min: fixed.len(),
+                rest: true,
+            },
+            Formals::Typed(params) => ArityInfo::Fixed(params.len()),
+            Formals::TypedVariable(_) => ArityInfo::Variable { min: 0, rest: true },
+            Formals::TypedMixed { fixed, .. } => ArityInfo::Variable {
                 min: fixed.len(),
                 rest: true,
             },

@@ -1,3 +1,8 @@
+//! Legacy single-threaded runtime implementation.
+//!
+//! This module provides the original single-threaded runtime system for Lambdust.
+//! For new projects, consider using the parallel runtime system instead.
+
 use crate::ast::Program;
 use crate::diagnostics::Result;
 use crate::eval::{Evaluator, Value};

@@ -7,42 +7,65 @@
 
 ;; ============= CORE HIGHER-ORDER FUNCTIONS =============
 
-;; MAP - Apply procedure to corresponding elements of lists
+;; MAP - Apply procedure to corresponding elements of lists (Tail-call optimized)
 (define (map proc lst . lsts)
   "Apply proc to corresponding elements of lists, return list of results."
   (if (null? lsts)
-      ;; Single list case (most common)
-      (if (null? lst)
-          '()
-          (%cons (proc (%car lst)) (map proc (%cdr lst))))
-      ;; Multiple lists case
-      (if (or (null? lst) (any-null? lsts))
-          '()
-          (%cons (apply proc (%cons (%car lst) (map-cars lsts)))
-                 (apply map proc (%cons (%cdr lst) (map-cdrs lsts)))))))
+      ;; Single list case (most common) - use iterative helper
+      (map-single-list proc lst)
+      ;; Multiple lists case - use iterative helper
+      (map-multiple-lists proc (%cons lst lsts))))
 
-;; FOR-EACH - Apply procedure for side effects
+;; Tail-call optimized single list map
+(define (map-single-list proc lst)
+  "Internal: map for single list using iterative accumulation."
+  (let loop ((lst lst) (acc '()))
+    (if (null? lst)
+        (reverse acc)
+        (loop (%cdr lst) (%cons (proc (%car lst)) acc)))))
+
+;; Tail-call optimized multiple lists map
+(define (map-multiple-lists proc lsts)
+  "Internal: map for multiple lists using iterative accumulation."
+  (let loop ((lsts lsts) (acc '()))
+    (if (any-null? lsts)
+        (reverse acc)
+        (loop (map-cdrs lsts) 
+              (%cons (apply proc (map-cars lsts)) acc)))))
+
+;; FOR-EACH - Apply procedure for side effects (Tail-call optimized)
 (define (for-each proc lst . lsts)
   "Apply proc to corresponding elements of lists for side effects."
   (if (null? lsts)
-      ;; Single list case
-      (unless (null? lst)
-        (proc (%car lst))
-        (for-each proc (%cdr lst)))
-      ;; Multiple lists case
-      (unless (or (null? lst) (any-null? lsts))
-        (apply proc (%cons (%car lst) (map-cars lsts)))
-        (apply for-each proc (%cons (%cdr lst) (map-cdrs lsts)))))
+      ;; Single list case - use iterative helper
+      (for-each-single-list proc lst)
+      ;; Multiple lists case - use iterative helper
+      (for-each-multiple-lists proc (%cons lst lsts)))
   ;; Return unspecified value
   (if #f #f))
 
-;; FILTER - Select elements satisfying predicate
+;; Tail-call optimized single list for-each
+(define (for-each-single-list proc lst)
+  "Internal: for-each for single list using tail recursion."
+  (unless (null? lst)
+    (proc (%car lst))
+    (for-each-single-list proc (%cdr lst))))
+
+;; Tail-call optimized multiple lists for-each
+(define (for-each-multiple-lists proc lsts)
+  "Internal: for-each for multiple lists using tail recursion."
+  (unless (any-null? lsts)
+    (apply proc (map-cars lsts))
+    (for-each-multiple-lists proc (map-cdrs lsts))))
+
+;; FILTER - Select elements satisfying predicate (Tail-call optimized)
 (define (filter pred lst)
   "Return list of elements from lst that satisfy predicate pred."
-  (cond
-    ((null? lst) '())
-    ((pred (%car lst)) (%cons (%car lst) (filter pred (%cdr lst))))
-    (else (filter pred (%cdr lst)))))
+  (let loop ((lst lst) (acc '()))
+    (cond
+      ((null? lst) (reverse acc))
+      ((pred (%car lst)) (loop (%cdr lst) (%cons (%car lst) acc)))
+      (else (loop (%cdr lst) acc)))))
 
 ;; FOLD-LEFT - Left fold with accumulator
 (define (fold-left proc init lst . lsts)
@@ -91,12 +114,14 @@
 
 ;; ============= UTILITY FUNCTIONS =============
 
-;; Helper: check if any list is null
+;; Helper: check if any list is null (Tail-call optimized)
 (define (any-null? lsts)
   "Check if any list in lsts is null."
-  (if (null? lsts)
-      #f
-      (or (null? (%car lsts)) (any-null? (%cdr lsts)))))
+  (let loop ((lsts lsts))
+    (cond
+      ((null? lsts) #f)
+      ((null? (%car lsts)) #t)
+      (else (loop (%cdr lsts))))))
 
 ;; Helper: get car of each list
 (define (map-cars lsts)

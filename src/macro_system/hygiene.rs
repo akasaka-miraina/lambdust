@@ -174,7 +174,7 @@ impl HygieneContext {
                 Expr::List(renamed_elements)
             }
             
-            Expr::Lambda { formals, metadata, body } => {
+            Expr::Lambda { formals, metadata, body, .. } => {
                 let old_scope = self.enter_scope();
                 let renamed_formals = self.rename_formals(formals)?;
                 let renamed_metadata = self.rename_metadata(metadata)?;
@@ -185,10 +185,11 @@ impl HygieneContext {
                     formals: renamed_formals,
                     metadata: renamed_metadata,
                     body: renamed_body,
+                    return_type: None,
                 }
             }
             
-            Expr::CaseLambda { clauses, metadata } => {
+            Expr::CaseLambda { clauses, metadata, .. } => {
                 let renamed_metadata = self.rename_metadata(metadata)?;
                 let mut renamed_clauses = Vec::new();
                 
@@ -207,6 +208,7 @@ impl HygieneContext {
                 Expr::CaseLambda {
                     clauses: renamed_clauses,
                     metadata: renamed_metadata,
+                    return_type: None,
                 }
             }
             
@@ -226,7 +228,7 @@ impl HygieneContext {
                 }
             }
             
-            Expr::Define { name, value, metadata } => {
+            Expr::Define { name, value, metadata, .. } => {
                 let renamed_name = self.rename_identifier(&name);
                 let renamed_value = self.rename_expr(*value)?;
                 let renamed_metadata = self.rename_metadata(metadata)?;
@@ -235,6 +237,7 @@ impl HygieneContext {
                     name: renamed_name,
                     value: Box::new(renamed_value),
                     metadata: renamed_metadata,
+                    return_type: None,
                 }
             }
             
@@ -497,6 +500,36 @@ impl HygieneContext {
                 Expr::UnquoteSplicing(Box::new(renamed_inner))
             }
 
+            // Contract-related expressions
+            Expr::DefineContract { name, formals, contract, return_type, body } => {
+                let old_scope = self.enter_scope();
+                let renamed_formals = formals.map(|f| self.rename_formals(f)).transpose()?;
+                let renamed_body = self.rename_body(body)?;
+                self.exit_scope(old_scope);
+                
+                Expr::DefineContract {
+                    name,  // Contract names are not renamed
+                    formals: renamed_formals,
+                    contract, // Contract expressions use a different AST type, keep as is for now
+                    return_type, // Same for return type
+                    body: renamed_body,
+                }
+            }
+            
+            Expr::Contract(contract) => {
+                // Contract expressions use a different AST type, keep as is for now
+                Expr::Contract(contract)
+            }
+            
+            Expr::ContractApplication { contract, expr: contract_expr } => {
+                // Only rename the expression being contracted, not the contract itself
+                let renamed_expr = self.rename_expr(*contract_expr)?;
+                Expr::ContractApplication {
+                    contract, // Contract expressions use a different AST type, keep as is
+                    expr: Box::new(renamed_expr),
+                }
+            }
+
             // These don't contain identifiers to rename
             Expr::Literal(_) | Expr::Keyword(_) => expr.inner,
         };
@@ -573,6 +606,41 @@ impl HygieneContext {
                     fixed: renamed_fixed,
                     rest: renamed_rest,
                     keywords: renamed_keywords,
+                })
+            }
+            
+            Formals::Typed(typed_params) => {
+                let renamed_typed_params = typed_params.into_iter()
+                    .map(|tp| crate::ast::TypedParam {
+                        name: self.rename_identifier(&tp.name),
+                        type_annotation: tp.type_annotation,
+                    })
+                    .collect();
+                Ok(Formals::Typed(renamed_typed_params))
+            }
+            
+            Formals::TypedVariable(typed_param) => {
+                let renamed_typed_param = crate::ast::TypedParam {
+                    name: self.rename_identifier(&typed_param.name),
+                    type_annotation: typed_param.type_annotation,
+                };
+                Ok(Formals::TypedVariable(renamed_typed_param))
+            }
+            
+            Formals::TypedMixed { fixed, rest } => {
+                let renamed_fixed = fixed.into_iter()
+                    .map(|tp| crate::ast::TypedParam {
+                        name: self.rename_identifier(&tp.name),
+                        type_annotation: tp.type_annotation,
+                    })
+                    .collect();
+                let renamed_rest = crate::ast::TypedParam {
+                    name: self.rename_identifier(&rest.name),
+                    type_annotation: rest.type_annotation,
+                };
+                Ok(Formals::TypedMixed {
+                    fixed: renamed_fixed,
+                    rest: renamed_rest,
                 })
             }
         }

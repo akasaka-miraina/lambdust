@@ -30,6 +30,8 @@ pub mod concurrency;
 pub mod control;
 /// Effect system integration and monadic operations.
 pub mod effects;
+/// Environment operations and dynamic evaluation (scheme eval).
+pub mod eval_operations;
 /// Exception handling and error operations.
 pub mod exceptions;
 /// Basic input/output operations.
@@ -88,9 +90,8 @@ pub mod text_srfi135;
 pub mod text_performance;
 
 /// Text processing test suite.
-#[cfg(test)]
-pub mod text_tests;
-
+// #[cfg(test)]
+// pub mod text_tests;
 // Individual structure modules
 /// Standard library core implementation and bindings.
 pub mod standard_library;

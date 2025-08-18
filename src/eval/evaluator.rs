@@ -79,7 +79,7 @@ pub enum EvalStep {
     
     /// Continue evaluation with a new expression
     Continue {
-        expr: Spanned<Expr>,
+        expr: Box<Spanned<Expr>>,
         env: Rc<Environment>,
     },
     
@@ -257,13 +257,13 @@ impl Evaluator {
             match self.handle_jit_execution(identifier, expanded_expr.clone(), env.clone()) {
                 EvalStep::Return(value) => return Ok(value),
                 _ => EvalStep::Continue {
-                    expr: expanded_expr,
+                    expr: Box::new(expanded_expr),
                     env,
                 }
             }
         } else {
             EvalStep::Continue {
-                expr: expanded_expr,
+                expr: Box::new(expanded_expr),
                 env,
             }
         };
@@ -334,7 +334,7 @@ impl Evaluator {
         // Evaluate non-lambda defines first
         for define_expr in &non_lambda_defines {
             let mut step = EvalStep::Continue {
-                expr: (**define_expr).clone(),
+                expr: Box::new((**define_expr).clone()),
                 env: self.global_env.clone(),
             };
 
@@ -361,7 +361,7 @@ impl Evaluator {
         // Now evaluate lambda defines - they will see all bound names
         for define_expr in &lambda_defines {
             let mut step = EvalStep::Continue {
-                expr: (**define_expr).clone(),
+                expr: Box::new((**define_expr).clone()),
                 env: self.global_env.clone(),
             };
 
@@ -390,7 +390,7 @@ impl Evaluator {
         
         for expr in &other_exprs {
             let mut step = EvalStep::Continue {
-                expr: (*expr).clone(),
+                expr: Box::new((*expr).clone()),
                 env: self.global_env.clone(),
             };
 
@@ -446,7 +446,7 @@ impl Evaluator {
         // For now, just evaluate the expression and ignore the type
         // TODO: Integrate with type system
         EvalStep::Continue {
-            expr: (*inner_expr).clone(),
+            expr: Box::new((*inner_expr).clone()),
             env,
         }
     }
@@ -479,16 +479,16 @@ impl Evaluator {
             Expr::Quasiquote(template) => self.eval_quasiquote(template, env, expr.span),
             Expr::Unquote(unquoted) => self.eval_unquote(unquoted, env, expr.span),
             Expr::UnquoteSplicing(spliced) => self.eval_unquote_splicing(spliced, env, expr.span),
-            Expr::Lambda { formals, metadata, body } => {
+            Expr::Lambda { formals, metadata, body, .. } => {
                 self.eval_lambda(formals, metadata, body, env.clone(), expr.span)
             }
-            Expr::CaseLambda { clauses, metadata } => {
+            Expr::CaseLambda { clauses, metadata, .. } => {
                 self.eval_case_lambda(clauses, metadata, env.clone(), expr.span)
             }
             Expr::If { test, consequent, alternative } => {
                 self.eval_if(test, consequent, alternative.as_ref().map(|boxed| boxed.as_ref()), env, expr.span)
             }
-            Expr::Define { name, value, metadata } => {
+            Expr::Define { name, value, metadata, .. } => {
                 self.eval_define(name, value, metadata, env, expr.span)
             }
             Expr::Set { name, value } => {
@@ -884,12 +884,12 @@ impl Evaluator {
                 
                 if test_value.is_truthy() {
                     EvalStep::Continue {
-                        expr: consequent.clone(),
+                        expr: Box::new(consequent.clone()),
                         env,
                     }
                 } else if let Some(alt) = alternative {
                     EvalStep::Continue {
-                        expr: alt.clone(),
+                        expr: Box::new(alt.clone()),
                         env,
                     }
                 } else {
@@ -1183,7 +1183,7 @@ impl Evaluator {
     ) -> EvalStep {
         // First, evaluate the operator
         let mut step = EvalStep::Continue {
-            expr: operator.clone(),
+            expr: Box::new(operator.clone()),
             env: env.clone(),
         };
         
@@ -1211,7 +1211,7 @@ impl Evaluator {
         let mut args = Vec::new();
         for operand in operands {
             let mut step = EvalStep::Continue {
-                expr: operand.clone(),
+                expr: Box::new(operand.clone()),
                 env: env.clone(),
             };
             
@@ -1527,7 +1527,7 @@ impl Evaluator {
 
         // Tail call the last expression
         EvalStep::Continue {
-            expr: exprs[exprs.len() - 1].clone(),
+            expr: Box::new(exprs[exprs.len() - 1].clone()),
             env,
         }
     }
@@ -1560,6 +1560,7 @@ impl Evaluator {
             formals,
             metadata: std::collections::HashMap::new(),
             body: body.to_vec(),
+            return_type: None,
         };
 
         // Create the lambda application
@@ -1570,7 +1571,7 @@ impl Evaluator {
 
         // Continue evaluation with the transformed expression
         EvalStep::Continue {
-            expr: Spanned::new(app_expr, span),
+            expr: Box::new(Spanned::new(app_expr, span)),
             env,
         }
     }
@@ -1606,6 +1607,7 @@ impl Evaluator {
                 formals: Formals::Fixed(vec![binding.name.clone()]),
                 metadata: std::collections::HashMap::new(),
                 body: vec![Spanned::new(result_expr, span)],
+                return_type: None,
             };
 
             result_expr = Expr::Application {
@@ -1616,7 +1618,7 @@ impl Evaluator {
 
         // Continue evaluation with the transformed expression
         EvalStep::Continue {
-            expr: Spanned::new(result_expr, span),
+            expr: Box::new(Spanned::new(result_expr, span)),
             env,
         }
     }
@@ -1676,7 +1678,7 @@ impl Evaluator {
 
         // Continue evaluation with the transformed expression
         EvalStep::Continue {
-            expr: Spanned::new(transformed_expr, span),
+            expr: Box::new(Spanned::new(transformed_expr, span)),
             env,
         }
     }
@@ -1732,7 +1734,7 @@ impl Evaluator {
 
         // Tail call the last expression
         EvalStep::Continue {
-            expr: exprs[exprs.len() - 1].clone(),
+            expr: Box::new(exprs[exprs.len() - 1].clone()),
             env,
         }
     }
@@ -1757,7 +1759,7 @@ impl Evaluator {
 
         // Tail call the last expression
         EvalStep::Continue {
-            expr: exprs[exprs.len() - 1].clone(),
+            expr: Box::new(exprs[exprs.len() - 1].clone()),
             env,
         }
     }
@@ -1908,6 +1910,27 @@ impl Evaluator {
                     Ok(())
                 }
             }
+            Formals::Typed(params) => {
+                if arg_count != params.len() {
+                    Err(Box::new(Error::runtime_error(
+                        format!("Expected {} arguments, got {}", params.len(), arg_count),
+                        location,
+                    )))
+                } else {
+                    Ok(())
+                }
+            }
+            Formals::TypedVariable(_) => Ok(()), // Variable arity accepts any number
+            Formals::TypedMixed { fixed, .. } => {
+                if arg_count < fixed.len() {
+                    Err(Box::new(Error::runtime_error(
+                        format!("Expected at least {} arguments, got {}", fixed.len(), arg_count),
+                        location,
+                    )))
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 
@@ -1921,6 +1944,9 @@ impl Evaluator {
                 // TODO: Implement proper keyword argument checking
                 arg_count >= fixed.len()
             }
+            Formals::Typed(params) => arg_count == params.len(),
+            Formals::TypedVariable(_) => true, // Variable arity accepts any number
+            Formals::TypedMixed { fixed, .. } => arg_count >= fixed.len(),
         }
     }
 
@@ -1948,6 +1974,21 @@ impl Evaluator {
                     "at least 1 argument (with keywords)".to_string()
                 } else {
                     format!("at least {} arguments (with keywords)", fixed.len())
+                }
+            }
+            Formals::Typed(params) => {
+                if params.len() == 1 {
+                    "exactly 1 typed argument".to_string()
+                } else {
+                    format!("exactly {} typed arguments", params.len())
+                }
+            }
+            Formals::TypedVariable(_) => "any number of typed arguments".to_string(),
+            Formals::TypedMixed { fixed, .. } => {
+                if fixed.len() == 1 {
+                    "at least 1 typed argument (with variable)".to_string()
+                } else {
+                    format!("at least {} typed arguments (with variable)", fixed.len())
                 }
             }
         }
@@ -1993,6 +2034,29 @@ impl Evaluator {
                 for (param, arg) in fixed.iter().zip(args.iter()) {
                     env.define(param.clone(), arg.clone());
                 }
+            }
+            Formals::Typed(params) => {
+                for (param, arg) in params.iter().zip(args.iter()) {
+                    env.define(param.name.clone(), arg.clone());
+                }
+            }
+            Formals::TypedVariable(param) => {
+                let args_list = Value::list(args.to_vec());
+                env.define(param.name.clone(), args_list);
+            }
+            Formals::TypedMixed { fixed, rest } => {
+                // Bind fixed parameters
+                for (param, arg) in fixed.iter().zip(args.iter()) {
+                    env.define(param.name.clone(), arg.clone());
+                }
+                
+                // Bind remaining arguments as a list
+                let rest_args = if args.len() > fixed.len() {
+                    Value::list(args[fixed.len()..].to_vec())
+                } else {
+                    Value::Nil
+                };
+                env.define(rest.name.clone(), rest_args);
             }
         }
         
@@ -2040,6 +2104,29 @@ impl Evaluator {
                 for (param, arg) in fixed.iter().zip(args.iter()) {
                     current_env = current_env.define_cow(param.clone(), arg.clone());
                 }
+            }
+            Formals::Typed(params) => {
+                for (param, arg) in params.iter().zip(args.iter()) {
+                    current_env = current_env.define_cow(param.name.clone(), arg.clone());
+                }
+            }
+            Formals::TypedVariable(param) => {
+                let args_list = Value::list(args.to_vec());
+                current_env = current_env.define_cow(param.name.clone(), args_list);
+            }
+            Formals::TypedMixed { fixed, rest } => {
+                // Bind fixed parameters
+                for (param, arg) in fixed.iter().zip(args.iter()) {
+                    current_env = current_env.define_cow(param.name.clone(), arg.clone());
+                }
+                
+                // Bind remaining arguments as a list
+                let rest_args = if args.len() > fixed.len() {
+                    Value::list(args[fixed.len()..].to_vec())
+                } else {
+                    Value::Nil
+                };
+                current_env = current_env.define_cow(rest.name.clone(), rest_args);
             }
         }
         
@@ -2496,7 +2583,7 @@ impl Evaluator {
                         } else {
                             // JIT chose not to compile - fall back gracefully
                             self.record_jit_fallback(&identifier, JitFallbackReason::NotCompiled);
-                            EvalStep::Continue { expr, env }
+                            EvalStep::Continue { expr: Box::new(expr), env }
                         }
                     }
                     Err(jit_error) => {
@@ -2506,13 +2593,13 @@ impl Evaluator {
                 }
             } else {
                 // No JIT runtime available, continue with interpreter
-                EvalStep::Continue { expr, env }
+                EvalStep::Continue { expr: Box::new(expr), env }
             }
         }
         #[cfg(not(feature = "jit"))]
         {
             // JIT is disabled, continue with interpreter
-            EvalStep::Continue { expr, env }
+            EvalStep::Continue { expr: Box::new(expr), env }
         }
     }
     
@@ -2593,7 +2680,7 @@ impl Evaluator {
                 // Critical error - disable JIT for this expression permanently
                 self.blacklist_expression(identifier);
                 self.record_jit_fallback(identifier, JitFallbackReason::CriticalError);
-                EvalStep::Continue { expr, env }
+                EvalStep::Continue { expr: Box::new(expr), env }
             }
             JitErrorRecovery::RetryWithSimplification => {
                 // Try to simplify the expression and retry
@@ -2608,19 +2695,19 @@ impl Evaluator {
                 } else {
                     // Cannot simplify, fall back to interpreter
                     self.record_jit_fallback(identifier, JitFallbackReason::CannotSimplify);
-                    EvalStep::Continue { expr, env }
+                    EvalStep::Continue { expr: Box::new(expr), env }
                 }
             }
             JitErrorRecovery::FallbackWithDegradation => {
                 // Temporarily disable JIT for this identifier
                 self.temporarily_disable_jit_for(identifier);
                 self.record_jit_fallback(identifier, JitFallbackReason::TemporaryDisable);
-                EvalStep::Continue { expr, env }
+                EvalStep::Continue { expr: Box::new(expr), env }
             }
             JitErrorRecovery::FallbackToInterpreter => {
                 // Standard fallback to interpreter
                 self.record_jit_fallback(identifier, JitFallbackReason::StandardFallback);
-                EvalStep::Continue { expr, env }
+                EvalStep::Continue { expr: Box::new(expr), env }
             }
         }
     }

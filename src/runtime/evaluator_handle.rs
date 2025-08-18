@@ -54,7 +54,7 @@ impl EvaluatorHandle {
         let (sender, receiver) = channel::bounded(1);
         
         let message = EvaluatorMessage::Evaluate {
-            expr,
+            expr: Box::new(expr),
             span,
             sender,
         };
@@ -91,8 +91,8 @@ impl EvaluatorHandle {
         let (sender, receiver) = channel::bounded(1);
         
         let message = EvaluatorMessage::ImportModule {
-            import_spec,
-            sender,
+            import_spec: Box::new(import_spec),
+            sender: Box::new(sender),
         };
         
         self.sender.send(message).map_err(|e| {

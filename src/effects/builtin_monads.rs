@@ -951,7 +951,7 @@ impl Monoid for String {
     }
 }
 
-/// Vec<T> monoid - concatenation with empty vector identity
+/// `Vec<T>` monoid - concatenation with empty vector identity
 impl<T: Clone + Send + Sync + 'static> Monoid for Vec<T> {
     #[inline]
     fn mempty() -> Self {

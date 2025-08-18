@@ -223,6 +223,12 @@ impl Parser {
             TokenKind::BlockComment => "block comment",
             TokenKind::Eof => "end of file",
             TokenKind::Error => "error token",
+            TokenKind::Colon => "colon",
+            TokenKind::Arrow => "arrow",
+            TokenKind::FatArrow => "fat arrow",
+            TokenKind::Pipe => "pipe",
+            TokenKind::Tilde => "tilde",
+            TokenKind::TildeArrow => "tilde arrow",
         }
     }
     

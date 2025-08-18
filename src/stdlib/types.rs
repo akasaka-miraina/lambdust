@@ -412,7 +412,7 @@ fn primitive_function_return_type(_args: &[Value]) -> Result<Value> {
 fn get_value_type_name(value: &Value) -> String {
     match value {
         Value::Literal(lit) => match lit {
-            crate::ast::Literal::ExactInteger(_) => "integer".to_string(),
+            crate::ast::Literal::ExactInteger(_) | crate::ast::Literal::Integer(_) => "integer".to_string(),
             crate::ast::Literal::InexactReal(_) => "real".to_string(),
             crate::ast::Literal::Number(_) => "number".to_string(),
             crate::ast::Literal::Rational { .. } => "rational".to_string(),
@@ -470,6 +470,7 @@ fn get_value_type_name(value: &Value) -> String {
         Value::Bag(_) => "bag".to_string(),
         Value::Generator(_) => "generator".to_string(),
         Value::Opaque(_) => "opaque".to_string(),
+        Value::Environment(_) => "environment".to_string(),
     }
 }
 

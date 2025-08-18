@@ -6,7 +6,7 @@
 //!
 //! # Migration Strategy
 //!
-//! ```
+//! ```text
 //! Phase 1: Drop-in compatibility layer
 //!   Old Code → [Migration Bridge] → New Implementation
 //!

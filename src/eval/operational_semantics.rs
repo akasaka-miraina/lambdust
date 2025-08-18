@@ -44,8 +44,8 @@ pub enum ContextFrame {
     /// Application context: ([] e₁ e₂ ... eₙ)
     /// We're waiting for the operator to be evaluated
     ApplicationOperator {
-        /// The operands waiting to be evaluated after the operator
-        operands: Vec<Spanned<Expr>>,
+        /// The operands waiting to be evaluated after the operator (boxed for memory efficiency)
+        operands: Box<Vec<Spanned<Expr>>>,
         /// Environment in which to evaluate the operands
         environment: Rc<Environment>,
         /// Source location information for error reporting
@@ -57,10 +57,10 @@ pub enum ContextFrame {
     ApplicationOperand {
         /// The procedure value that will be applied
         procedure: Value,
-        /// Arguments that have already been evaluated
-        evaluated_args: Vec<Value>,
-        /// Arguments that still need to be evaluated
-        pending_args: Vec<Spanned<Expr>>,
+        /// Arguments that have already been evaluated (boxed for memory efficiency)
+        evaluated_args: Box<Vec<Value>>,
+        /// Arguments that still need to be evaluated (boxed for memory efficiency)
+        pending_args: Box<Vec<Spanned<Expr>>>,
         /// Environment in which to evaluate pending arguments
         environment: Rc<Environment>,
         /// Source location information for error reporting
@@ -70,7 +70,7 @@ pub enum ContextFrame {
     /// Conditional context: (if [] then-branch else-branch)
     Conditional {
         /// Expression to evaluate if condition is true
-        then_branch: Spanned<Expr>,
+        then_branch: Box<Spanned<Expr>>,
         /// Expression to evaluate if condition is false (optional)
         else_branch: Box<Option<Spanned<Expr>>>,
         /// Environment in which to evaluate the branches
@@ -238,7 +238,7 @@ impl EvaluationContext {
         &self.captured_environment
     }
     
-    /// Get the captured environment as legacy Rc<Environment> (for compatibility)
+    /// Get the captured environment as legacy `Rc<Environment>` (for compatibility)
     pub fn environment_legacy(&self) -> Rc<Environment> {
         self.captured_environment.to_legacy()
     }
@@ -302,7 +302,7 @@ impl EvaluationContext {
     /// Apply this context to a value ("fill the hole")
     ///
     /// This implements the operational semantic rule:
-    /// If we have context E and value v, then E[v] is the result
+    /// If we have context E and a term, then E applied to that term is the result
     pub fn apply_to_value(&self, value: Value) -> Result<ComputationState> {
         if self.is_empty() {
             // Empty context - value is the final result
@@ -389,7 +389,7 @@ impl EvaluationContext {
                                 inner: value.to_expr()?,
                                 span: *span,
                             }),
-                            operands: operands.clone(),
+                            operands: (**operands).clone(),
                         },
                         span: *span,
                     },
@@ -405,7 +405,7 @@ impl EvaluationContext {
                 span 
             } => {
                 // Add this value to evaluated args
-                let mut new_evaluated = evaluated_args.clone();
+                let mut new_evaluated = (**evaluated_args).clone();
                 new_evaluated.push(value);
                 
                 if pending_args.is_empty() {
@@ -430,7 +430,7 @@ impl EvaluationContext {
                     ))
                 } else {
                     // Still have more arguments to evaluate
-                    let next_arg = pending_args[0].clone();
+                    let next_arg = (**pending_args)[0].clone();
                     Ok((next_arg, environment.clone()))
                 }
             }
@@ -438,7 +438,7 @@ impl EvaluationContext {
             ContextFrame::Conditional { then_branch, else_branch, environment, span } => {
                 // Use the value as the condition
                 if value.is_truthy() {
-                    Ok((then_branch.clone(), environment.clone()))
+                    Ok((*then_branch.clone(), environment.clone()))
                 } else if let Some(else_expr) = else_branch.as_ref() {
                     Ok((else_expr.clone(), environment.clone()))
                 } else {

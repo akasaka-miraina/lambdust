@@ -2,8 +2,12 @@
 //!
 //! This module contains the core macro expansion logic that coordinates
 //! pattern matching, template expansion, and hygiene preservation.
+//! 
+//! This is the legacy expander that works with the traditional AST.
+//! For the new syntax object system, use SyntaxAwareMacroExpander.
 
 use super::{MacroEnvironment, Pattern, Template, HygieneContext, PatternBindings};
+use super::syntax_integration::SyntaxAwareMacroExpander;
 use crate::ast::Expr;
 use crate::diagnostics::{Error, Result, Span, Spanned};
 // use std::collections::HashMap;
@@ -41,6 +45,10 @@ pub struct ExpansionStats {
 }
 
 /// Core macro expander that handles pattern matching and template expansion.
+/// 
+/// NOTE: This is the legacy expander. New code should use SyntaxAwareMacroExpander
+/// which provides better hygiene and syntax object support.
+#[derive(Debug)]
 pub struct ConfigurableExpander {
     /// Macro environment for looking up macro definitions
     pub macro_env: MacroEnvironment,
@@ -54,6 +62,8 @@ pub struct ConfigurableExpander {
     pub config: ExpansionConfig,
     /// Statistics collected during expansion
     pub stats: ExpansionStats,
+    /// Bridge to new syntax object system
+    pub syntax_expander: Option<Box<SyntaxAwareMacroExpander>>,
 }
 
 impl Default for ConfigurableExpander {
@@ -72,6 +82,7 @@ impl ConfigurableExpander {
             hygiene_context: HygieneContext::new(),
             config: ExpansionConfig::default(),
             stats: ExpansionStats::default(),
+            syntax_expander: None,
         }
     }
 
@@ -84,7 +95,18 @@ impl ConfigurableExpander {
             hygiene_context: HygieneContext::new(),
             config,
             stats: ExpansionStats::default(),
+            syntax_expander: None,
         }
+    }
+    
+    /// Enables syntax object support by creating a bridge to the new system
+    pub fn enable_syntax_objects(&mut self) {
+        self.syntax_expander = Some(Box::new(SyntaxAwareMacroExpander::new()));
+    }
+    
+    /// Gets access to the syntax-aware expander
+    pub fn syntax_expander(&mut self) -> Option<&mut SyntaxAwareMacroExpander> {
+        self.syntax_expander.as_mut().map(|boxed| boxed.as_mut())
     }
 
     /// Expands a macro by matching patterns and expanding templates.

@@ -137,6 +137,7 @@ mod variable_operations {
         let define_expr = spanned(Expr::Define {
             name: "x".to_string(),
             value: Box::new(spanned(Expr::Literal(Literal::integer(42)))),
+            return_type: None,
             metadata: HashMap::new(),
         });
         
@@ -307,6 +308,7 @@ mod quasiquote_evaluation {
         let define_expr = spanned(Expr::Define {
             name: "x".to_string(),
             value: Box::new(spanned(Expr::Literal(Literal::integer(42)))),
+            return_type: None,
             metadata: HashMap::new(),
         });
         evaluator.eval(&define_expr, env.clone()).unwrap();
@@ -351,6 +353,7 @@ mod quasiquote_evaluation {
         let define_expr = spanned(Expr::Define {
             name: "lst".to_string(),
             value: Box::new(list_literal),
+            return_type: None,
             metadata: HashMap::new(),
         });
         evaluator.eval(&define_expr, env.clone()).unwrap();
@@ -383,6 +386,7 @@ mod quasiquote_evaluation {
         let define_expr = spanned(Expr::Define {
             name: "x".to_string(),
             value: Box::new(spanned(Expr::Literal(Literal::integer(42)))),
+            return_type: None,
             metadata: HashMap::new(),
         });
         evaluator.eval(&define_expr, env.clone()).unwrap();
@@ -439,6 +443,7 @@ mod quasiquote_evaluation {
         let define_expr = spanned(Expr::Define {
             name: "x".to_string(),
             value: Box::new(spanned(Expr::Literal(Literal::integer(42)))),
+            return_type: None,
             metadata: HashMap::new(),
         });
         evaluator.eval(&define_expr, env.clone()).unwrap();
@@ -464,11 +469,13 @@ mod quasiquote_evaluation {
         let define_a = spanned(Expr::Define {
             name: "a".to_string(),
             value: Box::new(spanned(Expr::Literal(Literal::integer(1)))),
+            return_type: None,
             metadata: HashMap::new(),
         });
         let define_b = spanned(Expr::Define {
             name: "b".to_string(),
             value: Box::new(spanned(Expr::Literal(Literal::integer(2)))),
+            return_type: None,
             metadata: HashMap::new(),
         });
         let define_c = spanned(Expr::Define {
@@ -577,6 +584,7 @@ mod quasiquote_evaluation {
         let define_a = spanned(Expr::Define {
             name: "a".to_string(),
             value: Box::new(spanned(Expr::Literal(Literal::integer(1)))),
+            return_type: None,
             metadata: HashMap::new(),
         });
         let define_b = spanned(Expr::Define {

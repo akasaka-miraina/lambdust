@@ -61,12 +61,12 @@ impl<'a> InternalLexer<'a> {
 
     /// Check if a character is a valid identifier start character
     fn is_identifier_start(ch: char) -> bool {
-        ch.is_alphabetic() || "!$%&*+-/<=>?^_~|".contains(ch)
+        ch.is_alphabetic() || "!$%&*+-/<=>?^_".contains(ch)
     }
 
     /// Check if a character is a valid identifier continuation character
     fn is_identifier_continue(ch: char) -> bool {
-        ch.is_alphanumeric() || "!$%&*+-/<=>?^_~|".contains(ch)
+        ch.is_alphanumeric() || "!$%&*+-/<=>?^_".contains(ch)
     }
 
     /// Check if a character is a digit
@@ -148,18 +148,15 @@ impl<'a> InternalLexer<'a> {
                 TokenKind::Dot
             }
             
-            // Type annotation or something else
+            // Type annotation or colon
             ':' => {
                 self.advance();
                 if self.current == Some(':') {
                     self.advance();
                     TokenKind::TypeAnnotation
                 } else {
-                    // Single colon - in R7RS this would be part of an identifier
-                    return Err(Box::new(Error::lex_error(
-                        "Unexpected character ':'".to_string(),
-                        Span::new(start_pos, 1),
-                    )));
+                    // Single colon for type annotations in parameters
+                    TokenKind::Colon
                 }
             }
 
@@ -181,6 +178,23 @@ impl<'a> InternalLexer<'a> {
             // Line comments
             ';' => {
                 return self.tokenize_line_comment(start_pos);
+            }
+
+            // Pipe for variant types and row rest
+            '|' => {
+                self.advance();
+                TokenKind::Pipe
+            }
+
+            // Tilde for effects
+            '~' => {
+                self.advance();
+                if self.current == Some('>') {
+                    self.advance();
+                    TokenKind::TildeArrow
+                } else {
+                    TokenKind::Tilde
+                }
             }
 
             // Identifiers
@@ -733,6 +747,29 @@ impl<'a> InternalLexer<'a> {
     }
 
     fn tokenize_identifier(&mut self, start_pos: usize) -> Result<Option<Token>> {
+        // Check for special multi-character operators first
+        let remaining = &self.source[start_pos..];
+        
+        // Check for ->
+        if remaining.starts_with("->") {
+            self.advance(); // consume '-'
+            self.advance(); // consume '>'
+            let end_pos = self.position;
+            let span = Span::new(start_pos, end_pos - start_pos);
+            let text = self.source[start_pos..end_pos].to_owned();
+            return Ok(Some(Token::new(TokenKind::Arrow, span, text)));
+        }
+        
+        // Check for =>
+        if remaining.starts_with("=>") {
+            self.advance(); // consume '='
+            self.advance(); // consume '>'
+            let end_pos = self.position;
+            let span = Span::new(start_pos, end_pos - start_pos);
+            let text = self.source[start_pos..end_pos].to_owned();
+            return Ok(Some(Token::new(TokenKind::FatArrow, span, text)));
+        }
+        
         // Continue while we have valid identifier characters
         while let Some(ch) = self.current {
             if Self::is_identifier_continue(ch) {

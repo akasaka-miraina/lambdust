@@ -60,6 +60,8 @@ pub mod mathematical_models;
 pub mod memory_optimization;
 /// Parallel compilation coordination and SIMD vectorization
 pub mod parallel_optimization;
+/// Security framework for JIT compiled code
+pub mod security;
 
 pub use hotspot_detector::{HotspotDetector, ExecutionProfile, CompilationCandidate};
 pub use dependent_hotspot_detector::{DependentHotspotDetector, DependentExecutionProfile, DependentCompilationCandidate};
@@ -83,6 +85,7 @@ pub use algorithmic_optimizations::{AlgorithmicOptimizer, OptimizedCompilationPl
 pub use mathematical_models::{MathematicalOptimizationEngine, MathematicallyOptimizedPlan, BayesianPrediction};
 pub use memory_optimization::{CacheAwareMemoryOptimizer, MemoryOptimizedCompilationPlan, CachePerformancePrediction};
 pub use parallel_optimization::{ParallelOptimizationCoordinator, ParallelCompilationPlan, SIMDOpportunity};
+pub use security::{SecurityManager, SecurityConfig, JitSecurityFramework, SecurityVerificationResult};
 
 use crate::ast::{Expr, Program};
 use crate::eval::{Environment, Value};
@@ -543,6 +546,7 @@ mod tests {
                 Expr::Literal(Literal::ExactInteger(1)),
                 crate::diagnostics::Span::new(0, 1),
             )],
+            return_type: None,
         };
         assert!(utils::is_jit_suitable(&suitable));
 

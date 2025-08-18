@@ -262,14 +262,25 @@ pub trait EnvironmentExt {
 
 impl EnvironmentExt for Environment {
     fn clear_all_bindings(&self) {
-        // Implementation would clear all bindings in the environment
-        // This is a placeholder
+        // Clear all local bindings - does not affect parent environments
+        self.bindings.borrow_mut().clear();
     }
 
     fn get_all_bindings(&self) -> HashMap<String, Value> {
-        // Implementation would return all current bindings
-        // This is a placeholder
-        HashMap::new()
+        // Collect all bindings from current environment and its parents
+        let mut all_bindings = HashMap::new();
+        
+        // Start with parent bindings (lower priority)
+        if let Some(parent) = &self.parent {
+            let parent_bindings = parent.get_all_bindings();
+            all_bindings.extend(parent_bindings);
+        }
+        
+        // Add local bindings (higher priority - will overwrite parent bindings)
+        let local_bindings = self.bindings.borrow().clone();
+        all_bindings.extend(local_bindings);
+        
+        all_bindings
     }
 }
 

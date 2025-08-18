@@ -16,21 +16,21 @@
 //! # Type Rules for Identity Types
 //!
 //! ## Formation Rule
-//! ```
+//! ```text
 //!   Γ ⊢ A type    Γ ⊢ a : A    Γ ⊢ b : A
 //!   ─────────────────────────────────────
 //!         Γ ⊢ Id_A(a, b) type
 //! ```
 //!
 //! ## Introduction Rule (reflexivity)
-//! ```
+//! ```text
 //!     Γ ⊢ a : A
 //!   ─────────────────
 //!   Γ ⊢ refl_a : Id_A(a, a)
 //! ```
 //!
 //! ## Elimination Rule (J-eliminator / path induction)
-//! ```
+//! ```text
 //!   Γ ⊢ A type    Γ, x:A, y:A, p:Id_A(x,y) ⊢ C(x,y,p) type
 //!   Γ, z:A ⊢ d(z) : C(z,z,refl_z)    Γ ⊢ a:A    Γ ⊢ b:A    Γ ⊢ e:Id_A(a,b)
 //!   ──────────────────────────────────────────────────────────────────────────
@@ -38,7 +38,7 @@
 //! ```
 //!
 //! ## Computation Rule (J-reduction)
-//! ```
+//! ```text
 //!   J(d, refl_a) ≡ d(a) : C(a,a,refl_a)
 //! ```
 //!

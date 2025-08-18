@@ -301,7 +301,7 @@ impl Eq for Bag {}
 
 /// Thread-safe wrapper for Bag operations.
 ///
-/// This provides a thread-safe interface to Bag operations using Arc<RwLock<Bag>>.
+/// This provides a thread-safe interface to `Bag` operations using `Arc<RwLock<Bag>>`.
 #[derive(Debug, Clone)]
 pub struct ThreadSafeBag {
     inner: Arc<RwLock<Bag>>,

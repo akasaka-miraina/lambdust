@@ -45,12 +45,12 @@ pub struct SyntaxRule {
 /// (syntax-rules (literal ...) 
 ///   (pattern template) ...)
 /// 
-/// or with SRFI-46 custom ellipsis:
-/// (syntax-rules [ellipsis] (literal ...)
+/// or with SRFI-46 custom ellipsis symbol:
+/// (syntax-rules [custom-ellipsis] (literal ...)
 ///   (pattern template) ...)
 /// 
 /// Where:
-/// - ellipsis (optional) is a custom ellipsis identifier
+/// - custom-ellipsis (optional) is a custom ellipsis identifier
 /// - literals are identifiers that must match exactly in patterns
 /// - each (pattern template) pair defines a transformation rule
 pub fn parse_syntax_rules(

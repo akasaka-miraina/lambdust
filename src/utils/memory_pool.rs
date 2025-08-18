@@ -98,7 +98,7 @@ impl<T> Drop for PooledObject<T> {
     }
 }
 
-/// A specialized memory pool for Vec<T> that reuses the allocated capacity.
+/// A specialized memory pool for `Vec<T>` that reuses the allocated capacity.
 #[derive(Debug)]
 pub struct VecPool<T> {
     pool: Arc<Mutex<VecDeque<Vec<T>>>>,

@@ -125,7 +125,7 @@ impl MultithreadedEvaluator {
         match message {
             EvaluatorMessage::Evaluate { expr, span, sender } => {
                 let spanned_expr = Spanned {
-                    inner: expr,
+                    inner: *expr,
                     span: span.unwrap_or(crate::diagnostics::Span { start: 0, len: 0, file_id: None, line: 1, column: 1 }),
                 };
                 
@@ -147,7 +147,7 @@ impl MultithreadedEvaluator {
             }
             EvaluatorMessage::ImportModule { import_spec, sender } => {
                 // Handle module import
-                let result = self.handle_import(import_spec);
+                let result = self.handle_import(*import_spec);
                 let _ = sender.send(result);
             }
             EvaluatorMessage::Shutdown => {
@@ -210,7 +210,7 @@ impl MultithreadedEvaluator {
             }
 
             // Lambda (creates closure with thread-safe environment)
-            Expr::Lambda { formals, metadata: _, body } => {
+            Expr::Lambda { formals, metadata: _, body, .. } => {
                 if body.is_empty() {
                     return Err(crate::diagnostics::Error::runtime_error(
                         "Lambda body cannot be empty".to_string(),
@@ -244,7 +244,7 @@ impl MultithreadedEvaluator {
             }
 
             // Define (affects global environment)
-            Expr::Define { name, value, metadata: _ } => {
+            Expr::Define { name, value, metadata: _, .. } => {
                 let val = self.eval_with_context(value, context.clone())?;
                 context.global_env.define_global(name.clone(), val)?;
                 Ok(Value::Unspecified)
@@ -401,6 +401,45 @@ impl MultithreadedEvaluator {
                     "Keyword arguments not yet implemented in multithreaded evaluator".to_string(),
                     None,
                 ).boxed());
+            }
+            Formals::Typed(typed_params) => {
+                if args.len() != typed_params.len() {
+                    return Err(crate::diagnostics::Error::runtime_error(
+                        format!("Expected {} arguments, got {}", typed_params.len(), args.len()),
+                        None,
+                    ).boxed());
+                }
+                
+                // Bind typed parameters (ignore type annotations for now)
+                for (typed_param, arg) in typed_params.iter().zip(args.iter()) {
+                    current_env = current_env.define_cow(typed_param.name.clone(), arg.clone());
+                }
+            }
+            Formals::TypedVariable(typed_param) => {
+                // Bind all arguments as a list (ignore type annotation for now)
+                let args_list = Value::list(args.to_vec());
+                current_env = current_env.define_cow(typed_param.name.clone(), args_list);
+            }
+            Formals::TypedMixed { fixed, rest } => {
+                if args.len() < fixed.len() {
+                    return Err(crate::diagnostics::Error::runtime_error(
+                        format!("Expected at least {} arguments, got {}", fixed.len(), args.len()),
+                        None,
+                    ).boxed());
+                }
+                
+                // Bind fixed typed parameters (ignore type annotations for now)
+                for (typed_param, arg) in fixed.iter().zip(args.iter()) {
+                    current_env = current_env.define_cow(typed_param.name.clone(), arg.clone());
+                }
+                
+                // Bind rest parameters
+                let rest_args = if args.len() > fixed.len() {
+                    Value::list(args[fixed.len()..].to_vec())
+                } else {
+                    Value::Nil
+                };
+                current_env = current_env.define_cow(rest.name.clone(), rest_args);
             }
         }
         

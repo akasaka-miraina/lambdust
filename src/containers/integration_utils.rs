@@ -338,7 +338,7 @@ impl ContainerMigrator {
         Self { allocator }
     }
     
-    /// Migrate standard Vec<Value> to ArenaVector
+    /// Migrate standard `Vec<Value>` to ArenaVector
     pub fn migrate_vector(&self, vec: Vec<Value>, context: ContainerContext) -> Result<ArenaVector> {
         let mut arena_vec = ArenaVector::with_context(context);
         
@@ -361,7 +361,7 @@ impl ContainerMigrator {
         Ok(arena_table)
     }
     
-    /// Migrate ArenaVector back to standard Vec<Value>
+    /// Migrate ArenaVector back to standard `Vec<Value>`
     pub fn migrate_vector_back(&self, arena_vec: ArenaVector) -> Result<Vec<Value>> {
         arena_vec.to_standard_vector()
     }

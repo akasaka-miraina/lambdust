@@ -154,6 +154,11 @@ pub enum Value {
     
     /// Opaque value for FFI - Thread-safe
     Opaque(Arc<dyn std::any::Any + Send + Sync>),
+    
+    // ============= ENVIRONMENT VALUES =============
+    
+    /// Environment for dynamic evaluation (scheme eval) - Thread-safe
+    Environment(Arc<ThreadSafeEnvironment>),
 }
 
 /// A user-defined procedure (closure) - Thread-safe.
@@ -241,15 +246,15 @@ pub struct Continuation {
 pub enum Frame {
     /// Application frame (evaluating function arguments)
     Application {
-        operator: Value,
-        evaluated_args: Vec<Value>,
-        remaining_args: Vec<Spanned<Expr>>,
+        operator: Box<Value>,
+        evaluated_args: Box<Vec<Value>>,
+        remaining_args: Box<Vec<Spanned<Expr>>>,
         environment: Arc<ThreadSafeEnvironment>,
         source: Span,
     },
     /// If frame (evaluating conditional)
     If {
-        consequent: Spanned<Expr>,
+        consequent: Box<Spanned<Expr>>,
         alternative: Box<Option<Spanned<Expr>>>,
         environment: Arc<ThreadSafeEnvironment>,
         source: Span,
@@ -269,7 +274,7 @@ pub enum Frame {
     /// Let frame (evaluating let bindings)
     Let {
         remaining_bindings: Vec<crate::ast::Binding>,
-        evaluated_bindings: Vec<(String, Value)>,
+        evaluated_bindings: Box<Vec<(String, Value)>>,
         body: Vec<Spanned<Expr>>,
         environment: Arc<ThreadSafeEnvironment>,
         source: Span,
@@ -390,6 +395,21 @@ pub enum PortDirection {
     InputOutput,
 }
 
+/// Memory limits for port operations to prevent excessive memory usage.
+pub mod port_limits {
+    /// Maximum size for string port content (64MB)
+    pub const MAX_STRING_PORT_SIZE: usize = 64 * 1024 * 1024;
+    
+    /// Maximum size for bytevector port content (64MB)
+    pub const MAX_BYTEVECTOR_PORT_SIZE: usize = 64 * 1024 * 1024;
+    
+    /// Default buffer size for efficient I/O operations (8KB)
+    pub const DEFAULT_BUFFER_SIZE: usize = 8 * 1024;
+    
+    /// Large allocation threshold for optimization decisions (1MB)
+    pub const LARGE_ALLOCATION_THRESHOLD: usize = 1024 * 1024;
+}
+
 impl Port {
     /// Creates a new string input port.
     pub fn new_string_input(content: String) -> Self {
@@ -409,9 +429,19 @@ impl Port {
 
     /// Creates a new string output port.
     pub fn new_string_output() -> Self {
+        Self::new_string_output_with_capacity(0)
+    }
+    
+    /// Creates a new string output port with a capacity hint for better memory allocation.
+    pub fn new_string_output_with_capacity(capacity: usize) -> Self {
+        let mut initial_string = String::new();
+        if capacity > 0 {
+            initial_string.reserve(capacity);
+        }
+        
         Port {
             implementation: PortImpl::String {
-                content: Arc::new(RwLock::new(String::new())),
+                content: Arc::new(RwLock::new(initial_string)),
                 position: Arc::new(RwLock::new(0)),
             },
             is_open: Arc::new(RwLock::new(true)),
@@ -441,9 +471,19 @@ impl Port {
 
     /// Creates a new bytevector output port.
     pub fn new_bytevector_output() -> Self {
+        Self::new_bytevector_output_with_capacity(0)
+    }
+    
+    /// Creates a new bytevector output port with a capacity hint for better memory allocation.
+    pub fn new_bytevector_output_with_capacity(capacity: usize) -> Self {
+        let mut initial_vec = Vec::new();
+        if capacity > 0 {
+            initial_vec.reserve(capacity);
+        }
+        
         Port {
             implementation: PortImpl::Bytevector {
-                content: Arc::new(RwLock::new(Vec::new())),
+                content: Arc::new(RwLock::new(initial_vec)),
                 position: Arc::new(RwLock::new(0)),
             },
             is_open: Arc::new(RwLock::new(true)),
@@ -513,6 +553,39 @@ impl Port {
     /// Closes the port.
     pub fn close(&self) {
         *self.is_open.write().unwrap() = false;
+        
+        // Perform specific cleanup based on port implementation
+        match &self.implementation {
+            PortImpl::File { handle, .. } => {
+                // Close file handle if open
+                let mut handle_guard = handle.write().unwrap();
+                if let Some(file_handle) = handle_guard.take() {
+                    // File handles are automatically closed when dropped
+                    drop(file_handle);
+                }
+            }
+            PortImpl::String { content, .. } => {
+                // For output ports, clear content to free memory
+                if self.is_output() {
+                    content.write().unwrap().clear();
+                    content.write().unwrap().shrink_to_fit();
+                }
+            }
+            PortImpl::Bytevector { content, .. } => {
+                // For output ports, clear content to free memory
+                if self.is_output() {
+                    content.write().unwrap().clear();
+                    content.write().unwrap().shrink_to_fit();
+                }
+            }
+            PortImpl::Standard(_) => {
+                // Standard ports should not be closed, but we respect the flag
+            }
+        }
+        
+        // Clear buffer to free memory
+        self.buffer.write().unwrap().clear();
+        self.buffer.write().unwrap().shrink_to_fit();
     }
 
     /// Checks if the port is textual.
@@ -534,6 +607,69 @@ impl Port {
     pub fn is_output(&self) -> bool {
         matches!(self.direction, PortDirection::Output | PortDirection::InputOutput)
     }
+    
+    /// Force closes the port if it's still open.
+    /// This is called automatically when the port is dropped.
+    fn force_close(&self) {
+        if self.is_open() {
+            self.close();
+        }
+    }
+    
+    /// Gets the current memory usage of the port content.
+    pub fn memory_usage(&self) -> usize {
+        match &self.implementation {
+            PortImpl::String { content, .. } => {
+                content.read().unwrap().capacity()
+            }
+            PortImpl::Bytevector { content, .. } => {
+                content.read().unwrap().capacity()
+            }
+            PortImpl::File { .. } => {
+                // File ports don't hold content in memory directly
+                self.buffer.read().unwrap().capacity()
+            }
+            PortImpl::Standard(_) => 0,
+        }
+    }
+    
+    /// Validates that the proposed memory allocation is within limits.
+    pub fn validate_memory_allocation(size: usize, is_string: bool) -> Result<(), String> {
+        let limit = if is_string {
+            port_limits::MAX_STRING_PORT_SIZE
+        } else {
+            port_limits::MAX_BYTEVECTOR_PORT_SIZE
+        };
+        
+        if size > limit {
+            let type_name = if is_string { "string" } else { "bytevector" };
+            Err(format!(
+                "Attempted {type_name} port allocation of {size} bytes exceeds limit of {limit} bytes"
+            ))
+        } else {
+            Ok(())
+        }
+    }
+    
+    /// Checks if the port content size is approaching memory limits.
+    pub fn is_near_memory_limit(&self) -> bool {
+        let usage = self.memory_usage();
+        let limit = match &self.implementation {
+            PortImpl::String { .. } => port_limits::MAX_STRING_PORT_SIZE,
+            PortImpl::Bytevector { .. } => port_limits::MAX_BYTEVECTOR_PORT_SIZE,
+            _ => return false,
+        };
+        
+        usage > (limit * 3) / 4 // 75% of limit
+    }
+}
+
+impl Drop for Port {
+    /// Automatically close the port when it goes out of scope.
+    /// This ensures proper resource cleanup even if close() isn't called explicitly.
+    fn drop(&mut self) {
+        self.force_close();
+    }
 }
 
 /// A promise for lazy evaluation - Thread-safe and R7RS compliant.
@@ -552,7 +688,7 @@ pub enum Promise {
     },
     /// Expression-based promise (for macro expansion)
     Expression {
-        expression: Spanned<Expr>,
+        expression: Box<Spanned<Expr>>,
         environment: Arc<ThreadSafeEnvironment>,
     },
 }
@@ -623,9 +759,9 @@ pub struct RecordType {
     pub name: String,
     /// Field names in order
     pub field_names: Vec<String>,
-    /// Constructor name (optional, defaults to make-<type-name>)
+    /// Constructor name (optional, defaults to make-TYPE_NAME)
     pub constructor_name: Option<String>,
-    /// Predicate name (optional, defaults to <type-name>?)
+    /// Predicate name (optional, defaults to TYPE_NAME?)
     pub predicate_name: Option<String>,
     /// Field accessors and mutators
     pub field_info: Vec<FieldInfo>,
@@ -700,6 +836,19 @@ impl Value {
     /// Returns true if this value is a number.
     pub fn is_number(&self) -> bool {
         matches!(self, Value::Literal(lit) if lit.is_number())
+    }
+
+    /// Returns true if this value is a boolean.
+    pub fn is_boolean(&self) -> bool {
+        matches!(self, Value::Literal(Literal::Boolean(_)))
+    }
+    
+    /// Extracts a boolean value if this is a boolean literal.
+    pub fn as_boolean(&self) -> Option<bool> {
+        match self {
+            Value::Literal(Literal::Boolean(b)) => Some(*b),
+            _ => None,
+        }
     }
     
     /// Formats this value for display according to R7RS specification.
@@ -782,6 +931,11 @@ impl Value {
     /// Returns true if this value is a record.
     pub fn is_record(&self) -> bool {
         matches!(self, Value::Record(_))
+    }
+
+    /// Returns true if this value is an environment.
+    pub fn is_environment(&self) -> bool {
+        matches!(self, Value::Environment(_))
     }
 
     /// Converts this value to a Rust f64 if it's a number.
@@ -941,7 +1095,7 @@ impl Value {
         Value::Vector(Arc::new(RwLock::new(values)))
     }
 
-    /// Creates a new vector value from a Vec<Value>.
+    /// Creates a new vector value from a `Vec<Value>`.
     /// This is an alias for the vector method for compatibility.
     pub fn from_vec(values: Vec<Value>) -> Self {
         Self::vector(values)
@@ -1682,6 +1836,13 @@ impl fmt::Display for Value {
                 write!(f, "{generator}")
             }
             Value::Opaque(_) => write!(f, "#<opaque>"),
+            Value::Environment(env) => {
+                if let Some(name) = &env.name {
+                    write!(f, "#<environment:{name}>")
+                } else {
+                    write!(f, "#<environment>")
+                }
+            }
         }
     }
 }

@@ -118,8 +118,8 @@ pub struct ApplicationConfiguration {
 pub enum ContinuationApplicationResult {
     /// Successful application - continue with new state
     Success {
-        /// The new computation state after application
-        new_state: ComputationState,
+        /// The new computation state after application (boxed for memory efficiency)
+        new_state: Box<ComputationState>,
         
         /// The value that was passed to the continuation
         applied_value: Value,
@@ -136,8 +136,8 @@ pub enum ContinuationApplicationResult {
         /// The error that occurred
         error: Error,
         
-        /// The continuation that failed to apply
-        failed_continuation: CapturedContinuation,
+        /// The continuation that failed to apply (boxed for memory efficiency)
+        failed_continuation: Box<CapturedContinuation>,
     },
 }
 
@@ -362,7 +362,7 @@ impl ContinuationApplicationService {
             if let Err(err) = self.validate_continuation(&continuation) {
                 return Ok(ContinuationApplicationResult::Error {
                     error: *err,
-                    failed_continuation: continuation,
+                    failed_continuation: Box::new(continuation),
                 });
             }
         }
@@ -374,7 +374,7 @@ impl ContinuationApplicationService {
                     "Continuation has already been invoked".to_string(),
                     Some(continuation.metadata.capture_location),
                 ),
-                failed_continuation: continuation,
+                failed_continuation: Box::new(continuation),
             });
         }
         
@@ -390,14 +390,14 @@ impl ContinuationApplicationService {
                 } else {
                     // Continue with the new state
                     Ok(ContinuationApplicationResult::Success {
-                        new_state,
+                        new_state: Box::new(new_state),
                         applied_value: value,
                     })
                 }
             }
             Err(error) => Ok(ContinuationApplicationResult::Error {
                 error: *error,
-                failed_continuation: continuation,
+                failed_continuation: Box::new(continuation),
             }),
         }
     }

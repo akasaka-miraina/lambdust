@@ -336,6 +336,7 @@ pub mod utils {
             }
             Value::Generator(_) => 36,
             Value::Opaque(_) => 37,
+            Value::Environment(_) => 38,
         }
     }
     
@@ -423,7 +424,7 @@ pub mod utils {
     fn estimate_literal_memory(lit: &crate::ast::Literal) -> usize {
         use crate::ast::Literal;
         match lit {
-            Literal::ExactInteger(_) | Literal::InexactReal(_) | Literal::Number(_) => std::mem::size_of::<f64>(),
+            Literal::ExactInteger(_) | Literal::Integer(_) | Literal::InexactReal(_) | Literal::Number(_) => std::mem::size_of::<f64>(),
             Literal::String(s) => std::mem::size_of::<String>() + s.len(),
             Literal::InternedString(_) => std::mem::size_of::<usize>() * 2, // ID + Arc pointer
             Literal::Character(_) => std::mem::size_of::<char>(),

@@ -41,7 +41,7 @@ pub mod simd_optimization;
 #[cfg(not(any(target_arch = "x86", target_arch = "x86_64")))]
 pub mod simd_optimization_stub;
 /// SIMD performance benchmarking and analysis suite.
-#[cfg(feature = "simd-benchmarks")]
+pub mod simd_benchmarks;
 
 pub use complex::*;
 pub use rational::*;

@@ -146,10 +146,10 @@ impl FormalSpec for EventBSpec {
             Value::Nil => {
                 Ok(EventBValue::Set(Vec::new()))
             }
-            _ => Err(Error::runtime_error(
+            _ => Err(Box::new(Error::runtime_error(
                 format!("Cannot convert Lambdust value to Event-B: {value:?}"),
                 None
-            ).boxed()),
+            ).boxed()))
         }
     }
 
@@ -174,10 +174,10 @@ impl FormalSpec for EventBSpec {
             }
             EventBValue::Function(_) => {
                 // Functions would need more complex representation
-                Err(Error::runtime_error(
-                    "Function conversion not yet implemented",
+                Err(Box::new(Error::runtime_error(
+                    "Function conversion not yet implemented".to_string(),
                     None
-                ).boxed())
+                ).boxed()))
             }
         }
     }

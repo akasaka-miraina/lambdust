@@ -17,8 +17,8 @@
 //!    - Small symbols (≤32 bits): stored inline instead of heap allocation
 //! 
 //! 2. Compound Values (Arc reduction):
-//!    - Pairs: 2 Arcs → 0 Arcs (direct boxing with Box<PairObj>)
-//!    - Strings: Arc<String> → Arc<str> in boxed objects
+//!    - Pairs: 2 Arcs → 0 Arcs (direct boxing with `Box<PairObj>`)
+//!    - Strings: `Arc<String>` → `Arc<str>` in boxed objects
 //! 
 //! 3. Complex Values (selective Arc usage):
 //!    - Vectors: 1 Arc for interior mutability (necessary for thread safety)
@@ -232,14 +232,14 @@ struct ContinuationObj {
 #[derive(Debug, Clone)]
 pub enum OptimizedFrame {
     Application {
-        operator: OptimizedValue,
-        evaluated_args: Vec<OptimizedValue>,
-        remaining_args: Vec<Spanned<Expr>>,
+        operator: Box<OptimizedValue>,
+        evaluated_args: Box<Vec<OptimizedValue>>,
+        remaining_args: Box<Vec<Spanned<Expr>>>,
         environment: Arc<OptimizedEnvironment>,
         source: Span,
     },
     If {
-        consequent: Spanned<Expr>,
+        consequent: Box<Spanned<Expr>>,
         alternative: Box<Option<Spanned<Expr>>>,
         environment: Arc<OptimizedEnvironment>,
         source: Span,

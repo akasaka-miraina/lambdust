@@ -562,7 +562,7 @@ impl PatternMatcher {
 
 fn literal_to_type(lit: &crate::ast::Literal) -> Type {
     match lit {
-        crate::ast::Literal::ExactInteger(_) => Type::Number,
+        crate::ast::Literal::ExactInteger(_) | crate::ast::Literal::Integer(_) => Type::Number,
         crate::ast::Literal::InexactReal(_) => Type::Number,
         crate::ast::Literal::Number(_) => Type::Number,
         crate::ast::Literal::Rational { .. } => Type::Number,

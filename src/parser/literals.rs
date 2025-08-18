@@ -99,8 +99,8 @@ impl Parser {
     /// Supports all R7RS string escape sequences:
     /// - \a (alarm), \b (backspace), \t (tab), \n (newline), \r (return)
     /// - \" (quote), \\ (backslash), \| (vertical bar)
-    /// - \x<hex>; (Unicode escape)
-    /// - \<octal> (octal escape)
+    /// - \xHEX; (Unicode escape)
+    /// - \OCTAL (octal escape)
     pub fn parse_string(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();
         let span = token.span;
@@ -134,7 +134,7 @@ impl Parser {
     /// 
     /// Supports all R7RS character formats:
     /// - Named characters: #\space, #\newline, #\tab, etc.
-    /// - Unicode escapes: #\x<hex>
+    /// - Unicode escapes: #\xHEX
     /// - Single characters: #\a, #\A, #\1, etc.
     pub fn parse_character(&mut self) -> Result<Spanned<Expr>> {
         let token = self.current_token();

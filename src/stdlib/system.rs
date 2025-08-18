@@ -199,10 +199,10 @@ pub fn bind_system_procedures_cow(env: &Arc<ThreadSafeEnvironment>) -> Arc<Threa
 
 // ============= PROCESS CONTROL PROCEDURES =============
 
-/// (exit [obj]) - Exit the program
-/// - If obj is omitted or #t, exit with code 0
-/// - If obj is #f, exit with code 1  
-/// - If obj is an exact integer, exit with that code
+/// (exit [exit-obj]) - Exit the program
+/// - If exit-obj is omitted or #t, exit with code 0
+/// - If exit-obj is #f, exit with code 1  
+/// - If exit-obj is an exact integer, exit with that code
 /// - Otherwise exit with code 1
 pub fn primitive_exit(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {
@@ -247,7 +247,7 @@ pub fn primitive_exit(args: &[Value]) -> Result<Value> {
     )))
 }
 
-/// (emergency-exit [obj]) - Exit immediately without cleanup
+/// (emergency-exit [exit-obj]) - Exit immediately without cleanup
 /// Same semantics as exit but without running cleanup handlers
 pub fn primitive_emergency_exit(args: &[Value]) -> Result<Value> {
     if args.len() > 1 {

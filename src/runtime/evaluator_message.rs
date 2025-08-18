@@ -12,7 +12,7 @@ pub enum EvaluatorMessage {
     /// Evaluate an expression and send the result back
     Evaluate {
         /// The expression to evaluate
-        expr: Expr,
+        expr: Box<Expr>,
         /// Source location information
         span: Option<Span>,
         /// Channel to send the result back
@@ -27,10 +27,10 @@ pub enum EvaluatorMessage {
     },
     /// Import a module
     ImportModule {
-        /// Import specification
-        import_spec: ImportSpec,
-        /// Channel to send the result back
-        sender: crossbeam::channel::Sender<Result<HashMap<String, Value>>>,
+        /// Import specification (boxed for memory efficiency)
+        import_spec: Box<ImportSpec>,
+        /// Channel to send the result back (boxed for memory efficiency)
+        sender: Box<crossbeam::channel::Sender<Result<HashMap<String, Value>>>>,
     },
     /// Shutdown the evaluator thread
     Shutdown,

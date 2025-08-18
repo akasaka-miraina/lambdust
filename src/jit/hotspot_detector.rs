@@ -172,6 +172,9 @@ impl ExecutionProfile {
                     crate::ast::Formals::Variable(_) => 1,
                     crate::ast::Formals::Mixed { fixed, .. } => fixed.len() + 1,
                     crate::ast::Formals::Keyword { fixed, .. } => fixed.len(),
+                    crate::ast::Formals::Typed(params) => params.len(),
+                    crate::ast::Formals::TypedVariable(_) => 1,
+                    crate::ast::Formals::TypedMixed { fixed, .. } => fixed.len() + 1,
                 };
                 2.0 + param_count as f64 * 0.5 + body.iter().map(|e| Self::calculate_complexity(&e.inner)).sum::<f64>()
             }

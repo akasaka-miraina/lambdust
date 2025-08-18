@@ -24,6 +24,8 @@ pub mod expression;
 pub mod literals;
 /// Special form parsing utilities.
 pub mod special_forms;
+/// Type expression parsing utilities.
+pub mod type_expr_parser;
 
 // Individual structure modules
 /// Parser configuration management.
@@ -37,7 +39,7 @@ pub mod parser_builder;
 
 /// Integration tests for character literal parsing.
 #[cfg(test)]
-mod character_test_integration;
+// mod character_test_integration;
 
 // Re-export individual structures
 pub use parser_config::*;

@@ -762,7 +762,7 @@ macro_rules! benchmark_primitive {
                 
                 #[test]
                 fn [<benchmark_ $primitive:snake _small>]() {
-                    let primitive = [<$primitive Primitive>];
+                    let primitive = [<$primitive ArithmeticPrimitive>];
                     let args = vec![$crate::eval::Value::number(1.0), $crate::eval::Value::number(2.0)];
                     
                     let start = Instant::now();
@@ -776,7 +776,7 @@ macro_rules! benchmark_primitive {
                 
                 #[test]
                 fn [<benchmark_ $primitive:snake _large>]() {
-                    let primitive = [<$primitive Primitive>];
+                    let primitive = [<$primitive ArithmeticPrimitive>];
                     let args: Vec<_> = (0..1000).map(|i| $crate::eval::Value::number(i as f64)).collect();
                     
                     let start = Instant::now();
@@ -822,7 +822,7 @@ mod tests {
 
     #[test]
     fn test_generated_add_primitive() {
-        let add = AddPrimitive;
+        let add = AddArithmeticPrimitive;
         
         // Test identity
         let result = add.evaluate(&[]).unwrap();
@@ -846,7 +846,7 @@ mod tests {
 
     #[test]
     fn test_generated_comparison_primitive() {
-        let lt = LessThanPrimitive;
+        let lt = LessThanComparisonPrimitive;
         
         let args = vec![Value::number(3.0), Value::number(4.0)];
         let result = lt.evaluate(&args).unwrap();
@@ -859,7 +859,7 @@ mod tests {
 
     #[test]
     fn test_generated_type_predicate() {
-        let number_pred = NumberQuestionPrimitive;
+        let number_pred = NumberQuestionPredicatePrimitive;
         
         let args = vec![Value::number(42.0)];
         let result = number_pred.evaluate(&args).unwrap();
@@ -872,23 +872,23 @@ mod tests {
 
     #[test]
     fn test_primitive_configuration() {
-        assert_eq!(AddPrimitive::CONFIG.arity_min, 0);
-        assert_eq!(AddPrimitive::CONFIG.arity_max, None);
-        assert!(AddPrimitive::CONFIG.is_commutative);
-        assert!(AddPrimitive::CONFIG.is_associative);
-        assert!(AddPrimitive::CONFIG.constant_foldable);
+        assert_eq!(AddArithmeticPrimitive::CONFIG.arity_min, 0);
+        assert_eq!(AddArithmeticPrimitive::CONFIG.arity_max, None);
+        assert!(AddArithmeticPrimitive::CONFIG.is_commutative);
+        assert!(AddArithmeticPrimitive::CONFIG.is_associative);
+        assert!(AddArithmeticPrimitive::CONFIG.constant_foldable);
         
-        assert_eq!(LessThanPrimitive::CONFIG.arity_min, 2);
-        assert_eq!(LessThanPrimitive::CONFIG.arity_max, Some(2));
-        assert!(!LessThanPrimitive::CONFIG.is_commutative);
-        assert!(LessThanPrimitive::CONFIG.constant_foldable);
+        assert_eq!(LessThanComparisonPrimitive::CONFIG.arity_min, 2);
+        assert_eq!(LessThanComparisonPrimitive::CONFIG.arity_max, Some(2));
+        assert!(!LessThanComparisonPrimitive::CONFIG.is_commutative);
+        assert!(LessThanComparisonPrimitive::CONFIG.constant_foldable);
     }
 
     #[test]
     fn test_category_association() {
         use std::any::TypeId;
-        assert_eq!(TypeId::of::<AddPrimitive::Category>(), TypeId::of::<ArithmeticCategory>());
-        assert_eq!(TypeId::of::<LessThanPrimitive::Category>(), TypeId::of::<ComparisonCategory>());
-        assert_eq!(TypeId::of::<NumberQuestionPrimitive::Category>(), TypeId::of::<TypePredicateCategory>());
+        assert_eq!(TypeId::of::<AddArithmeticPrimitive::Category>(), TypeId::of::<ArithmeticCategory>());
+        assert_eq!(TypeId::of::<LessThanComparisonPrimitive::Category>(), TypeId::of::<ComparisonCategory>());
+        assert_eq!(TypeId::of::<NumberQuestionPredicatePrimitive::Category>(), TypeId::of::<TypePredicateCategory>());
     }
 }

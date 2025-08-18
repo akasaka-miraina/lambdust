@@ -43,21 +43,21 @@ pub struct IsabelleTypedef {
 #[derive(Debug, Clone)]
 pub enum IsabelleType {
     /// Basic type (e.g., nat, bool, 'a).
-    Basic(String),
+    Basic(String));
     /// Function type (A => B).
-    Function(Box<IsabelleType>, Box<IsabelleType>),
+    Function(Box<IsabelleType>, Box<IsabelleType>));
     /// Product type (A * B).
-    Product(Vec<IsabelleType>),
+    Product(Vec<IsabelleType>));
     /// Sum type (A + B).
-    Sum(Vec<IsabelleType>),
+    Sum(Vec<IsabelleType>));
     /// List type ([A]).
-    List(Box<IsabelleType>),
+    List(Box<IsabelleType>));
     /// Set type ({A}).
-    Set(Box<IsabelleType>),
+    Set(Box<IsabelleType>));
     /// Option type (A option).
-    Option(Box<IsabelleType>),
+    Option(Box<IsabelleType>));
     /// Applied type constructor.
-    Applied(String, Vec<IsabelleType>),
+    Applied(String, Vec<IsabelleType>));
 }
 
 /// Isabelle/HOL constant declaration.
@@ -95,25 +95,25 @@ pub struct IsabelleEquation {
 #[derive(Debug, Clone)]
 pub enum IsabelleTerm {
     /// Variable.
-    Var(String),
+    Var(String));
     /// Constant.
-    Const(String),
+    Const(String));
     /// Application.
-    App(Box<IsabelleTerm>, Box<IsabelleTerm>),
+    App(Box<IsabelleTerm>, Box<IsabelleTerm>));
     /// Lambda abstraction.
-    Lambda(String, IsabelleType, Box<IsabelleTerm>),
+    Lambda(String, IsabelleType, Box<IsabelleTerm>));
     /// Let expression.
-    Let(String, Box<IsabelleTerm>, Box<IsabelleTerm>),
+    Let(String, Box<IsabelleTerm>, Box<IsabelleTerm>));
     /// Case expression.
-    Case(Box<IsabelleTerm>, Vec<(IsabelleTerm, IsabelleTerm)>),
+    Case(Box<IsabelleTerm>, Vec<(IsabelleTerm, IsabelleTerm)>));
     /// Tuple.
-    Tuple(Vec<IsabelleTerm>),
+    Tuple(Vec<IsabelleTerm>));
     /// List.
-    List(Vec<IsabelleTerm>),
+    List(Vec<IsabelleTerm>));
     /// Set.
-    Set(Vec<IsabelleTerm>),
+    Set(Vec<IsabelleTerm>));
     /// If-then-else.
-    If(Box<IsabelleTerm>, Box<IsabelleTerm>, Box<IsabelleTerm>),
+    If(Box<IsabelleTerm>, Box<IsabelleTerm>, Box<IsabelleTerm>));
 }
 
 /// Isabelle/HOL lemma or theorem.
@@ -135,15 +135,15 @@ pub enum IsabelleProof {
     /// Auto tactic.
     Auto,
     /// Simp tactic.
-    Simp(Vec<String>),
+    Simp(Vec<String>));
     /// Induction tactic.
-    Induction(String),
+    Induction(String));
     /// Apply tactic.
-    Apply(String),
+    Apply(String));
     /// Proof script (sequence of tactics).
-    Script(Vec<IsabelleProof>),
+    Script(Vec<IsabelleProof>));
     /// Structured proof.
-    Structured(Vec<IsabelleProofStep>),
+    Structured(Vec<IsabelleProofStep>));
 }
 
 /// Isabelle/HOL structured proof step.
@@ -176,11 +176,11 @@ impl IsabelleExporter {
         let theory = IsabelleTheory {
             name,
             imports,
-            types: Vec::new(),
-            constants: Vec::new(),
-            functions: Vec::new(),
-            lemmas: Vec::new(),
-            proof_obligations: Vec::new(),
+            types: Vec::new());
+            constants: Vec::new());
+            functions: Vec::new());
+            lemmas: Vec::new());
+            proof_obligations: Vec::new());
         };
         
         self.current_theory = Some(theory);
@@ -249,7 +249,7 @@ impl IsabelleExporter {
             Value::Literal(crate::ast::Literal::Boolean(b)) => {
                 Ok(IsabelleTerm::Const(if *b { "True" } else { "False" }.to_string()))
             }
-            Value::Literal(crate::ast::Literal::String(s)) => (**s).clone()),
+            Value::Literal(crate::ast::Literal::String(s)) => (**s).clone()));
                 Ok(IsabelleTerm::Const(format!("\"{s}\"")))
             }
             Value::Symbol(sym_id) => {
@@ -264,10 +264,10 @@ impl IsabelleExporter {
             Value::Nil => {
                 Ok(IsabelleTerm::List(Vec::new()))
             }
-            _ => Err(Error::runtime_error(
-                format!("Cannot translate value to Isabelle/HOL: {value:?}"),
+            _ => Err(Box::new(Error::runtime_error(
+                format!("Cannot translate value to Isabelle/HOL: {value:?}"));
                 None
-            ).boxed()),
+            ).boxed()));
         }
     }
     
@@ -275,15 +275,15 @@ impl IsabelleExporter {
     pub fn generate_type_safety_pos(&self, program_name: &str) -> Vec<ProofObligation> {
         vec![
             ProofObligation::new(
-                format!("{}_type_safety", program_name),
-                "Well-typed programs cannot go wrong".to_string(),
+                format!("{}_type_safety", program_name));
+                "Well-typed programs cannot go wrong".to_string());
                 format!("|- {} : tau ==> forall sigma . [[{}]] sigma != wrong", program_name, program_name)
-            ),
+            ));
             ProofObligation::new(
-                format!("{}_progress", program_name),
-                "Well-typed programs make progress".to_string(),
+                format!("{}_progress", program_name));
+                "Well-typed programs make progress".to_string());
                 format!("|- {} : tau ==> value({}) \\/ exists {}'. {} -> {}'", program_name, program_name, program_name, program_name, program_name)
-            ),
+            ));
         ]
     }
 }
@@ -377,8 +377,8 @@ impl fmt::Display for IsabelleTypedef {
 impl fmt::Display for IsabelleType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IsabelleType::Basic(name) => write!(f, "{name}"),
-            IsabelleType::Function(from, to) => write!(f, "{from} => {to}"),
+            IsabelleType::Basic(name) => write!(f, "{name}"));
+            IsabelleType::Function(from, to) => write!(f, "{from} => {to}"));
             IsabelleType::Product(types) => {
                 write!(f, "{}", types.iter()
                     .map(|t| t.to_string())
@@ -391,9 +391,9 @@ impl fmt::Display for IsabelleType {
                     .collect::<Vec<_>>()
                     .join(" + "))
             }
-            IsabelleType::List(elem_type) => write!(f, "{elem_type} list"),
-            IsabelleType::Set(elem_type) => write!(f, "{elem_type} set"),
-            IsabelleType::Option(inner_type) => write!(f, "{inner_type} option"),
+            IsabelleType::List(elem_type) => write!(f, "{elem_type} list"));
+            IsabelleType::Set(elem_type) => write!(f, "{elem_type} set"));
+            IsabelleType::Option(inner_type) => write!(f, "{inner_type} option"));
             IsabelleType::Applied(name, args) => {
                 if args.is_empty() {
                     write!(f, "{}", name)
@@ -402,7 +402,7 @@ impl fmt::Display for IsabelleType {
                            args.iter()
                                .map(|t| t.to_string())
                                .collect::<Vec<_>>()
-                               .join(", "),
+                               .join(", "));
                            name)
                 }
             }
@@ -439,9 +439,9 @@ impl fmt::Display for IsabelleEquation {
 impl fmt::Display for IsabelleTerm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IsabelleTerm::Var(name) => write!(f, "{}", name),
-            IsabelleTerm::Const(name) => write!(f, "{}", name),
-            IsabelleTerm::App(func, arg) => write!(f, "({} {})", func, arg),
+            IsabelleTerm::Var(name) => write!(f, "{}", name));
+            IsabelleTerm::Const(name) => write!(f, "{}", name));
+            IsabelleTerm::App(func, arg) => write!(f, "({} {})", func, arg));
             IsabelleTerm::Lambda(var, typ, body) => {
                 write!(f, "(λ{}::{} . {})", var, typ, body)
             }
@@ -492,8 +492,8 @@ impl fmt::Display for IsabelleLemma {
 impl fmt::Display for IsabelleProof {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            IsabelleProof::Sorry => writeln!(f, "  sorry"),
-            IsabelleProof::Auto => writeln!(f, "  by auto"),
+            IsabelleProof::Sorry => writeln!(f, "  sorry"));
+            IsabelleProof::Auto => writeln!(f, "  by auto"));
             IsabelleProof::Simp(rules) => {
                 if rules.is_empty() {
                     writeln!(f, "  by simp")
@@ -501,8 +501,8 @@ impl fmt::Display for IsabelleProof {
                     writeln!(f, "  by (simp add: {})", rules.join(" "))
                 }
             }
-            IsabelleProof::Induction(var) => writeln!(f, "  by (induction {})", var),
-            IsabelleProof::Apply(tactic) => writeln!(f, "  apply {}", tactic),
+            IsabelleProof::Induction(var) => writeln!(f, "  by (induction {})", var));
+            IsabelleProof::Apply(tactic) => writeln!(f, "  apply {}", tactic));
             IsabelleProof::Script(tactics) => {
                 writeln!(f, "proof -")?;
                 for tactic in tactics {
@@ -540,7 +540,7 @@ mod tests {
         let nat_type = IsabelleType::Basic("nat".to_string());
         let bool_type = IsabelleType::Basic("bool".to_string());
         let func_type = IsabelleType::Function(
-            Box::new(nat_type.clone()),
+            Box::new(nat_type.clone()));
             Box::new(bool_type.clone())
         );
         
@@ -556,7 +556,7 @@ mod tests {
         let var = IsabelleTerm::Var("x".to_string());
         let const_term = IsabelleTerm::Const("42".to_string());
         let app = IsabelleTerm::App(
-            Box::new(IsabelleTerm::Const("f".to_string())),
+            Box::new(IsabelleTerm::Const("f".to_string())));
             Box::new(var.clone())
         );
         
@@ -571,9 +571,9 @@ mod tests {
         exporter.start_theory("TestTheory".to_string(), vec!["Main".to_string()]).unwrap();
         
         let typedef = IsabelleTypedef {
-            name: "my_type".to_string(),
+            name: "my_type".to_string());
             params: vec![],
-            definition: IsabelleType::Basic("nat".to_string()),
+            definition: IsabelleType::Basic("nat".to_string()));
         };
         exporter.add_typedef(typedef).unwrap();
         

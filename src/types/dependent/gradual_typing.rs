@@ -1029,13 +1029,16 @@ impl GradualTypingSystem {
                 self.infer_application_contract_type(&operator_type, &operand_types)
             },
             
-            Expr::Lambda { formals, body, metadata: _ } => {
+            Expr::Lambda { formals, body, metadata: _, .. } => {
                 // Infer function contract
                 let arity = match formals {
                     crate::ast::Formals::Fixed(params) => params.len(),
                     crate::ast::Formals::Mixed { fixed, .. } => fixed.len(),
                     crate::ast::Formals::Variable(_) => 0, // Variable arity
                     crate::ast::Formals::Keyword { fixed, keywords, .. } => fixed.len() + keywords.len(),
+                    crate::ast::Formals::Typed(typed_params) => typed_params.len(),
+                    crate::ast::Formals::TypedVariable(_) => 0, // Variable arity
+                    crate::ast::Formals::TypedMixed { fixed, .. } => fixed.len(),
                 };
                 
                 let arg_contracts: Vec<GradualType> = (0..arity)

@@ -3,8 +3,6 @@
 //! This module defines the AST nodes for all language constructs in Lambdust,
 //! including the 10 special forms and derived forms implemented as macros.
 
-#![allow(missing_docs)]
-
 pub use crate::diagnostics::Spanned;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -21,6 +19,7 @@ pub mod cond_clause;
 pub mod case_clause;
 pub mod guard_clause;
 pub mod case_lambda_clause;
+pub mod type_expr;
 
 pub use literal::*;
 pub use visitor::*;
@@ -32,6 +31,7 @@ pub use cond_clause::*;
 pub use case_clause::*;
 pub use guard_clause::*;
 pub use case_lambda_clause::*;
+pub use type_expr::*;
 
 
 /// The main expression type for Lambdust.
@@ -59,166 +59,246 @@ pub enum Expr {
 
     // ============= SPECIAL FORMS =============
     
-    /// Quote expression: (quote <datum>) or '<datum>
+    /// Quote expression: `(quote datum)` or `'datum`
     Quote(Box<Spanned<Expr>>),
 
-    /// Quasiquote expression: (quasiquote <datum>) or `<datum>
+    /// Quasiquote expression: `(quasiquote datum)` or `` `datum``
     Quasiquote(Box<Spanned<Expr>>),
 
-    /// Unquote expression: (unquote <datum>) or ,<datum>
+    /// Unquote expression: `(unquote datum)` or `,datum`
     Unquote(Box<Spanned<Expr>>),
 
-    /// Unquote-splicing expression: (unquote-splicing <datum>) or ,@<datum>
+    /// Unquote-splicing expression: `(unquote-splicing datum)` or `,@datum`
     UnquoteSplicing(Box<Spanned<Expr>>),
 
-    /// Lambda expression: (lambda <formals> <body>)
+    /// Lambda expression: `(lambda formals body)`
     Lambda {
+        /// Formal parameters for the lambda
         formals: Formals,
+        /// Optional return type annotation
+        return_type: Option<Spanned<TypeExpr>>,
+        /// Metadata and annotations (e.g., #:pure, #:type)
         metadata: HashMap<String, Spanned<Expr>>,
+        /// Body expressions of the lambda
         body: Vec<Spanned<Expr>>,
     },
 
-    /// Conditional: (if <test> <consequent> <alternative>)
+    /// Conditional: `(if test consequent alternative)`
     If {
+        /// Test condition expression
         test: Box<Spanned<Expr>>,
+        /// Expression to evaluate if test is true
         consequent: Box<Spanned<Expr>>,
+        /// Optional expression to evaluate if test is false
         alternative: Option<Box<Spanned<Expr>>>,
     },
 
-    /// Definition: (define <identifier> <expression>) or (define (<identifier> <formals>) <body>)
+    /// Definition: `(define identifier expression)` or `(define (identifier formals) body)`
     Define {
+        /// Name of the identifier being defined
         name: String,
+        /// Value expression being bound to the name
         value: Box<Spanned<Expr>>,
+        /// Optional return type annotation
+        return_type: Option<Spanned<TypeExpr>>,
+        /// Metadata and annotations
         metadata: HashMap<String, Spanned<Expr>>,
     },
 
-    /// Assignment: (set! <identifier> <expression>)
+    /// Assignment: `(set! identifier expression)`
     Set {
+        /// Name of the identifier being assigned
         name: String,
+        /// New value expression
         value: Box<Spanned<Expr>>,
     },
 
-    /// Macro definition: (define-syntax <identifier> <transformer>)
+    /// Macro definition: `(define-syntax identifier transformer)`
     DefineSyntax {
+        /// Name of the macro being defined
         name: String,
+        /// Transformer expression
         transformer: Box<Spanned<Expr>>,
     },
 
     /// Syntax rules: (syntax-rules (literals ...) (pattern template) ...)
     SyntaxRules {
+        /// Literal identifiers that match only themselves
         literals: Vec<String>,
-        rules: Vec<(Spanned<Expr>, Spanned<Expr>)>, // (pattern, template) pairs
+        /// Pattern-template rule pairs
+        rules: Vec<(Spanned<Expr>, Spanned<Expr>)>,
     },
 
-    /// Continuation capture: (call-with-current-continuation <procedure>)
+    /// Continuation capture: (call-with-current-continuation procedure)
     CallCC(Box<Spanned<Expr>>),
 
-    /// Primitive operation: (primitive <symbol> <arguments>*)
+    /// Primitive operation: `(primitive symbol arguments*)`
     Primitive {
+        /// Name of the primitive operation
         name: String,
+        /// Arguments to the primitive
         args: Vec<Spanned<Expr>>,
     },
 
-    /// Type annotation: (:: <expression> <type>)
+    /// Type annotation: `(:: expression type)`
     TypeAnnotation {
+        /// Expression being annotated
         expr: Box<Spanned<Expr>>,
+        /// Type expression
         type_expr: Box<Spanned<Expr>>,
     },
 
-    /// Parameter binding: (parameterize ((<parameter> <value>) ...) <body>)
+    /// Parameter binding: (parameterize ((parameter value) ...) body)
     Parameterize {
+        /// Parameter bindings
         bindings: Vec<ParameterBinding>,
+        /// Body expressions
         body: Vec<Spanned<Expr>>,
     },
 
-    /// Module import: (import <import-spec>+)
+    /// Module import: (import import-spec+)
     Import {
+        /// Import specifications
         import_specs: Vec<Spanned<Expr>>,
     },
 
-    /// Library definition: (define-library <name> <library-declaration>*)
+    /// Library definition: (define-library name library-declaration*)
     DefineLibrary {
-        name: Vec<String>, // Library name as a list, e.g., (srfi 41) becomes ["srfi", "41"]
-        imports: Vec<Spanned<Expr>>, // import declarations
-        exports: Vec<Spanned<Expr>>, // export declarations
-        body: Vec<Spanned<Expr>>, // includes, begin blocks, and other declarations
+        /// Library name as a list (e.g., (srfi 41) becomes ["srfi", "41"])
+        name: Vec<String>,
+        /// Import declarations
+        imports: Vec<Spanned<Expr>>,
+        /// Export declarations  
+        exports: Vec<Spanned<Expr>>,
+        /// Body including includes, begin blocks, and other declarations
+        body: Vec<Spanned<Expr>>,
     },
 
     // ============= COMPOUND EXPRESSIONS =============
     
-    /// Function application: (<procedure> <arguments>*)
+    /// Function application: `(procedure arguments*)`
     Application {
+        /// The procedure/operator being called
         operator: Box<Spanned<Expr>>,
+        /// Arguments/operands to the procedure
         operands: Vec<Spanned<Expr>>,
     },
 
     /// Dotted pair (cons cell): (car . cdr)
     Pair {
+        /// First element of the pair
         car: Box<Spanned<Expr>>,
+        /// Second element of the pair
         cdr: Box<Spanned<Expr>>,
     },
 
     // ============= DERIVED FORMS (implemented as macros) =============
     
-    /// Begin expression: (begin <expressions>+)
+    /// Begin expression: (begin expressions+)
     Begin(Vec<Spanned<Expr>>),
 
-    /// Let binding: (let (<bindings>*) <body>)
+    /// Let binding: `(let (bindings*) body)`
     Let {
+        /// Variable bindings
         bindings: Vec<Binding>,
+        /// Body expressions
         body: Vec<Spanned<Expr>>,
     },
 
-    /// Let* binding: (let* (<bindings>*) <body>)
+    /// Let* binding: `(let* (bindings*) body)`
     LetStar {
+        /// Sequential variable bindings
         bindings: Vec<Binding>,
+        /// Body expressions
         body: Vec<Spanned<Expr>>,
     },
 
-    /// Letrec binding: (letrec (<bindings>*) <body>)
+    /// Letrec binding: `(letrec (bindings*) body)`
     LetRec {
+        /// Recursive variable bindings
         bindings: Vec<Binding>,
+        /// Body expressions
         body: Vec<Spanned<Expr>>,
     },
 
-    /// Conditional with multiple clauses: (cond <clauses>+)
+    /// Conditional with multiple clauses: `(cond clauses+)`
     Cond(Vec<CondClause>),
 
-    /// Case expression: (case <expression> <clauses>+)
+    /// Case expression: `(case expression clauses+)`
     Case {
+        /// Expression to match against
         expr: Box<Spanned<Expr>>,
+        /// Case clauses with patterns and bodies
         clauses: Vec<CaseClause>,
     },
 
-    /// Logical AND: (and <expressions>*)
+    /// Logical AND: (and expressions*)
     And(Vec<Spanned<Expr>>),
 
-    /// Logical OR: (or <expressions>*)
+    /// Logical OR: (or expressions*)
     Or(Vec<Spanned<Expr>>),
 
-    /// When expression: (when <test> <expressions>+)
+    /// When expression: (when test expressions+)
     When {
+        /// Test condition
         test: Box<Spanned<Expr>>,
+        /// Body expressions to evaluate if test is true
         body: Vec<Spanned<Expr>>,
     },
 
-    /// Unless expression: (unless <test> <expressions>+)
+    /// Unless expression: (unless test expressions+)
     Unless {
+        /// Test condition
         test: Box<Spanned<Expr>>,
+        /// Body expressions to evaluate if test is false
         body: Vec<Spanned<Expr>>,
     },
 
-    /// Guard expression: (guard (<variable> <clauses>*) <body>)
+    /// Guard expression: `(guard (variable clauses*) body)`
     Guard {
+        /// Exception variable name
         variable: String,
+        /// Exception handling clauses
         clauses: Vec<GuardClause>,
+        /// Body expressions
         body: Vec<Spanned<Expr>>,
     },
 
-    /// Case-lambda expression: (case-lambda (<formals1> <body1>...) (<formals2> <body2>...) ...)
+    /// Case-lambda expression: (case-lambda (formals1 body1...) (formals2 body2...) ...)
     CaseLambda {
+        /// Lambda clauses with different arities
         clauses: Vec<CaseLambdaClause>,
+        /// Optional return type annotation
+        return_type: Option<Spanned<TypeExpr>>,
+        /// Metadata and annotations
         metadata: HashMap<String, Spanned<Expr>>,
+    },
+
+    // ============= CONTRACT SYSTEM =============
+    
+    /// Contract definition: (define/contract (name formals) contract body ...)
+    DefineContract {
+        /// Name of the function being defined with contract
+        name: String,
+        /// Optional formal parameters
+        formals: Option<Formals>,
+        /// Contract specification
+        contract: Box<Spanned<crate::contracts::ast::ContractExpr>>,
+        /// Optional return type contract
+        return_type: Option<Spanned<crate::contracts::ast::ContractExpr>>,
+        /// Function body
+        body: Vec<Spanned<Expr>>,
+    },
+
+    /// Contract expression: contract literals and combinators
+    Contract(Box<Spanned<crate::contracts::ast::ContractExpr>>),
+
+    /// Contract application: (contract expr)
+    ContractApplication {
+        /// Contract to apply
+        contract: Box<Spanned<crate::contracts::ast::ContractExpr>>,
+        /// Expression to which the contract applies
+        expr: Box<Spanned<Expr>>,
     },
 }
 
@@ -254,6 +334,19 @@ impl Expr {
                 | Expr::Import { .. }
                 | Expr::DefineLibrary { .. }
                 | Expr::CaseLambda { .. }
+                | Expr::DefineContract { .. }
+                | Expr::Contract(_)
+                | Expr::ContractApplication { .. }
+        )
+    }
+
+    /// Returns true if this expression is a contract-related form.
+    pub fn is_contract_form(&self) -> bool {
+        matches!(
+            self,
+            Expr::DefineContract { .. }
+                | Expr::Contract(_)
+                | Expr::ContractApplication { .. }
         )
     }
 
@@ -298,8 +391,12 @@ impl fmt::Display for Expr {
             Expr::Quasiquote(expr) => write!(f, "`{}", expr.inner),
             Expr::Unquote(expr) => write!(f, ",{}", expr.inner),
             Expr::UnquoteSplicing(expr) => write!(f, ",@{}", expr.inner),
-            Expr::Lambda { formals, body, .. } => {
-                write!(f, "(lambda {formals} ")?;
+            Expr::Lambda { formals, return_type, body, .. } => {
+                write!(f, "(lambda {formals}")?;
+                if let Some(ret_type) = return_type {
+                    write!(f, " : {}", ret_type.inner)?;
+                }
+                write!(f, " ")?;
                 for (i, expr) in body.iter().enumerate() {
                     if i > 0 { write!(f, " ")?; }
                     write!(f, "{}", expr.inner)?;
@@ -313,8 +410,12 @@ impl fmt::Display for Expr {
                 }
                 write!(f, ")")
             }
-            Expr::Define { name, value, .. } => {
-                write!(f, "(define {} {})", name, value.inner)
+            Expr::Define { name, value, return_type, .. } => {
+                write!(f, "(define {name}")?;
+                if let Some(ret_type) = return_type {
+                    write!(f, " : {}", ret_type.inner)?;
+                }
+                write!(f, " {})", value.inner)
             }
             Expr::Set { name, value } => {
                 write!(f, "(set! {} {})", name, value.inner)
@@ -329,8 +430,11 @@ impl fmt::Display for Expr {
             Expr::Pair { car, cdr } => {
                 write!(f, "({} . {})", car.inner, cdr.inner)
             }
-            Expr::CaseLambda { clauses, .. } => {
+            Expr::CaseLambda { clauses, return_type, .. } => {
                 write!(f, "(case-lambda")?;
+                if let Some(ret_type) = return_type {
+                    write!(f, " : {}", ret_type.inner)?;
+                }
                 for clause in clauses {
                     write!(f, " ({} ", clause.formals)?;
                     for (i, expr) in clause.body.iter().enumerate() {

@@ -39,6 +39,11 @@ impl TypeVar {
         }
     }
     
+    /// Creates a fresh type variable (alias for new).
+    pub fn fresh() -> Self {
+        Self::new()
+    }
+    
     /// Creates a type variable with a specific ID (for testing).
     pub fn with_id(id: u64) -> Self {
         Self { id, name: None }

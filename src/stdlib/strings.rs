@@ -165,6 +165,7 @@ fn bind_string_comparison(env: &Arc<ThreadSafeEnvironment>) {
 fn bind_string_manipulation(env: &Arc<ThreadSafeEnvironment>) {
     // R7RS string manipulation
     bind_primitive!(env, "string-append", 0, None, primitive_string_append, vec![Effect::Pure]);
+    bind_primitive!(env, "string-append!", 1, None, primitive_string_append_mut, vec![Effect::State]);
     bind_primitive!(env, "substring", 3, Some(3), primitive_substring, vec![Effect::Pure]);
     bind_primitive!(env, "string-fill!", 2, Some(4), primitive_string_fill, vec![Effect::State]);
     bind_primitive!(env, "string-copy!", 3, Some(5), primitive_string_copy_mut, vec![Effect::State]);
@@ -825,6 +826,60 @@ fn primitive_string_fill(args: &[Value]) -> Result<Value> {
         _ => {
             Err(Box::new(DiagnosticError::runtime_error(
                 "string-fill! first argument must be a string".to_string(),
+                None,
+            )))
+        }
+    }
+}
+
+/// string-append! procedure (mutation)
+/// SRFI 118: Appends characters and strings to the first mutable string argument
+fn primitive_string_append_mut(args: &[Value]) -> Result<Value> {
+    if args.is_empty() {
+        return Err(Box::new(DiagnosticError::runtime_error(
+            "string-append! expects at least 1 argument, got 0".to_string(),
+            None,
+        )));
+    }
+    
+    let first_string = &args[0];
+    
+    match first_string {
+        Value::MutableString(chars_arc) => {
+            let mut chars = chars_arc.write().map_err(|_| {
+                DiagnosticError::runtime_error(
+                    "string-append! failed to acquire write lock on string".to_string(),
+                    None,
+                )
+            })?;
+            
+            // Append each argument (string or character) to the mutable string
+            for arg in &args[1..] {
+                match arg {
+                    // Handle character arguments
+                    Value::Literal(crate::ast::Literal::Character(ch)) => {
+                        chars.push(*ch);
+                    }
+                    // Handle string arguments (both mutable and immutable)
+                    _ => {
+                        let s = extract_string_owned(arg, "string-append!")?;
+                        // Extend the character vector with characters from the string
+                        chars.extend(s.chars());
+                    }
+                }
+            }
+            
+            Ok(Value::Unspecified)
+        }
+        Value::Literal(crate::ast::Literal::String(_)) => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "string-append! can only be used with mutable strings".to_string(),
+                None,
+            )))
+        }
+        _ => {
+            Err(Box::new(DiagnosticError::runtime_error(
+                "string-append! first argument must be a string".to_string(),
                 None,
             )))
         }
@@ -3406,5 +3461,192 @@ mod tests {
         
         // Wrong argument count for string-fill!
         assert!(primitive_string_fill(&[Value::mutable_string("test")]).is_err());
+    }
+
+    #[test]
+    fn test_string_append_mut_basic() {
+        // Test basic string-append! functionality
+        let mut_str = Value::mutable_string("hello");
+        let args = vec![
+            mut_str.clone(),
+            Value::string(" "),
+            Value::string("world")
+        ];
+        
+        let result = primitive_string_append_mut(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that the string was modified
+        assert_eq!(mut_str.as_string_owned(), Some("hello world".to_string()));
+    }
+
+    #[test]
+    fn test_string_append_mut_single_arg() {
+        // Test string-append! with just the mutable string (no strings to append)
+        let mut_str = Value::mutable_string("test");
+        let args = vec![mut_str.clone()];
+        
+        let result = primitive_string_append_mut(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // String should remain unchanged
+        assert_eq!(mut_str.as_string_owned(), Some("test".to_string()));
+    }
+
+    #[test]
+    fn test_string_append_mut_multiple_strings() {
+        // Test string-append! with multiple strings
+        let mut_str = Value::mutable_string("a");
+        let args = vec![
+            mut_str.clone(),
+            Value::string("b"),
+            Value::string("c"),
+            Value::string("d"),
+            Value::mutable_string("e") // Also works with mutable strings as source
+        ];
+        
+        let result = primitive_string_append_mut(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that all strings were appended
+        assert_eq!(mut_str.as_string_owned(), Some("abcde".to_string()));
+    }
+
+    #[test]
+    fn test_string_append_mut_empty_strings() {
+        // Test string-append! with empty strings
+        let mut_str = Value::mutable_string("start");
+        let args = vec![
+            mut_str.clone(),
+            Value::string(""),
+            Value::string("middle"),
+            Value::string(""),
+            Value::string("end")
+        ];
+        
+        let result = primitive_string_append_mut(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that empty strings don't affect the result
+        assert_eq!(mut_str.as_string_owned(), Some("startmiddleend".to_string()));
+    }
+
+    #[test]
+    fn test_string_append_mut_unicode() {
+        // Test string-append! with Unicode characters
+        let mut_str = Value::mutable_string("Hello");
+        let args = vec![
+            mut_str.clone(),
+            Value::string(" 世界"),
+            Value::string(" 🌍"),
+            Value::string(" Ω")
+        ];
+        
+        let result = primitive_string_append_mut(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check Unicode handling
+        assert_eq!(mut_str.as_string_owned(), Some("Hello 世界 🌍 Ω".to_string()));
+    }
+
+    #[test]
+    fn test_string_append_mut_immutable_error() {
+        // Test string-append! on immutable string should fail
+        let immut_str = Value::string("hello");
+        let args = vec![
+            immut_str,
+            Value::string(" world")
+        ];
+        
+        let result = primitive_string_append_mut(&args);
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert!(err.to_string().contains("can only be used with mutable strings"));
+        }
+    }
+
+    #[test]
+    fn test_string_append_mut_non_string_first_arg() {
+        // Test string-append! with non-string first argument
+        let args = vec![
+            Value::integer(42),
+            Value::string("test")
+        ];
+        
+        let result = primitive_string_append_mut(&args);
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert!(err.to_string().contains("first argument must be a string"));
+        }
+    }
+
+    #[test]
+    fn test_string_append_mut_non_string_append_arg() {
+        // Test string-append! with non-string argument to append
+        let mut_str = Value::mutable_string("hello");
+        let args = vec![
+            mut_str,
+            Value::integer(42)
+        ];
+        
+        let result = primitive_string_append_mut(&args);
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert!(err.to_string().contains("requires string arguments"));
+        }
+    }
+
+    #[test]
+    fn test_string_append_mut_no_arguments() {
+        // Test string-append! with no arguments
+        let args = vec![];
+        
+        let result = primitive_string_append_mut(&args);
+        assert!(result.is_err());
+        if let Err(err) = result {
+            assert!(err.to_string().contains("expects at least 1 argument"));
+        }
+    }
+
+    #[test]
+    fn test_string_append_mut_character_args() {
+        // Test string-append! with character arguments (SRFI 118)
+        let mut_str = Value::mutable_string("Hello");
+        let args = vec![
+            mut_str.clone(),
+            Value::Literal(crate::ast::Literal::Character(' ')),
+            Value::string("W"),
+            Value::Literal(crate::ast::Literal::Character('o')),
+            Value::Literal(crate::ast::Literal::Character('r')),
+            Value::string("ld"),
+            Value::Literal(crate::ast::Literal::Character('!'))
+        ];
+        
+        let result = primitive_string_append_mut(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that characters and strings were properly mixed
+        assert_eq!(mut_str.as_string_owned(), Some("Hello World!".to_string()));
+    }
+
+    #[test]
+    fn test_string_append_mut_preserves_immutability() {
+        // Test that string-append! doesn't affect the immutability of source strings
+        let mut_str = Value::mutable_string("base");
+        let immut_str = Value::string("append");
+        let args = vec![
+            mut_str.clone(),
+            immut_str.clone()
+        ];
+        
+        let result = primitive_string_append_mut(&args).unwrap();
+        assert_eq!(result, Value::Unspecified);
+        
+        // Check that the mutable string was modified
+        assert_eq!(mut_str.as_string_owned(), Some("baseappend".to_string()));
+        
+        // Check that the immutable string remains unchanged
+        assert_eq!(immut_str.as_string_owned(), Some("append".to_string()));
+        assert!(immut_str.is_immutable_string());
     }
 }

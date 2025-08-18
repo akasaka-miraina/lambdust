@@ -255,11 +255,11 @@ impl BytecodeCompiler {
                 self.compile_application(operator, operands, bytecode, constant_pool, context)
             }
             
-            Expr::Lambda { formals, body, metadata: _ } => {
+            Expr::Lambda { formals, body, metadata: _, .. } => {
                 self.compile_lambda(formals, body, bytecode, constant_pool, context)
             }
             
-            Expr::Define { name, value, metadata: _ } => {
+            Expr::Define { name, value, metadata: _, .. } => {
                 self.compile_define(name, value, bytecode, constant_pool, context)
             }
             
@@ -300,7 +300,7 @@ impl BytecodeCompiler {
         context: &mut CompilerContext,
     ) -> Result<()> {
         let constant_value = match literal {
-            Literal::ExactInteger(i) => ConstantValue::Number(*i as f64),
+            Literal::ExactInteger(i) | Literal::Integer(i) => ConstantValue::Number(*i as f64),
             Literal::InexactReal(f) => ConstantValue::Number(*f),
             Literal::Number(f) => ConstantValue::Number(*f),
             Literal::Rational(rational) => {
@@ -482,6 +482,50 @@ impl BytecodeCompiler {
                 }
                 // TODO: Handle keyword parameters properly
                 count
+            }
+            Formals::Typed(params) => {
+                for (i, param) in params.iter().enumerate() {
+                    let local = LocalVariable {
+                        name: param.name.clone(),
+                        index: i as u16,
+                        scope_depth: 0,
+                        mutable: false,
+                    };
+                    lambda_context.locals.push(local);
+                }
+                params.len()
+            }
+            Formals::TypedVariable(param) => {
+                let local = LocalVariable {
+                    name: param.name.clone(),
+                    index: 0,
+                    scope_depth: 0,
+                    mutable: false,
+                };
+                lambda_context.locals.push(local);
+                1
+            }
+            Formals::TypedMixed { fixed, rest } => {
+                let mut count = 0;
+                for (i, param) in fixed.iter().enumerate() {
+                    let local = LocalVariable {
+                        name: param.name.clone(),
+                        index: i as u16,
+                        scope_depth: 0,
+                        mutable: false,
+                    };
+                    lambda_context.locals.push(local);
+                    count += 1;
+                }
+                // Add rest parameter
+                let rest_local = LocalVariable {
+                    name: rest.name.clone(),
+                    index: count as u16,
+                    scope_depth: 0,
+                    mutable: false,
+                };
+                lambda_context.locals.push(rest_local);
+                count + 1
             }
         };
         

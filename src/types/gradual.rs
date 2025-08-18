@@ -236,7 +236,7 @@ pub fn staticize(type_: &Type, fresh_var_supply: &mut impl FnMut() -> TypeVar) -
 ///
 /// Determines where runtime type checks (casts) need to be inserted
 /// when values flow between static and dynamic contexts.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Cast {
     /// No cast needed (types are compatible)
     None,
