@@ -225,7 +225,7 @@ pub struct UnificationFailure<T: TypeRepr> {
 impl<T, C> GenericInferenceEngine<T, C>
 where
     T: TypeRepr + Clone + 'static,
-    C: TypeContext<Type = T> + Clone,
+    C: TypeContext<T> + Clone,
 {
     /// Creates a new generic inference engine
     pub fn new(algorithm: InferenceAlgorithm) -> Self {
@@ -627,7 +627,7 @@ where
 impl<'a, T, C> TypeSynthesisVisitor<'a, T, C>
 where
     T: TypeRepr + Clone + 'static,
-    C: TypeContext<Type = T> + Clone,
+    C: TypeContext<T> + Clone,
 {
     fn new(
         engine: &'a mut GenericInferenceEngine<T, C>,
@@ -640,7 +640,7 @@ where
 impl<'a, T, C> ExpressionVisitor for TypeSynthesisVisitor<'a, T, C>
 where
     T: TypeRepr + Clone + 'static,
-    C: TypeContext<Type = T> + Clone,
+    C: TypeContext<T> + Clone,
 {
     type Result = UnifiedResult<T>;
     

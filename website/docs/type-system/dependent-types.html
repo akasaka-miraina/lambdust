@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dependent Types - Lambdust Documentation</title>
+    <meta name="description" content="Comprehensive guide to Lambdust's dependent type system, enabling types that depend on values for precise specifications.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Type System</a> → 
+                Dependent Types
+            </div>
+
+            <h1>Dependent Types</h1>
+            
+            <p>Dependent types in Lambdust allow types to depend on values, enabling precise specifications that can eliminate entire classes of runtime errors. This powerful type system feature brings mathematical precision to practical programming.</p>
+
+            <div class="type-signature">
+                Π(x:A).B(x)  — Pi-types (dependent functions)<br>
+                Σ(x:A).B(x)  — Sigma-types (dependent pairs)
+            </div>
+
+            <h2>Pi-Types (Dependent Functions)</h2>
+
+            <p>Pi-types represent functions where the return type depends on the input value:</p>
+
+            <div class="example-box">
+                <h4>Vector with Length in Type</h4>
+                <pre><code>;; Define a vector type parameterized by length
+(define-type (Vector n T)
+  (vector-of-length n T))
+
+;; Vector constructor with length proof
+(define make-vector : (∀ (n : Nat) (T : Type) 
+                        → (x : T) → Vector n T)
+  (lambda (x)
+    (make-vector-of-length n x)))
+
+;; Usage with compile-time length verification
+(define v3 : (Vector 3 Integer)
+  (vector 1 2 3))  ;; Length verified at compile time</code></pre>
+            </div>
+
+            <h3>Safe Array Operations</h3>
+
+            <p>Dependent types enable array operations that are guaranteed safe at compile time:</p>
+
+            <pre><code>;; Safe vector access with bounds checking
+(define vector-ref : (∀ (n : Nat) (T : Type) (i : Nat)
+                       → Vector n T → (i < n) → T)
+  (lambda (vec proof)
+    (unsafe-vector-ref vec i)))  ;; Safe due to proof
+
+;; Vector concatenation preserves length information
+(define vector-append : (∀ (n m : Nat) (T : Type)
+                          → Vector n T → Vector m T → Vector (+ n m) T)
+  (lambda (v1 v2)
+    (append-vectors v1 v2)))</code></pre>
+
+            <h2>Sigma-Types (Dependent Pairs)</h2>
+
+            <p>Sigma-types represent pairs where the second component's type depends on the first:</p>
+
+            <div class="example-box">
+                <h4>Database Query Results</h4>
+                <pre><code>;; Query result depends on the schema
+(define-type QueryResult
+  (Σ (schema : Schema) 
+     (rows : List (Row schema))))
+
+;; Type-safe query execution
+(define execute-query : (∀ (schema : Schema)
+                          → Query schema → IO (QueryResult schema))
+  (lambda (query)
+    (do-io
+      [rows ← (run-sql-query query)]
+      (return (make-pair schema rows)))))</code></pre>
+            </div>
+
+            <h2>Refinement Types</h2>
+
+            <p>Lambdust supports refinement types that constrain values with predicates:</p>
+
+            <pre><code>;; Positive integers
+(define-type PositiveInt
+  {n : Integer | n > 0})
+
+;; Non-empty lists  
+(define-type NonEmptyList
+  {lst : List α | (length lst) > 0})
+
+;; Safe division function
+(define safe-divide : (Integer → PositiveInt → Integer)
+  (lambda ((x : Integer) (y : PositiveInt))
+    (/ x y)))  ;; No division by zero possible</code></pre>
+
+            <h3>Pattern Matching with Refinements</h3>
+
+            <p>Pattern matching can refine types automatically:</p>
+
+            <pre><code>;; List head function with automatic refinement
+(define head : (∀ (α : Type) → NonEmptyList α → α)
+  (lambda (lst)
+    (match lst
+      [(cons x xs) → x])))  ;; Pattern proves non-emptiness
+
+;; Compile-time verification of non-emptiness
+(define process-items : (List Item → String)
+  (lambda (items)
+    (if (null? items)
+        "No items"
+        (item-name (head items)))))  ;; head call is safe</code></pre>
+
+            <h2>Matrix Operations</h2>
+
+            <p>Dependent types enable safe linear algebra with dimension checking:</p>
+
+            <div class="example-box">
+                <h4>Type-Safe Matrix Multiplication</h4>
+                <pre><code>;; Matrix type with dimensions
+(define-type (Matrix rows cols T)
+  (matrix-with-dimensions rows cols T))
+
+;; Matrix multiplication with dimension constraints
+(define matrix-multiply : (∀ (a b c : Nat) (T : Type)
+                            → Matrix a b T 
+                            → Matrix b c T 
+                            → Matrix a c T)
+  (lambda (m1 m2)
+    (multiply-matrices m1 m2)))
+
+;; Impossible to call with incompatible dimensions
+(define example
+  (let ([m1 : (Matrix 3 4 Real) (zeros 3 4)]
+        [m2 : (Matrix 4 2 Real) (zeros 4 2)])
+    (matrix-multiply m1 m2)))  ;; Result: Matrix 3 2 Real
+
+;; This would be a compile-time error:
+;; (matrix-multiply m1 (zeros 3 2))  ;; Error: 4 ≠ 3</code></pre>
+            </div>
+
+            <h2>Proof Objects</h2>
+
+            <p>Lambdust allows explicit proof construction for complex properties:</p>
+
+            <pre><code>;; Sorted list predicate
+(define-type (Sorted lst)
+  (sorted-predicate lst))
+
+;; Insertion sort with proof
+(define insertion-sort : (∀ (α : Type) → List α → (Σ (result : List α) 
+                                                     (Sorted result)))
+  (lambda (lst)
+    (let ([sorted (sort-algorithm lst)])
+      (make-pair sorted (construct-sorted-proof sorted)))))
+
+;; Binary search on proven-sorted lists
+(define binary-search : (∀ (α : Type) → (Σ (lst : List α) (Sorted lst)) 
+                                       → α → Maybe Nat)
+  (lambda (sorted-list target)
+    (binary-search-impl (first sorted-list) target)))</code></pre>
+
+            <h2>Type-Level Computation</h2>
+
+            <p>Lambdust supports computation at the type level for advanced specifications:</p>
+
+            <pre><code>;; Type-level natural number arithmetic
+(define-type-function (+ n m)
+  (match n
+    [Zero → m]
+    [(Succ k) → (Succ (+ k m))]))
+
+;; Compile-time list length calculation
+(define-type-function (length lst)
+  (match lst
+    [[] → Zero]
+    [(cons x xs) → (Succ (length xs))]))
+
+;; Function with computed dependent type
+(define list-take : (∀ (α : Type) (lst : List α) (n : Nat)
+                      → (n ≤ (length lst)) 
+                      → List α)
+  (lambda (lst n proof)
+    (take-elements lst n)))</code></pre>
+
+            <h2>Integration with Gradual Typing</h2>
+
+            <p>Dependent types work seamlessly with gradual typing:</p>
+
+            <pre><code>;; Gradual dependent types
+(define process-array
+  (lambda (arr)  ;; Type inferred as Dynamic → Dynamic
+    (if (array-length arr > 0)
+        (vector-ref arr 0)  ;; Runtime bounds check
+        #f)))
+
+;; Gradually refine to dependent types
+(define process-array-safe : (∀ (n : Nat) (T : Type)
+                               → Vector n T → Maybe T)
+  (lambda (arr)
+    (if (n > 0)
+        (Some (vector-ref arr 0))  ;; Proven safe
+        None)))</code></pre>
+
+            <h2>Performance Considerations</h2>
+
+            <ul>
+                <li><strong>Compile-time verification</strong>: Proofs are erased at runtime for zero-cost abstractions</li>
+                <li><strong>Smart compilation</strong>: Dependent type information enables aggressive optimizations</li>
+                <li><strong>Proof inference</strong>: Many proofs are constructed automatically by the compiler</li>
+                <li><strong>Gradual refinement</strong>: Start with simple types and add dependencies incrementally</li>
+            </ul>
+
+            <div class="warning-box">
+                <h4>Complexity Warning</h4>
+                <p>While dependent types provide strong guarantees, they can make type inference more complex. Use them judiciously, focusing on critical invariants and safety properties.</p>
+            </div>
+
+            <h2>Practical Applications</h2>
+
+            <ol>
+                <li><strong>Memory Safety</strong>: Array bounds checking without runtime overhead</li>
+                <li><strong>Protocol Verification</strong>: State machine protocols verified at compile time</li>
+                <li><strong>Database Schemas</strong>: Type-safe query construction and result handling</li>
+                <li><strong>Numerical Computing</strong>: Dimension-safe linear algebra and scientific computing</li>
+                <li><strong>Parser Combinators</strong>: Grammar constraints encoded in types</li>
+            </ol>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="gradual-typing.html">Gradual Typing</a> - Integration with dynamic types</li>
+                <li><a href="type-inference.html">Type Inference</a> - Automatic dependent type inference</li>
+                <li><a href="../language-guide/monadic-purity.html">Monadic Purity</a> - Effect tracking with dependent types</li>
+                <li><a href="../standard-library/linear-algebra.html">Linear Algebra</a> - Dependent types in numeric computing</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="gradual-typing.html">← Gradual Typing</a>
+                <a href="type-inference.html">Type Inference →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

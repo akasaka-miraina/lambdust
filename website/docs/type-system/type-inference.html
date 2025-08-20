@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Type Inference - Lambdust Documentation</title>
+    <meta name="description" content="Guide to Lambdust's advanced type inference algorithms and bidirectional type checking.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Type System</a> → 
+                Type Inference
+            </div>
+
+            <h1>Type Inference</h1>
+            
+            <p>Lambdust features a sophisticated type inference system that can automatically deduce types for most expressions, reducing the need for explicit type annotations while maintaining type safety.</p>
+
+            <div class="type-signature">
+                Γ ⊢ e : τ  — Type judgment: expression e has type τ in context Γ
+            </div>
+
+            <h2>Inference Algorithms</h2>
+
+            <h3>Hindley-Milner Foundation</h3>
+            <p>Lambdust's inference is based on the Hindley-Milner algorithm with extensions for gradual typing and dependent types:</p>
+
+            <div class="example-box">
+                <h4>Basic Type Inference</h4>
+                <pre><code>;; No type annotations needed
+(define identity (lambda (x) x))
+;; Inferred: ∀ α. α → α
+
+(define add (lambda (x y) (+ x y)))
+;; Inferred: Number → Number → Number
+
+(define map-example 
+  (lambda (f lst)
+    (if (null? lst) '()
+        (cons (f (car lst))
+              (map-example f (cdr lst))))))
+;; Inferred: ∀ α β. (α → β) → List α → List β</code></pre>
+            </div>
+
+            <h3>Bidirectional Type Checking</h3>
+            <p>Lambdust uses bidirectional type checking for dependent types and complex expressions:</p>
+
+            <pre><code>;; Synthesis mode: infer type from expression
+(lambda (x) (+ x 1))  ⇒  Number → Number
+
+;; Checking mode: check expression against expected type
+(lambda (x) (+ x 1)) : (Integer → Integer)  ✓
+
+;; Dependent type inference
+(define safe-head
+  (lambda (lst)
+    (if (null? lst) 
+        (error "Empty list")
+        (car lst))))
+;; Inferred: ∀ α. List α → α (with non-empty precondition)</code></pre>
+
+            <h2>Gradual Type Inference</h2>
+
+            <p>The inference system gracefully handles the transition from dynamic to static typing:</p>
+
+            <div class="example-box">
+                <h4>Gradual Inference Evolution</h4>
+                <pre><code>;; Stage 1: Completely inferred
+(define process-list
+  (lambda (lst)
+    (map (lambda (x) (* x 2)) lst)))
+;; Inferred: List Number → List Number
+
+;; Stage 2: Partial annotation guides inference  
+(define process-list
+  (lambda ((lst : List α))
+    (map (lambda (x) (* x 2)) lst)))
+;; Error: Cannot multiply arbitrary type α
+;; Suggests: α should be Number
+
+;; Stage 3: Corrected with constraint
+(define process-list : (∀ (α : Numeric). List α → List α)
+  (lambda (lst)
+    (map (lambda (x) (* x 2)) lst)))
+;; Type-correct with numeric constraint</code></pre>
+            </div>
+
+            <h3>Dynamic Type Integration</h3>
+            <p>Inference handles Dynamic types at boundaries:</p>
+
+            <pre><code>;; Function with dynamic input
+(define process-input
+  (lambda (input)  ; input : Dynamic
+    (if (number? input)
+        (* input 2)    ; Number path
+        (string-length input))))  ; String path
+;; Inferred: Dynamic → Dynamic
+
+;; Refinement through runtime checks
+(define safe-process
+  (lambda (input)
+    (cond 
+      [(number? input) => (lambda (n) (* n 2))]    ; n : Number
+      [(string? input) => (lambda (s) (string-length s))]  ; s : String
+      [else (error "Invalid input")])))
+;; Inferred: Dynamic → Integer</code></pre>
+
+            <h2>Dependent Type Inference</h2>
+
+            <p>The system can infer some dependent types automatically:</p>
+
+            <pre><code>;; Length-preserving operations inferred
+(define reverse-list
+  (lambda (lst)
+    (define helper
+      (lambda (remaining acc)
+        (if (null? remaining) acc
+            (helper (cdr remaining) 
+                    (cons (car remaining) acc)))))
+    (helper lst '())))
+;; Inferred: ∀ α. List α → List α
+;; (Length preservation inferred from structure)
+
+;; Vector operations with dimension inference
+(define vector-map
+  (lambda (f vec)
+    (build-vector (vector-length vec)
+                  (lambda (i) (f (vector-ref vec i))))))
+;; Inferred: ∀ α β (n : Nat). (α → β) → Vector n α → Vector n β</code></pre>
+
+            <h2>Effect Inference</h2>
+
+            <p>Side effects are automatically inferred and tracked:</p>
+
+            <div class="example-box">
+                <h4>Effect Inference</h4>
+                <pre><code>;; Pure function (no effects inferred)
+(define pure-computation
+  (lambda (x y) (+ (* x x) (* y y))))
+;; Inferred: Number → Number → Number
+
+;; I/O effects inferred
+(define interactive-function
+  (lambda (prompt)
+    (display prompt)
+    (read-line)))
+;; Inferred: String → IO String
+
+;; State effects inferred
+(define counter
+  (let ([count 0])
+    (lambda ()
+      (set! count (+ count 1))
+      count)))
+;; Inferred: Unit → State Integer Integer</code></pre>
+            </div>
+
+            <h2>Polymorphic Inference</h2>
+
+            <h3>Let-polymorphism</h3>
+            <p>Local bindings can be polymorphic:</p>
+
+            <pre><code>;; Polymorphic let binding
+(define example
+  (lambda (x y)
+    (let ([id (lambda (z) z)])  ; id is polymorphic here
+      (cons (id x) (id y)))))   ; Used at different types
+;; Inferred: ∀ α β. α → β → Pair α β
+
+;; Rank-1 restriction prevents issues
+(define invalid-example
+  (lambda (f)
+    (cons (f 42) (f "hello"))))  ; Error: f cannot be polymorphic
+;; f would need type: ∀ α. α → α (rank-2)</code></pre>
+
+            <h3>Type Class Inference</h3>
+            <p>Constraints are inferred from usage:</p>
+
+            <pre><code>;; Equality constraint inferred
+(define member?
+  (lambda (x lst)
+    (cond
+      [(null? lst) #f]
+      [(equal? x (car lst)) #t]  ; Requires Eq constraint
+      [else (member? x (cdr lst))])))
+;; Inferred: ∀ (α : Eq). α → List α → Boolean
+
+;; Numeric constraints inferred
+(define average
+  (lambda (numbers)
+    (/ (fold-left + 0 numbers)    ; Requires Numeric
+       (length numbers))))
+;; Inferred: ∀ (α : Numeric). List α → α</code></pre>
+
+            <h2>Inference Error Messages</h2>
+
+            <p>Lambdust provides detailed error messages when inference fails:</p>
+
+            <div class="example-box">
+                <h4>Helpful Error Messages</h4>
+                <pre><code>;; Type mismatch
+(define bad-example
+  (lambda (x) (+ x "hello")))
+
+;; Error message:
+;; Type error in function application
+;; Expected: Number
+;; Actual: String  
+;; In expression: (+ x "hello")
+;; Note: + requires numeric arguments
+;; Suggestion: Use string-append for string concatenation
+
+;; Occurs check failure
+(define recursive-type
+  (lambda (x) (x x)))
+
+;; Error message:
+;; Cannot construct infinite type
+;; Type variable α occurs in α → β
+;; In expression: (x x)
+;; Note: This would require α = α → β
+;; Suggestion: Consider using explicit recursion</code></pre>
+            </div>
+
+            <h2>Inference Annotations</h2>
+
+            <p>Strategic type annotations can guide inference:</p>
+
+            <pre><code>;; Minimal annotations for disambiguation
+(define complex-function
+  (lambda (data)
+    (let ([processed : (List Integer) (parse-data data)])
+      (map square processed))))
+;; Only parse-data result needs annotation
+
+;; Principal type annotations
+(define generic-sort : (∀ (α : Ord). List α → List α)
+  (lambda (lst) (sort-by compare lst)))
+;; Annotation provides principal type
+
+;; Effect annotations
+(define file-processor : (String → IO (List String))
+  (lambda (filename)
+    (map string-trim (read-lines filename))))
+;; Effect annotation clarifies intent</code></pre>
+
+            <h2>Advanced Features</h2>
+
+            <h3>Local Type Inference</h3>
+            <p>Types are inferred locally and propagated:</p>
+
+            <pre><code>;; Local inference with propagation
+(define process-data
+  (lambda (input)
+    (let ([numbers (filter number? input)])  ; numbers : List Number
+      (let ([doubled (map (lambda (x) (* x 2)) numbers)])  ; x : Number
+        (fold-left + 0 doubled)))))  ; Result: Number
+;; Full type: List Dynamic → Number</code></pre>
+
+            <h3>Pattern Match Inference</h3>
+            <p>Pattern matching refines types:</p>
+
+            <pre><code>;; Type refinement through patterns
+(define process-value
+  (lambda (value)
+    (match value
+      [(Some x) => (lambda () (string-length x))]  ; x : String
+      [None => (lambda () 0)])))
+;; Inferred: Maybe String → Unit → Integer</code></pre>
+
+            <h2>Performance Implications</h2>
+
+            <ul>
+                <li><strong>Compile-time inference</strong>: All type checking happens at compile time</li>
+                <li><strong>Specialization</strong>: Polymorphic functions are specialized for performance</li>
+                <li><strong>Elimination</strong>: Type information is erased after checking</li>
+                <li><strong>Optimization</strong>: Inferred types enable aggressive optimization</li>
+            </ul>
+
+            <h2>Debugging Inference</h2>
+
+            <p>Tools for understanding and debugging type inference:</p>
+
+            <pre><code>;; REPL commands for type inspection
+λ> :type (lambda (x) (+ x 1))
+Number → Number
+
+λ> :infer map
+∀ α β. (α → β) → List α → List β
+
+λ> :explain (lambda (f x) (f (f x)))
+Type inference steps:
+1. f : α₁, x : α₂  
+2. (f x) : α₁ → α₂ → β₁
+3. f : β₁ → β₂
+4. Unify: α₁ = β₁ → β₂, α₁ = α₂ → β₁
+5. Result: (α₂ → β₁) → α₂ → β₂</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ol>
+                <li><strong>Start without annotations</strong>: Let inference work first</li>
+                <li><strong>Add strategic annotations</strong>: Guide inference at key points</li>
+                <li><strong>Use principal types</strong>: Annotate functions with their most general type</li>
+                <li><strong>Handle Dynamic carefully</strong>: Be explicit about Dynamic type boundaries</li>
+                <li><strong>Understand error messages</strong>: Read inference error messages carefully</li>
+            </ol>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="gradual-typing.html">Gradual Typing</a> - Inference with Dynamic types</li>
+                <li><a href="dependent-types.html">Dependent Types</a> - Advanced type inference</li>
+                <li><a href="../language-guide/monadic-purity.html">Monadic Purity</a> - Effect inference</li>
+                <li><a href="../examples/type-system.html">Type System Examples</a> - Practical inference patterns</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="dependent-types.html">← Dependent Types</a>
+                <a href="blame-tracking.html">Blame Tracking →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

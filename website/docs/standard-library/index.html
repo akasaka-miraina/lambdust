@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Standard Library - Lambdust Documentation</title>
+    <meta name="description" content="Comprehensive reference for Lambdust's standard library including lists, strings, I/O, and mathematical functions.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                Standard Library
+            </div>
+
+            <h1>Standard Library</h1>
+            
+            <p>Lambdust's standard library provides a comprehensive set of functions and data structures for functional programming, following R7RS Scheme standards while adding modern type-safe extensions.</p>
+
+            <h2>Library Organization</h2>
+
+            <p>The standard library is organized into logical modules, each focusing on specific functionality:</p>
+
+            <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 2rem 0;">
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="lists.html">Lists</a></h3>
+                    <p>Comprehensive list operations including map, filter, fold, and SRFI-1 extensions.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(map square '(1 2 3 4))
+(filter even? numbers)
+(fold-left + 0 values)</code></pre>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="strings.html">Strings</a></h3>
+                    <p>Unicode-aware string processing with efficient manipulation functions.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(string-upcase "hello")
+(string-split "a,b,c" ",")
+(string-contains? str pattern)</code></pre>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="math.html">Mathematics</a></h3>
+                    <p>Complete numeric tower with arbitrary precision and mathematical functions.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(sin (/ pi 2))
+(gcd 24 36)
+(exact->inexact 22/7)</code></pre>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="io.html">Input/Output</a></h3>
+                    <p>Safe I/O operations with proper effect tracking and error handling.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(read-file "data.txt")
+(write-file "output.txt" content)
+(with-input-file "input.txt" ...)</code></pre>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="system.html">System</a></h3>
+                    <p>System interaction, process management, and environment access.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(getenv "PATH")
+(current-directory)
+(system "ls -la")</code></pre>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3>Vectors & Arrays</h3>
+                    <p>Efficient array operations with bounds checking and SIMD support.</p>
+                    <pre style="margin-top: 1rem; font-size: 0.75rem;"><code>(make-vector 10 0)
+(vector-ref vec index)
+(vector-map f vector)</code></pre>
+                </div>
+            </div>
+
+            <h2>Core Principles</h2>
+
+            <h3>Type Safety</h3>
+            <p>All standard library functions are fully typed with precise type signatures:</p>
+
+            <pre><code>;; Typed list operations
+(map : (∀ α β. (α → β) → List α → List β))
+(filter : (∀ α. (α → Boolean) → List α → List α))
+(fold-left : (∀ α β. (β → α → β) → β → List α → β))
+
+;; Safe array access
+(vector-ref : (∀ α (n : Nat) (i : Nat). 
+               Vector n α → (i < n) → α))</code></pre>
+
+            <h3>Effect Tracking</h3>
+            <p>Functions with side effects are clearly marked in their types:</p>
+
+            <pre><code>;; Pure functions (no effects)
+(+ : (Number → Number → Number))
+(string-length : (String → Nat))
+
+;; I/O functions (explicit effects)
+(println : (String → IO Unit))
+(read-file : (String → IO String))
+
+;; State functions (state effects)
+(get-random : (Random Integer))
+(current-time : (Time Timestamp))</code></pre>
+
+            <h3>R7RS Compliance</h3>
+            <p>Full compatibility with Scheme R7RS standard while adding type safety:</p>
+
+            <pre><code>;; R7RS-compliant list operations
+(car '(1 2 3))           ; Result: 1
+(cdr '(1 2 3))           ; Result: (2 3)
+(cons 1 '(2 3))          ; Result: (1 2 3)
+
+;; Enhanced with type safety
+(car : (∀ α. Pair α β → α))
+(cdr : (∀ α β. Pair α β → β))
+(cons : (∀ α β. α → β → Pair α β))</code></pre>
+
+            <h2>Common Usage Patterns</h2>
+
+            <h3>List Processing</h3>
+
+            <pre><code>;; Transform data
+(define numbers '(1 2 3 4 5))
+(define squares (map (lambda (x) (* x x)) numbers))
+(define evens (filter even? numbers))
+(define sum (fold-left + 0 numbers))
+
+;; List comprehension style
+(define even-squares 
+  (map square (filter even? numbers)))
+
+;; Pipeline style with threading
+(-> numbers
+    (filter even?)
+    (map square)
+    (fold-left + 0))</code></pre>
+
+            <h3>String Operations</h3>
+
+            <pre><code>;; String manipulation
+(define text "Hello, Lambdust World!")
+(define words (string-split text " "))
+(define upper (string-upcase text))
+(define length (string-length text))
+
+;; String formatting
+(define greeting 
+  (string-append "Hello, " name "!"))
+
+;; Pattern matching
+(define email-valid?
+  (string-match? email "^[^@]+@[^@]+\\.[^@]+$"))</code></pre>
+
+            <h3>I/O Operations</h3>
+
+            <pre><code>;; File operations with error handling
+(define read-config : (String → IO (Either Error Config))
+  (lambda (filename)
+    (with-handler
+      [(IOError e) → (return (Left e))]
+      (do-io
+        [content ← (read-file filename)]
+        [config ← (parse-config content)]
+        (return (Right config))))))
+
+;; Safe resource management
+(define process-file : (String → String → IO Unit)
+  (lambda (input-file output-file)
+    (with-input-file input-file
+      (lambda (in-port)
+        (with-output-file output-file
+          (lambda (out-port)
+            (copy-port in-port out-port)))))))</code></pre>
+
+            <h2>Performance Characteristics</h2>
+
+            <h3>Algorithmic Complexity</h3>
+
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th>Operation</th>
+                        <th>Data Structure</th>
+                        <th>Time Complexity</th>
+                        <th>Space Complexity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>cons</code></td>
+                        <td>List</td>
+                        <td>O(1)</td>
+                        <td>O(1)</td>
+                    </tr>
+                    <tr>
+                        <td><code>car, cdr</code></td>
+                        <td>List</td>
+                        <td>O(1)</td>
+                        <td>O(1)</td>
+                    </tr>
+                    <tr>
+                        <td><code>length</code></td>
+                        <td>List</td>
+                        <td>O(n)</td>
+                        <td>O(1)</td>
+                    </tr>
+                    <tr>
+                        <td><code>vector-ref</code></td>
+                        <td>Vector</td>
+                        <td>O(1)</td>
+                        <td>O(1)</td>
+                    </tr>
+                    <tr>
+                        <td><code>string-ref</code></td>
+                        <td>String</td>
+                        <td>O(1)</td>
+                        <td>O(1)</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Memory Management</h3>
+
+            <ul>
+                <li><strong>Garbage Collection</strong>: Automatic memory management with generational GC</li>
+                <li><strong>Immutable Data</strong>: Structural sharing for efficient immutable operations</li>
+                <li><strong>Lazy Evaluation</strong>: Memory-efficient processing of large data structures</li>
+                <li><strong>SIMD Optimization</strong>: Vectorized operations for numeric computations</li>
+            </ul>
+
+            <h2>SRFI Support</h2>
+
+            <p>Lambdust includes implementations of many Scheme Request for Implementation (SRFI) standards:</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin: 2rem 0;">
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4>SRFI-1</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">List Library</p>
+                </div>
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4>SRFI-13</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">String Library</p>
+                </div>
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4>SRFI-43</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">Vector Library</p>
+                </div>
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4>SRFI-69</h4>
+                    <p style="font-size: 0.875rem; color: #64748b;">Hash Tables</p>
+                </div>
+            </div>
+
+            <h2>Integration with Type System</h2>
+
+            <h3>Gradual Typing Support</h3>
+
+            <pre><code>;; Dynamic usage (no type annotations)
+(map square numbers)
+
+;; Gradually typed
+(map : (Number → Number) square : (List Number) numbers)
+
+;; Fully typed
+(map : (Number → Number) 
+     : (lambda ((x : Number)) : Number (* x x))
+     : (List Number) numbers)</code></pre>
+
+            <h3>Dependent Type Integration</h3>
+
+            <pre><code>;; Length-indexed operations
+(define safe-head : (∀ α (n : Nat). Vector (+ n 1) α → α)
+  (lambda (vec) (vector-ref vec 0)))
+
+;; Matrix operations with dimension checking
+(define matrix-multiply : (∀ (a b c : Nat) (T : Type).
+                           Matrix a b T → Matrix b c T → Matrix a c T)
+  (lambda (m1 m2) ...))</code></pre>
+
+            <h2>Extension Points</h2>
+
+            <p>The standard library is designed to be extensible:</p>
+
+            <ul>
+                <li><strong>Generic Functions</strong>: Define operations that work across multiple types</li>
+                <li><strong>Custom Data Types</strong>: Integrate user-defined types with standard operations</li>
+                <li><strong>Effect Handlers</strong>: Custom effect implementations</li>
+                <li><strong>Foreign Interface</strong>: Integrate external libraries safely</li>
+            </ul>
+
+            <h2>Getting Help</h2>
+
+            <div class="example-box">
+                <h4>Documentation and Examples</h4>
+                <ul>
+                    <li><strong>Function Reference</strong>: <a href="../api/index.html">Complete API documentation</a></li>
+                    <li><strong>Code Examples</strong>: <a href="../examples/index.html">Real-world usage patterns</a></li>
+                    <li><strong>Type Signatures</strong>: Every function includes precise type information</li>
+                    <li><strong>REPL Help</strong>: Use <code>:doc function-name</code> in the REPL</li>
+                </ul>
+            </div>
+
+            <div class="page-nav">
+                <a href="../index.html">← Documentation Home</a>
+                <a href="lists.html">Lists →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

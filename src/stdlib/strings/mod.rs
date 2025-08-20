@@ -131,7 +131,7 @@ fn bind_remaining_string_operations(env: &Arc<ThreadSafeEnvironment>) {
                 Ok(Value::Literal(crate::ast::Literal::Character(ch)))
             } else {
                 Err(Box::new(crate::diagnostics::Error::runtime_error(
-                    format!("string-ref index {} out of bounds", index),
+                    format!("string-ref index {index} out of bounds"),
                     None,
                 )))
             }

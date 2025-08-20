@@ -223,7 +223,7 @@ impl TypeRepr for MonadAwareType {
         HMUniverse(0) // For now, keep at universe 0
     }
     
-    fn is_well_formed(&self, context: &dyn TypeContext<Type = Self>) -> bool {
+    fn is_well_formed(&self, context: &impl TypeContext<Self>) -> bool {
         match self {
             MonadAwareType::HM(hm_type) => {
                 // Convert context - this is a simplification
@@ -244,7 +244,7 @@ impl TypeRepr for MonadAwareType {
         }
     }
     
-    fn apply_substitution(&self, subst: &dyn Substitution<Type = Self>) -> Self {
+    fn apply_substitution(&self, subst: &impl Substitution<Self>) -> Self {
         subst.apply(self)
     }
     
@@ -435,6 +435,71 @@ impl MonadConstructor {
             MonadConstructor::Custom { name, .. } => name.clone(),
         }
     }
+}
+
+/// Implementation of TypeConstructor for MonadConstructor
+impl crate::types::generic_type_system::TypeConstructor<MonadAwareType> for MonadConstructor {
+    fn arity(&self) -> usize {
+        match self {
+            MonadConstructor::Identity | MonadConstructor::Maybe | MonadConstructor::List | MonadConstructor::IO => 1,
+            MonadConstructor::State(_) | MonadConstructor::Reader(_) | MonadConstructor::Writer(_) | MonadConstructor::Error(_) => 1,
+            MonadConstructor::Custom { parameter_count, .. } => *parameter_count,
+        }
+    }
+    
+    fn apply(&self, args: &[MonadAwareType]) -> crate::diagnostics::UnifiedResult<MonadAwareType> {
+        if args.len() != self.arity() {
+            return Err(crate::diagnostics::UnifiedError::new(
+                crate::diagnostics::TypeError,
+                format!("Wrong number of arguments for constructor: expected {}, got {}", self.arity(), args.len())
+            ));
+        }
+        
+        match self {
+            MonadConstructor::Identity => Ok(args[0].clone()),
+            MonadConstructor::Maybe | MonadConstructor::List | MonadConstructor::IO => {
+                Ok(MonadAwareType::Monadic {
+                    monad: self.clone(),
+                    inner_type: Box::new(args[0].clone()),
+                })
+            }
+            _ => Ok(MonadAwareType::Monadic {
+                monad: self.clone(),
+                inner_type: Box::new(args[0].clone()),
+            })
+        }
+    }
+
+    fn kind(&self) -> crate::types::generic_type_system::TypeKind {
+        use crate::types::generic_type_system::TypeKind;
+        match self {
+            MonadConstructor::Identity | MonadConstructor::Maybe | MonadConstructor::List | MonadConstructor::IO => {
+                TypeKind::Arrow(Box::new(TypeKind::Type), Box::new(TypeKind::Type))
+            }
+            MonadConstructor::State(_) | MonadConstructor::Reader(_) | MonadConstructor::Writer(_) | MonadConstructor::Error(_) => {
+                TypeKind::Arrow(Box::new(TypeKind::Type), Box::new(TypeKind::Type))
+            }
+            MonadConstructor::Custom { parameter_count, .. } => {
+                let mut kinds = vec![TypeKind::Type; *parameter_count];
+                kinds.push(TypeKind::Type);
+                if kinds.len() == 2 {
+                    TypeKind::Arrow(Box::new(kinds[0].clone()), Box::new(kinds[1].clone()))
+                } else {
+                    TypeKind::Higher(kinds)
+                }
+            }
+        }
+    }
+
+    fn compose(&self, other: &Self) -> crate::diagnostics::UnifiedResult<Self> {
+        // For monad composition, we could implement monad transformers
+        // For now, return an error for unsupported compositions
+        Err(crate::diagnostics::UnifiedError::new(
+            crate::diagnostics::TypeError,
+            format!("Monad composition not yet implemented for {:?} and {:?}", self, other)
+        ))
+    }
+    
 }
 
 impl MonadTransformer {
@@ -653,6 +718,114 @@ impl MonadRegistry {
         candidates.sort();
         candidates.dedup();
         candidates
+    }
+}
+
+/// Implementation of TypeContext for MonadAwareContext
+impl crate::types::generic_type_system::TypeContext<MonadAwareType> for MonadAwareContext {
+    fn lookup(&self, var: &str) -> Option<MonadAwareType> {
+        // Look up in base context and convert
+        self.base_context.lookup(var).map(|hm_type| MonadAwareType::HM(hm_type))
+    }
+    
+    fn extend(&self, var: String, ty: MonadAwareType) -> Self {
+        // Convert type back to HM type for base context
+        match ty {
+            MonadAwareType::HM(hm_type) => {
+                MonadAwareContext {
+                    base_context: self.base_context.extend(var, hm_type),
+                    monad_stack: self.monad_stack.clone(),
+                    effect_context: self.effect_context.clone(),
+                    monad_constraints: self.monad_constraints.clone(),
+                }
+            }
+            _ => {
+                // For complex types, use a placeholder for now
+                MonadAwareContext {
+                    base_context: self.base_context.clone(),
+                    monad_stack: self.monad_stack.clone(),
+                    effect_context: self.effect_context.clone(),
+                    monad_constraints: self.monad_constraints.clone(),
+                }
+            }
+        }
+    }
+    
+    fn extend_many(&self, bindings: Vec<(String, MonadAwareType)>) -> Self {
+        bindings.into_iter().fold(self.clone(), |ctx, (var, ty)| ctx.extend(var, ty))
+    }
+    
+    fn bindings(&self) -> Vec<(String, MonadAwareType)> {
+        self.base_context.bindings()
+            .into_iter()
+            .map(|(var, hm_type)| (var, MonadAwareType::HM(hm_type)))
+            .collect()
+    }
+    
+    fn extend_term(&self, var: String, _term: impl crate::types::generic_type_system::TermRepr, ty: MonadAwareType) -> Self {
+        self.extend(var, ty)
+    }
+    
+    fn is_well_formed(&self) -> bool {
+        self.base_context.is_well_formed()
+    }
+}
+
+/// MonadAwareSubstitution for type variable substitutions in monadic context
+#[derive(Clone, Debug)]
+pub struct MonadAwareSubstitution {
+    substitutions: HashMap<crate::types::generic_type_system::TypeVariable, MonadAwareType>,
+}
+
+impl MonadAwareSubstitution {
+    pub fn empty() -> Self {
+        MonadAwareSubstitution {
+            substitutions: HashMap::new(),
+        }
+    }
+}
+
+/// Implementation of Substitution for MonadAwareSubstitution
+impl crate::types::generic_type_system::Substitution<MonadAwareType> for MonadAwareSubstitution {
+    fn apply(&self, ty: &MonadAwareType) -> MonadAwareType {
+        // Apply substitution recursively
+        match ty {
+            MonadAwareType::HM(hm_type) => {
+                // Apply HM substitution logic - for now, just return the type
+                MonadAwareType::HM(hm_type.clone())
+            }
+            MonadAwareType::Monadic { monad, inner_type } => {
+                MonadAwareType::Monadic {
+                    monad: monad.clone(),
+                    inner_type: Box::new(self.apply(inner_type)),
+                }
+            }
+            MonadAwareType::Kleisli { input, monad, output } => {
+                MonadAwareType::Kleisli {
+                    input: Box::new(self.apply(input)),
+                    monad: monad.clone(),
+                    output: Box::new(self.apply(output)),
+                }
+            }
+            MonadAwareType::EffectAnnotated { base_type, effects } => {
+                MonadAwareType::EffectAnnotated {
+                    base_type: Box::new(self.apply(base_type)),
+                    effects: effects.clone(),
+                }
+            }
+        }
+    }
+    
+    fn compose(&self, _other: &Self) -> crate::diagnostics::UnifiedResult<Self> {
+        Ok(self.clone()) // Simplified for now
+    }
+    
+    fn domain(&self) -> HashSet<crate::types::generic_type_system::TypeVariable> {
+        self.substitutions.keys().cloned().collect()
+    }
+    
+    fn identity() -> Self {
+        Self::empty()
     }
 }
 

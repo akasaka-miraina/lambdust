@@ -1,0 +1,403 @@
+%% LaTeX Commands and Macros for Lambdust Language Specification
+%% This file defines specialized typography and formatting for the specification
+%% Includes R7RS-style commands for compatibility
+
+\makeatletter
+
+% R7RS chapter/section commands
+\newcommand{\topnewpage}{\@topnewpage}
+
+\newcommand{\clearchapterstar}[1]{
+  \clearpage
+  \topnewpage[
+    \centerline{\large\bf\uppercase{#1}}
+    \bigskip]}
+
+% R7RS formal semantics notation
+\def\elem{\hbox{\raise.13ex\hbox{$\scriptstyle\in$}}}
+
+\makeatother
+
+% Font setup for Unicode code support
+% Try to use JuliaMono if available, fallback to system monospace
+\IfFontExistsTF{JuliaMono-Regular.ttf}{
+    \setmonofont{JuliaMono-Regular.ttf}[Scale=0.9]
+}{
+    \IfFontExistsTF{JuliaMono}{
+        \setmonofont{JuliaMono}[Scale=0.9]
+    }{
+        \setmonofont{Menlo}[Scale=0.9]  % macOS fallback
+    }
+}
+
+% Unicode character definitions for common symbols in Lambdust code
+\newunicodechar{λ}{\ensuremath{\lambda}}
+\newunicodechar{π}{\ensuremath{\pi}}
+\newunicodechar{Π}{\ensuremath{\Pi}}
+\newunicodechar{Σ}{\ensuremath{\Sigma}}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{⊢}{\ensuremath{\vdash}}
+\newunicodechar{∀}{\ensuremath{\forall}}
+\newunicodechar{∃}{\ensuremath{\exists}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{≠}{\ensuremath{\neq}}
+\newunicodechar{∈}{\ensuremath{\in}}
+\newunicodechar{∉}{\ensuremath{\notin}}
+\newunicodechar{∅}{\ensuremath{\emptyset}}
+\newunicodechar{∪}{\ensuremath{\cup}}
+\newunicodechar{∩}{\ensuremath{\cap}}
+\newunicodechar{⊆}{\ensuremath{\subseteq}}
+\newunicodechar{⊇}{\ensuremath{\supseteq}}
+\newunicodechar{⟨}{\ensuremath{\langle}}
+\newunicodechar{⟩}{\ensuremath{\rangle}}
+
+% Code listing style
+\definecolor{lambdust-comment}{rgb}{0.5,0.5,0.5}
+\definecolor{lambdust-keyword}{rgb}{0.0,0.0,1.0}
+\definecolor{lambdust-string}{rgb}{0.0,0.6,0.0}
+\definecolor{lambdust-number}{rgb}{0.8,0.0,0.8}
+\definecolor{lambdust-type}{rgb}{0.6,0.0,0.6}
+
+\lstdefinestyle{lambdust}{
+    language=Lisp,
+    basicstyle=\ttfamily\footnotesize,
+    commentstyle=\color{lambdust-comment}\itshape,
+    keywordstyle=\color{lambdust-keyword}\bfseries,
+    stringstyle=\color{lambdust-string},
+    numberstyle=\color{lambdust-number},
+    showstringspaces=false,
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=2,
+    frame=single,
+    rulecolor=\color{gray!30},
+    backgroundcolor=\color{gray!5},
+    captionpos=b,
+    % Lambdust-specific keywords
+    morekeywords={define,lambda,let,let*,letrec,if,cond,case,and,or,not,
+                  begin,do,when,unless,quote,quasiquote,unquote,syntax,
+                  syntax-case,syntax-rules,with-syntax,datum,
+                  Pi,Sigma,Refinement,the,perform,handle,lift,
+                  spawn,send,receive,future,await,
+                  foreign-call,foreign-data,capability,
+                  prove,extract,qed,
+                  Dynamic,Number,String,Boolean,Symbol,List,Vector,
+                  Effect,Actor,Future,Capability},
+    % Type annotations
+    moredelim=[s][\color{lambdust-type}]{\#:}{ },
+    moredelim=[s][\color{lambdust-type}]{::}{ },
+    moredelim=[s][\color{lambdust-type}]{->}{ },
+    moredelim=[s][\color{lambdust-type}]{=>}{ },
+    moredelim=[s][\color{lambdust-type}]{\~>}{ },
+}
+
+% Inline code style
+\newcommand{\code}[1]{\texttt{\small #1}}
+\newcommand{\scheme}[1]{\lstinline[style=lambdust]!#1!}
+
+% Semantic notation (from formal semantics)
+\newcommand{\sembrack}[1]{[\![#1]\!]}
+\newcommand{\fun}[1]{\hbox{\it #1}}
+\newenvironment{semfun}{\begin{tabbing}$}{$\end{tabbing}}
+
+% Domain notation
+\newcommand\LOC{{\tt{}L}}
+\newcommand\NAT{{\tt{}N}}
+\newcommand\TRU{{\tt{}T}}
+\newcommand\SYM{{\tt{}Q}}
+\newcommand\CHR{{\tt{}H}}
+\newcommand\NUM{{\tt{}R}}
+\newcommand\FUN{{\tt{}F}}
+\newcommand\EXP{{\tt{}E}}
+\newcommand\STV{{\tt{}E}}
+\newcommand\STO{{\tt{}S}}
+\newcommand\ENV{{\tt{}U}}
+\newcommand\ANS{{\tt{}A}}
+\newcommand\ERR{{\tt{}X}}
+\newcommand\DP{\tt{P}}
+\newcommand\EC{{\tt{}K}}
+\newcommand\CC{{\tt{}C}}
+\newcommand\MSC{{\tt{}M}}
+\newcommand\PAI{\hbox{\EXP$_{\rm p}$}}
+\newcommand\VEC{\hbox{\EXP$_{\rm v}$}}
+\newcommand\STR{\hbox{\EXP$_{\rm s}$}}
+
+% Lambdust extension domains
+\newcommand\TYP{{\tt{}T}}     % Types
+\newcommand\EFF{{\tt{}F}}     % Effects  
+\newcommand\MON{{\tt{}M}}     % Monads
+\newcommand\ACT{{\tt{}A}}     % Actors
+\newcommand\CON{{\tt{}C}}     % Concurrency primitives
+\newcommand\FFI{{\tt{}I}}     % FFI bindings
+\newcommand\DEP{{\tt{}D}}     % Dependent types
+\newcommand\PRF{{\tt{}P}}     % Proof terms
+
+% Grammar notation
+\newcommand{\goesto}{$\longrightarrow$}
+\newcommand{\produces}{\ensuremath{\to}}
+\newcommand{\arbno}[1]{{#1}$^*$}
+\newcommand{\atleastone}[1]{{#1}$^+$}
+\newcommand{\opt}[1]{{#1}$^?$}
+\newcommand{\alternative}{\ensuremath{\ |\ }}
+
+% Grammar environment
+\newenvironment{grammar}{
+    \begin{center}
+    \begin{tabular}{r@{\quad}c@{\quad}l@{\qquad}l}
+}{
+    \end{tabular}
+    \end{center}
+}
+
+% BNF production rules
+\newcommand{\production}[4]{
+    #1 & #2 & #3 & #4 \\
+}
+
+% Auxiliary notation
+\newcommand\elt{\downarrow}
+\newcommand\drop{\dagger}
+\newcommand{\wrong}[1]{\fun{wrong }\hbox{\rm``#1''}}
+\newcommand{\go}[1]{\hbox{\hspace*{#1em}}}
+
+% Type system notation
+\newcommand{\typeof}[1]{\ensuremath{\tau(#1)}}
+\newcommand{\hastype}[2]{\ensuremath{#1 : #2}}
+\newcommand{\typecheck}[3]{\ensuremath{#1 \vdash #2 : #3}}
+\newcommand{\subtype}[2]{\ensuremath{#1 \leq #2}}
+\newcommand{\consistent}[2]{\ensuremath{#1 \sim #2}}
+\newcommand{\gradual}[1]{\ensuremath{\mathcal{G}(#1)}}
+
+% Effect notation
+\newcommand{\lambdusteffects}[1]{\ensuremath{\varepsilon(#1)}}
+\newcommand{\lambdustpure}{\ensuremath{\emptyset}}
+\newcommand{\lambdusteffectful}[1]{\ensuremath{\{#1\}}}
+\newcommand{\lambdustunion}{\cup}
+\newcommand{\effectarrow}[2]{\ensuremath{#1 \rightsquigarrow #2}}
+
+% Concurrency notation
+\newcommand{\lambdustspawn}[1]{\ensuremath{\text{spawn}(#1)}}
+\newcommand{\lambdustsend}[2]{\ensuremath{#1 ! #2}}
+\newcommand{\receive}{\ensuremath{?}}
+\newcommand{\lambdustparallel}[2]{\ensuremath{#1 \parallel #2}}
+
+% Proof notation
+\newcommand{\proves}[2]{\ensuremath{#1 \vdash #2}}
+\newcommand{\lambdustextract}[1]{\ensuremath{\text{extract}(#1)}}
+\newcommand{\lambdustqed}{\ensuremath{\square}}
+
+% Special forms
+\newcommand{\lambdaform}[2]{\ensuremath{(\lambda\,#1\,.\,#2)}}
+\newcommand{\letform}[3]{\ensuremath{(\text{let}\,([#1\,#2])\,#3)}}
+\newcommand{\ifform}[3]{\ensuremath{(\text{if}\,#1\,#2\,#3)}}
+
+% Syntax highlighting for special symbols
+\newcommand{\lambdustkeyword}[1]{\textcolor{lambdust-keyword}{\textbf{#1}}}
+\newcommand{\lambdusttype}[1]{\textcolor{lambdust-type}{\textsf{#1}}}
+\newcommand{\lambdusteffect}[1]{\textcolor{red}{\textit{#1}}}
+
+% Box environments
+\newenvironment{syntaxbox}{
+    \begin{center}
+    \fbox{\begin{minipage}{0.9\textwidth}
+    \vspace{0.5em}
+}{
+    \vspace{0.5em}
+    \end{minipage}}
+    \end{center}
+}
+
+\newenvironment{examplebox}{
+    \begin{center}
+    \colorbox{gray!10}{\begin{minipage}{0.9\textwidth}
+    \vspace{0.5em}
+}{
+    \vspace{0.5em}
+    \end{minipage}}
+    \end{center}
+}
+
+% Custom theorem style for examples with line breaks
+\newtheoremstyle{examplestyle}%  name
+  {\topsep}%                     space above
+  {\topsep}%                     space below  
+  {}%                            body font
+  {}%                            indent amount
+  {\bfseries}%                   theorem head font
+  {.}%                           punctuation after theorem head
+  {\newline}%                    space after theorem head (\newline forces line break)
+  {}%                            theorem head spec
+
+% Theorem-like environments
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{syntax}[definition]{Syntax}
+
+% Use custom style for examples
+\theoremstyle{examplestyle}
+\newtheorem{example}[definition]{Example}
+
+% Add extra space around examples
+\BeforeBeginEnvironment{example}{\vspace{\baselineskip}}
+\AfterEndEnvironment{example}{\vspace{0.5\baselineskip}}
+
+% Fix verbatim indentation in examples
+\BeforeBeginEnvironment{verbatim}{\par\vspace{0.5em}}
+\AfterEndEnvironment{verbatim}{\vspace{0.5em}}
+
+\theoremstyle{plain}
+\newtheorem{theorem}[definition]{Theorem}
+\newtheorem{proposition}[definition]{Proposition}
+\newtheorem{lemma}[definition]{Lemma}
+\newtheorem{corollary}[definition]{Corollary}
+
+\theoremstyle{remark}
+\newtheorem{remark}[definition]{Remark}
+\newtheorem{note}[definition]{Note}
+\newtheorem{compatibility}[definition]{R7RS Compatibility}
+
+% Index entries
+\newcommand{\indexentry}[1]{#1\index{#1}}
+\newcommand{\indexmain}[1]{#1\index{#1|textbf}}
+
+% Cross-references
+\newcommand{\secref}[1]{Section~\ref{#1}}
+\newcommand{\chapref}[1]{Chapter~\ref{#1}}
+\newcommand{\figref}[1]{Figure~\ref{#1}}
+\newcommand{\tabref}[1]{Table~\ref{#1}}
+\newcommand{\appref}[1]{Appendix~\ref{#1}}
+
+% Library references
+\newcommand{\library}[1]{\texttt{(#1)}}
+\newcommand{\proc}[1]{\texttt{#1}}
+\newcommand{\var}[1]{\textit{#1}}
+
+% Version information
+\newcommand{\version}{0.2.0}
+\newcommand{\baseversion}{R7RS-small}
+
+% Title formatting - handled by algol60.cls
+
+% Page layout adjustments
+\setlength{\parskip}{0.5em}
+\setlength{\parindent}{0pt}
+
+% Table formatting
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{R}[1]{>{\raggedleft\arraybackslash}p{#1}}
+
+% Float placement
+\floatplacement{figure}{H}
+\floatplacement{table}{H}
+
+% Custom list environments
+\newenvironment{grammarlist}{
+    \begin{itemize}
+    \setlength{\itemsep}{0pt}
+    \setlength{\parskip}{0pt}
+}{
+    \end{itemize}
+}
+
+% Procedure specifications
+\newenvironment{procspec}[1]{
+    \vspace{1em}
+    \noindent\textbf{Procedure:} \texttt{#1}
+    \vspace{0.5em}
+    \begin{quote}
+}{
+    \end{quote}
+    \vspace{1em}
+}
+
+% Type specifications
+\newenvironment{typespec}[1]{
+    \vspace{1em}
+    \noindent\textbf{Type:} \textsf{#1}
+    \vspace{0.5em}
+    \begin{quote}
+}{
+    \end{quote}
+    \vspace{1em}
+}
+
+% Syntax specifications  
+\newenvironment{syntaxspec}[1]{
+    \vspace{1em}
+    \noindent\textbf{Syntax:} \texttt{#1}
+    \vspace{0.5em}
+    \begin{quote}
+}{
+    \end{quote}
+    \vspace{1em}
+}
+
+% Unicode-compatible code environment using listings package
+% This supports Unicode characters and monospace fonts
+\lstdefinestyle{lambdust-code-style}{
+    language=Lisp,
+    basicstyle=\ttfamily\footnotesize,
+    commentstyle=\color{lambdust-comment}\itshape,
+    keywordstyle=\color{lambdust-keyword}\bfseries,
+    stringstyle=\color{lambdust-string},
+    numberstyle=\color{lambdust-number},
+    showstringspaces=false,
+    breaklines=true,
+    breakatwhitespace=true,
+    tabsize=2,
+    xleftmargin=0pt,
+    xrightmargin=0pt,
+    resetmargins=false,
+    aboveskip=0.5em,
+    belowskip=0.5em,
+    captionpos=b,
+    % Lambdust-specific keywords (same as before)
+    morekeywords={define,lambda,let,let*,letrec,if,cond,case,and,or,not,
+                  begin,do,when,unless,quote,quasiquote,unquote,syntax,
+                  syntax-case,syntax-rules,with-syntax,datum,
+                  Pi,Sigma,Refinement,the,perform,handle,lift,
+                  spawn,send,receive,future,await,
+                  foreign-call,foreign-data,capability,
+                  prove,extract,qed,
+                  Dynamic,Number,String,Boolean,Symbol,List,Vector,
+                  Effect,Actor,Future,Capability},
+    % Extended Unicode support
+    extendedchars=true,
+    inputencoding=utf8,
+    literate={λ}{{\ensuremath{\lambda}}}1
+             {→}{{\ensuremath{\rightarrow}}}1
+             {∀}{{\ensuremath{\forall}}}1
+             {∃}{{\ensuremath{\exists}}}1
+             {Π}{{\ensuremath{\Pi}}}1
+             {Σ}{{\ensuremath{\Sigma}}}1
+             {⊢}{{\ensuremath{\vdash}}}1
+             {≤}{{\ensuremath{\leq}}}1
+             {≥}{{\ensuremath{\geq}}}1
+             {≠}{{\ensuremath{\neq}}}1
+             {∈}{{\ensuremath{\in}}}1
+             {∉}{{\ensuremath{\notin}}}1
+             {∅}{{\ensuremath{\emptyset}}}1
+             {∪}{{\ensuremath{\cup}}}1
+             {∩}{{\ensuremath{\cap}}}1
+             {⊆}{{\ensuremath{\subseteq}}}1
+             {⊇}{{\ensuremath{\supseteq}}}1
+             {⟨}{{\ensuremath{\langle}}}1
+             {⟩}{{\ensuremath{\rangle}}}1
+}
+
+% Define the lambdustcode environment
+\lstnewenvironment{lambdustcode}{%
+    \lstset{style=lambdust-code-style}%
+}{}
+
+% Add proper spacing hooks for lambdustcode environment
+\BeforeBeginEnvironment{lambdustcode}{\par\vspace{0.5em}}
+\AfterEndEnvironment{lambdustcode}{\vspace{0.5em}}
+
+% Alternative inline code command 
+\newcommand{\lambdustinline}[1]{\lstinline[style=lambdust-code-style]!#1!}
+
+% Enhanced code command that supports Unicode
+\renewcommand{\code}[1]{{\ttfamily\footnotesize #1}}

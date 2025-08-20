@@ -290,7 +290,7 @@ impl RpcClient {
         
         match response.result {
             Ok(value) => value.to_value(),
-            Err(error) => Err(Box::new(Error::runtime_error(error, None).boxed())),
+            Err(error) => Err(Box::new(Error::runtime_error(error, None))),
         }
     }
 }

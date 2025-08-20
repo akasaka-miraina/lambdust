@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blame Tracking - Lambdust Documentation</title>
+    <meta name="description" content="Guide to Lambdust's blame tracking system for precise error attribution in gradual typing.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Type System</a> → 
+                Blame Tracking
+            </div>
+
+            <h1>Blame Tracking</h1>
+            
+            <p>Lambdust's blame tracking system provides precise error attribution when runtime type errors occur at the boundary between typed and untyped code, making it easier to identify and fix type-related bugs in gradually typed programs.</p>
+
+            <div class="type-signature">
+                blame(l, τ, v) — Blame label l for value v not matching type τ
+            </div>
+
+            <h2>The Blame Problem</h2>
+
+            <p>In gradually typed languages, runtime type errors can occur when Dynamic and static types interact. The challenge is determining who is responsible for the error:</p>
+
+            <div class="example-box">
+                <h4>Ambiguous Error</h4>
+                <pre><code>;; Typed function
+(define double : (Number → Number)
+  (lambda ((x : Number)) (* x 2)))
+
+;; Dynamic caller  
+(define caller
+  (lambda (f value)
+    (f value)))
+
+;; Error occurs here - but who's at fault?
+(caller double "not-a-number")
+;; Runtime error: Expected Number, got String
+;; But which code is responsible?</code></pre>
+            </div>
+
+            <h2>Blame Labels</h2>
+
+            <p>Lambdust assigns blame labels to track responsibility for type errors:</p>
+
+            <pre><code>;; Blame labels track boundaries
+(define safe-double : (Number → Number)
+  (lambda ((x : Number)) (* x 2)))
+;; Label: safe-double-expects-number
+
+(define dynamic-caller
+  (lambda (f value)
+    (f value)))  
+;; Label: dynamic-caller-provides-argument
+
+;; Error with blame attribution
+(dynamic-caller safe-double "hello")
+;; Error: Contract violation
+;; Expected: Number
+;; Received: String
+;; Blame: dynamic-caller (failed to provide Number argument)
+;; Location: caller line 3, safe-double expects Number argument</code></pre>
+
+            <h3>Positive and Negative Blame</h3>
+
+            <p>Blame can be assigned to either the caller or callee depending on the direction of the contract violation:</p>
+
+            <pre><code>;; Function contract: (Number → String)
+(define number-to-string : (Number → String)
+  (lambda ((n : Number))
+    (format "Number: ~a" n)))
+
+;; Positive blame: caller fails to provide correct argument
+(number-to-string "not-a-number")
+;; Blame: caller (positive) - failed to provide Number
+
+;; Negative blame: function fails to return correct type  
+(define bad-function : (Number → String)
+  (lambda ((n : Number))
+    42))  ; Returns Number instead of String
+;; Blame: bad-function (negative) - failed to return String</code></pre>
+
+            <h2>Contract Wrapping</h2>
+
+            <p>Lambdust inserts contract wrappers at type boundaries to enable blame tracking:</p>
+
+            <div class="example-box">
+                <h4>Contract Insertion</h4>
+                <pre><code>;; Original typed function
+(define process-data : (List Integer → Integer)
+  (lambda ((data : List Integer))
+    (fold-left + 0 data)))
+
+;; When called from dynamic code, wrapper is inserted:
+(define wrapped-process-data
+  (contract (List Integer → Integer)
+            process-data
+            #:blame-positive caller-label
+            #:blame-negative process-data-label))
+
+;; Dynamic call
+(define dynamic-code
+  (lambda (data)
+    (wrapped-process-data data)))  ; Contract check happens here
+
+;; Error with precise blame
+(dynamic-code "not-a-list")
+;; Contract violation: Expected List Integer, got String
+;; Blame: dynamic-code (positive) at line 2
+;; Contract: List Integer → Integer
+;; Function: process-data</code></pre>
+            </div>
+
+            <h2>Higher-Order Function Blame</h2>
+
+            <p>Blame tracking becomes complex with higher-order functions:</p>
+
+            <pre><code>;; Higher-order function
+(define apply-twice : (∀ α. (α → α) → α → α)
+  (lambda (f x) (f (f x))))
+
+;; Problematic function passed as argument
+(define bad-increment
+  (lambda (x)
+    (if (number? x) (+ x 1) "error")))  ; Sometimes returns String
+
+;; Dynamic usage
+(define caller
+  (lambda ()
+    (apply-twice bad-increment 5)))
+
+;; Complex blame scenario
+(caller)
+;; First call: bad-increment(5) → 6 ✓
+;; Second call: bad-increment(6) → 7 ✓  
+;; No error in this case, but if:
+
+(apply-twice bad-increment "hello")
+;; First call: bad-increment("hello") → "error" 
+;; Second call: bad-increment("error") → "error"
+;; Blame: bad-increment for returning wrong type
+;; Context: Called by apply-twice, invoked by caller</code></pre>
+
+            <h3>Blame Trees</h3>
+
+            <p>Complex call chains require blame trees to track responsibility:</p>
+
+            <pre><code>;; Blame tree for nested function calls
+(define typed-processor : ((Integer → Integer) → List Integer → List Integer)
+  (lambda (transformer data)
+    (map transformer data)))
+
+(define dynamic-transformer
+  (lambda (x) (string-append "num:" (number->string x))))
+
+(define caller
+  (lambda ()
+    (typed-processor dynamic-transformer '(1 2 3))))
+
+;; Error with blame tree:
+;; Contract violation in map application
+;; Expected: Integer → Integer  
+;; Received: function returning String
+;; Blame chain:
+;;   1. caller (line 2) - provided bad transformer
+;;   2. dynamic-transformer - violated contract
+;;   3. typed-processor - attempted to use bad function
+;; Root cause: dynamic-transformer returns String, not Integer</code></pre>
+
+            <h2>Gradual Type Boundaries</h2>
+
+            <p>Blame tracking is especially important at gradual type boundaries:</p>
+
+            <div class="example-box">
+                <h4>Mixed Type Interaction</h4>
+                <pre><code>;; Gradually typed module
+(module data-processor
+  ;; Typed functions
+  (define validate-data : (Dynamic → Either Error (List Integer))
+    (lambda (data)
+      (if (and (list? data) (every integer? data))
+          (Right data)
+          (Left (ValidationError "Expected list of integers")))))
+
+  ;; Dynamic function  
+  (define process-file
+    (lambda (filename)
+      (let ([raw-data (read-json-file filename)])
+        (match (validate-data raw-data)
+          [(Right validated) → (compute-statistics validated)]
+          [(Left error) → (handle-error error)]))))
+
+  ;; Typed function
+  (define compute-statistics : (List Integer → Statistics)
+    (lambda ((numbers : List Integer))
+      (Statistics (length numbers)
+                  (/ (fold-left + 0 numbers) (length numbers))))))
+
+;; Error scenarios with blame attribution:
+
+;; Case 1: Bad file data
+(process-file "bad-data.json")  ; Contains ["a", "b", "c"]
+;; Blame: process-file - validate-data correctly rejects bad data
+;; No contract violation, proper error handling
+
+;; Case 2: validate-data bug  
+(define buggy-validate-data : (Dynamic → Either Error (List Integer))
+  (lambda (data) (Right data)))  ; Doesn't actually validate!
+
+(process-file "bad-data.json")
+;; Contract violation: Expected List Integer, got List String
+;; Blame: buggy-validate-data (negative) - promised List Integer but provided List String
+;; Location: compute-statistics expects List Integer</code></pre>
+            </div>
+
+            <h2>Debugging with Blame</h2>
+
+            <p>Blame information provides actionable debugging guidance:</p>
+
+            <pre><code>;; Detailed blame reporting
+(define-config blame-reporting
+  #:level verbose
+  #:show-stack-trace #t
+  #:suggest-fixes #t)
+
+;; Example error with full blame information:
+;; 
+;; Contract Violation Error
+;; ========================
+;; Contract: Number → Number
+;; Expected: Number
+;; Received: String "42"
+;; Blame: parse-input (positive blame)
+;; 
+;; Stack Trace:
+;;   1. main-function (main.ldust:15)
+;;   2. process-user-input (input.ldust:8)  
+;;   3. parse-input (parser.ldust:23) ← BLAMED FUNCTION
+;;   4. typed-calculator (calc.ldust:12)
+;;
+;; Blame Analysis:
+;;   - parse-input was expected to return Number
+;;   - parse-input actually returned String "42"
+;;   - typed-calculator correctly expected Number
+;;
+;; Suggested Fixes:
+;;   1. Fix parse-input to return (string->number "42")
+;;   2. Change typed-calculator to accept String → Number → Number
+;;   3. Add conversion at call site: (string->number (parse-input ...))</code></pre>
+
+            <h2>Blame Optimization</h2>
+
+            <p>Lambdust optimizes blame tracking to minimize runtime overhead:</p>
+
+            <h3>Contract Elimination</h3>
+            <pre><code>;; Contracts can be eliminated when types align
+(define fully-typed-pipeline
+  (lambda ((data : List Integer))  
+    (let ([doubled : List Integer (map (lambda ((x : Integer)) (* x 2)) data)])
+      (fold-left + 0 doubled))))
+;; No contracts needed - all types statically verified
+
+;; vs. mixed pipeline requiring contracts
+(define mixed-pipeline
+  (lambda (data)  ; Dynamic input
+    (let ([validated (check-integer-list data)])  ; Contract boundary
+      (fold-left + 0 validated))))  ; Requires contract wrapper</code></pre>
+
+            <h3>Lazy Contract Checking</h3>
+            <pre><code>;; Contracts are checked only when values cross boundaries
+(define lazy-list-processor : (List Integer → List Integer)
+  (lambda ((lst : List Integer))
+    (map (lambda (x) (* x x)) lst)))
+
+;; Dynamic call with lazy checking
+(define process-dynamic-data
+  (lambda (data)
+    (if (valid-input? data)
+        (lazy-list-processor data)  ; Contract checked here
+        '())))
+
+;; Contract only fires if lazy-list-processor is actually called</code></pre>
+
+            <h2>Advanced Blame Features</h2>
+
+            <h3>Blame Polymorphism</h3>
+            <p>Polymorphic functions can have complex blame patterns:</p>
+
+            <pre><code>;; Polymorphic function with blame tracking
+(define generic-processor : (∀ α β. (α → β) → List α → List β)
+  (lambda (transform items)
+    (map transform items)))
+
+;; Instantiated with specific types
+(generic-processor (lambda ((x : Integer)) (* x 2)) : (List Integer → List Integer)
+                   '(1 2 3))
+
+;; Blame can be specific to instantiation
+(generic-processor bad-function : (Integer → String) 
+                   '(1 2 3))
+;; If bad-function violates Integer → String contract,
+;; blame is attributed to the specific instantiation</code></pre>
+
+            <h3>Effect Blame</h3>
+            <p>Blame tracking extends to effect violations:</p>
+
+            <pre><code>;; Pure function contract
+(define pure-computation : (Integer → Integer)
+  (lambda ((x : Integer)) (* x x)))
+
+;; Impure implementation
+(define impure-computation : (Integer → Integer)
+  (lambda ((x : Integer))
+    (println "Computing square")  ; Side effect!
+    (* x x)))
+
+;; Effect contract violation
+(pure-computation 5)  ; If bound to impure-computation
+;; Effect Contract Violation: Expected pure function, performed I/O
+;; Blame: impure-computation - violated purity contract</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ol>
+                <li><strong>Read blame messages carefully</strong>: They pinpoint the exact source of type errors</li>
+                <li><strong>Use typed interfaces</strong>: Define clear contracts at module boundaries</li>
+                <li><strong>Validate dynamic inputs</strong>: Check types when receiving dynamic data</li>
+                <li><strong>Test boundary conditions</strong>: Focus testing on typed/dynamic boundaries</li>
+                <li><strong>Gradual migration</strong>: Use blame information to guide type annotation</li>
+            </ol>
+
+            <div class="warning-box">
+                <h4>Blame Performance</h4>
+                <p>Blame tracking incurs runtime overhead for contract checking. Use static typing where possible for performance-critical code, and consider disabling detailed blame tracking in production builds.</p>
+            </div>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="gradual-typing.html">Gradual Typing</a> - The foundation for blame tracking</li>
+                <li><a href="type-inference.html">Type Inference</a> - Reducing the need for contracts</li>
+                <li><a href="../language-guide/monadic-purity.html">Monadic Purity</a> - Effect contract violations</li>
+                <li><a href="../examples/type-system.html">Type System Examples</a> - Practical blame scenarios</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="type-inference.html">← Type Inference</a>
+                <a href="../language-guide/index.html">Language Guide →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

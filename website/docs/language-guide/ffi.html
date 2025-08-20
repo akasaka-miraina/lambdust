@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Foreign Function Interface (FFI) - Lambdust Documentation</title>
+    <meta name="description" content="Comprehensive guide to Lambdust's FFI system for seamless integration with C/C++, Rust, and system libraries while maintaining type safety.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Language Guide</a> → 
+                Foreign Function Interface
+            </div>
+
+            <h1>Foreign Function Interface (FFI)</h1>
+            
+            <p>Lambdust's FFI system enables seamless integration with existing C/C++, Rust, and system libraries while maintaining the language's type safety and purity guarantees. The FFI is designed to be both safe and performant, with zero-cost abstractions for well-typed foreign calls.</p>
+
+            <div class="type-signature">
+                extern "C" : (CType → IO CType)  — Safe foreign function binding
+            </div>
+
+            <h2>Basic FFI Declarations</h2>
+
+            <p>Foreign functions are declared using the <code>extern</code> keyword with explicit type annotations:</p>
+
+            <div class="example-box">
+                <h4>C Library Integration</h4>
+                <pre><code>;; Basic C function binding
+(extern "C" strlen : (CString → CSize))
+(extern "C" malloc : (CSize → IO (Ptr Void)))
+(extern "C" free : (Ptr Void → IO Unit))
+
+;; Mathematical functions from libm
+(extern "C" sin : (CDouble → CDouble))
+(extern "C" cos : (CDouble → CDouble))
+(extern "C" sqrt : (CDouble → CDouble))</code></pre>
+            </div>
+
+            <h3>Type Safety in FFI</h3>
+
+            <p>Lambdust's type system ensures that foreign function calls are safe:</p>
+
+            <pre><code>;; Safe string operations
+(define safe-strlen : (String → IO Nat)
+  (lambda (str)
+    (do-io
+      [c-str ← (string→cstring str)]
+      [len ← (pure (strlen c-str))]
+      [_ ← (free-cstring c-str)]
+      (return (csize→nat len)))))
+
+;; Memory management with resource tracking
+(define with-malloc : (∀ (α : Type) → CSize → (Ptr Void → IO α) → IO α)
+  (lambda (size action)
+    (bracket
+      (malloc size)           ;; Acquire
+      (lambda (ptr) (free ptr))  ;; Release
+      action)))               ;; Use</code></pre>
+
+            <h2>Effect Tracking for Foreign Functions</h2>
+
+            <p>Foreign functions that perform side effects are properly tracked in the type system:</p>
+
+            <div class="example-box">
+                <h4>File I/O with Effect Tracking</h4>
+                <pre><code>;; POSIX file operations
+(extern "C" open : (CString → CInt → IO CInt))
+(extern "C" read : (CInt → Ptr Void → CSize → IO CSize))
+(extern "C" write : (CInt → Ptr Void → CSize → IO CSize))
+(extern "C" close : (CInt → IO CInt))
+
+;; High-level file reading with proper effects
+(define read-file : (String → IO (Either Error String))
+  (lambda (filename)
+    (with-handler
+      [(SystemError e) → (return (Left e))]
+      (do-io
+        [c-name ← (string→cstring filename)]
+        [fd ← (open c-name O_RDONLY)]
+        [content ← (read-all-bytes fd)]
+        [_ ← (close fd)]
+        [_ ← (free-cstring c-name)]
+        (return (Right (bytes→string content)))))))</code></pre>
+            </div>
+
+            <h2>Rust Interoperability</h2>
+
+            <p>Lambdust provides special support for Rust libraries through <code>extern "Rust"</code>:</p>
+
+            <pre><code>;; Rust function bindings with ownership semantics
+(extern "Rust" vec_new : (Unit → RustVec α))
+(extern "Rust" vec_push : (RustVec α → α → Unit))
+(extern "Rust" vec_len : (RustVec α → USize))
+
+;; Safe Rust vector operations
+(define rust-vector-demo : (IO Unit)
+  (lambda ()
+    (do-io
+      [vec ← (pure (vec_new))]
+      [_ ← (pure (vec_push vec 42))]
+      [_ ← (pure (vec_push vec 84))]
+      [len ← (pure (vec_len vec))]
+      (println (format "Vector length: ~a" len)))))</code></pre>
+
+            <h3>Zero-Copy String Interop</h3>
+
+            <p>Efficient string sharing between Lambdust and foreign code:</p>
+
+            <pre><code>;; Zero-copy string operations
+(extern "C" regex_match : (CString → CString → CBool))
+
+(define match-pattern : (String → String → Bool)
+  (lambda (pattern text)
+    (with-cstrings ([c-pattern pattern] [c-text text])
+      (cbool→bool (regex_match c-pattern c-text)))))</code></pre>
+
+            <h2>Advanced FFI Features</h2>
+
+            <h3>Callback Functions</h3>
+
+            <p>Lambdust functions can be passed as callbacks to foreign code:</p>
+
+            <div class="example-box">
+                <h4>Event Handling with Callbacks</h4>
+                <pre><code>;; Callback type definitions
+(define-foreign-type EventCallback (CInt → CString → IO Unit))
+
+;; Register callback with C library
+(extern "C" register_event_handler : (EventCallback → IO Unit))
+
+;; Lambdust callback implementation
+(define event-handler : EventCallback
+  (lambda (event-type message)
+    (do-io
+      [msg ← (cstring→string message)]
+      (println (format "Event ~a: ~a" event-type msg)))))
+
+;; Register the callback
+(register_event_handler event-handler)</code></pre>
+            </div>
+
+            <h3>Structure Marshaling</h3>
+
+            <p>Complex data structures can be marshaled between Lambdust and foreign code:</p>
+
+            <pre><code>;; C structure definition
+(define-foreign-struct Point
+  [(x : CDouble)
+   (y : CDouble)])
+
+(define-foreign-struct Rectangle  
+  [(top-left : Point)
+   (width : CDouble)
+   (height : CDouble)])
+
+;; Functions operating on foreign structures
+(extern "C" calculate_area : (Rectangle → CDouble))
+
+;; Safe structure creation and usage
+(define rect-area : (Real × Real × Real × Real → Real)
+  (lambda (x y w h)
+    (let ([rect (make-Rectangle 
+                  (make-Point (real→cdouble x) (real→cdouble y))
+                  (real→cdouble w)
+                  (real→cdouble h))])
+      (cdouble→real (calculate_area rect)))))</code></pre>
+
+            <h2>Memory Management</h2>
+
+            <p>Lambdust provides several strategies for safe memory management with foreign code:</p>
+
+            <h3>RAII-style Resource Management</h3>
+
+            <pre><code>;; Automatic resource management
+(define-resource-type FileHandle
+  [acquire: (lambda (filename) (open filename O_RDWR))]
+  [release: (lambda (handle) (close handle))])
+
+;; Safe file operations with guaranteed cleanup
+(define write-and-sync : (String → String → IO (Either Error Unit))
+  (lambda (filename content)
+    (with-resource (FileHandle filename) fd
+      (do-io
+        [bytes-written ← (write fd content)]
+        [_ ← (fsync fd)]
+        (return (Right unit))))))</code></pre>
+
+            <h3>Foreign Memory Pools</h3>
+
+            <pre><code>;; Memory pool for foreign allocations
+(define-foreign-pool native-pool
+  [allocator: malloc]
+  [deallocator: free]
+  [alignment: 8])
+
+;; Pool-managed allocations
+(define process-large-data : (List Real → IO Real)
+  (lambda (data)
+    (with-pool native-pool
+      (do-io
+        [c-array ← (list→carray data)]
+        [result ← (native-compute c-array (length data))]
+        (return (cdouble→real result))))))</code></pre>
+
+            <h2>Performance Optimizations</h2>
+
+            <ul>
+                <li><strong>Zero-cost foreign calls</strong>: Direct function calls with no boxing overhead</li>
+                <li><strong>Compile-time marshaling</strong>: Data conversion optimized at compile time</li>
+                <li><strong>Inline foreign code</strong>: Small foreign functions can be inlined</li>
+                <li><strong>SIMD integration</strong>: Vector operations through foreign SIMD libraries</li>
+            </ul>
+
+            <div class="example-box">
+                <h4>SIMD Vector Operations</h4>
+                <pre><code>;; AVX2 vector operations
+(extern "C" avx2_add_vectors : (Ptr CFloat → Ptr CFloat → Ptr CFloat → CInt → IO Unit))
+
+;; High-level vector addition with SIMD
+(define vector-add-simd : (Vector Real → Vector Real → Vector Real)
+  (lambda (v1 v2)
+    (assert (= (vector-length v1) (vector-length v2)))
+    (let ([len (vector-length v1)]
+          [result (make-vector len 0.0)])
+      (with-carray-views ([a1 v1] [a2 v2] [ar result])
+        (avx2_add_vectors a1 a2 ar len))
+      result)))</code></pre>
+            </div>
+
+            <h2>Error Handling</h2>
+
+            <p>Foreign function errors are integrated into Lambdust's effect system:</p>
+
+            <pre><code>;; Foreign error handling
+(define-foreign-error LibcError
+  [(errno : CInt)
+   (message : String)])
+
+;; Safe foreign call with error handling  
+(define safe-foreign-call : (String → IO (Either LibcError String))
+  (lambda (input)
+    (with-handler
+      [(ForeignError errno) → 
+       (return (Left (LibcError errno (strerror errno))))]
+      (do-io
+        [result ← (some-foreign-function input)]
+        (return (Right result))))))</code></pre>
+
+            <h2>Platform-Specific FFI</h2>
+
+            <p>Lambdust supports platform-specific foreign interfaces:</p>
+
+            <pre><code>;; Platform-conditional FFI
+(cond-expand
+  [windows
+   (extern "stdcall" GetSystemTime : (Ptr SystemTime → IO Unit))
+   (define get-current-time : (IO SystemTime)
+     (lambda ()
+       (do-io
+         [time-ptr ← (malloc (sizeof SystemTime))]
+         [_ ← (GetSystemTime time-ptr)]
+         [time ← (peek time-ptr)]
+         [_ ← (free time-ptr)]
+         (return time))))]
+  
+  [unix
+   (extern "C" gettimeofday : (Ptr TimeVal → Ptr Void → IO CInt))
+   (define get-current-time : (IO TimeVal)
+     (lambda ()
+       (with-malloc (sizeof TimeVal) ptr
+         (do-io
+           [_ ← (gettimeofday ptr null)]
+           (peek ptr)))))])</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ol>
+                <li><strong>Always specify effects</strong>: Mark foreign functions with appropriate effect annotations</li>
+                <li><strong>Use resource management</strong>: Employ RAII patterns for automatic cleanup</li>
+                <li><strong>Validate foreign data</strong>: Check foreign function return values and validate data</li>
+                <li><strong>Minimize marshaling</strong>: Use zero-copy operations when possible</li>
+                <li><strong>Handle errors properly</strong>: Integrate foreign errors into the effect system</li>
+                <li><strong>Document foreign interfaces</strong>: Clearly document foreign function behavior and safety requirements</li>
+            </ol>
+
+            <div class="warning-box">
+                <h4>Safety Considerations</h4>
+                <p>While Lambdust's FFI is designed to be safe, foreign functions can still violate memory safety. Always validate foreign function behavior and use appropriate resource management patterns.</p>
+            </div>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="monadic-purity.html">Monadic Purity</a> - Effect tracking for foreign functions</li>
+                <li><a href="performance.html">Performance</a> - Optimizing foreign function calls</li>
+                <li><a href="../type-system/gradual-typing.html">Gradual Typing</a> - Type safety with foreign code</li>
+                <li><a href="../standard-library/system.html">System Library</a> - Built-in system integrations</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="monadic-purity.html">← Monadic Purity</a>
+                <a href="performance.html">Performance →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

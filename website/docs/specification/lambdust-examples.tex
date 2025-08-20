@@ -1,0 +1,1064 @@
+%% Comprehensive Examples
+\chapter{Examples}
+\label{ch:examples}
+
+This section provides comprehensive examples demonstrating Lambdust's features in realistic programming scenarios, showing how the various language components work together.
+
+\section{Web Server with Effects}
+\label{sec:web-server}
+
+A complete web server implementation using effects for I/O, state management, and error handling:
+
+\begin{example}[Web Server Implementation]
+\begin{lambdustcode}
+(import (lambdust base)
+        (lambdust effects)
+        (lambdust concurrent)
+        (lambdust collections)
+        (lambdust text))
+
+;; Define HTTP-related effects
+(define-effect HTTP
+  (read-request :: (-> Unit (Map String String)))
+  (write-response :: (-> Natural String String Unit))
+  (log-access :: (-> String Unit)))
+
+;; Define application state effect
+(define-effect AppState
+  (get-counter :: (-> Unit Natural))
+  (increment-counter :: (-> Unit Unit))
+  (get-users :: (-> Unit (List String)))
+  (add-user :: (-> String Unit)))
+
+;; Route handler type
+(define RouteHandler :: (-> (Map String String) ~> {HTTP, AppState} Unit))
+
+;; Individual route handlers
+(define (handle-home :: RouteHandler)
+  (lambda (request)
+    (let ((count (perform AppState get-counter)))
+      (perform HTTP write-response 200 "text/html"
+        (format "<h1>Welcome!</h1><p>Visits: ~d</p>" count)))))
+
+(define (handle-api-counter :: RouteHandler)
+  (lambda (request)
+    (perform AppState increment-counter)
+    (let ((count (perform AppState get-counter)))
+      (perform HTTP write-response 200 "application/json"
+        (format "{\"count\": ~d}" count)))))
+
+(define (handle-api-users :: RouteHandler)
+  (lambda (request)
+    (let ((method (map-ref request "method")))
+      (cond
+        ((string=? method "GET")
+         (let ((users (perform AppState get-users)))
+           (perform HTTP write-response 200 "application/json"
+             (format "{\"users\": [~a]}" 
+                    (string-join (map (lambda (u) (format "\"~a\"" u)) users) ",")))))
+        ((string=? method "POST")
+         (let ((body (map-ref request "body")))
+           (let ((user-data (json-parse body)))
+             (let ((name (map-ref user-data "name")))
+               (if name
+                   (begin
+                     (perform AppState add-user name)
+                     (perform HTTP write-response 201 "application/json" 
+                       (format "{\"message\": \"User ~a created\"}" name)))
+                   (perform HTTP write-response 400 "application/json"
+                     "{\"error\": \"Name required\"}")))))))))
+
+;; Routing system
+(define (route-request :: (-> (Map String String) ~> {HTTP, AppState} Unit))
+  (lambda (request)
+    (let ((path (map-ref request "path"))
+          (method (map-ref request "method")))
+      (perform HTTP log-access (format "~a ~a" method path))
+      (cond
+        ((string=? path "/") (handle-home request))
+        ((string=? path "/api/counter") (handle-api-counter request))
+        ((string=? path "/api/users") (handle-api-users request))
+        (else 
+         (perform HTTP write-response 404 "text/plain" "Not Found"))))))
+
+;; Server state
+(define-struct server-state
+  (counter :: Natural)
+  (users :: (List String)))
+
+;; Effect handlers
+(define (http-handler :: (-> (Channel HTTPRequest) 
+                            (-> Unit ~> {HTTP} A) 
+                            (-> Unit ~> {} A)))
+  (lambda (request-channel computation)
+    (lambda ()
+      (handle (computation)
+        (HTTP
+          ((read-request k)
+           (let ((req (channel-get request-channel)))
+             (k (request->map req))))
+          ((write-response status content-type body k)
+           (let ((response (make-http-response status content-type body)))
+             (send-response response)
+             (k 'unit)))
+          ((log-access message k)
+           (begin
+             (display "[") (display (current-timestamp)) (display "] ")
+             (display message) (newline)
+             (k 'unit))))))))
+
+(define (app-state-handler :: (-> (TVar server-state)
+                                 (-> Unit ~> {AppState} A)
+                                 (-> Unit ~> {STM} A)))
+  (lambda (state-tvar computation)
+    (lambda ()
+      (handle (computation)
+        (AppState
+          ((get-counter k)
+           (let ((state (atomic (tvar-read state-tvar))))
+             (k (server-state-counter state))))
+          ((increment-counter k)
+           (atomic 
+             (let ((state (tvar-read state-tvar)))
+               (tvar-write! state-tvar 
+                 (make-server-state (+ (server-state-counter state) 1)
+                                   (server-state-users state)))))
+           (k 'unit))
+          ((get-users k)
+           (let ((state (atomic (tvar-read state-tvar))))
+             (k (server-state-users state))))
+          ((add-user name k)
+           (atomic
+             (let ((state (tvar-read state-tvar)))
+               (tvar-write! state-tvar
+                 (make-server-state (server-state-counter state)
+                                   (cons name (server-state-users state))))))
+           (k 'unit)))))))
+
+;; Main server
+(define (run-server :: (-> Natural Unit ~> {Actor, STM} Unit))
+  (lambda (port)
+    (let ((initial-state (make-server-state 0 '()))
+          (state-tvar (make-tvar initial-state))
+          (request-channel (make-channel)))
+      
+      ;; Spawn request handler  
+      (spawn
+        (lambda ()
+          (let loop ()
+            (let ((handled ((app-state-handler state-tvar
+                              (http-handler request-channel route-request)))))
+              (loop)))))
+      
+      ;; Start HTTP server (simplified)
+      (start-http-server port request-channel))))
+
+;; Usage
+(run-server 8080)
+\end{lambdustcode}
+\end{example}
+
+\section{Type-Safe Database Access}
+\label{sec:database-access}
+
+Database operations with dependent types ensuring query safety:
+
+\begin{example}[Type-Safe Database Access]
+\begin{lambdustcode}
+(import (lambdust base)
+        (lambdust types)
+        (lambdust dependent-types)
+        (lambdust effects)
+        (lambdust ffi))
+
+;; Database schema definition
+(define-schema UserSchema
+  (id :: (Primary Natural))
+  (name :: (NonEmpty String))
+  (email :: (Email String))
+  (age :: (Range 0 120))
+  (created_at :: Timestamp))
+
+(define-schema PostSchema  
+  (id :: (Primary Natural))
+  (user_id :: (Foreign UserSchema id))
+  (title :: (NonEmpty String))
+  (content :: String)
+  (published :: Boolean))
+
+;; Query types with schema validation
+(define SelectQuery :: (Pi (schema : Schema) (fields : (List (Field schema)))
+                          Type))
+
+(define (select :: (Pi (schema : Schema) 
+                      (-> (fields : (List (Field schema)))
+                          (SelectQuery schema fields))))
+  (lambda (schema fields)
+    (make-select-query schema fields)))
+
+;; Database connection with capability
+(define-capability database-access
+  (libraries "libpq.so")
+  (functions PQconnectdb PQexec PQfinish PQgetvalue PQntuples PQnfields)
+  (memory-limit 10485760))
+
+;; Type-safe query execution  
+(define (execute-query :: (Pi (schema : Schema) (fields : (List (Field schema)))
+                             (-> (SelectQuery schema fields) 
+                                 ~> {Database} 
+                                 (List (Record schema fields)))))
+  (lambda (schema fields query)
+    (with-capability 'database-access
+      (lambda ()
+        (let ((sql (compile-query query))
+              (connection (perform Database get-connection)))
+          (with-query-result (foreign-call PQexec connection sql)
+            (lambda (result)
+              (validate-result-schema result schema fields)
+              (parse-result result schema fields))))))))
+
+;; Compile-time SQL validation
+(define-syntax sql-query
+  (lambda (stx)
+    (syntax-case stx ()
+      ((sql-query schema query-string)
+       (validate-sql-syntax (syntax->datum #'query-string) 
+                           (syntax->datum #'schema))
+       #'(compile-validated-query schema query-string)))))
+
+;; Safe query building
+(define (find-user-by-email :: (-> (Email String) ~> {Database} (Maybe (Record UserSchema))))
+  (lambda (email)
+    (let ((query (select UserSchema '(id name email age created_at)
+                   (where (= email (param email))))))
+      (let ((results (execute-query UserSchema '(id name email age created_at) query)))
+        (if (null? results)
+            'Nothing
+            (list 'Just (car results)))))))
+
+(define (get-user-posts :: (-> Natural ~> {Database} (List (Record PostSchema))))
+  (lambda (user-id)
+    (let ((query (select PostSchema '(id title content published)
+                   (where (= user_id (param user-id))))))
+      (execute-query PostSchema '(id title content published) query))))
+
+;; Transaction safety
+(define (create-user-with-post :: (-> String (Email String) Natural String String
+                                     ~> {Database} (Either String Natural)))
+  (lambda (name email age post-title post-content)
+    (atomic-transaction
+      (lambda ()
+        ;; Validate inputs at type level
+        (assert-type name (NonEmpty String))
+        (assert-type email (Email String))  
+        (assert-type age (Range 0 120))
+        (assert-type post-title (NonEmpty String))
+        
+        ;; Insert user
+        (let ((user-id (perform Database insert UserSchema
+                         `((name . ,name)
+                           (email . ,email) 
+                           (age . ,age)
+                           (created_at . ,(current-timestamp))))))
+          
+          ;; Insert post
+          (let ((post-id (perform Database insert PostSchema
+                           `((user_id . ,user-id)
+                             (title . ,post-title)
+                             (content . ,post-content)
+                             (published . #f)))))
+            
+            (list 'Right user-id)))))))
+
+;; Migration with dependent types
+(define (migration-001-add-email-index :: (-> Unit ~> {Database} Unit))
+  (lambda ()
+    (let ((index-exists? (perform Database index-exists? 'users 'email)))
+      (unless index-exists?
+        (perform Database create-index 'users 'email 'unique)))))
+
+;; Database effect handler with connection pooling
+(define (database-handler :: (-> ConnectionPool
+                                (-> Unit ~> {Database} A)
+                                (-> Unit ~> {Actor} A)))
+  (lambda (pool computation)
+    (lambda ()
+      (handle (computation)
+        (Database
+          ((get-connection k)
+           (let ((conn (pool-acquire pool)))
+             (k conn)))
+          ((execute-sql sql k) 
+           (with-connection-from-pool pool
+             (lambda (conn)
+               (let ((result (foreign-call PQexec conn sql)))
+                 (k result)))))
+          ((insert schema values k)
+           (let ((sql (generate-insert-sql schema values)))
+             (with-connection-from-pool pool
+               (lambda (conn)
+                 (let ((result (foreign-call PQexec conn sql)))
+                   (k (extract-inserted-id result)))))))
+          ((begin-transaction k)
+           (perform Database execute-sql "BEGIN")
+           (k 'unit))
+          ((commit-transaction k)
+           (perform Database execute-sql "COMMIT") 
+           (k 'unit))
+          ((rollback-transaction k)
+           (perform Database execute-sql "ROLLBACK")
+           (k 'unit)))))))
+
+;; Usage example
+(define (user-management-example)
+  (let ((pool (create-connection-pool "postgresql://localhost/mydb" 10)))
+    ((database-handler pool
+       (lambda ()
+         ;; Create user
+         (let ((result (create-user-with-post "Alice Smith" 
+                                             "alice@example.com" 
+                                             28 
+                                             "My First Post"
+                                             "Hello, world!")))
+           (match result
+             (('Right user-id)
+              (display "Created user with ID: ") (display user-id) (newline)
+              ;; Find the user
+              (let ((user (find-user-by-email "alice@example.com")))
+                (match user
+                  (('Just user-record)
+                   (display "Found user: ") (display (record-ref user-record 'name)) (newline)
+                   ;; Get their posts
+                   (let ((posts (get-user-posts user-id)))
+                     (display "Posts: ") (display (length posts)) (newline)))
+                  ('Nothing
+                   (display "User not found") (newline)))))
+             (('Left error)
+              (display "Error creating user: ") (display error) (newline)))))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Distributed Actor System}
+\label{sec:distributed-actors}
+
+A fault-tolerant distributed computation system:
+
+\begin{example}[Distributed Actor System]
+\begin{lambdustcode}
+(import (lambdust base)
+        (lambdust concurrent)
+        (lambdust effects)
+        (lambdust collections)
+        (lambdust text))
+
+;; Message types for distributed system
+(define-union-type WorkerMessage
+  (ComputeTask Natural (Channel Any))
+  (HealthCheck (Channel Symbol))
+  (Shutdown))
+
+(define-union-type SupervisorMessage  
+  (RegisterWorker ActorId String)
+  (WorkerFailed ActorId String)
+  (DistributeWork Any (Channel Any))
+  (GetStats (Channel (Map String Natural))))
+
+;; Worker actor with failure simulation
+(define (worker-actor :: (-> String Natural (-> Unit ~> {Actor} Unit)))
+  (lambda (node-name failure-rate)
+    (lambda ()
+      (let ((processed-count 0))
+        (let loop ()
+          (receive
+            (('ComputeTask task reply-channel)
+             ;; Simulate potential failure
+             (if (< (random 100) failure-rate)
+                 (error "Worker failure during task processing")
+                 (begin
+                   (let ((result (expensive-computation task)))
+                     (send reply-channel result)
+                     (set! processed-count (+ processed-count 1))
+                     (loop)))))
+            
+            (('HealthCheck reply-channel)
+             (send reply-channel 'healthy)
+             (loop))
+            
+            (('Shutdown)
+             (display "Worker on ") (display node-name) (display " shutting down") (newline))))))))
+
+;; Supervisor actor with fault tolerance
+(define (supervisor-actor :: (-> (List String) (-> Unit ~> {Actor} Unit)))
+  (lambda (node-names)
+    (lambda ()
+      (let ((workers (map-from-alist '()))
+            (pending-work (make-queue))
+            (failed-workers (make-set)))
+        
+        ;; Spawn workers on different nodes
+        (for-each 
+          (lambda (node)
+            (let ((worker-pid (spawn-remote node (worker-actor node 5))))  ; 5% failure rate
+              (set! workers (map-set workers worker-pid node))))
+          node-names)
+        
+        (let loop ()
+          (receive
+            (('RegisterWorker pid node-name)
+             (set! workers (map-set workers pid node-name))
+             (display "Registered worker ") (display pid) 
+             (display " on node ") (display node-name) (newline)
+             (loop))
+            
+            (('WorkerFailed pid reason)
+             (display "Worker ") (display pid) (display " failed: ") (display reason) (newline)
+             (set! failed-workers (set-add failed-workers pid))
+             (set! workers (map-remove workers pid))
+             
+             ;; Respawn worker on same node
+             (let ((node-name (map-ref workers pid)))
+               (when node-name
+                 (let ((new-worker (spawn-remote node-name (worker-actor node-name 5))))
+                   (set! workers (map-set workers new-worker node-name))
+                   (display "Respawned worker ") (display new-worker) 
+                   (display " on node ") (display node-name) (newline))))
+             (loop))
+            
+            (('DistributeWork work reply-channel)
+             (if (map-empty? workers)
+                 (send reply-channel 'no-workers-available)
+                 (let ((worker-pid (least-loaded-worker workers)))
+                   (send worker-pid (list 'ComputeTask work reply-channel))))
+             (loop))
+            
+            (('GetStats reply-channel)
+             (let ((stats (map-from-alist
+                          `((active-workers . ,(map-size workers))
+                            (failed-workers . ,(set-size failed-workers))
+                            (pending-work . ,(queue-length pending-work))))))
+               (send reply-channel stats))
+             (loop))))))))
+
+;; Health monitoring actor
+(define (health-monitor :: (-> ActorId (-> Unit ~> {Actor} Unit)))
+  (lambda (supervisor-pid)
+    (lambda ()
+      (let loop ()
+        (sleep 5000)  ; Check every 5 seconds
+        
+        ;; Get supervisor stats
+        (send supervisor-pid (list 'GetStats self))
+        (receive
+          ((stats)
+           (display "System health - Active workers: ") 
+           (display (map-ref stats 'active-workers))
+           (display ", Failed workers: ")
+           (display (map-ref stats 'failed-workers)) (newline)
+           
+           ;; Alert if too many failures
+           (when (> (map-ref stats 'failed-workers) 3)
+             (display "WARNING: High failure rate detected!") (newline))))
+        
+        (loop)))))
+
+;; Load balancer for distributing work
+(define (load-balancer :: (-> ActorId (-> Unit ~> {Actor} Unit)))
+  (lambda (supervisor-pid)
+    (lambda ()
+      (let ((work-queue (make-channel))
+            (active-tasks (map-from-alist '())))
+        
+        ;; Spawn work generator
+        (spawn
+          (lambda ()
+            (do ((i 0 (+ i 1)))
+                ((>= i 100))
+              (channel-put! work-queue i)
+              (sleep 100))))  ; Generate work every 100ms
+        
+        (let loop ()
+          (select
+            ;; New work available
+            ((work-queue work)
+             (let ((result-channel (make-channel)))
+               (send supervisor-pid (list 'DistributeWork work result-channel))
+               (set! active-tasks (map-set active-tasks work result-channel))
+               (display "Distributed work: ") (display work) (newline)))
+            
+            ;; Check for completed work
+            (timeout 1000
+              (for-each
+                (lambda (work-result-pair)
+                  (let ((work (car work-result-pair))
+                        (result-channel (cdr work-result-pair)))
+                    (select
+                      ((result-channel result)
+                       (display "Work ") (display work) 
+                       (display " completed with result: ") (display result) (newline)
+                       (set! active-tasks (map-remove active-tasks work)))
+                      (timeout 0 'no-result))))
+                (map->alist active-tasks))))
+          
+          (loop))))))
+
+;; Network partition handler
+(define (partition-handler :: (-> (List ActorId) (-> Unit ~> {Actor} Unit)))
+  (lambda (critical-actors)
+    (lambda ()
+      (let loop ()
+        (sleep 10000)  ; Check every 10 seconds
+        
+        (for-each
+          (lambda (actor-pid)
+            (with-timeout 2000  ; 2 second timeout
+              (lambda ()
+                (send actor-pid (list 'HealthCheck self))
+                (receive 
+                  (('healthy) 'ok)))
+              (lambda ()  ; Timeout handler
+                (display "Actor ") (display actor-pid) 
+                (display " appears unreachable - possible network partition") (newline)
+                ;; Could implement partition tolerance logic here
+                )))
+          critical-actors)
+        
+        (loop)))))
+
+;; Main distributed system
+(define (run-distributed-system :: (-> (List String) Unit ~> {Actor} Unit))
+  (lambda (node-names)
+    (display "Starting distributed computation system...") (newline)
+    
+    ;; Start supervisor
+    (let ((supervisor (spawn (supervisor-actor node-names))))
+      (display "Supervisor started: ") (display supervisor) (newline)
+      
+      ;; Start health monitor
+      (let ((monitor (spawn (health-monitor supervisor))))
+        (display "Health monitor started: ") (display monitor) (newline))
+      
+      ;; Start load balancer  
+      (let ((balancer (spawn (load-balancer supervisor))))
+        (display "Load balancer started: ") (display balancer) (newline))
+      
+      ;; Start partition handler
+      (let ((partition-handler (spawn (partition-handler (list supervisor)))))
+        (display "Partition handler started: ") (display partition-handler) (newline))
+      
+      ;; Keep main thread alive
+      (let loop ()
+        (sleep 30000)  ; Status every 30 seconds
+        (display "System running...") (newline)
+        (loop)))))
+
+;; Helper functions
+(define (expensive-computation :: (-> Natural Natural))
+  (lambda (n)
+    ;; Simulate expensive computation
+    (let ((result 0))
+      (do ((i 0 (+ i 1)))
+          ((>= i (* n 1000)) result)
+        (set! result (+ result (modulo i 100)))))))
+
+(define (least-loaded-worker :: (-> (Map ActorId String) ActorId))
+  (lambda (workers)
+    ;; Simple round-robin for this example
+    (car (map-keys workers))))
+
+;; Usage
+(run-distributed-system '("node1.cluster.local" 
+                         "node2.cluster.local" 
+                         "node3.cluster.local"))
+\end{lambdustcode}
+\end{example}
+
+\section{Compiler with Dependent Types}
+\label{sec:compiler-example}
+
+A mini-compiler demonstrating dependent types for ensuring type safety:
+
+\begin{example}[Type-Safe Compiler]
+\begin{lambdustcode}
+(import (lambdust base)
+        (lambdust dependent-types)
+        (lambdust effects)
+        (lambdust collections))
+
+;; AST types with dependent typing
+(define-inductive-type (Expr ctx)
+  (Var :: (Pi (name : Symbol) (-> (name \in ctx) (Expr ctx))))
+  (Lit :: (-> Natural (Expr ctx)))
+  (Add :: (-> (Expr ctx) (Expr ctx) (Expr ctx)))
+  (Let :: (Pi (name : Symbol) (-> (Expr ctx) 
+                                  (Expr (extend-context ctx name Natural))
+                                  (Expr ctx))))
+  (App :: (Pi (A B : Type) (-> (Expr ctx)  ; Function
+                               (Expr ctx)  ; Argument  
+                               (constraint :: (typeof-expr func ctx) = (-> A B))
+                               (constraint :: (typeof-expr arg ctx) = A)
+                               (Expr ctx)))))
+
+;; Type context operations
+(define-type Context (List (Pair Symbol Type)))
+
+(define (empty-context :: Context) '())
+
+(define (extend-context :: (-> Context Symbol Type Context))
+  (lambda (ctx name type)
+    (cons (cons name type) ctx)))
+
+(define (lookup-context :: (-> Context Symbol (Maybe Type)))
+  (lambda (ctx name)
+    (let ((entry (assq name ctx)))
+      (if entry (list 'Just (cdr entry)) 'Nothing))))
+
+;; Dependent type checking
+(define (typeof-expr :: (Pi (ctx : Context) 
+                           (-> (Expr ctx) Type)))
+  (lambda (ctx expr)
+    (match expr
+      (('Var name proof-in-context)
+       (match (lookup-context ctx name)
+         (('Just type) type)
+         ('Nothing (error "Unbound variable" name))))
+      
+      (('Lit n)
+       'Natural)
+      
+      (('Add e1 e2)
+       (let ((t1 (typeof-expr ctx e1))
+             (t2 (typeof-expr ctx e2)))
+         (if (and (eq? t1 'Natural) (eq? t2 'Natural))
+             'Natural
+             (error "Type error in addition" t1 t2))))
+      
+      (('Let name binding body)
+       (let ((binding-type (typeof-expr ctx binding))
+             (extended-ctx (extend-context ctx name binding-type)))
+         (typeof-expr extended-ctx body)))
+      
+      (('App func arg)
+       (let ((func-type (typeof-expr ctx func))
+             (arg-type (typeof-expr ctx arg)))
+         (match func-type
+           (('-> from to)
+            (if (type-equal? arg-type from)
+                to
+                (error "Argument type mismatch" arg-type from)))
+           (other
+            (error "Not a function type" other))))))))
+
+;; Well-typed expression construction
+(define (make-var :: (Pi (ctx : Context) (name : Symbol)
+                         (-> (proof :: (name \in ctx))
+                             (Expr ctx))))
+  (lambda (ctx name proof)
+    (list 'Var name proof)))
+
+(define (make-lit :: (Pi (ctx : Context) (-> Natural (Expr ctx))))
+  (lambda (ctx n)
+    (list 'Lit n)))
+
+(define (make-add :: (Pi (ctx : Context) 
+                         (-> (e1 : (Expr ctx))
+                             (e2 : (Expr ctx))
+                             (constraint :: (typeof-expr ctx e1) = Natural)
+                             (constraint :: (typeof-expr ctx e2) = Natural)
+                             (Expr ctx))))
+  (lambda (ctx e1 e2 proof1 proof2)
+    (list 'Add e1 e2)))
+
+;; Compiler phases with proofs
+(define-effect Compiler
+  (fresh-var :: (-> Unit Symbol))
+  (emit-code :: (-> String Unit))
+  (get-env :: (-> Unit (Map Symbol Natural)))
+  (set-env :: (-> Symbol Natural Unit)))
+
+(define (compile-expr :: (Pi (ctx : Context)
+                            (-> (expr : (Expr ctx))
+                                (proof :: (well-typed? expr ctx))
+                                ~> {Compiler} Unit)))
+  (lambda (ctx expr proof)
+    (match expr
+      (('Var name _)
+       (perform Compiler emit-code (format "LOAD ~a" name)))
+      
+      (('Lit n)
+       (perform Compiler emit-code (format "CONST ~d" n)))
+      
+      (('Add e1 e2)
+       (compile-expr ctx e1 (extract-proof-1 proof))
+       (compile-expr ctx e2 (extract-proof-2 proof))
+       (perform Compiler emit-code "ADD"))
+      
+      (('Let name binding body)
+       (compile-expr ctx binding (extract-binding-proof proof))
+       (let ((var-slot (perform Compiler fresh-var)))
+         (perform Compiler emit-code (format "STORE ~a" var-slot))
+         (let ((extended-ctx (extend-context ctx name 'Natural)))
+           (compile-expr extended-ctx body (extract-body-proof proof)))))
+      
+      (('App func arg)
+       (compile-expr ctx arg (extract-arg-proof proof))
+       (compile-expr ctx func (extract-func-proof proof))
+       (perform Compiler emit-code "CALL")))))
+
+;; Code generation with optimization
+(define (optimize-code :: (-> (List String) ~> {Compiler} (List String)))
+  (lambda (instructions)
+    (let ((optimized '()))
+      (let loop ((instrs instructions))
+        (match instrs
+          (()
+           (reverse optimized))
+          
+          ;; Constant folding
+          (((CONST n1) (CONST n2) ADD . rest))
+           (loop (cons (format "CONST ~d" (+ n1 n2)) rest)))
+          
+          ;; Dead code elimination
+          ((STORE var LOAD var . rest))
+           (loop rest))  ; Store followed by load of same var
+          
+          ((instr . rest)
+           (set! optimized (cons instr optimized))
+           (loop rest)))))))
+
+;; Compiler with error handling
+(define (compile-program :: (-> (Expr empty-context) 
+                               (Either String (List String))))
+  (lambda (program)
+    (with-exception-handler
+      (lambda (e)
+        (list 'Left (format "Compilation error: ~a" e)))
+      (lambda ()
+        (let ((instructions '())
+              (var-counter 0)
+              (env (map-from-alist '())))
+          
+          ((handle 
+             (lambda () 
+               (compile-expr empty-context program 
+                           (derive-well-typed-proof program empty-context))
+               (list 'Right (reverse instructions)))
+             
+             (Compiler
+               ((fresh-var k)
+                (let ((var (format "tmp~d" var-counter)))
+                  (set! var-counter (+ var-counter 1))
+                  (k var)))
+               
+               ((emit-code code k)
+                (set! instructions (cons code instructions))
+                (k 'unit))
+               
+               ((get-env k)
+                (k env))
+               
+               ((set-env var val k)
+                (set! env (map-set env var val))
+                (k 'unit))))))))))
+
+;; Virtual machine with type safety
+(define (run-vm :: (-> (List String) (Map Symbol Natural) Natural))
+  (lambda (instructions env)
+    (let ((stack '())
+          (pc 0))
+      (let loop ()
+        (if (>= pc (length instructions))
+            (if (null? stack)
+                0
+                (car stack))
+            (let ((instr (list-ref instructions pc)))
+              (match (string-split instr " ")
+                (("CONST" n-str)
+                 (set! stack (cons (string->number n-str) stack))
+                 (set! pc (+ pc 1)))
+                
+                (("LOAD" var)
+                 (let ((val (map-ref env var)))
+                   (if val
+                       (begin
+                         (set! stack (cons val stack))
+                         (set! pc (+ pc 1)))
+                       (error "Undefined variable" var))))
+                
+                (("STORE" var)
+                 (if (null? stack)
+                     (error "Stack underflow")
+                     (begin
+                       (set! env (map-set env var (car stack)))
+                       (set! stack (cdr stack))
+                       (set! pc (+ pc 1)))))
+                
+                (("ADD")
+                 (if (< (length stack) 2)
+                     (error "Stack underflow")
+                     (let ((b (car stack))
+                           (a (cadr stack)))
+                       (set! stack (cons (+ a b) (cddr stack)))
+                       (set! pc (+ pc 1)))))
+                
+                (other
+                 (error "Unknown instruction" other)))
+              
+              (loop)))))))
+
+;; Example usage with proofs
+(define example-program
+  ;; let x = 5 in let y = 10 in x + y
+  (make-let empty-context 'x 
+    (make-lit empty-context 5)
+    (make-let (extend-context empty-context 'x 'Natural) 'y
+      (make-lit (extend-context empty-context 'x 'Natural) 10)
+      (make-add (extend-context 
+                  (extend-context empty-context 'x 'Natural) 'y 'Natural)
+                (make-var (extend-context 
+                           (extend-context empty-context 'x 'Natural) 'y 'Natural)
+                         'x (proof-x-in-extended-context))
+                (make-var (extend-context 
+                           (extend-context empty-context 'x 'Natural) 'y 'Natural)
+                         'y (proof-y-in-extended-context))
+                (proof-x-is-natural) (proof-y-is-natural)))))
+
+;; Compile and run
+(define (demo-compiler)
+  (match (compile-program example-program)
+    (('Right instructions)
+     (display "Compiled instructions:") (newline)
+     (for-each (lambda (instr) (display "  ") (display instr) (newline)) instructions)
+     (let ((result (run-vm instructions (map-from-alist '()))))
+       (display "Result: ") (display result) (newline)))
+    (('Left error)
+     (display "Compilation failed: ") (display error) (newline))))
+\end{lambdustcode}
+\end{example}
+
+\section{Proof-Carrying Code}
+\label{sec:proof-carrying-code}
+
+An example demonstrating program extraction from proofs:
+
+\begin{example}[Proof-Carrying Code]
+\begin{lambdustcode}
+(import (lambdust base)
+        (lambdust dependent-types)
+        (lambdust effects))
+
+;; Mathematical propositions as types
+(define-type (Even n) (Exists (k : Natural) (= n (* 2 k))))
+(define-type (Odd n) (Exists (k : Natural) (= n (+ (* 2 k) 1))))
+(define-type (Prime n) (And (> n 1) (Forall (k : Natural) 
+                                           (-> (Divides k n) 
+                                               (Or (= k 1) (= k n))))))
+
+;; Verified sorting algorithm
+(theorem insertion-sort-correct :: (Pi (A : Type) (ord : (TotalOrder A)) 
+                                      (xs : (List A))
+                                      (Exists (ys : (List A))
+                                        (And (Sorted ord ys)
+                                             (Permutation xs ys))))
+  (proof-by-induction xs
+    (base-case
+      ;; Empty list is sorted and permutation of itself
+      (witness '() (pair (sorted-nil ord) (permutation-nil))))
+    
+    (inductive-step x xs ih
+      ;; ih : Exists (ys : List A) (And (Sorted ord ys) (Permutation xs ys))
+      (match ih
+        ((witness sorted-xs (pair sorted-proof perm-proof))
+         ;; Insert x into sorted list
+         (let ((inserted-list (insert ord x sorted-xs)))
+           (witness inserted-list
+             (pair (insert-preserves-sorted ord x sorted-xs sorted-proof)
+                   (insert-preserves-permutation ord x xs sorted-xs perm-proof)))))))))
+
+;; Extract the sorting algorithm
+(define insertion-sort (extract insertion-sort-correct))
+;; insertion-sort :: (Pi (A : Type) (-> (TotalOrder A) (List A) (List A)))
+
+;; Binary search with proof of correctness
+(theorem binary-search-correct :: (Pi (A : Type) (ord : (TotalOrder A))
+                                     (xs : (SortedList ord A)) (x : A)
+                                     (Exists (result : (Maybe Natural))
+                                       (Match result
+                                         ('Nothing (Not (Member x xs)))
+                                         (('Just index) (And (< index (length xs))
+                                                           (= (list-ref xs index) x))))))
+  (proof
+    (let ((search-result (binary-search-impl ord xs x 0 (length xs))))
+      (witness search-result (binary-search-correctness-proof ord xs x 0 (length xs))))))
+
+;; The implementation with proof
+(define (binary-search-impl :: (Pi (A : Type) (ord : (TotalOrder A))
+                                  (-> (xs : (SortedList ord A)) (x : A)
+                                      (low high : Natural)
+                                      (constraint :: (<= low high))
+                                      (constraint :: (<= high (length xs)))
+                                      (Maybe Natural))))
+  (lambda (A ord xs x low high low-le-high high-le-length)
+    (if (= low high)
+        'Nothing
+        (let ((mid (quotient (+ low high) 2)))
+          (let ((mid-val (list-ref xs mid)))
+            (match (compare ord x mid-val)
+              ('equal (list 'Just mid))
+              ('less (binary-search-impl A ord xs x low mid 
+                       (quotient-preserves-order low high)
+                       (mid-le-high mid high)))
+              ('greater (binary-search-impl A ord xs x (+ mid 1) high
+                          (mid-plus-1-ge-low mid low)
+                          high-le-length))))))))
+
+;; Extract verified binary search
+(define binary-search (extract binary-search-correct))
+
+;; Verified quicksort with complexity proof  
+(theorem quicksort-correct-and-efficient :: 
+  (Pi (A : Type) (ord : (TotalOrder A)) (xs : (List A))
+      (Exists (ys : (List A))
+        (And (Sorted ord ys)
+             (Permutation xs ys)
+             (Complexity (quicksort-time-complexity (length xs))))))
+  (proof
+    ;; Proof by strong induction on list length
+    (strong-induction (length xs)
+      (base-case-empty
+        (witness '() (triple (sorted-nil ord) (permutation-nil) (O 1))))
+      
+      (base-case-singleton x
+        (witness (list x) (triple (sorted-singleton ord x) 
+                                 (permutation-singleton x)
+                                 (O 1))))
+      
+      (inductive-step xs ih
+        (let ((pivot (choose-pivot xs))
+              (partitioned (partition ord pivot xs)))
+          (match partitioned
+            ((partition-result smaller equal larger smaller-proof larger-proof))
+              ;; Apply induction hypothesis to smaller sublists
+              (let ((sorted-smaller (ih smaller (smaller-length-proof smaller xs)))
+                    (sorted-larger (ih larger (larger-length-proof larger xs))))
+                (let ((result (append sorted-smaller (cons pivot sorted-larger))))
+                  (witness result
+                    (triple (concatenation-sorted ord sorted-smaller pivot sorted-larger)
+                           (partition-permutation-proof smaller equal larger xs pivot)
+                           (partition-complexity-proof xs smaller larger)))))))))))
+
+;; Extract quicksort with guaranteed complexity
+(define quicksort (extract quicksort-correct-and-efficient))
+
+;; Verified matrix multiplication
+(theorem matrix-multiply-correct :: 
+  (Pi (m n p : Natural) (A : Type) (ring : (Ring A))
+      (-> (M1 : (Matrix m n A)) (M2 : (Matrix n p A))
+          (result : (Matrix m p A))
+          (= result (matrix-product ring M1 M2))))
+  (proof-by-triple-induction m n p
+    (lambda (i j k)
+      ;; result[i,j] = sum(M1[i,k] * M2[k,j] for k in 0..n-1)
+      (sum-correctness-proof ring M1 M2 i j))))
+
+;; Extract verified matrix multiplication
+(define matrix-multiply (extract matrix-multiply-correct))
+
+;; Crypto algorithm with security proof
+(theorem rsa-correctness :: 
+  (Pi (p q : Prime) (constraint :: (not (= p q)))
+      (Let ((n (* p q))
+            (phi (* (- p 1) (- q 1)))
+            (e (choose-public-exponent phi))
+            (d (modular-inverse e phi)))
+        (Forall (message : (Range 0 n))
+          (= message (mod (expt (mod (expt message e) n) d) n)))))
+  (proof
+    ;; Proof using Euler's theorem and properties of modular arithmetic
+    (euler-theorem-application p q phi e d)))
+
+;; Extract RSA implementation with correctness guarantee  
+(define rsa-encrypt-decrypt (extract rsa-correctness))
+
+;; Concurrent algorithm with safety proof
+(theorem concurrent-counter-safe ::
+  (Pi (initial : Natural) (threads : Natural)
+      (Exists (final : Natural)
+        (And (>= final initial)
+             (Forall (execution : (ConcurrentExecution threads))
+               (Data-Race-Free execution)))))
+  (proof
+    ;; Proof using STM properties and atomicity guarantees
+    (stm-atomicity-proof initial threads)))
+
+;; Extract safe concurrent counter
+(define concurrent-counter (extract concurrent-counter-safe))
+
+;; Usage example with proof checking
+(define (demo-proof-carrying-code)
+  ;; The extracted functions come with runtime proof checking
+  (let ((unsorted-list '(3 1 4 1 5 9 2 6)))
+    
+    ;; Sorting with proof
+    (let ((sorted-result (insertion-sort natural-order unsorted-list)))
+      (display "Sorted: ") (display sorted-result) (newline)
+      
+      ;; The runtime system can verify the postcondition
+      (assert-postcondition sorted-result
+        (and (sorted? natural-order sorted-result)
+             (permutation? unsorted-list sorted-result)))
+      
+      ;; Binary search with proof
+      (let ((search-result (binary-search natural-order sorted-result 4)))
+        (display "Search result: ") (display search-result) (newline)
+        
+        ;; Verify search postcondition
+        (match search-result
+          (('Just index)
+           (assert-postcondition index
+             (and (< index (length sorted-result))
+                  (= (list-ref sorted-result index) 4))))
+          ('Nothing
+           (assert-postcondition 'nothing
+             (not (member 4 sorted-result)))))))))
+
+;; Proof certificate generation
+(define (generate-proof-certificate program proof)
+  (let ((certificate 
+          (make-proof-certificate
+            (program-hash program)
+            (proof-hash proof)
+            (verification-timestamp)
+            (proof-checker-version))))
+    (sign-certificate certificate (get-private-key))
+    certificate))
+
+;; Proof certificate verification
+(define (verify-proof-certificate program certificate)
+  (and (verify-certificate-signature certificate (get-public-key))
+       (= (program-hash program) (certificate-program-hash certificate))
+       (valid-proof? (certificate-proof-hash certificate))
+       (trusted-checker? (certificate-checker-version certificate))))
+
+;; Runtime proof checking
+(define-syntax with-proof-checking
+  (syntax-rules ()
+    ((with-proof-checking computation)
+     (with-exception-handler
+       (lambda (e)
+         (if (proof-violation? e)
+             (begin
+               (display "PROOF VIOLATION: ") (display e) (newline)
+               (abort-execution))
+             (raise e)))
+       (lambda () computation)))))
+
+;; Example of proof-carrying code deployment
+(define (deploy-verified-program program proof certificate)
+  (when (verify-proof-certificate program certificate)
+    (display "Certificate verified - deploying program") (newline)
+    (with-proof-checking
+      (install-program program proof))))
+\end{lambdustcode}
+\end{example}
+
+These comprehensive examples demonstrate how Lambdust's advanced features work together in realistic programming scenarios, showing the practical benefits of gradual dependent typing, effect systems, concurrency, and proof-carrying code.

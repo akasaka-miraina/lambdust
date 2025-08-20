@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gradual Typing - Lambdust Documentation</title>
+    <meta name="description" content="Comprehensive guide to Lambdust's gradual typing system, enabling seamless transition from dynamic to static typing.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Type System</a> → 
+                Gradual Typing
+            </div>
+
+            <h1>Gradual Typing</h1>
+            
+            <p>Lambdust's gradual typing system allows developers to start with dynamic typing and incrementally add static type annotations. This provides the flexibility of dynamic languages during development while offering the safety guarantees of static typing for production code.</p>
+
+            <h2>Core Concepts</h2>
+
+            <h3>The Dynamic Type</h3>
+            <p>The <code>Dynamic</code> type serves as the bridge between typed and untyped code. Any value can be coerced to <code>Dynamic</code>, and <code>Dynamic</code> values can be used in any context with appropriate runtime checks.</p>
+
+            <div class="type-signature">
+                ⊢ e : τ ∨ Dynamic
+            </div>
+
+            <p>This type judgment means that any expression <code>e</code> has either a concrete type <code>τ</code> or the dynamic type.</p>
+
+            <h3>Type Evolution</h3>
+            <p>Functions can be gradually annotated, moving from completely dynamic to fully static:</p>
+
+            <div class="code-block-header">Stage 1: Fully Dynamic</div>
+            <pre><code>;; No type annotations - fully dynamic
+(define add
+  (lambda (x y)
+    (+ x y)))
+
+;; Type: Dynamic → Dynamic → Dynamic</code></pre>
+
+            <div class="code-block-header">Stage 2: Partial Annotations</div>
+            <pre><code>;; Input types specified, output inferred
+(define add
+  (lambda ((x : Number) (y : Number))
+    (+ x y)))
+
+;; Type: Number → Number → Number</code></pre>
+
+            <div class="code-block-header">Stage 3: Fully Annotated</div>
+            <pre><code>;; Complete type specification
+(define add : (Number → Number → Number)
+  (lambda ((x : Number) (y : Number))
+    (+ x y)))
+
+;; Type: Number → Number → Number (verified)</code></pre>
+
+            <h2>Blame Tracking</h2>
+
+            <p>When runtime type errors occur at the boundary between typed and untyped code, Lambdust's blame tracking system identifies the source of the error:</p>
+
+            <div class="example-box">
+                <h4>Example: Blame Assignment</h4>
+                <pre><code>;; Typed function
+(define safe-divide : (Number → Number → Number)
+  (lambda ((x : Number) (y : Number))
+    (/ x y)))
+
+;; Dynamic call with wrong type
+(define bad-call
+  (lambda ()
+    (safe-divide 10 "not-a-number")))
+
+;; Runtime error with blame:
+;; Contract violation: expected Number, got String
+;; Blame: bad-call (caller) failed to provide Number argument</code></pre>
+            </div>
+
+            <h2>Advanced Features</h2>
+
+            <h3>Optional Types</h3>
+            <p>Lambdust supports optional type annotations that provide documentation and optional checking:</p>
+
+            <pre><code>;; Optional annotation (no runtime checking)
+(define factorial :: (Integer → Integer)
+  (lambda (n)
+    (if (&lt;= n 1) 1
+        (* n (factorial (- n 1))))))
+
+;; Enforced annotation (runtime checking)
+(define factorial : (Integer → Integer)
+  (lambda ((n : Integer))
+    (if (&lt;= n 1) 1
+        (* n (factorial (- n 1))))))</code></pre>
+
+            <h3>Polymorphic Gradual Types</h3>
+            <p>Generic functions can be gradually typed using type variables:</p>
+
+            <pre><code>;; Polymorphic identity function
+(define identity : (∀ (a : Type) → a → a)
+  (lambda (x) x))
+
+;; Gradual polymorphic map
+(define map-maybe : (∀ (a b : Type) → (a → b) → List a → List b)
+  (lambda (f lst)
+    (if (null? lst) '()
+        (cons (f (car lst))
+              (map-maybe f (cdr lst))))))</code></pre>
+
+            <h2>Performance Implications</h2>
+
+            <p>Gradual typing in Lambdust is designed for optimal performance:</p>
+
+            <ul>
+                <li><strong>Zero-cost abstractions</strong>: Fully typed code compiles to efficient native code</li>
+                <li><strong>Optimized checks</strong>: Runtime type checks are minimized through static analysis</li>
+                <li><strong>Specialization</strong>: The JIT compiler specializes functions based on observed types</li>
+                <li><strong>Blame elimination</strong>: Proven-safe boundaries eliminate runtime checks</li>
+            </ul>
+
+            <div class="warning-box">
+                <h4>Performance Note</h4>
+                <p>While gradual typing provides flexibility, fully typed code will always perform better than mixed typed/dynamic code. For performance-critical sections, consider full type annotation.</p>
+            </div>
+
+            <h2>Integration with Effects</h2>
+
+            <p>Gradual typing works seamlessly with Lambdust's effect system:</p>
+
+            <pre><code>;; Gradual typing with effects
+(define read-file : (String → IO (Either Error String))
+  (lambda ((filename : String))
+    (with-handler
+      [(IO-Error e) → (return (Left e))]
+      (do-io
+        [content ← (read-file-contents filename)]
+        (return (Right content))))))
+
+;; Dynamic wrapper with effect propagation
+(define read-file-dynamic
+  (lambda (filename)
+    (read-file filename)))  ;; Dynamic → IO Dynamic</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ol>
+                <li><strong>Start Dynamic</strong>: Begin with dynamic types for rapid prototyping</li>
+                <li><strong>Add Types Incrementally</strong>: Annotate function boundaries first</li>
+                <li><strong>Use Blame Information</strong>: Runtime errors provide guidance for type annotation</li>
+                <li><strong>Prefer Full Typing</strong>: Move toward full type annotation for production code</li>
+                <li><strong>Monitor Performance</strong>: Profile mixed typed/dynamic code for optimization opportunities</li>
+            </ol>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="dependent-types.html">Dependent Types</a> - Value-dependent typing</li>
+                <li><a href="type-inference.html">Type Inference</a> - Automatic type deduction</li>
+                <li><a href="blame-tracking.html">Blame Tracking</a> - Error attribution system</li>
+                <li><a href="../language-guide/monadic-purity.html">Monadic Purity</a> - Effect tracking with gradual types</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="index.html">← Type System Overview</a>
+                <a href="dependent-types.html">Dependent Types →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

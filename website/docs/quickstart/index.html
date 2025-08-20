@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Start Guide - Lambdust Documentation</title>
+    <meta name="description" content="Get started with Lambdust quickly: installation, basic syntax, and first programs in the pure functional programming language.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                Quick Start Guide
+            </div>
+
+            <h1>Quick Start Guide</h1>
+            
+            <p>Welcome to Lambdust! This guide will get you up and running with the pure functional programming language that combines mathematical elegance with practical modern features.</p>
+
+            <h2>Installation</h2>
+
+            <h3>From Source (Recommended)</h3>
+            <p>Building from source ensures you get the latest features and optimizations:</p>
+
+            <div class="code-block-header">Clone and Build</div>
+            <pre><code># Clone the repository
+git clone https://github.com/lambdust-lang/lambdust.git
+cd lambdust
+
+# Build in release mode
+cargo build --release
+
+# Install system-wide (optional)
+cargo install --path .</code></pre>
+
+            <h3>System Requirements</h3>
+            <ul>
+                <li><strong>Rust</strong>: 1.75.0 or later</li>
+                <li><strong>Memory</strong>: 2GB RAM minimum, 4GB recommended</li>
+                <li><strong>Storage</strong>: 500MB for source and build artifacts</li>
+                <li><strong>Platform</strong>: Linux, macOS, Windows (WSL recommended)</li>
+            </ul>
+
+            <h2>Your First Lambdust Program</h2>
+
+            <p>Let's start with the classic "Hello, World!" example:</p>
+
+            <div class="example-box">
+                <h4>hello.ldust</h4>
+                <pre><code>;; Hello World in Lambdust
+(define main : (IO Unit)
+  (lambda ()
+    (println "Hello, World!")))
+
+;; Run the program
+(main)</code></pre>
+            </div>
+
+            <p>Save this as <code>hello.ldust</code> and run it:</p>
+
+            <pre><code>lambdust hello.ldust</code></pre>
+
+            <h2>Interactive REPL</h2>
+
+            <p>Lambdust includes a powerful interactive REPL (Read-Eval-Print Loop) for experimentation:</p>
+
+            <div class="code-block-header">Starting the REPL</div>
+            <pre><code>$ lambdust
+Lambdust 0.2.0 - Pure Functional Programming Language
+Type :help for available commands
+
+λ> </code></pre>
+
+            <h3>Basic REPL Usage</h3>
+
+            <pre><code>λ> (+ 2 3)
+5
+
+λ> (define square (lambda (x) (* x x)))
+square
+
+λ> (square 7)
+49
+
+λ> (map square '(1 2 3 4 5))
+(1 4 9 16 25)</code></pre>
+
+            <h3>REPL Commands</h3>
+
+            <ul>
+                <li><code>:help</code> - Show available commands</li>
+                <li><code>:type expr</code> - Show the type of an expression</li>
+                <li><code>:load file.ldust</code> - Load a source file</li>
+                <li><code>:reload</code> - Reload the last loaded file</li>
+                <li><code>:quit</code> or <code>Ctrl+D</code> - Exit the REPL</li>
+            </ul>
+
+            <h2>Basic Syntax Overview</h2>
+
+            <h3>Data Types</h3>
+
+            <pre><code>;; Numbers
+42           ; Integer
+3.14159      ; Real
+1/3          ; Rational
+2+3i         ; Complex
+
+;; Strings and Characters
+"Hello"      ; String
+#\A          ; Character
+
+;; Booleans
+#t           ; True
+#f           ; False
+
+;; Lists
+'(1 2 3)     ; List of integers
+'(a b c)     ; List of symbols</code></pre>
+
+            <h3>Function Definition</h3>
+
+            <pre><code>;; Simple function
+(define add (lambda (x y) (+ x y)))
+
+;; With type annotation
+(define add : (Number → Number → Number)
+  (lambda ((x : Number) (y : Number))
+    (+ x y)))
+
+;; Shorthand syntax
+(define (add x y) (+ x y))</code></pre>
+
+            <h3>Conditional Expressions</h3>
+
+            <pre><code>;; Basic if expression
+(if (> x 0) "positive" "non-positive")
+
+;; Multi-way conditional
+(cond
+  [(< x 0) "negative"]
+  [(= x 0) "zero"]
+  [else "positive"])
+
+;; Pattern matching
+(match lst
+  [() "empty"]
+  [(cons x xs) (format "head: ~a" x)])</code></pre>
+
+            <h2>Gradual Typing in Practice</h2>
+
+            <p>One of Lambdust's key features is gradual typing. Start dynamic and add types incrementally:</p>
+
+            <div class="example-box">
+                <h4>Evolution of a Function</h4>
+                <pre><code>;; Step 1: Start dynamic
+(define factorial
+  (lambda (n)
+    (if (&lt;= n 1) 1
+        (* n (factorial (- n 1))))))
+
+;; Step 2: Add input type
+(define factorial
+  (lambda ((n : Integer))
+    (if (&lt;= n 1) 1
+        (* n (factorial (- n 1))))))
+
+;; Step 3: Full type annotation
+(define factorial : (Integer → Integer)
+  (lambda ((n : Integer))
+    (if (&lt;= n 1) 1
+        (* n (factorial (- n 1))))))</code></pre>
+            </div>
+
+            <h2>Working with Effects</h2>
+
+            <p>Lambdust tracks side effects in the type system using monads:</p>
+
+            <pre><code>;; Pure function
+(define pure-add : (Integer → Integer → Integer)
+  (lambda (x y) (+ x y)))
+
+;; Function with I/O effects
+(define interactive-add : (IO Integer)
+  (lambda ()
+    (do-io
+      [x ← (read-integer "Enter first number: ")]
+      [y ← (read-integer "Enter second number: ")]
+      [result ← (pure (+ x y))]
+      [_ ← (println (format "Result: ~a" result))]
+      (return result))))</code></pre>
+
+            <h2>Essential Standard Library</h2>
+
+            <h3>List Operations</h3>
+
+            <pre><code>;; List creation and manipulation
+(define numbers '(1 2 3 4 5))
+(define doubled (map (lambda (x) (* x 2)) numbers))
+(define evens (filter even? numbers))
+(define sum (fold-left + 0 numbers))</code></pre>
+
+            <h3>String Operations</h3>
+
+            <pre><code>;; String manipulation
+(define greeting "Hello, Lambdust!")
+(define length (string-length greeting))
+(define upper (string-upcase greeting))
+(define words (string-split greeting " "))</code></pre>
+
+            <h3>Higher-Order Functions</h3>
+
+            <pre><code>;; Function composition
+(define (compose f g)
+  (lambda (x) (f (g x))))
+
+(define square-then-double
+  (compose (lambda (x) (* x 2))
+           (lambda (x) (* x x))))
+
+;; Partial application
+(define (curry f)
+  (lambda (x)
+    (lambda (y)
+      (f x y))))
+
+(define curried-add (curry +))
+(define add-5 (curried-add 5))</code></pre>
+
+            <h2>Project Structure</h2>
+
+            <p>For larger projects, organize code using modules:</p>
+
+            <div class="code-block-header">project.ldust</div>
+            <pre><code>;; Main project file
+(import (prefix math. "math/core"))
+(import (prefix io. "io/utils"))
+
+(define main : (IO Unit)
+  (lambda ()
+    (do-io
+      [result ← (pure (math.factorial 10))]
+      [_ ← (io.write-file "output.txt" 
+                          (number->string result))]
+      (println "Computation complete!"))))</code></pre>
+
+            <div class="code-block-header">math/core.ldust</div>
+            <pre><code>;; Mathematical utilities module
+(module math.core
+  (export factorial fibonacci prime?)
+  
+  (define factorial : (Integer → Integer)
+    (lambda ((n : Integer))
+      (if (&lt;= n 1) 1
+          (* n (factorial (- n 1))))))
+  
+  (define fibonacci : (Integer → Integer)
+    (lambda ((n : Integer))
+      (if (&lt; n 2) n
+          (+ (fibonacci (- n 1))
+             (fibonacci (- n 2)))))))</code></pre>
+
+            <h2>Next Steps</h2>
+
+            <p>Now that you've got the basics, explore these advanced topics:</p>
+
+            <ol>
+                <li><strong><a href="../type-system/dependent-types.html">Dependent Types</a></strong> - Types that depend on values for ultimate safety</li>
+                <li><strong><a href="../language-guide/monadic-purity.html">Monadic Purity</a></strong> - Advanced effect handling and composition</li>
+                <li><strong><a href="../language-guide/ffi.html">Foreign Function Interface</a></strong> - Integrating with C/C++ and Rust libraries</li>
+                <li><strong><a href="../standard-library/index.html">Standard Library</a></strong> - Comprehensive built-in functionality</li>
+                <li><strong><a href="../examples/index.html">Examples</a></strong> - Real-world Lambdust programs</li>
+            </ol>
+
+            <h2>Getting Help</h2>
+
+            <div class="example-box">
+                <h4>Community Resources</h4>
+                <ul>
+                    <li><strong>GitHub Issues</strong>: <a href="https://github.com/lambdust-lang/lambdust/issues">Report bugs and request features</a></li>
+                    <li><strong>Discussions</strong>: <a href="https://github.com/lambdust-lang/lambdust/discussions">Ask questions and share ideas</a></li>
+                    <li><strong>Documentation</strong>: <a href="../index.html">Comprehensive guides and references</a></li>
+                    <li><strong>Examples</strong>: <a href="../examples/index.html">Learn from real-world code</a></li>
+                </ul>
+            </div>
+
+            <div class="warning-box">
+                <h4>Development Status</h4>
+                <p>Lambdust is under active development. While the core language is stable, some advanced features are still being refined. Check the <a href="https://github.com/lambdust-lang/lambdust">GitHub repository</a> for the latest status.</p>
+            </div>
+
+            <div class="page-nav">
+                <a href="../index.html">← Documentation Home</a>
+                <a href="installation.html">Installation Details →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

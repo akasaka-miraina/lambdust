@@ -79,7 +79,7 @@ pub fn validate_string_bounds(s: &str, start: usize, end: Option<usize>, operati
     
     if start > len {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("{}: start index {} out of bounds for string of length {}", operation, start, len),
+            format!("{operation}: start index {start} out of bounds for string of length {len}"),
             None,
         )));
     }
@@ -87,14 +87,14 @@ pub fn validate_string_bounds(s: &str, start: usize, end: Option<usize>, operati
     let actual_end = end.unwrap_or(len);
     if actual_end > len {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("{}: end index {} out of bounds for string of length {}", operation, actual_end, len),
+            format!("{operation}: end index {actual_end} out of bounds for string of length {len}"),
             None,
         )));
     }
     
     if start > actual_end {
         return Err(Box::new(DiagnosticError::runtime_error(
-            format!("{}: start index {} greater than end index {}", operation, start, actual_end),
+            format!("{operation}: start index {start} greater than end index {actual_end}"),
             None,
         )));
     }

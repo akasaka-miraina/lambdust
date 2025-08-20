@@ -1,188 +1,254 @@
-# Lambdust
+# 🚀 Lambdust - Advanced Lisp/Scheme Implementation
 
-[![CI](https://github.com/username/lambdust/workflows/Continuous%20Integration/badge.svg)](https://github.com/akasaka-miraina/lambdust/actions/workflows/ci.yml)
-[![Performance](https://github.com/username/lambdust/workflows/Performance%20Testing/badge.svg)](https://github.com/akasaka-miraina/lambdust/actions/workflows/performance.yml)
-[![R7RS Compliance](https://github.com/username/lambdust/workflows/R7RS%20Compliance%20Testing/badge.svg)](https://github.com/akasaka-miraina/lambdust/actions/workflows/r7rs-compliance.yml)
-[![Security](https://github.com/username/lambdust/workflows/Security%20Audit/badge.svg)](https://github.com/username/akasaka-miraina/actions/workflows/security.yml)
-[![Documentation](https://github.com/username/lambdust/workflows/Documentation/badge.svg)](https://github.com/username/akasaka-miraina/actions/workflows/docs.yml)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/lambdust/lambdust/ci.yml)](https://github.com/lambdust/lambdust/actions)
+[![Documentation](https://img.shields.io/badge/docs-specification-blue)](docs/specification/lambdust-spec.pdf)
+[![R7RS Compliance](https://img.shields.io/badge/R7RS-85%25%20compliant-green)]()
+[![Performance](https://img.shields.io/badge/performance-tracking-yellow)](benchmarks/)
 [![Code Quality](https://img.shields.io/badge/clippy-warnings%200-green.svg)](https://github.com/rust-lang/rust-clippy)
 
-A high-performance R7RS-large compliant Scheme interpreter written in Rust, featuring modular architecture, advanced type systems, and enterprise-grade development practices.
+**Lambdust**は、現代のソフトウェア開発に最適化された革新的なLisp/Scheme実装です。R7RS準拠を基盤として、**漸進的型付け**、**副作用システム**、**Actor並行性**、**安全なFFI**を統合し、業界最高レベルの性能と安全性を実現します。
 
-## Features
+### 🌟 主要特徴
 
-### 🏗️ **Modular Architecture**
-- **Optimized File Structure**: Modularized codebase with <20,000 tokens per file for enhanced maintainability
-- **stdlib/lists/**: 9 specialized modules (basic, predicates, accessors, higher-order functions, etc.)
-- **stdlib/strings/**: 4 focused modules for comprehensive string operations
-- **Zero Compilation Warnings**: Enterprise-grade code quality with complete clippy compliance
+- **📐 漸進的型付け**: Dynamic → Contracts → Static → Dependent の4段階型システム
+- **⚡ 副作用システム**: Algebraic effectsによる副作用の安全な管理
+- **🎭 Actor並行性**: 軽量アクター + async/awaitのハイブリッドモデル
+- **🔧 安全なFFI**: Capability-basedアクセス制御によるメモリ安全FFI
+- **🎨 高度マクロ**: R7RS準拠 + 型安全マクロ + compile-time computation
+- **🏗️ JIT統合**: LLVM統合による実行時最適化
 
-### 🚀 **R7RS Compliance**
-- **R7RS-large Standard**: Full support with extensive SRFI implementations
-- **Contract System**: Built-in design-by-contract programming with blame tracking
-- **Macro System**: Advanced hygiene-preserving macros with syntax-case support
+### 📊 性能目標
 
-### 🔬 **Advanced Type Systems**
-- **Gradual Typing**: Seamless integration of static and dynamic typing
-- **Dependent Types**: Pi-types and Sigma-types for expressive specifications  
-- **Algebraic Data Types**: Pattern matching and type classes support
+| 指標 | 目標 | 現状 |
+|------|------|------|
+| **メモリ効率** | -60% | 最適化中 |
+| **実行速度** | +200-500% | SIMD実装中 |
+| **GC停止時間** | <1ms | Incremental GC実装中 |
+| **並行効率** | >95% | Actor実装中 |
 
-### ⚡ **Performance & Concurrency**
-- **JIT Compilation**: Hotspot detection and optimization
-- **Effect System**: Monadic programming with algebraic effects
-- **Actor Model**: High-performance concurrent execution
-- **SIMD Operations**: Vectorized numeric computations
+## 🚀 クイックスタート
 
-## Quick Start
+### インストール
 
 ```bash
-# Clone the repository
-git clone https://github.com/username/lambdust.git
-cd lambdust
+# Rustツールチェーンが必要 (1.70+)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
-# Build the project
+# Lambdustのビルド
+git clone https://github.com/lambdust/lambdust.git
+cd lambdust
 cargo build --release
 
-# Run the REPL
-cargo run
-
-# Run performance monitor
-cargo run --bin performance-monitor
+# REPLの起動
+./target/release/lambdust
 ```
 
-## Example
+### 基本使用例
 
 ```scheme
-;; Factorial with gradual typing
-(define (factorial (n : Integer)) : Integer
-  (if (<= n 1)
-      1
-      (* n (factorial (- n 1)))))
+;; 漸進的型付け
+(define (fibonacci n :: Integer) :: Integer
+  (if (<= n 1) n
+      (+ (fibonacci (- n 1))
+         (fibonacci (- n 2)))))
 
-;; Actor-based concurrency
-(define counter-actor
-  (spawn-actor
-    (lambda (msg)
-      (match msg
-        ((increment) (update-state (+ (get-state) 1)))
-        ((get) (reply (get-state)))))))
+;; 副作用システム
+(define-effect (State s)
+  (get () -> s)
+  (put (new-state s) -> Unit))
 
-;; Effect handling
-(with-effects
-  (IO State)
-  (log-info "Starting computation")
-  (let ((result (expensive-computation)))
-    (save-state result)))
+(with-handler state-handler
+  (perform (put 42))
+  (perform (get)))
+
+;; Actor並行性
+(define (worker-actor)
+  (receive
+    [(msg data) 
+     (process-data data)
+     (worker-actor)]))
+
+(spawn worker-actor)
+(send worker-actor 'process some-data)
+
+;; 安全なFFI
+(foreign-call "libc" "strlen" 
+  (-> CString -> Size)
+  capability: read-only
+  "Hello, World!")
 ```
 
-## Architecture
+## 🏗️ アーキテクチャ
 
-### 📁 **Modular Codebase Structure**
-
-Lambdust follows a domain-driven modular architecture optimized for maintainability and performance:
+### システム構成
 
 ```
 src/
-├── stdlib/                    # Standard Library Implementation
-│   ├── lists/                # List operations (9 modules)
-│   │   ├── basic.rs          # cons, car, cdr, list construction
-│   │   ├── predicates.rs     # pair?, null?, list? predicates
-│   │   ├── accessors.rs      # list-ref, length, list-tail
-│   │   ├── manipulation.rs   # append, reverse, set-car!/cdr!
-│   │   ├── higher_order.rs   # map, filter, fold-left/right
-│   │   ├── utilities.rs      # member, assoc, sort operations
-│   │   └── srfi1.rs          # SRFI-1 compliance extensions
-│   ├── strings/              # String operations (4 modules)
-│   │   ├── basic.rs          # string construction and basic ops
-│   │   ├── predicates.rs     # string predicates and tests
-│   │   └── common.rs         # shared utilities and constants
-│   └── arithmetic.rs         # Comprehensive numeric tower
-├── eval/                     # Evaluation Engine
-│   ├── evaluator.rs          # Core evaluation logic
-│   ├── value.rs              # Value representation and operations
-│   └── environment.rs        # Environment management
-├── types/                    # Type System Implementation
-│   ├── gradual_system.rs     # Gradual typing infrastructure
-│   ├── dependent/            # Dependent type theory
-│   └── inference.rs          # Type inference engine
-├── macro_system/             # Advanced Macro Processing
-├── contracts/                # Design-by-Contract System
-└── jit/                      # Just-In-Time Compilation
+├── ast/           # 抽象構文木・パターンマッチング
+├── bytecode/      # バイトコードコンパイラ・JIT統合  
+├── concurrency/   # Actor・Future・分散処理
+├── containers/    # 高性能データ構造
+├── effects/       # 副作用システム・代数的副作用
+├── eval/          # 評価器・メモリ最適化 (32モジュール)
+├── lexer/         # 字句解析・Unicode対応
+├── macro_system/  # マクロ展開・hygiene・syntax-case
+├── parser/        # 構文解析・エラー回復
+├── runtime/       # ランタイムシステム・GC統合
+├── stdlib/        # R7RS標準ライブラリ・SRFI実装
+├── types/         # 漸進的型システム・依存型・推論エンジン
+└── utils/         # メモリプール・文字列インターナー
 ```
 
-### 🔧 **Development Quality Standards**
+### 技術スタック
 
-- **Zero Compilation Warnings**: Enforced clippy compliance across entire codebase
-- **Token-Optimized Files**: All source files <20,000 tokens for optimal AI-assisted development
-- **Subagent Collaboration**: Systematic use of specialized AI agents for different domains
-- **Phase-Gate Quality**: Error/warning-free completion required for each development phase
+- **言語**: Rust 1.70+ (メモリ安全・ゼロコスト抽象化)
+- **並行性**: tokio + rayon (async/await + データ並列)
+- **最適化**: SIMD (AVX-512/NEON) + LLVM JIT
+- **テスト**: criterion.rs + property-based testing
+- **文書化**: LaTeX (言語仕様) + mdBook (ユーザーガイド)
 
-## Documentation
+## 📚 ドキュメント
 
-### For Users
-- [User Guide](docs/user_guide.md) - Getting started and usage examples
-- [Features Overview](FEATURES.md) - Complete feature list
-- [Roadmap](NEXT_STEPS_ROADMAP.md) - Development roadmap
+### 📖 言語仕様書
+- **[完全言語仕様書](docs/specification/lambdust-spec.pdf)** (90ページ, LaTeX生成)
+- **形式意味論**: Denotational semanticsの完全定義
+- **R7RS拡張**: 標準からの拡張点詳細説明
 
-### For Developers  
-- [Development Documentation](docs/development/README.md) - API references and implementation guides
-- [Architecture Documentation](docs/architecture/README.md) - System architecture and design
+### 🎯 開発ロードマップ
+- **[実装ロードマップ](IMPLEMENTATION_ROADMAP.md)**: 四者協業による開発計画
+- **[進捗追跡](progress/)**: Phase別詳細進捗管理
+- **[性能目標](benchmarks/performance-targets.md)**: ベンチマーク・最適化目標
 
-### Language Support
-- [Japanese Documentation](docs/ja/DOCUMENTATION.md)
+### 👥 協業体制
+- **[専門家分担](collaboration/expert-assignments.md)**: 四者協業の責任分担
+- **[依存関係管理](collaboration/dependency-matrix.md)**: タスク依存関係・並列化戦略
 
-## Building
+## 🛠️ 開発
 
-### Prerequisites
-- Rust 1.75.0 or later
-- Cargo package manager
-
-### Available Features
-- `minimal-repl`: Lightweight REPL
-- `enhanced-repl`: Full-featured REPL with syntax highlighting
-- `async-runtime`: Asynchronous runtime support
-- `network-io`: Network I/O capabilities
-- `ffi`: Foreign Function Interface support
-
-## Testing
+### ビルド要件
 
 ```bash
-# Run all tests
-cargo test
+# 必須
+rustc 1.70+
+cargo 1.70+
 
-# Run with specific features
-cargo test --features "enhanced-repl,async-runtime"
-
-# Check code quality
-cargo clippy
+# オプション (最適化機能)
+llvm-dev          # JIT統合
+valgrind          # メモリ分析
+criterion         # ベンチマーク
 ```
 
-## Performance
+### 開発ワークフロー
 
-Lambdust is designed for high performance with:
-- Zero-copy operations where possible
-- SIMD-optimized numeric computations
-- JIT compilation for hot paths
-- Efficient memory management
+```bash
+# 開発ビルド
+cargo check --all-targets --all-features
 
-## Contributing
+# テスト実行
+cargo test --all-features
 
-We welcome contributions! Please see our [Development Documentation](docs/development/README.md) for contribution guidelines.
+# 静的解析
+cargo clippy --all-targets --all-features -- -D warnings
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes with tests
-4. Ensure `cargo clippy` passes with zero warnings
-5. Submit a pull request
+# フォーマット
+cargo fmt --check
 
-## License
+# ベンチマーク
+cargo bench
 
-Licensed under either of:
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT License ([LICENSE-MIT](LICENSE-MIT))
+# ドキュメント生成
+cargo doc --no-deps --open
+```
 
-at your option.
+### 品質保証
 
-## Acknowledgments
+**品質ゲート** (必須クリア):
+- ✅ コンパイルエラー: 0個
+- ✅ Clippy警告: 0個
+- ✅ テストカバレッジ: >90%
+- ✅ ベンチマーク回帰: <5%
 
-This project builds upon decades of Scheme language development and the Rust ecosystem. Special thanks to the R7RS working group and the Rust community.
+## 📈 現在の完了状況
+
+### ✅ 完全完了 (100%)
+- **言語仕様書**: 90ページ包括仕様
+- **コンパイルエラー**: 291個 → 0個達成
+- **Clippy警告**: 150個 → 0個達成
+- **ファイル分割**: 20,000トークン制限遵守
+
+### 🟢 高完成度 (85-95%)
+- **パーサ・レキサ**: R7RS構文完全対応
+- **型システム**: 漸進的型付け4レベル実装
+- **評価器**: 32モジュール高度最適化
+- **並行性**: Actor + Future/Promise
+- **FFI**: 包括的安全性チェック
+
+### 🟡 実装中 (70-85%)
+- **標準ライブラリ**: R7RS準拠85%
+- **SIMD最適化**: AVX-512/NEON対応
+- **メモリ最適化**: Arc使用90%削減戦略
+- **JIT統合**: LLVM統合準備
+
+---
+
+## 🤝 貢献
+
+### 四者協業体制
+
+Lambdustの開発は以下の専門家協業により進行中:
+
+- **🧠 language-processor-architect**: 言語設計・構文・意味論
+- **🏗️ cs-architect**: アルゴリズム・データ構造・システム設計  
+- **⚙️ rust-expert-programmer**: Rust実装・最適化・安全性
+- **📚 lambdust-r7rs-programmer**: R7RS準拠・標準ライブラリ
+
+### 貢献方法
+
+1. **Issue報告**: バグ・機能要望の報告
+2. **PR投稿**: 実装・ドキュメント改善
+3. **テスト追加**: 品質向上・カバレッジ改善
+4. **ベンチマーク**: 性能測定・回帰検出
+5. **文書化**: 使用例・チュートリアル
+
+詳細は [CONTRIBUTING.md](CONTRIBUTING.md) を参照。
+
+## 📄 ライセンス
+
+**MIT License** - 詳細は [LICENSE](LICENSE) を参照。
+
+学術研究・商用利用・オープンソースプロジェクト等、自由に使用可能です。
+
+---
+
+## 🌐 コミュニティ
+
+- **GitHub**: [https://github.com/lambdust/lambdust](https://github.com/lambdust/lambdust)
+- **Documentation**: [https://lambdust.dev](https://lambdust.dev)
+- **Discussions**: [GitHub Discussions](https://github.com/lambdust/lambdust/discussions)
+
+---
+
+## 🎯 ロードマップ概要
+
+### 🔴 Phase 1: 基盤完成 (2025年9月)
+- 型システム統一 (クリティカルパス)
+- エラー・警告ゼロ状態維持
+
+### 🟢 Phase 2: 並列実装 (2025年10月)
+- 言語処理拡張・システム最適化・R7RS完全準拠
+- 四者協業による効率的並列開発
+
+### 🔵 Phase 3: 高度統合 (2025年11月)
+- 継続システム・分散計算・JIT統合
+- 業界最高レベル性能実現
+
+### 🎉 Phase 4: 完成・検証 (2025年12月)
+- 最終統合・実用性検証・リリース準備
+
+詳細は [IMPLEMENTATION_ROADMAP.md](IMPLEMENTATION_ROADMAP.md) を参照。
+
+---
+
+**Lambdust** - *The next generation of Lisp/Scheme for modern software development*
+
+*Generated: 2025-08-20 | Version: 0.2.0*

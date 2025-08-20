@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>First Program - Lambdust Documentation</title>
+    <meta name="description" content="Learn to write your first Lambdust program with step-by-step examples and explanations.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Quick Start</a> → 
+                First Program
+            </div>
+
+            <h1>Your First Lambdust Program</h1>
+            
+            <p>Let's write your first Lambdust program! This guide will walk you through creating, running, and understanding a simple Lambdust application.</p>
+
+            <div class="type-signature">
+                Hello World → Understanding → Building → Running
+            </div>
+
+            <h2>Hello, World!</h2>
+
+            <p>Let's start with the traditional first program:</p>
+
+            <div class="example-box">
+                <h4>hello.ldust</h4>
+                <pre><code>;; Your first Lambdust program
+(display "Hello, World!")
+(newline)</code></pre>
+            </div>
+
+            <h3>Creating and Running</h3>
+            <pre><code># Create the file
+echo '(display "Hello, World!") (newline)' > hello.ldust
+
+# Run the program
+lambdust hello.ldust
+
+# Output:
+# Hello, World!</code></pre>
+
+            <h3>Understanding the Code</h3>
+            <ul>
+                <li><code>(display "Hello, World!")</code> - Prints the string to the console</li>
+                <li><code>(newline)</code> - Adds a line break for clean output</li>
+                <li>Comments start with <code>;;</code> and continue to the end of the line</li>
+            </ul>
+
+            <h2>Interactive Calculator</h2>
+
+            <p>Let's create a more interesting program that demonstrates functions and user interaction:</p>
+
+            <div class="example-box">
+                <h4>calculator.ldust</h4>
+                <pre><code>;; Simple interactive calculator
+(import (scheme base)
+        (scheme write)
+        (scheme read))
+
+;; Define basic arithmetic functions
+(define (add x y) (+ x y))
+(define (subtract x y) (- x y))
+(define (multiply x y) (* x y))
+(define (divide x y) 
+  (if (= y 0) 
+      (error "Division by zero!")
+      (/ x y)))
+
+;; Main calculator function
+(define (calculator)
+  (display "Simple Calculator")
+  (newline)
+  (display "Enter two numbers: ")
+  (let ([x (read)]
+        [y (read)])
+    (display (string-append "Numbers: " 
+                           (number->string x) 
+                           " and " 
+                           (number->string y)))
+    (newline)
+    (display (string-append "Sum: " (number->string (add x y))))
+    (newline)
+    (display (string-append "Difference: " (number->string (subtract x y))))
+    (newline)
+    (display (string-append "Product: " (number->string (multiply x y))))
+    (newline)
+    (display (string-append "Quotient: " (number->string (divide x y))))
+    (newline)))
+
+;; Run the calculator
+(calculator)</code></pre>
+            </div>
+
+            <h3>Running the Calculator</h3>
+            <pre><code># Run the program
+lambdust calculator.ldust
+
+# Input when prompted:
+# 15 3
+
+# Output:
+# Simple Calculator
+# Enter two numbers: Numbers: 15 and 3
+# Sum: 18
+# Difference: 12
+# Product: 45
+# Quotient: 5</code></pre>
+
+            <h2>Type-Annotated Version</h2>
+
+            <p>Let's enhance our calculator with Lambdust's gradual typing system:</p>
+
+            <div class="example-box">
+                <h4>typed-calculator.ldust</h4>
+                <pre><code>;; Type-safe calculator with gradual typing
+(import (scheme base)
+        (scheme write)
+        (scheme read))
+
+;; Type-annotated arithmetic functions
+(define add : (Number → Number → Number)
+  (lambda ((x : Number) (y : Number))
+    (+ x y)))
+
+(define subtract : (Number → Number → Number)
+  (lambda ((x : Number) (y : Number))
+    (- x y)))
+
+(define multiply : (Number → Number → Number)
+  (lambda ((x : Number) (y : Number))
+    (* x y)))
+
+(define safe-divide : (Number → Number → (Maybe Number))
+  (lambda ((x : Number) (y : Number))
+    (if (= y 0)
+        None
+        (Some (/ x y)))))
+
+;; Input validation function
+(define validate-number : (Dynamic → (Maybe Number))
+  (lambda (input)
+    (if (number? input)
+        (Some input)
+        None)))
+
+;; Enhanced calculator with type safety
+(define typed-calculator : (Unit → IO Unit)
+  (lambda ()
+    (display "Type-Safe Calculator")
+    (newline)
+    (display "Enter first number: ")
+    (let ([input1 (read)])
+      (match (validate-number input1)
+        [(Some x) =>
+         (lambda ()
+           (display "Enter second number: ")
+           (let ([input2 (read)])
+             (match (validate-number input2)
+               [(Some y) =>
+                (lambda ()
+                  (display (string-append "Sum: " (number->string (add x y))))
+                  (newline)
+                  (display (string-append "Difference: " (number->string (subtract x y))))
+                  (newline)
+                  (display (string-append "Product: " (number->string (multiply x y))))
+                  (newline)
+                  (match (safe-divide x y)
+                    [(Some result) =>
+                     (lambda () 
+                       (display (string-append "Quotient: " (number->string result)))
+                       (newline))]
+                    [None =>
+                     (lambda ()
+                       (display "Cannot divide by zero!")
+                       (newline))]))]
+               [None =>
+                (lambda ()
+                  (display "Error: Second input is not a number!")
+                  (newline))])))]
+        [None =>
+         (lambda ()
+           (display "Error: First input is not a number!")
+           (newline))]))))
+
+;; Run the typed calculator
+(typed-calculator)</code></pre>
+            </div>
+
+            <h2>Functional Programming Example</h2>
+
+            <p>Let's explore Lambdust's functional programming capabilities with a list processing example:</p>
+
+            <div class="example-box">
+                <h4>list-processor.ldust</h4>
+                <pre><code>;; Functional list processing in Lambdust
+(import (scheme base)
+        (scheme write))
+
+;; Higher-order functions for list processing
+(define (square x) (* x x))
+(define (double x) (* x 2))
+(define (is-even? x) (= (modulo x 2) 0))
+
+;; Process a list of numbers
+(define (process-numbers numbers)
+  (display "Original numbers: ")
+  (display numbers)
+  (newline)
+  
+  ;; Map: apply function to each element
+  (let ([squared (map square numbers)])
+    (display "Squared: ")
+    (display squared)
+    (newline)
+    
+    ;; Filter: keep only elements that satisfy predicate
+    (let ([evens (filter is-even? numbers)])
+      (display "Even numbers: ")
+      (display evens)
+      (newline)
+      
+      ;; Fold: reduce list to single value
+      (let ([sum (fold-left + 0 numbers)]
+            [product (fold-left * 1 numbers)])
+        (display (string-append "Sum: " (number->string sum)))
+        (newline)
+        (display (string-append "Product: " (number->string product)))
+        (newline)))))
+
+;; Recursive function example
+(define (factorial n)
+  (if (<= n 1)
+      1
+      (* n (factorial (- n 1)))))
+
+;; Generate factorial sequence
+(define (factorial-sequence n)
+  (define (helper i acc)
+    (if (> i n)
+        (reverse acc)
+        (helper (+ i 1) (cons (factorial i) acc))))
+  (helper 0 '()))
+
+;; Main program
+(define (main)
+  (let ([test-numbers '(1 2 3 4 5 6 7 8 9 10)])
+    (process-numbers test-numbers)
+    (newline)
+    
+    (display "Factorial sequence (0-5): ")
+    (display (factorial-sequence 5))
+    (newline)
+    
+    ;; Demonstrate function composition
+    (let ([compose-demo (map (lambda (x) (double (square x))) '(1 2 3 4))])
+      (display "Composed function (double of square): ")
+      (display compose-demo)
+      (newline))))
+
+;; Run the program
+(main)</code></pre>
+            </div>
+
+            <h3>Expected Output</h3>
+            <pre><code>Original numbers: (1 2 3 4 5 6 7 8 9 10)
+Squared: (1 4 9 16 25 36 49 64 81 100)
+Even numbers: (2 4 6 8 10)
+Sum: 55
+Product: 3628800
+
+Factorial sequence (0-5): (1 1 2 6 24 120)
+Composed function (double of square): (2 8 18 32)</code></pre>
+
+            <h2>Error Handling Example</h2>
+
+            <p>Learn how to handle errors gracefully in Lambdust:</p>
+
+            <div class="example-box">
+                <h4>error-handling.ldust</h4>
+                <pre><code>;; Error handling with Maybe and Either types
+(import (scheme base)
+        (scheme write))
+
+;; Define Maybe type for optional values
+(define-type (Maybe α)
+  (Some α)
+  (None))
+
+;; Define Either type for error handling
+(define-type (Either α β)
+  (Left α)   ; Error case
+  (Right β)) ; Success case
+
+;; Safe division function
+(define (safe-div x y)
+  (if (= y 0)
+      (Left "Division by zero")
+      (Right (/ x y))))
+
+;; Safe square root function
+(define (safe-sqrt x)
+  (if (< x 0)
+      (Left "Square root of negative number")
+      (Right (sqrt x))))
+
+;; Chain operations with error handling
+(define (safe-compute x y)
+  (match (safe-div x y)
+    [(Right quotient) =>
+     (lambda ()
+       (match (safe-sqrt quotient)
+         [(Right result) =>
+          (lambda ()
+            (display (string-append "Result: " (number->string result)))
+            (newline))]
+         [(Left error) =>
+          (lambda ()
+            (display (string-append "Error in sqrt: " error))
+            (newline))]))]
+    [(Left error) =>
+     (lambda ()
+       (display (string-append "Error in division: " error))
+       (newline))]))
+
+;; Test error handling
+(define (test-error-handling)
+  (display "Testing 16 / 4, then sqrt:")
+  (newline)
+  (safe-compute 16 4)  ; Should work: sqrt(4) = 2
+  
+  (display "Testing 10 / 0:")
+  (newline)
+  (safe-compute 10 0)  ; Division by zero error
+  
+  (display "Testing -4 / 2, then sqrt:")
+  (newline)
+  (safe-compute -4 2)) ; Negative sqrt error
+
+;; Run tests
+(test-error-handling)</code></pre>
+            </div>
+
+            <h2>Project Structure</h2>
+
+            <p>For larger programs, organize your code into multiple files:</p>
+
+            <pre><code>my-project/
+├── main.ldust           # Entry point
+├── lib/
+│   ├── math.ldust       # Mathematical functions
+│   ├── utils.ldust      # Utility functions
+│   └── types.ldust      # Type definitions
+└── tests/
+    ├── test-math.ldust  # Math function tests
+    └── test-utils.ldust # Utility tests</code></pre>
+
+            <div class="example-box">
+                <h4>lib/math.ldust</h4>
+                <pre><code>;; Mathematical utility library
+(define-library (myproject math)
+  (import (scheme base))
+  (export factorial fibonacci gcd lcm)
+  
+  (begin
+    (define (factorial n)
+      (if (<= n 1) 1 (* n (factorial (- n 1)))))
+    
+    (define (fibonacci n)
+      (if (< n 2) n (+ (fibonacci (- n 1)) (fibonacci (- n 2)))))
+    
+    (define (gcd a b)
+      (if (= b 0) a (gcd b (modulo a b))))
+    
+    (define (lcm a b)
+      (/ (* a b) (gcd a b)))))</code></pre>
+            </div>
+
+            <div class="example-box">
+                <h4>main.ldust</h4>
+                <pre><code>;; Main program using the math library
+(import (scheme base)
+        (scheme write)
+        (myproject math))
+
+(define (main)
+  (display "Math Library Demo")
+  (newline)
+  
+  (display (string-append "Factorial of 5: " (number->string (factorial 5))))
+  (newline)
+  
+  (display (string-append "10th Fibonacci number: " (number->string (fibonacci 10))))
+  (newline)
+  
+  (display (string-append "GCD of 48 and 18: " (number->string (gcd 48 18))))
+  (newline)
+  
+  (display (string-append "LCM of 12 and 8: " (number->string (lcm 12 8))))
+  (newline))
+
+(main)</code></pre>
+            </div>
+
+            <h3>Running Multi-file Projects</h3>
+            <pre><code># Run from project root directory
+lambdust main.ldust
+
+# Or compile to executable
+lambdust compile main.ldust -o my-program
+./my-program</code></pre>
+
+            <h2>Development Workflow</h2>
+
+            <h3>Typical Development Cycle</h3>
+            <ol>
+                <li><strong>Write</strong>: Create or edit your .ldust files</li>
+                <li><strong>Check</strong>: Use the type checker to verify your code</li>
+                <li><strong>Test</strong>: Run your program or use the REPL</li>
+                <li><strong>Debug</strong>: Use Lambdust's debugging tools</li>
+                <li><strong>Optimize</strong>: Profile and optimize performance</li>
+            </ol>
+
+            <h3>Useful Commands</h3>
+            <pre><code># Check syntax and types without running
+lambdust check program.ldust
+
+# Format code consistently
+lambdust format program.ldust
+
+# Run with debug information
+lambdust run --debug program.ldust
+
+# Start REPL with your libraries loaded
+lambdust repl --load lib/math.ldust
+
+# Generate documentation
+lambdust doc --output docs/</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ol>
+                <li><strong>Start Simple</strong>: Begin with basic functions before adding types</li>
+                <li><strong>Use the REPL</strong>: Test functions interactively during development</li>
+                <li><strong>Add Types Gradually</strong>: Start with Dynamic types, then add specific types</li>
+                <li><strong>Write Tests</strong>: Use Lambdust's testing framework early</li>
+                <li><strong>Use Libraries</strong>: Organize code into reusable modules</li>
+                <li><strong>Handle Errors</strong>: Use Maybe/Either types for robust error handling</li>
+            </ol>
+
+            <h2>Common Pitfalls</h2>
+
+            <div class="warning-box">
+                <h4>Things to Watch Out For</h4>
+                <ul>
+                    <li><strong>Parentheses</strong>: Every expression needs proper parentheses</li>
+                    <li><strong>Recursion</strong>: Ensure base cases to avoid infinite loops</li>
+                    <li><strong>Type Mismatches</strong>: Pay attention to type error messages</li>
+                    <li><strong>Imports</strong>: Remember to import required libraries</li>
+                </ul>
+            </div>
+
+            <h2>Next Steps</h2>
+
+            <p>Now that you've written your first programs:</p>
+
+            <ol>
+                <li><strong><a href="repl-guide.html">Explore the REPL</a></strong> - Interactive development</li>
+                <li><strong><a href="../language-guide/syntax.html">Learn more syntax</a></strong> - Advanced language features</li>
+                <li><strong><a href="../type-system/gradual-typing.html">Understand types</a></strong> - Leverage the type system</li>
+                <li><strong><a href="../examples/index.html">Study examples</a></strong> - Real-world applications</li>
+            </ol>
+
+            <div class="page-nav">
+                <a href="installation.html">← Installation</a>
+                <a href="repl-guide.html">REPL Guide →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

@@ -553,10 +553,18 @@ mod tests {
         fn omega() -> Self { usize::MAX }
     }
 
+    impl TermRepr for () {
+        type Type = SimpleType;
+        fn get_type(&self) -> Self::Type { SimpleType }
+        fn apply_substitution(&self, _: &impl TermSubstitution) -> Self {}
+        fn reduce(&self) -> Self {}
+        fn compose_morphism(&self, _: &Self) -> UnifiedResult<Self> { Ok(()) }
+    }
+
     impl ProofWitness for () {
         type Term = ();
-        fn from_term(_: Self::Term) -> Self { () }
-        fn validates(&self, _: &dyn TypeRepr) -> bool { true }
+        fn from_term(_: Self::Term) -> Self {}
+        fn validates(&self, _: &impl TypeRepr) -> bool { true }
         fn compose(&self, _: &Self) -> UnifiedResult<Self> { Ok(()) }
     }
 
@@ -565,8 +573,8 @@ mod tests {
         type Witness = ();
         
         fn universe(&self) -> Self::Universe { 0 }
-        fn is_well_formed(&self, _: &dyn TypeContext<Self>) -> bool { true }
-        fn apply_substitution(&self, _: &dyn Substitution<Self>) -> Self { self.clone() }
+        fn is_well_formed(&self, _: &impl TypeContext<Self>) -> bool { true }
+        fn apply_substitution(&self, _: &impl Substitution<Self>) -> Self { self.clone() }
         fn free_variables(&self) -> HashSet<TypeVariable> { HashSet::new() }
         fn compose_with(&self, _: &Self) -> UnifiedResult<Self> { Ok(self.clone()) }
         fn unit(&self) -> UnifiedResult<Self> { Ok(self.clone()) }
@@ -580,38 +588,47 @@ mod tests {
         fn extend(&self, _: String, _: SimpleType) -> Self { self.clone() }
         fn extend_many(&self, _: Vec<(String, SimpleType)>) -> Self { self.clone() }
         fn bindings(&self) -> Vec<(String, SimpleType)> { Vec::new() }
-        fn extend_term(&self, _: String, _: Box<dyn TermRepr>, _: SimpleType) -> Self { self.clone() }
+        fn extend_term(&self, _: String, _: impl TermRepr, _: SimpleType) -> Self { self.clone() }
         fn is_well_formed(&self) -> bool { true }
+    }
+
+    impl ConstraintRepr<SimpleType> for () {
+        fn apply_substitution(&self, _: &impl Substitution<SimpleType>) -> Self {}
+        fn variables(&self) -> HashSet<TypeVariable> { HashSet::new() }
+        fn simplify(&self) -> Option<Self> { Some(()) }
+    }
+
+    impl Substitution<SimpleType> for () {
+        fn apply(&self, ty: &SimpleType) -> SimpleType { ty.clone() }
+        fn compose(&self, _other: &dyn Substitution<SimpleType>) -> Box<dyn Substitution<SimpleType>> {
+            Box::new(())
+        }
+        fn domain(&self) -> HashSet<TypeVariable> { HashSet::new() }
+        fn identity() -> Box<dyn Substitution<SimpleType>> where Self: Sized {
+            Box::new(())
+        }
     }
 
     impl ConstraintSystem<SimpleType> for SimpleConstraintSystem {
         type Constraint = ();
         
         fn add_constraint(&mut self, _: Self::Constraint) {}
-        fn solve(&self) -> UnifiedResult<Box<dyn Substitution<Type = SimpleType>>> {
+        fn solve(&self) -> UnifiedResult<Box<dyn Substitution<SimpleType>>> {
             Ok(Box::new(()))
         }
         fn is_consistent(&self) -> bool { true }
         fn add_proof_obligation(&mut self, _: ProofObligation<SimpleType>) {}
     }
 
-    impl Substitution<SimpleType> for () {
-        fn apply(&self, ty: &SimpleType) -> SimpleType { ty.clone() }
-        fn compose(&self, _: &dyn Substitution<Type = SimpleType>) -> Box<dyn Substitution<Type = SimpleType>> {
-            Box::new(())
-        }
-        fn identity() -> Box<dyn Substitution<Type = SimpleType>> { Box::new(()) }
-        fn domain(&self) -> HashSet<TypeVariable> { HashSet::new() }
-    }
 
     impl InferenceEngine<SimpleType, SimpleContext> for SimpleInference {
-        fn infer(&self, _: &dyn ExpressionRepr, _: &SimpleContext) -> UnifiedResult<SimpleType> {
+        fn infer(&self, _: &impl ExpressionRepr, _: &SimpleContext) -> UnifiedResult<SimpleType> {
             Ok(SimpleType)
         }
-        fn check(&self, _: &dyn ExpressionRepr, _: &SimpleType, _: &SimpleContext) -> UnifiedResult<()> {
+        fn check(&self, _: &impl ExpressionRepr, _: &SimpleType, _: &SimpleContext) -> UnifiedResult<()> {
             Ok(())
         }
-        fn infer_with_proof(&self, _: &dyn ExpressionRepr, _: &SimpleContext) 
+        fn infer_with_proof(&self, _: &impl ExpressionRepr, _: &SimpleContext) 
             -> UnifiedResult<(SimpleType, Box<dyn ProofTerm>)> {
             Err(crate::diagnostics::UnifiedError::new(
                 TypeError,

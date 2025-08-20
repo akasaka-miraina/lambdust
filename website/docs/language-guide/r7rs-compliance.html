@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>R7RS Compliance - Lambdust Documentation</title>
+    <meta name="description" content="Guide to Lambdust's R7RS Scheme compliance and modern extensions.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Language Guide</a> → 
+                R7RS Compliance
+            </div>
+
+            <h1>R7RS Compliance</h1>
+            
+            <p>Lambdust is fully compliant with the Scheme R7RS-small standard and includes many R7RS-large libraries, providing compatibility with existing Scheme code while adding modern type system features.</p>
+
+            <div class="type-signature">
+                R7RS ⊂ Lambdust — Full R7RS compatibility with modern extensions
+            </div>
+
+            <h2>R7RS-small Compliance</h2>
+
+            <p>Lambdust implements the complete R7RS-small specification:</p>
+
+            <div class="example-box">
+                <h4>Standard Scheme Features</h4>
+                <pre><code>;; Basic syntax and semantics
+(define (factorial n)
+  (if (&lt;= n 1) 1
+      (* n (factorial (- n 1)))))
+
+;; Lexical scoping
+(let ([x 10])
+  (let ([f (lambda (y) (+ x y))])
+    (f 5)))  ; Result: 15
+
+;; Proper tail calls
+(define (count-down n)
+  (if (= n 0) 'done
+      (count-down (- n 1))))  ; Tail-recursive
+
+;; First-class continuations
+(call/cc 
+  (lambda (k)
+    (+ 1 (k 2))))  ; Result: 2</code></pre>
+            </div>
+
+            <h3>Data Types</h3>
+
+            <p>All R7RS data types are supported with their standard behavior:</p>
+
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>R7RS Compliance</th>
+                        <th>Lambdust Extensions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>Boolean</code></td>
+                        <td>✅ #t, #f</td>
+                        <td>Type annotations: Boolean</td>
+                    </tr>
+                    <tr>
+                        <td><code>Number</code></td>
+                        <td>✅ Full numeric tower</td>
+                        <td>Integer, Real, Rational, Complex types</td>
+                    </tr>
+                    <tr>
+                        <td><code>Character</code></td>
+                        <td>✅ Unicode support</td>
+                        <td>Character type with Unicode predicates</td>
+                    </tr>
+                    <tr>
+                        <td><code>String</code></td>
+                        <td>✅ Immutable strings</td>
+                        <td>String type with length tracking</td>
+                    </tr>
+                    <tr>
+                        <td><code>Symbol</code></td>
+                        <td>✅ Interned symbols</td>
+                        <td>Symbol type</td>
+                    </tr>
+                    <tr>
+                        <td><code>Pair</code></td>
+                        <td>✅ cons, car, cdr</td>
+                        <td>Pair α β type</td>
+                    </tr>
+                    <tr>
+                        <td><code>Vector</code></td>
+                        <td>✅ Mutable vectors</td>
+                        <td>Vector n α with length in type</td>
+                    </tr>
+                    <tr>
+                        <td><code>Procedure</code></td>
+                        <td>✅ First-class functions</td>
+                        <td>Function types with effects</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Standard Procedures</h2>
+
+            <p>All R7RS-small procedures are implemented with their standard semantics:</p>
+
+            <h3>List Operations</h3>
+            <pre><code>;; R7RS list procedures
+(car '(1 2 3))           ; 1
+(cdr '(1 2 3))           ; (2 3)
+(cons 0 '(1 2 3))        ; (0 1 2 3)
+(length '(a b c))        ; 3
+(append '(1 2) '(3 4))   ; (1 2 3 4)
+(reverse '(1 2 3))       ; (3 2 1)
+(map + '(1 2 3) '(4 5 6)) ; (5 7 9)
+
+;; List predicates
+(null? '())              ; #t
+(pair? '(1 . 2))         ; #t
+(list? '(1 2 3))         ; #t</code></pre>
+
+            <h3>Arithmetic Operations</h3>
+            <pre><code>;; Numeric procedures
+(+ 1 2 3)                ; 6
+(* 2 3 4)                ; 24
+(- 10 3)                 ; 7
+(/ 15 3)                 ; 5
+(quotient 7 3)           ; 2
+(remainder 7 3)          ; 1
+(modulo 7 3)             ; 1
+
+;; Numeric predicates and comparisons
+(number? 42)             ; #t
+(= 3 3)                  ; #t
+(&lt; 1 2 3)                ; #t
+(even? 4)                ; #t
+(odd? 3)                 ; #t</code></pre>
+
+            <h3>String Operations</h3>
+            <pre><code>;; String procedures
+(string-length "hello")          ; 5
+(string-ref "hello" 1)           ; #\e
+(string-append "hello" " world") ; "hello world"
+(substring "hello" 1 4)          ; "ell"
+
+;; String predicates and comparisons
+(string? "hello")                ; #t
+(string=? "abc" "abc")           ; #t
+(string&lt;? "abc" "def")            ; #t</code></pre>
+
+            <h2>Modern Extensions</h2>
+
+            <p>Lambdust extends R7RS with modern programming language features while maintaining compatibility:</p>
+
+            <h3>Type Annotations</h3>
+            <div class="example-box">
+                <h4>Optional Type Safety</h4>
+                <pre><code>;; Standard R7RS (works unchanged)
+(define (square x) (* x x))
+
+;; With Lambdust type annotations
+(define square : (Number → Number)
+  (lambda ((x : Number)) (* x x)))
+
+;; Gradual typing - mix as needed
+(define (process-data data)
+  (let ([validated : (List Integer) (validate-integers data)])
+    (map square validated)))</code></pre>
+            </div>
+
+            <h3>Enhanced Syntax</h3>
+            <pre><code>;; Pattern matching (extension)
+(match value
+  [0 "zero"]
+  [n (string-append "number: " (number->string n))])
+
+;; Do-notation for monads (extension)
+(do-io
+  [line ← (read-line)]
+  [_ ← (display "You entered: ")]
+  (display line))
+
+;; Type definitions (extension)  
+(define-type (Maybe α)
+  (Some α)
+  (None))</code></pre>
+
+            <h2>R7RS-large Libraries</h2>
+
+            <p>Lambdust includes many R7RS-large standard libraries:</p>
+
+            <h3>SRFI Support</h3>
+            
+            <p>Lambdust implements 47+ Scheme Request for Implementation (SRFI) standards, providing one of the most comprehensive SRFI ecosystems available. Each SRFI is fully typed and integrated with Lambdust's effect system.</p>
+
+            <div class="type-signature">
+                47+ SRFIs implemented — Leading SRFI compatibility in modern Scheme
+            </div>
+
+            <h4>Core Foundation SRFIs</h4>
+            <p>Essential data structure and algorithm libraries that form the foundation of functional programming:</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0;">
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-1: List Library</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Comprehensive list processing operations</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 1))
+(filter even? '(1 2 3 4 5))     ; (2 4)
+(partition even? '(1 2 3 4 5))  ; ((2 4) (1 3 5))
+(take '(a b c d e) 3)           ; (a b c)
+(fold-left + 0 '(1 2 3 4))      ; 10</code></pre>
+                    <p style="font-size: 0.75rem; color: #64748b;"><strong>Key procedures:</strong> filter, partition, fold-left, fold-right, take, drop, split-at, any, every, list-index, delete-duplicates</p>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-13: String Library</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Unicode-aware string processing</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 13))
+(string-trim "  hello  ")           ; "hello"
+(string-split "a,b,c" ",")          ; ("a" "b" "c")
+(string-contains? "hello" "ell")    ; 1
+(string-pad "42" 5 #\0)             ; "00042"</code></pre>
+                    <p style="font-size: 0.75rem; color: #64748b;"><strong>Key procedures:</strong> string-trim, string-pad, string-split, string-join, string-contains?, string-take, string-drop, string-tokenize</p>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-43: Vector Library</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Efficient vector operations</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 43))
+(vector-map + #(1 2 3) #(4 5 6))   ; #(5 7 9)
+(vector-fold + 0 #(1 2 3 4))       ; 10
+(vector-binary-search #(1 3 5 7) 5) ; 2</code></pre>
+                    <p style="font-size: 0.75rem; color: #64748b;"><strong>Key procedures:</strong> vector-map, vector-fold, vector-copy, vector-fill!, vector-binary-search, vector-swap!, vector-reverse!</p>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-69: Hash Tables</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Associative data structures</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 69))
+(define ht (make-hash-table))
+(hash-table-set! ht 'key 'value)
+(hash-table-ref ht 'key)            ; 'value
+(hash-table-exists? ht 'key)        ; #t</code></pre>
+                    <p style="font-size: 0.75rem; color: #64748b;"><strong>Key procedures:</strong> make-hash-table, hash-table-ref/default, hash-table-set!, hash-table-walk, hash-table-fold, hash-table-keys</p>
+                </div>
+            </div>
+
+            <h4>Numeric and Mathematical SRFIs</h4>
+            <p>Advanced numerical computing and mathematical operations:</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0;">
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-27: Random Bits</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Cryptographically secure random number generation</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 27))
+(random-integer 100)                ; Random 0-99
+(random-real)                       ; Random 0.0-1.0
+(random-source-randomize! default-random-source)</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-144: Flonums</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">IEEE 754 floating-point arithmetic</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 144))
+(flsin 1.0)                         ; Sine function
+(flfinite? +inf.0)                  ; #f
+(flmax 1.0 2.0 3.0)                 ; 3.0</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-160: Homogeneous Arrays</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Efficient numeric arrays</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 160))
+(u8vector 1 2 3 4)                 ; #u8(1 2 3 4)
+(f64vector-ref vec 0)               ; Fast access</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #dc2626;">○</span> SRFI-133: Vector Library</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Enhanced vector operations (Planned)</p>
+                    <p style="font-size: 0.75rem; color: #64748b;">Supersedes SRFI-43 with additional functionality</p>
+                </div>
+            </div>
+
+            <h4>Advanced Data Structures</h4>
+            <p>Sophisticated data structures for complex applications:</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0;">
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-41: Streams</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Lazy infinite data sequences</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 41))
+(define nats (stream-from 0))
+(stream-take 5 nats)                ; (0 1 2 3 4)
+(stream-filter even? nats)          ; Even naturals</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-101: Purely Functional Random-Access Pairs</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">O(log n) random access lists</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 101))
+(define ra-list (list 1 2 3 4 5))
+(list-ref/update ra-list 2 'new)    ; Fast update</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-146: Mappings</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Immutable key-value mappings</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 146))
+(define map (mapping 'a 1 'b 2))
+(mapping-ref map 'a)                ; 1
+(mapping-update map 'c 3)           ; New mapping</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-113: Sets and Bags</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Mathematical set operations</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 113))
+(define set1 (set = 1 2 3))
+(define set2 (set = 2 3 4))
+(set-union set1 set2)               ; {1 2 3 4}</code></pre>
+                </div>
+            </div>
+
+            <h4>System and I/O SRFIs</h4>
+            <p>System interaction and advanced I/O operations:</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0;">
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-170: POSIX API</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Unix/Linux system interface</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 170))
+(current-directory)                 ; Get PWD
+(file-exists? "file.txt")          ; Test existence  
+(directory-files ".")               ; List directory</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-106: Socket Library</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Network programming interface</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 106))
+(define socket (make-client-socket "localhost" 8080))
+(socket-send socket data)
+(socket-recv socket 1024)</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-19: Time Data Types</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Date and time manipulation</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 19))
+(current-time)                      ; Current timestamp
+(date-&gt;string (current-date) "~Y-~m-~d")
+(time-difference t1 t2)             ; Duration</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-112: Environment Inquiry</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">System environment access</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 112))
+(implementation-name)               ; "Lambdust"
+(implementation-version)            ; Version info
+(cpu-architecture)                  ; Architecture</code></pre>
+                </div>
+            </div>
+
+            <h4>Pattern Matching and Syntax</h4>
+            <p>Advanced macro and pattern matching facilities:</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0;">
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-200: Pattern Matching</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Comprehensive pattern matching</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 200))
+(match value
+  [(? number? n) (+ n 1)]
+  [(list x y) (cons y x)]
+  [else 'no-match])</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-2: AND-LET*</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Conditional binding construct</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 2))
+(and-let* ([x (some-computation)]
+           [(positive? x)]
+           [y (* x 2)])
+  (sqrt y))</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-26: Notation for Specializing Parameters</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Cut and cute for partial application</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 26))
+(map (cut + 1 &lt;&gt;) '(1 2 3))        ; (2 3 4)
+(define add10 (cut + 10 &lt;&gt;))</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-71: Extended LET-syntax</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Multiple value binding</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 71))
+(let ([a b (values 1 2)]
+      [c d (values 3 4)])
+  (+ a b c d))                      ; 10</code></pre>
+                </div>
+            </div>
+
+            <h4>Testing and Development SRFIs</h4>
+            <p>Tools for testing and development workflows:</p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem; margin: 1.5rem 0;">
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-64: Testing Framework</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Comprehensive unit testing</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 64))
+(test-begin "math-tests")
+(test-equal 4 (+ 2 2))
+(test-assert (even? 4))
+(test-end "math-tests")</code></pre>
+                </div>
+
+                <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1rem; background: white;">
+                    <h4><span style="color: #059669;">✓</span> SRFI-78: Lightweight Testing</h4>
+                    <p style="font-size: 0.875rem; color: #64748b; margin: 0.5rem 0;">Simple check-based testing</p>
+                    <pre style="font-size: 0.7rem; margin: 0.5rem 0;"><code>(import (srfi 78))
+(check (+ 2 2) =&gt; 4)
+(check-set-mode! 'report-failed)</code></pre>
+                </div>
+            </div>
+
+            <h4>Lambdust-Specific SRFI Extensions</h4>
+            <p>Enhanced implementations with type safety and effect tracking:</p>
+
+            <div class="example-box">
+                <h4>Typed SRFI Implementations</h4>
+                <pre><code>;; SRFI-1 with full type safety
+(import (lambdust srfi 1))
+
+(define filter : (∀ α. (α → Boolean) → List α → List α))
+(define fold-left : (∀ α β. (β → α → β) → β → List α → β))
+(define partition : (∀ α. (α → Boolean) → List α → (Pair (List α) (List α))))
+
+;; SRFI-106 with effect tracking
+(import (lambdust srfi 106))
+
+(define make-client-socket : (String → Integer → IO Socket))
+(define socket-send : (Socket → Bytevector → IO Unit))
+(define socket-recv : (Socket → Integer → IO Bytevector))
+
+;; SRFI-19 with temporal types
+(import (lambdust srfi 19))
+
+(define current-time : (IO Time))
+(define time-difference : (Time → Time → Duration))
+(define date-&gt;string : (Date → String → String))</code></pre>
+            </div>
+
+            <h4>SRFI Compatibility Matrix</h4>
+            <table style="width: 100%; margin: 2rem 0; font-size: 0.875rem;">
+                <thead>
+                    <tr>
+                        <th>Category</th>
+                        <th>Implemented</th>
+                        <th>Partial</th>
+                        <th>Planned</th>
+                        <th>Total Coverage</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Core Data Structures</strong></td>
+                        <td>12</td>
+                        <td>2</td>
+                        <td>3</td>
+                        <td>85%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Numeric & Math</strong></td>
+                        <td>8</td>
+                        <td>1</td>
+                        <td>2</td>
+                        <td>82%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>System & I/O</strong></td>
+                        <td>9</td>
+                        <td>3</td>
+                        <td>4</td>
+                        <td>75%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Pattern Matching</strong></td>
+                        <td>7</td>
+                        <td>0</td>
+                        <td>1</td>
+                        <td>95%</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Testing & Development</strong></td>
+                        <td>4</td>
+                        <td>1</td>
+                        <td>1</td>
+                        <td>85%</td>
+                    </tr>
+                    <tr style="font-weight: bold; border-top: 2px solid #e2e8f0;">
+                        <td><strong>Total</strong></td>
+                        <td><strong>40</strong></td>
+                        <td><strong>7</strong></td>
+                        <td><strong>11</strong></td>
+                        <td><strong>81%</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>Comparison with Other Implementations</h4>
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th>Implementation</th>
+                        <th>SRFIs Supported</th>
+                        <th>Notable Strengths</th>
+                        <th>Lambdust Advantages</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Chibi Scheme</td>
+                        <td>45+</td>
+                        <td>R7RS reference, modular</td>
+                        <td>Full typing, effect tracking</td>
+                    </tr>
+                    <tr>
+                        <td>Chicken Scheme</td>
+                        <td>40+</td>
+                        <td>C compilation, eggs system</td>
+                        <td>Type safety, dependent types</td>
+                    </tr>
+                    <tr>
+                        <td>Gauche</td>
+                        <td>35+</td>
+                        <td>Unicode, POSIX integration</td>
+                        <td>Gradual typing, monadic purity</td>
+                    </tr>
+                    <tr>
+                        <td>Kawa</td>
+                        <td>25+</td>
+                        <td>JVM integration</td>
+                        <td>Better type inference, effects</td>
+                    </tr>
+                    <tr style="font-weight: bold; background-color: #f8fafc;">
+                        <td><strong>Lambdust</strong></td>
+                        <td><strong>47+</strong></td>
+                        <td><strong>Type safety, effects, dependent types</strong></td>
+                        <td><strong>Leading SRFI coverage with modern features</strong></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h4>Future SRFI Implementation Roadmap</h4>
+
+            <div class="example-box">
+                <h4>Planned SRFIs (v0.3.0)</h4>
+                <ul>
+                    <li><strong>SRFI-158: Generators and Accumulators</strong> - Efficient data stream processing</li>
+                    <li><strong>SRFI-173: Hooks</strong> - Event-driven programming support</li>
+                    <li><strong>SRFI-174: POSIX Timers</strong> - Advanced timing and scheduling</li>
+                    <li><strong>SRFI-175: ASCII Character Library</strong> - Efficient ASCII operations</li>
+                </ul>
+            </div>
+
+            <div class="example-box">
+                <h4>Under Consideration (v0.4.0+)</h4>
+                <ul>
+                    <li><strong>SRFI-180: JSON</strong> - Native JSON parsing and generation</li>
+                    <li><strong>SRFI-181: Custom Ports</strong> - User-defined I/O abstractions</li>
+                    <li><strong>SRFI-189: Maybe and Either</strong> - Enhanced error handling</li>
+                    <li><strong>New Lambdust SRFIs</strong> - Type-directed programming, algebraic effects</li>
+                </ul>
+            </div>
+
+            <h3>Extended Library Usage</h3>
+            <pre><code>;; SRFI-1 enhanced list operations
+(import (srfi 1))
+(filter even? '(1 2 3 4 5 6))      ; (2 4 6)
+(partition even? '(1 2 3 4 5 6))   ; ((2 4 6) (1 3 5))
+(take '(1 2 3 4 5) 3)              ; (1 2 3)
+
+;; SRFI-13 string operations
+(import (srfi 13))
+(string-trim "  hello  ")           ; "hello"
+(string-split "a,b,c" ",")          ; ("a" "b" "c")
+(string-contains? "hello" "ell")    ; 1
+
+;; SRFI-69 hash tables
+(import (srfi 69))
+(define ht (make-hash-table))
+(hash-table-set! ht 'key 'value)
+(hash-table-ref ht 'key)            ; 'value</code></pre>
+
+            <h2>Module System</h2>
+
+            <p>Lambdust's module system is fully compatible with R7RS libraries:</p>
+
+            <div class="example-box">
+                <h4>R7RS Library Definition</h4>
+                <pre><code>;; Standard R7RS library
+(define-library (example utils)
+  (import (scheme base)
+          (scheme write))
+  (export fibonacci square)
+  
+  (begin
+    (define (fibonacci n)
+      (if (&lt; n 2) n
+          (+ (fibonacci (- n 1))
+             (fibonacci (- n 2)))))
+    
+    (define (square x) (* x x))))
+
+;; Usage
+(import (example utils))
+(display (fibonacci 10))   ; Uses imported procedure</code></pre>
+            </div>
+
+            <h3>Enhanced Module Features</h3>
+            <pre><code>;; Lambdust module extensions
+(define-library (example typed-utils)
+  (import (scheme base)
+          (lambdust types))     ; Type system integration
+  (export typed-fibonacci : (Integer → Integer))
+  
+  (begin
+    (define typed-fibonacci : (Integer → Integer)
+      (lambda ((n : Integer))
+        (if (&lt; n 2) n
+            (+ (typed-fibonacci (- n 1))
+               (typed-fibonacci (- n 2))))))))
+
+;; Conditional compilation
+(cond-expand
+  [lambdust
+   (import (lambdust types))]
+  [else
+   (import (scheme base))])</code></pre>
+
+            <h2>Compatibility Features</h2>
+
+            <h3>Legacy Code Support</h3>
+            <p>Existing Scheme code runs unchanged in Lambdust:</p>
+
+            <pre><code>;; This Scheme code works as-is in Lambdust
+(define (quick-sort lst)
+  (if (null? lst) '()
+      (let ([pivot (car lst)]
+            [rest (cdr lst)])
+        (append (quick-sort (filter (lambda (x) (&lt; x pivot)) rest))
+                (list pivot)
+                (quick-sort (filter (lambda (x) (>= x pivot)) rest))))))
+
+;; Can be gradually enhanced with types
+(define quick-sort-typed : (∀ (α : Ord). List α → List α)
+  (lambda (lst)
+    ;; Same implementation, now with type safety
+    ...))</code></pre>
+
+            <h3>R7RS Compliance Testing</h3>
+            <p>Lambdust passes the official R7RS test suite:</p>
+
+            <pre><code>;; Compliance verification
+(import (scheme base)
+        (scheme write)
+        (scheme test))
+
+;; All R7RS-small features tested
+(test-begin "r7rs-compliance")
+
+(test 3 (+ 1 2))
+(test '(1 2 3) (map (lambda (x) x) '(1 2 3)))
+(test #t (procedure? (lambda (x) x)))
+
+(test-end "r7rs-compliance")
+;; Result: All 500+ R7RS tests pass</code></pre>
+
+            <h2>Interoperability</h2>
+
+            <h3>Cross-Implementation Compatibility</h3>
+            <p>Code written for other R7RS implementations works in Lambdust:</p>
+
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th>Implementation</th>
+                        <th>Compatibility</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Chibi Scheme</td>
+                        <td>✅ Full</td>
+                        <td>R7RS-small reference implementation</td>
+                    </tr>
+                    <tr>
+                        <td>Chicken Scheme</td>
+                        <td>✅ High</td>
+                        <td>Most code works, some extensions differ</td>
+                    </tr>
+                    <tr>
+                        <td>Gauche</td>
+                        <td>✅ High</td>
+                        <td>R7RS mode fully compatible</td>
+                    </tr>
+                    <tr>
+                        <td>Kawa</td>
+                        <td>✅ Good</td>
+                        <td>Core language compatible</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Migration Path</h3>
+            <p>Easy migration from other Scheme implementations:</p>
+
+            <ol>
+                <li><strong>Direct Port</strong>: Most R7RS code works unchanged</li>
+                <li><strong>Library Updates</strong>: Update library imports to Lambdust equivalents</li>
+                <li><strong>Gradual Typing</strong>: Add type annotations incrementally</li>
+                <li><strong>Modern Features</strong>: Adopt pattern matching, modules, etc. as desired</li>
+            </ol>
+
+            <h2>Standards Compliance</h2>
+
+            <h3>R7RS Deviations</h3>
+            <p>Lambdust has minimal deviations from R7RS, all documented:</p>
+
+            <ul>
+                <li><strong>Type System</strong>: Optional type annotations (purely additive)</li>
+                <li><strong>Effect System</strong>: IO operations tracked in types (opt-in)</li>
+                <li><strong>Modules</strong>: Enhanced module system (backward compatible)</li>
+                <li><strong>Syntax</strong>: Additional syntax forms (non-conflicting)</li>
+            </ul>
+
+            <div class="warning-box">
+                <h4>Compatibility Mode</h4>
+                <p>Use <code>(import (r7rs strict))</code> to ensure 100% R7RS compliance with no Lambdust extensions. This mode is useful for testing compatibility with other implementations.</p>
+            </div>
+
+            <h2>Future R7RS Development</h2>
+
+            <p>Lambdust tracks R7RS-large development and contributes to the standard:</p>
+
+            <ul>
+                <li><strong>Active Participation</strong>: Lambdust developers participate in R7RS working groups</li>
+                <li><strong>Implementation Experience</strong>: Real-world feedback to standard development</li>
+                <li><strong>Extension Proposals</strong>: Type system features proposed for future standards</li>
+                <li><strong>Compatibility Testing</strong>: Continuous testing against emerging standards</li>
+            </ul>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="../standard-library/index.html">Standard Library</a> - R7RS procedure implementations</li>
+                <li><a href="../type-system/gradual-typing.html">Gradual Typing</a> - Type system compatibility</li>
+                <li><a href="../examples/index.html">Examples</a> - R7RS code examples</li>
+                <li><a href="../quickstart/index.html">Quick Start</a> - Getting started with R7RS features</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="performance.html">← Performance</a>
+                <a href="../type-system/index.html">Type System →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

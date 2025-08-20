@@ -1,0 +1,433 @@
+%\vfill\eject
+\chapter{Formal Denotational Semantics}
+\label{ch:formal-semantics}
+
+\bgroup
+
+% R7RS notation (inherited - commands already defined in lambdust-commands.tex)
+% \newcommand{\sembrack}[1]{[\![#1]\!]}
+% \newcommand{\fun}[1]{\hbox{\it #1}}
+% \newenvironment{semfun}{\begin{tabbing}$}{$\end{tabbing}}
+% Domain commands already defined in lambdust-commands.tex
+% \newcommand\LOC{{\tt{}L}}
+% \newcommand\NAT{{\tt{}N}}
+% \newcommand\TRU{{\tt{}T}}
+% \newcommand\SYM{{\tt{}Q}}
+% \newcommand\CHR{{\tt{}H}}
+% \newcommand\NUM{{\tt{}R}}
+% \newcommand\FUN{{\tt{}F}}
+% \newcommand\EXP{{\tt{}E}}
+% \newcommand\STV{{\tt{}E}}
+% \newcommand\STO{{\tt{}S}}
+% \newcommand\ENV{{\tt{}U}}
+% \newcommand\ANS{{\tt{}A}}
+% \newcommand\ERR{{\tt{}X}}
+% \newcommand\DP{\tt{P}}
+% \newcommand\EC{{\tt{}K}}
+% \newcommand\CC{{\tt{}C}}
+% \newcommand\MSC{{\tt{}M}}
+% \newcommand\PAI{\hbox{\EXP$_{\rm p}$}}
+% \newcommand\VEC{\hbox{\EXP$_{\rm v}$}}
+% \newcommand\STR{\hbox{\EXP$_{\rm s}$}}
+
+% Lambdust extension domains (already defined in lambdust-commands.tex)
+% \newcommand\TYP{{\tt{}T}}     % Types
+% \newcommand\EFF{{\tt{}F}}     % Effects  
+% \newcommand\MON{{\tt{}M}}     % Monads
+% \newcommand\ACT{{\tt{}A}}     % Actors
+% \newcommand\CON{{\tt{}C}}     % Concurrency primitives
+% \newcommand\FFI{{\tt{}I}}     % FFI bindings
+% \newcommand\DEP{{\tt{}D}}     % Dependent types
+% \newcommand\PRF{{\tt{}P}}     % Proof terms
+
+% Auxiliary notation (already defined in lambdust-commands.tex)
+% \newcommand\elt{\downarrow}
+% \newcommand\drop{\dagger}
+% \newcommand{\wrong}[1]{\fun{wrong }\hbox{\rm``#1''}}
+% \newcommand{\go}[1]{\hbox{\hspace*{#1em}}}
+
+This section provides a formal denotational semantics for Lambdust, extending R7RS-small with advanced language features including gradual dependent typing, effect systems, concurrency, and FFI. The semantics is designed to support mechanical verification with Isabelle/HOL and automated translation from Event-B specifications.
+
+The notation extends the R7RS conventions~\cite{R7RS} with Lambdust-specific domains and operations. The core R7RS semantics is preserved as a conservative extension.
+
+\onecolumn
+\begin{tabular}{ll}
+$\langle\,\ldots\,\rangle$ & sequence formation \\
+$s \elt k$                 & $k$th member of the sequence $s$ (1-based) \\
+$\#s$                      & length of sequence $s$ \\
+$s \:\S\: t$               & concatenation of sequences $s$ and $t$ \\
+$s \drop k$                & drop the first $k$ members of sequence $s$ \\
+$t \rightarrow a, b$       & McCarthy conditional ``if $t$ then $a$ else $b$'' \\
+$\rho[x/i]$                & substitution ``$\rho$ with $x$ for $i$'' \\
+$x\hbox{ \rm in }{\texttt{D}}$         & injection of $x$ into domain $\texttt{D}$ \\
+$x\,\vert\,\texttt{D}$       & projection of $x$ to domain $\texttt{D}$ \\
+$\llbracket P \rrbracket$  & denotational meaning of program $P$ \\
+$\models$                  & semantic entailment
+\end{tabular}
+\twocolumn
+
+The Lambdust semantics maintains R7RS compatibility while providing rigorous foundations for:
+\begin{itemize}
+\item Gradual dependent typing with type-level computation
+\item Effect systems with algebraic effects and handlers  
+\item Actor-based concurrency with fault tolerance
+\item Memory-safe FFI with capability-based security
+\item Proof-carrying code via Curry-Howard correspondence
+\end{itemize}
+
+\subsection{Extended Abstract Syntax}
+
+\def\K{\hbox{\rm K}}
+\def\I{\hbox{\rm I}}
+\def\E{\hbox{\rm E}}
+\def\T{\hbox{\rm T}}
+\def\F{\hbox{\rm F}}
+\def\C{\hbox{$\Gamma$}}
+\def\Con{\hbox{\rm Con}}
+\def\Ide{\hbox{\rm Ide}}
+\def\Typ{\hbox{\rm Typ}}
+\def\Eff{\hbox{\rm Eff}}
+\def\Exp{\hbox{\rm Exp}}
+\def\Com{\hbox{\rm Com}}
+\def\Prf{\hbox{\rm Prf}}
+\def\|{$\vert$}
+
+\onecolumn
+\begin{tabular}{r@{ }c@{ }l@{\qquad}l}
+\K & \elem & \Con & constants, including quotations \\
+\I & \elem & \Ide & identifiers (variables) \\
+\T & \elem & \Typ & type expressions \\
+\F & \elem & \Eff & effect specifications \\
+\E & \elem & \Exp & expressions\\
+\C & \elem & \Com{} $=$ \Exp & commands \\
+P & \elem & \Prf & proof terms
+\end{tabular}
+\twocolumn
+
+\setbox0=\hbox{\texttt{\Exp \goesto{}}}
+\setbox1=\hbox to 1\wd0{\hfil \|}
+\begin{grammar}
+\multicolumn{4}{l}{\textbf{R7RS Core (unchanged):}} \\
+\Exp{} \goesto{} \K{} \| \I{} \| (\E$_0$ ${\E}^*$) \\
+\copy1{} (lambda (${\I}^*$) ${\C}^*$ \E$_0$) \\
+\copy1{} (lambda (${\I}^*$ {\bf.}\ \I) ${\C}^*$ \E$_0$) \\
+\copy1{} (lambda \I{} ${\C}^*$ \E$_0$) \\
+\copy1{} (if \E$_0$ \E$_1$ \E$_2$) \| (if \E$_0$ \E$_1$) \\
+\copy1{} (set! \I{} \E) \\[0.5em]
+
+\multicolumn{4}{l}{\textbf{Lambdust Type Extensions:}} \\
+\copy1{} (: \I{} \T) & type annotation \\
+\copy1{} (Pi (\I{} \T$_1$) \T$_2$) & dependent function type \\
+\copy1{} (Sigma (\I{} \T$_1$) \T$_2$) & dependent product type \\
+\copy1{} (Refinement (\I{} \T) \E) & refinement type \\
+\copy1{} (the \T{} \E) & explicit type ascription \\[0.5em]
+
+\multicolumn{4}{l}{\textbf{Effect System:}} \\
+\copy1{} (perform \I{} \E) & effect invocation \\
+\copy1{} (handle \E{} (\I{} (\I{} $\I^*$ \E)$^*$)) & effect handler \\
+\copy1{} (lift \E) & effect lifting \\[0.5em]
+
+\multicolumn{4}{l}{\textbf{Concurrency:}} \\
+\copy1{} (spawn \E) & actor spawning \\
+\copy1{} (send \E{} \E) & message sending \\
+\copy1{} (receive ((\E{} \E)$^*$)) & pattern-based message reception \\
+\copy1{} (future \E) & asynchronous computation \\
+\copy1{} (await \E) & synchronization \\[0.5em]
+
+\multicolumn{4}{l}{\textbf{FFI:}} \\
+\copy1{} (foreign-call \I{} \T{} ${\E}^*$) & foreign function call \\
+\copy1{} (foreign-data \I{} \T) & foreign data access \\
+\copy1{} (capability \I{} \E) & capability-based access \\[0.5em]
+
+\multicolumn{4}{l}{\textbf{Proof System:}} \\
+\copy1{} (prove \T{} P) & proof term construction \\
+\copy1{} (extract P) & program extraction from proof \\
+\copy1{} (qed P) & proof completion
+\end{grammar}
+
+\subsection{Extended Domain Equations}
+
+\onecolumn
+\begin{tabular}{@{}r@{ }c@{ }l@{ }l@{ }ll}
+\multicolumn{6}{l}{\textbf{R7RS Domains (preserved):}} \\
+$\alpha$   & \elem & \LOC & &          & locations \\
+$\nu$      & \elem & \NAT & &          & natural numbers \\
+           &       & \TRU &=& $\{$\it false, true$\}$ & booleans \\
+           &       & \SYM & &          & symbols \\
+           &       & \CHR & &          & characters \\
+           &       & \NUM & &          & numbers \\
+           &       & \PAI &=& $\LOC \times \LOC \times \TRU$  & pairs \\
+           &       & \VEC &=& ${\LOC}^* \times \TRU$ & vectors \\
+           &       & \STR &=& ${\LOC}^* \times \TRU$ & strings \\
+           &       & \MSC &=& \makebox[0pt][l]{$\{$\it false, true, null, undefined, unspecified$\}$} \\
+           &       &      & &          & miscellaneous \\
+$\phi$     & \elem & \FUN &=& $\LOC\times({\EXP}^* \to \DP \to \EC \to \CC)$ & procedure values \\
+$\epsilon$ & \elem & \EXP &=& \makebox[0pt][l]{$\SYM+\CHR+\NUM+\PAI+\VEC+\STR+\MSC+\FUN+\ldots$} & expressed values \\
+$\sigma$   & \elem & \STO &=& $\LOC\to(\STV\times\TRU)$ & stores \\
+$\rho$     & \elem & \ENV &=& $\Ide\to\LOC$  & environments \\
+$\theta$   & \elem & \CC  &=& $\STO\to\ANS$  & command continuations \\
+$\kappa$   & \elem & \EC  &=& ${\EXP}^*\to\CC$ & expression continuations \\
+           &       & \ANS & &                & answers \\
+           &       & \ERR & &                & errors \\
+$\omega$   & \elem & \DP  &=& $(\FUN \times \FUN \times \DP) + \{\textit{root}\}$ & dynamic points\\[1em]
+
+\multicolumn{6}{l}{\textbf{Lambdust Type System:}} \\
+$\tau$     & \elem & \TYP &=& $\TYP_{\text{base}} + \TYP_{\text{dep}} + \TYP_{\text{eff}}$ & types \\
+           &       & $\TYP_{\text{base}}$ &=& $\{\text{Dynamic, Number, String, Boolean, Symbol}\}$ & base types \\
+           &       & $\TYP_{\text{dep}}$ &=& $\Pi\text{-types} + \Sigma\text{-types} + \text{Refinements}$ & dependent types \\
+           &       & $\TYP_{\text{eff}}$ &=& $\TYP \to \EFF \to \TYP$ & effectful types \\
+$\delta$   & \elem & $\TYP_{\text{ctx}}$ &=& $\Ide \to \TYP$ & type environments \\
+$\xi$      & \elem & $\TYP_{\text{sub}}$ &=& $\TYP \times \TYP$ & subtyping relation \\[1em]
+
+\multicolumn{6}{l}{\textbf{Effect System:}} \\
+$\psi$     & \elem & \EFF &=& $\mathcal{P}(\text{EffectLabel})$ & effect sets \\
+           &       & $\text{EffectLabel}$ &=& $\SYM \times \TYP \times \TYP$ & labeled effects \\
+$\eta$     & \elem & $\text{Handler}$ &=& $\text{EffectLabel} \to \FUN$ & effect handlers \\
+$\mu$      & \elem & $\text{Monad}$ &=& $\text{Type} \to \text{Type}$ & monadic types \\[1em]
+
+\multicolumn{6}{l}{\textbf{Concurrency System:}} \\
+$\alpha$   & \elem & $\text{ActorId}$ &=& $\NAT$ & actor identifiers \\
+$\lambda$  & \elem & $\text{Message}$ &=& $\EXP \times \text{ActorId}$ & messages \\
+$\chi$     & \elem & $\text{Mailbox}$ &=& ${\text{Message}}^*$ & actor mailboxes \\
+$\zeta$    & \elem & $\text{ActorSystem}$ &=& $\text{ActorId} \to \text{Actor}$ & actor system state \\
+           &       & $\text{Actor}$ &=& $\text{Behavior} \times \chi \times \text{State}$ & actor structure \\
+$\phi_f$   & \elem & $\text{Future}$ &=& $\EXP + \{\text{pending}\}$ & future values \\[1em]
+
+\multicolumn{6}{l}{\textbf{FFI System:}} \\
+$\gamma$   & \elem & $\text{CType}$ &=& $\{\text{int32, int64, float64, ptr, ...}\}$ & C data types \\
+$\iota$    & \elem & $\text{FFIBinding}$ &=& $\SYM \times \text{CType} \times \LOC$ & foreign bindings \\
+$\kappa_c$ & \elem & $\text{Capability}$ &=& $\text{Resource} \times \text{Permission}$ & access capabilities \\
+           &       & $\text{Resource}$ &=& $\text{LibraryId} \times \text{FunctionId}$ & foreign resources \\
+           &       & $\text{Permission}$ &=& $\{\text{read, write, exec}\}$ & access permissions \\[1em]
+
+\multicolumn{6}{l}{\textbf{Proof System:}} \\
+$\pi$      & \elem & \PRF &=& $\text{ProofTerm}$ & proof terms \\
+           &       & $\text{ProofTerm}$ &=& $\lambda\text{-terms} + \text{Induction} + \text{Tactics}$ & proof structures \\
+$\varphi$  & \elem & $\text{Proposition}$ &=& $\TYP$ & propositions as types \\
+$\Gamma$   & \elem & $\text{Context}$ &=& $\Ide \to \TYP$ & proof contexts
+\end{tabular}
+\twocolumn
+
+\subsection{Extended Semantic Functions}
+
+\def\Ksem{\hbox{$\cal K$}}
+\def\Esem{\hbox{$\cal E$}}
+\def\Csem{\hbox{$\cal C$}}
+\def\Tsem{\hbox{$\cal T$}}
+\def\Fsem{\hbox{$\cal F$}}
+\def\Asem{\hbox{$\cal A$}}
+\def\Isem{\hbox{$\cal I$}}
+\def\Psem{\hbox{$\cal P$}}
+
+\onecolumn
+\begin{tabular}{@{}r@{ }l}
+\multicolumn{2}{l}{\textbf{R7RS Core (preserved):}} \\
+$\Ksem:$ & $\Con\to\EXP$  \\
+$\Esem:$ & $\Exp\to\ENV\to\DP\to\EC\to\CC$ \\
+${\Esem}^*:$ & ${\Exp}^*\to\ENV\to\DP\to\EC\to\CC$ \\
+$\Csem:$ & ${\Com}^*\to\ENV\to\DP\to\CC\to\CC$ \\[0.5em]
+
+\multicolumn{2}{l}{\textbf{Lambdust Extensions:}} \\
+$\Tsem:$ & $\Typ\to\text{TypeDenotation}$ \\
+$\Fsem:$ & $\Eff\to\text{EffectDenotation}$ \\
+$\Asem:$ & $\text{ActorExp}\to\text{ActorSystem}\to\text{ActorSystem}$ \\
+$\Isem:$ & $\text{FFIExp}\to\text{Capability}\to\EXP$ \\
+$\Psem:$ & $\Prf\to\text{ProofDenotation}$
+\end{tabular}
+\twocolumn
+
+\subsection{Type System Semantics}
+
+The type system provides gradual dependent typing with four levels:
+\begin{enumerate}
+\item \textbf{Dynamic}: No static checking, full R7RS compatibility
+\item \textbf{Contracts}: Runtime type checking with gradual migration
+\item \textbf{Static}: Hindley-Milner style inference with extensions
+\item \textbf{Dependent}: Full dependent types with proof obligations
+\end{enumerate}
+
+\bgroup\small
+
+\begin{semfun}
+\Tsem\sembrack{\textbf{Dynamic}} = \lambda\rho\:\epsilon\:.\:\epsilon
+\end{semfun}
+
+\begin{semfun}
+\Tsem\sembrack{(\textbf{Pi} (\I\:\T_1) \T_2)} =$\\
+\go{1}$\lambda\rho\:.\:
+  \{\epsilon \mid \epsilon \in \FUN \wedge$\\
+\go{2}$\forall \epsilon' \in \Tsem\sembrack{\T_1}\rho\:.\:$\\
+\go{3}$\text{applicate}\:\epsilon\langle\epsilon'\rangle \in 
+  \Tsem\sembrack{\T_2}(\rho[\epsilon'/\I])\}
+\end{semfun}
+
+\begin{semfun}
+\Tsem\sembrack{(\textbf{Refinement} (\I\:\T) \E)} =$\\
+\go{1}$\lambda\rho\:.\:
+  \{\epsilon \mid \epsilon \in \Tsem\sembrack{\T}\rho \wedge$\\
+\go{2}$\fun{truish}\,(\Esem\sembrack{\E}(\rho[\epsilon/\I]))\}
+\end{semfun}
+
+\egroup
+
+\subsection{Effect System Semantics}
+
+Effects are modeled as algebraic effects with handlers following the approach of~\cite{PlotkinPower2003}. The effect system ensures that side effects are properly tracked and contained.
+
+\bgroup\small
+
+\begin{semfun}
+\Esem\sembrack{(\textbf{perform} \I\:\E)} =$\\
+\go{1}$\lambda\rho\omega\kappa\:.\:\Esem\sembrack{\E}\rho\omega$\\
+\go{2}$(\fun{single}(\lambda\epsilon\:.\:
+  \fun{invoke-effect}\:\I\:\epsilon\:\omega\kappa))
+\end{semfun}
+
+\begin{semfun}
+\Esem\llbracket(\textbf{handle} \E\:(\I\:(\I_i\:\I_i^*\:\E_i)^*))\rrbracket =$\\
+\go{1}$\lambda\rho\omega\kappa\:.\:
+  \Esem\llbracket\E\rrbracket\rho$\\
+\go{2}$(\fun{extend-handler}\:\omega\:(\fun{make-handler}\:(\I_i\:\I_i^*\:\E_i)^*\rho))$\\
+\go{2}$\kappa
+\end{semfun}
+
+\begin{semfun}
+\fun{invoke-effect} : \SYM \to \EXP \to \DP \to \EC \to \CC$\\$
+\fun{invoke-effect} =$\\
+\go{1}$\lambda\text{label}\:\epsilon\:\omega\kappa\:.\:
+  \fun{find-handler}\:\text{label}\:\omega\:($\\
+\go{2}$\lambda\text{handler}\:.\:\text{handler}\:\epsilon\kappa,$\\
+\go{2}$\wrong{\text{unhandled effect: }\text{label}})
+\end{semfun}
+
+\egroup
+
+\subsection{Actor System Semantics}
+
+The actor system provides fault-tolerant concurrency with supervision trees and location transparency.
+
+\bgroup\small
+
+\begin{semfun}
+\Esem\sembrack{(\textbf{spawn} \E)} =$\\
+\go{1}$\lambda\rho\omega\kappa\:.\:\lambda\zeta\:.\:
+  \fun{fresh-actor-id}\:\zeta\:($\\
+\go{2}$\lambda\alpha\:.\:
+    \fun{send}\:\alpha\kappa$\\
+\go{2}$(\fun{spawn-actor}\:\alpha\:(\Esem\sembrack{\E}\rho\omega)\:\zeta))
+\end{semfun}
+
+\begin{semfun}
+\Esem\sembrack{(\textbf{send} \E_1\:\E_2)} =$\\
+\go{1}$\lambda\rho\omega\kappa\:.\:
+  \Esem\sembrack{\E_1}\rho\omega\:($\\
+\go{2}$\fun{single}(\lambda\alpha\:.\:
+    \Esem\sembrack{\E_2}\rho\omega\:($\\
+\go{3}$\fun{single}(\lambda\epsilon\:.\:
+      \fun{enqueue-message}\:\alpha\:\epsilon\kappa))))
+\end{semfun}
+
+\begin{semfun}
+\fun{spawn-actor} : \text{ActorId} \to \EXP \to \text{ActorSystem} \to \text{ActorSystem}$\\$
+\fun{spawn-actor} =$\\
+\go{1}$\lambda\alpha\:\text{behavior}\:\zeta\:.\:
+  \zeta[\alpha \mapsto (\text{behavior}, \langle\rangle, \text{fresh-state})]
+\end{semfun}
+
+\egroup
+
+\subsection{FFI System Semantics}
+
+The FFI provides capability-based access to foreign functions with automatic memory management and type safety.
+
+\bgroup\small
+
+\begin{semfun}
+\Esem\llbracket(\textbf{foreign-call} \I\:\T\:{\E}^*)\rrbracket =$\\
+\go{1}$\lambda\rho\omega\kappa\:.\:
+  {\Esem}^*\llbracket{\E}^*\rrbracket\rho\omega\:($\\
+\go{2}$\lambda{\epsilon}^*\:.\:
+    \fun{check-capability}\:\I\:($\\
+\go{3}$\lambda\text{cap}\:.\:
+      \fun{marshal-call}\:\I\:\T\:{\epsilon}^*\:\text{cap}\kappa))
+\end{semfun}
+
+\begin{semfun}
+\fun{marshal-call} : \SYM \to \TYP \to {\EXP}^* \to \text{Capability} \to \EC \to \CC$\\$
+\fun{marshal-call} =$\\
+\go{1}$\lambda\text{fname}\:\text{ret-type}\:{\epsilon}^*\:\text{cap}\kappa\:.\:
+  \fun{convert-args}\:{\epsilon}^*\:($\\
+\go{2}$\lambda\text{c-args}\:.\:
+    \fun{invoke-foreign}\:\text{fname}\:\text{c-args}\:($\\
+\go{3}$\lambda\text{c-result}\:.\:
+      \fun{convert-result}\:\text{ret-type}\:\text{c-result}\kappa))
+\end{semfun}
+
+\egroup
+
+\subsection{Proof System Semantics}
+
+The proof system implements Curry-Howard correspondence, enabling program extraction from constructive proofs.
+
+\bgroup\small
+
+\begin{semfun}
+\Psem\sembrack{(\textbf{prove} \T\:P)} =$\\
+\go{1}$\lambda\Gamma\:.\:
+  \fun{check-proof}\:P\:\T\:\Gamma\:($\\
+\go{2}$\lambda\text{verified}\:.\:
+    \text{verified} \rightarrow \Psem\sembrack{P}\Gamma,$\\
+\go{2}$\wrong{\text{proof verification failed}})
+\end{semfun}
+
+\begin{semfun}
+\Psem\sembrack{(\textbf{extract} P)} =$\\
+\go{1}$\lambda\Gamma\:.\:
+  \fun{extract-program}\:(\Psem\sembrack{P}\Gamma)
+\end{semfun}
+
+\begin{semfun}
+\fun{check-proof} : \PRF \to \TYP \to \text{Context} \to (\TRU \to \CC) \to \CC$\\$
+\fun{check-proof} =$\\
+\go{1}$\lambda\text{proof}\:\text{prop}\:\Gamma\kappa\:.\:
+  \fun{type-of-proof}\:\text{proof}\:\Gamma\:($\\
+\go{2}$\lambda\text{inferred}\:.\:
+    \fun{types-equivalent}\:\text{inferred}\:\text{prop} \rightarrow$\\
+\go{3}$\kappa\:\fun{true},$\\
+\go{3}$\kappa\:\fun{false})
+\end{semfun}
+
+\egroup
+
+\subsection{Conservative Extension Properties}
+
+The Lambdust semantics satisfies the following key properties:
+
+\textbf{R7RS Compatibility:} For any R7RS-compliant program $P$, 
+$\Esem_{\text{Lambdust}}\sembrack{P} = \Esem_{\text{R7RS}}\sembrack{P}$ when run in Dynamic mode.
+
+\textbf{Type Safety:} Well-typed programs cannot go wrong:
+$$\vdash P : \tau \implies \forall \sigma. \Esem\llbracket P\rrbracket \emptyset \textit{root} (\lambda\epsilon.\epsilon) \neq \text{wrong}$$
+
+\textbf{Effect Safety:} Effects are properly contained by handlers:
+$$\vdash P : \tau \text{ in } \Psi \implies \text{effects}(\Esem\llbracket P\rrbracket) \subseteq \Psi$$
+
+\textbf{Memory Safety:} FFI operations cannot access unauthorized memory:
+$$\text{safe}(\text{capability}) \implies \text{safe}(\Isem\llbracket\text{ffi-call}\rrbracket \text{capability})$$
+
+\textbf{Proof Soundness:} Extracted programs satisfy their specifications:
+$$\vdash P : \text{proof-of}(\phi) \implies \Esem\llbracket\text{extract}(P)\rrbracket \models \phi$$
+
+\subsection{Relationship to Event-B and Isabelle/HOL}
+
+The semantics is designed to facilitate:
+
+\begin{itemize}
+\item \textbf{Event-B Translation:} Each Lambdust construct maps to Event-B machines with precisely defined refinement relationships.
+\item \textbf{Isabelle/HOL Verification:} Domain equations and semantic functions are directly expressible in Isabelle/HOL for mechanical verification.
+\item \textbf{Proof Carrying Code:} The proof system enables automatic generation of machine-checkable correctness certificates.
+\end{itemize}
+
+The complete formal development provides a mathematically rigorous foundation for high-assurance software development using functional programming with dependent types.
+
+\egroup

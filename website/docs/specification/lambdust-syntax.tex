@@ -1,0 +1,649 @@
+%% Basic Syntax and Semantics
+\chapter{Basic Syntax and Semantics}
+\label{ch:syntax}
+
+This section defines the core syntactic forms of Lambdust, extending R7RS-small with new constructs while maintaining complete backward compatibility. The syntax is organized into expressions, which are the primary syntactic category.
+
+\section{Syntactic Categories}
+\label{sec:syntactic-categories}
+
+Lambdust programs consist of expressions organized into the following syntactic categories:
+
+\begin{grammar}
+\production{\var{program}}{\produces}{\arbno{\var{import-declaration}} \arbno{\var{expression}}}{}
+\\
+\production{\var{expression}}{\produces}{\var{constant}}{}
+\production{}{\alternative}{\var{variable}}{}
+\production{}{\alternative}{\var{procedure-call}}{}
+\production{}{\alternative}{\var{lambda-expression}}{}
+\production{}{\alternative}{\var{conditional}}{}
+\production{}{\alternative}{\var{assignment}}{}
+\production{}{\alternative}{\var{derived-expression}}{}
+\production{}{\alternative}{\var{macro-use}}{}
+\production{}{\alternative}{\var{type-expression}}{}
+\production{}{\alternative}{\var{effect-expression}}{}
+\production{}{\alternative}{\var{concurrency-expression}}{}
+\production{}{\alternative}{\var{foreign-expression}}{}
+\end{grammar}
+
+\section{Constants and Literals}
+\label{sec:constants}
+
+\indexentry{constant}
+\indexentry{literal}
+
+Constants are self-evaluating expressions:
+
+\begin{grammar}
+\production{\var{constant}}{\produces}{\var{boolean} \alternative{} \var{number}}{}
+\production{}{\alternative}{\var{character} \alternative{} \var{string}}{}
+\production{}{\alternative}{\var{keyword}}{}
+\end{grammar}
+
+\begin{example}[Constants]
+\begin{lambdustcode}
+#t              ; Boolean true
+42              ; Integer  
+3.14            ; Real number
+1/3             ; Rational number
+3+4i            ; Complex number
+#\lambda        ; Character
+"Hello"         ; String
+#:type          ; Keyword
+\end{lambdustcode}
+\end{example}
+
+\section{Variables}
+\label{sec:variables}
+
+\indexentry{variable}
+
+Variables are identifiers that refer to bound values:
+
+\begin{grammar}
+\production{\var{variable}}{\produces}{\var{identifier}}{}
+\end{grammar}
+
+Variable references are resolved lexically according to R7RS scoping rules.
+
+\section{Procedure Calls}
+\label{sec:procedure-calls}
+
+\indexentry{procedure call}
+\indexentry{application}
+
+Procedure calls apply a procedure to arguments:
+
+\begin{grammar}
+\production{\var{procedure-call}}{\produces}{(\var{operator} \arbno{\var{operand}})}{}
+\production{\var{operator}}{\produces}{\var{expression}}{}
+\production{\var{operand}}{\produces}{\var{expression}}{}
+\end{grammar}
+
+\begin{example}[Procedure Calls]
+\begin{lambdustcode}
+(+ 1 2 3)                   ; Add three numbers
+(cons 'a '(b c))           ; Cons onto list
+((lambda (x) (+ x 1)) 5)   ; Apply lambda
+(f x y z)                  ; Call f with three arguments
+\end{lambdustcode}
+\end{example}
+
+\section{Lambda Expressions}
+\label{sec:lambda}
+
+\indexentry{lambda}
+\indexentry{procedure}
+
+Lambda expressions create procedures:
+
+\begin{grammar}
+\production{\var{lambda-expression}}{\produces}{(lambda \var{formals} \arbno{\var{expression}})}{}
+\\
+\production{\var{formals}}{\produces}{(\arbno{\var{identifier}})}{}
+\production{}{\alternative}{(\arbno{\var{identifier}} . \var{identifier})}{}
+\production{}{\alternative}{\var{identifier}}{}
+\end{grammar}
+
+\begin{example}[Lambda Expressions]
+\begin{lambdustcode}
+(lambda (x) (+ x 1))           ; Single parameter
+(lambda (x y) (* x y))         ; Multiple parameters  
+(lambda args (length args))    ; Variable arguments
+(lambda (x . rest) 
+  (cons x rest))               ; Fixed + variable arguments
+\end{lambdustcode}
+\end{example}
+
+\section{Conditionals}
+\label{sec:conditionals}
+
+\indexentry{if}
+\indexentry{conditional}
+
+Conditional expressions perform branches based on test values:
+
+\begin{grammar}
+\production{\var{conditional}}{\produces}{(if \var{test} \var{consequent} \var{alternate})}{}
+\production{}{\alternative}{(if \var{test} \var{consequent})}{}
+\end{grammar}
+
+\begin{example}[Conditionals]
+\begin{lambdustcode}
+(if (> x 0) 'positive 'non-positive)    ; Full conditional
+(if (null? lst) 'empty)                 ; No alternate
+\end{lambdustcode}
+\end{example}
+
+\section{Assignment}
+\label{sec:assignment}
+
+\indexentry{set!}
+\indexentry{assignment}
+
+Assignment expressions modify variable bindings:
+
+\begin{grammar}
+\production{\var{assignment}}{\produces}{(set! \var{variable} \var{expression})}{}
+\end{grammar}
+
+\begin{example}[Assignment]
+\begin{lambdustcode}
+(set! x 42)        ; Assign 42 to x
+(set! counter (+ counter 1))  ; Increment counter
+\end{lambdustcode}
+\end{example}
+
+\section{Derived Expressions}
+\label{sec:derived}
+
+\indexentry{derived expression}
+
+Derived expressions are syntactic sugar that can be expressed in terms of more primitive forms.
+
+\section{Conditionals}
+\label{sec:derived-conditionals}
+
+\begin{syntaxspec}{(cond \arbno{\var{clause}})}
+Multi-way conditional with optional else clause.
+\begin{lambdustcode}
+(cond ((< x 0) 'negative)
+      ((= x 0) 'zero)  
+      (else 'positive))
+\end{lambdustcode}
+\end{syntaxspec}
+
+\begin{syntaxspec}{(case \var{key} \arbno{\var{clause}})}
+Dispatch on datum equality.
+\begin{lambdustcode}
+(case op
+  ((+) (+ x y))
+  ((-) (- x y))
+  (else (error "unknown op")))
+\end{lambdustcode}
+\end{syntaxspec}
+
+\section{Boolean Operations}
+\label{sec:boolean-ops}
+
+\begin{syntaxspec}{(and \arbno{\var{expression}})}
+Short-circuit logical and.
+\begin{lambdustcode}
+(and (> x 0) (< x 100))    ; Check range
+\end{lambdustcode}
+\end{syntaxspec}
+
+\begin{syntaxspec}{(or \arbno{\var{expression}})}
+Short-circuit logical or.
+\begin{lambdustcode}
+(or (null? lst) (pair? lst))   ; Check list type
+\end{lambdustcode}
+\end{syntaxspec}
+
+\section{Binding Forms}
+\label{sec:binding}
+
+\begin{syntaxspec}{(let (\arbno{\var{binding}}) \arbno{\var{expression}})}
+Sequential local binding.
+\begin{lambdustcode}
+(let ((x 1) (y 2))
+  (+ x y))
+\end{lambdustcode}
+\end{syntaxspec}
+
+\begin{syntaxspec}{(let* (\arbno{\var{binding}}) \arbno{\var{expression}})}
+Sequential binding with each binding visible to later ones.
+\begin{lambdustcode}
+(let* ((x 1) (y (+ x 1)))
+  (+ x y))
+\end{lambdustcode}
+\end{syntaxspec}
+
+\begin{syntaxspec}{(letrec (\arbno{\var{binding}}) \arbno{\var{expression}})}
+Recursive binding for mutual recursion.
+\begin{lambdustcode}
+(letrec ((even? (lambda (n) 
+                  (if (= n 0) #t (odd? (- n 1)))))
+         (odd? (lambda (n)
+                 (if (= n 0) #f (even? (- n 1))))))
+  (even? 42))
+\end{lambdustcode}
+\end{syntaxspec}
+
+\section{Sequencing}
+\label{sec:sequencing}
+
+\begin{syntaxspec}{(begin \arbno{\var{expression}})}
+Sequential evaluation returning last result.
+\begin{lambdustcode}
+(begin
+  (display "Hello ")
+  (display "World")
+  (newline))
+\end{lambdustcode}
+\end{syntaxspec}
+
+\section{Iteration}
+\label{sec:iteration}
+
+\begin{syntaxspec}{(do (\arbno{\var{variable}} \var{init} \var{step}) (\var{test} \arbno{\var{result}}) \arbno{\var{command}})}
+General iteration construct.
+\begin{lambdustcode}
+(do ((i 0 (+ i 1))
+     (sum 0 (+ sum i)))
+    ((>= i 10) sum))    ; Sum 0 to 9
+\end{lambdustcode}
+\end{syntaxspec}
+
+\section{Definitions}
+\label{sec:definitions}
+
+\indexentry{define}
+\indexentry{definition}
+
+Definitions bind identifiers to values or procedures:
+
+\begin{grammar}
+\production{\var{definition}}{\produces}{(define \var{variable} \var{expression})}{}
+\production{}{\alternative}{(define (\var{variable} \arbno{\var{identifier}}) \arbno{\var{expression}})}{}
+\production{}{\alternative}{(define (\var{variable} . \var{identifier}) \arbno{\var{expression}})}{}
+\end{grammar}
+
+\begin{example}[Definitions]
+\begin{lambdustcode}
+(define pi 3.14159)                    ; Variable definition
+
+(define (square x) (* x x))            ; Procedure definition
+
+(define (list-of-squares . numbers)    ; Variadic procedure
+  (map square numbers))
+\end{lambdustcode}
+\end{example}
+
+\section{Quoting and Quasiquoting}
+\label{sec:quoting}
+
+\indexentry{quote}
+\indexentry{quasiquote}
+
+\section{Quote}
+\label{sec:quote}
+
+Quote prevents evaluation and returns literal data:
+
+\begin{grammar}
+\production{\var{quotation}}{\produces}{(quote \var{datum})}{}
+\production{}{\alternative}{\textquotesingle{}\var{datum}}{}
+\end{grammar}
+
+\begin{example}[Quotation]
+\begin{lambdustcode}
+(quote (a b c))     ; List of symbols
+'(a b c)            ; Abbreviated form
+'symbol             ; Symbol  
+'42                 ; Number (self-evaluating)
+\end{lambdustcode}
+\end{example}
+
+\section{Quasiquote}
+\label{sec:quasiquote}
+
+Quasiquote allows selective evaluation within quoted structure:
+
+\begin{grammar}
+\production{\var{quasiquotation}}{\produces}{(quasiquote \var{template})}{}
+\production{}{\alternative}{\textasciigrave{}\var{template}}{}
+\production{\var{template}}{\produces}{\var{datum}}{}
+\production{}{\alternative}{(unquote \var{expression})}{}
+\production{}{\alternative}{,\var{expression}}{}
+\production{}{\alternative}{(unquote-splicing \var{expression})}{}  
+\production{}{\alternative}{,@\var{expression}}{}
+\end{grammar}
+
+\begin{example}[Quasiquotation]
+\begin{lambdustcode}
+`(list ,(+ 1 2) 4)          ; Evaluates to (list 3 4)
+`(a ,@'(b c) d)             ; Evaluates to (a b c d)
+`((f x) = ,(f x))           ; Template with evaluation
+\end{lambdustcode}
+\end{example}
+
+\section{Type Expressions}
+\label{sec:type-expressions}
+
+\indexentry{type expression}
+
+Lambdust extends syntax with type expressions for gradual typing:
+
+\begin{grammar}
+\production{\var{type-expression}}{\produces}{(:: \var{expression} \var{type})}{}
+\production{}{\alternative}{(\var{expression} :: \var{type})}{}
+\\
+\production{\var{type}}{\produces}{\var{base-type}}{}
+\production{}{\alternative}{\var{compound-type}}{}
+\production{}{\alternative}{\var{dependent-type}}{}
+\\
+\production{\var{base-type}}{\produces}{Dynamic \alternative{} Number \alternative{} String}{}
+\production{}{\alternative}{Boolean \alternative{} Symbol \alternative{} Character}{}
+\\
+\production{\var{compound-type}}{\produces}{(\code{->} \arbno{\var{type}} \var{type})}{}
+\production{}{\alternative}{(List \var{type})}{}
+\production{}{\alternative}{(Vector \var{type})}{}
+\production{}{\alternative}{(\var{type} \alternative{} \var{type})}{}
+\end{grammar}
+
+\begin{example}[Type Expressions]
+\begin{lambdustcode}
+(:: 42 Number)                    ; Type ascription
+(:: (+ 1 2) Natural)             ; Refined type
+(:: factorial (-> Natural Natural))  ; Function type
+(:: lst (List Number))           ; Parameterized type
+\end{lambdustcode}
+\end{example}
+
+\section{Effect Expressions}  
+\label{sec:effect-expressions}
+
+\indexentry{effect}
+\indexentry{perform}
+\indexentry{handle}
+
+Effect expressions provide structured side effect management:
+
+\begin{grammar}
+\production{\var{effect-expression}}{\produces}{(perform \var{effect-name} \arbno{\var{expression}})}{}
+\production{}{\alternative}{(handle \var{expression} \var{handler})}{}
+\production{}{\alternative}{(with-effect \var{effect-name} \var{expression})}{}
+\\
+\production{\var{handler}}{\produces}{(\var{effect-name} \arbno{\var{operation-clause}})}{}
+\production{\var{operation-clause}}{\produces}{(\var{operation} \var{parameters} \var{body})}{}
+\end{grammar}
+
+\begin{example}[Effect Expressions]
+\begin{lambdustcode}
+;; Perform an effect
+(perform State get)
+(perform State set 42)
+
+;; Handle effects
+(handle 
+  (begin 
+    (perform State set 10)
+    (perform State get))
+  (State 
+    ((get k) (k current-state))
+    ((set new-state k) 
+     (set! current-state new-state)
+     (k 'unit))))
+\end{lambdustcode}
+\end{example}
+
+\section{Concurrency Expressions}
+\label{sec:concurrency-expressions}
+
+\indexentry{spawn}
+\indexentry{send}
+\indexentry{receive}
+
+Concurrency expressions support actor-based parallel programming:
+
+\begin{grammar}
+\production{\var{concurrency-expression}}{\produces}{(spawn \var{expression})}{}
+\production{}{\alternative}{(send \var{expression} \var{expression})}{}
+\production{}{\alternative}{(receive \arbno{\var{message-clause}})}{}
+\production{}{\alternative}{(future \var{expression})}{}
+\production{}{\alternative}{(await \var{expression})}{}
+\\
+\production{\var{message-clause}}{\produces}{(\var{pattern} \var{expression})}{}
+\end{grammar}
+
+\begin{example}[Concurrency Expressions]
+\begin{lambdustcode}
+;; Spawn an actor
+(define pid (spawn (lambda () (server-loop))))
+
+;; Send a message
+(send pid '(request 42))
+
+;; Receive messages with pattern matching
+(receive
+  (('request data) 
+   (handle-request data))
+  (('stop)
+   (shutdown-server))
+  ((other) 
+   (log-unknown-message other)))
+
+;; Futures for async computation
+(let ((f (future (expensive-computation))))
+  (do-other-work)
+  (await f))    ; Wait for result
+\end{lambdustcode}
+\end{example}
+
+\section{Foreign Function Interface}
+\label{sec:foreign-syntax}
+
+\indexentry{foreign-call}
+\indexentry{foreign-data}
+
+Foreign function interface expressions enable C library integration:
+
+\begin{grammar}
+\production{\var{foreign-expression}}{\produces}{(foreign-call \var{name} \var{type} \arbno{\var{expression}})}{}
+\production{}{\alternative}{(foreign-data \var{name} \var{type})}{}
+\production{}{\alternative}{(with-capability \var{capability} \var{expression})}{}
+\end{grammar}
+
+\begin{example}[Foreign Function Interface]
+\begin{lambdustcode}
+;; Declare foreign function  
+(foreign-declare "math.h"
+  (sqrt :: (-> Float64 Float64)))
+
+;; Call foreign function with capability
+(with-capability 'math-library
+  (lambda ()
+    (foreign-call sqrt (-> Float64 Float64) 16.0)))
+
+;; Access foreign data
+(foreign-data errno (-> Unit Int32))
+\end{lambdustcode}
+\end{example}
+
+\section{Syntax Extensions}
+\label{sec:syntax-extensions}
+
+\indexentry{syntax-rules}
+\indexentry{syntax-case}
+
+Lambdust supports R7RS hygenic macros plus extensions:
+
+\begin{grammar}
+\production{\var{macro-definition}}{\produces}{(define-syntax \var{name} \var{transformer})}{}
+\\
+\production{\var{transformer}}{\produces}{(syntax-rules \var{literals} \arbno{\var{rule}})}{}
+\production{}{\alternative}{(syntax-case \var{expression} \var{literals} \arbno{\var{clause}})}{}
+\production{}{\alternative}{(lambda (\var{stx}) \var{body})}{}
+\end{grammar}
+
+\begin{example}[Syntax Extensions]
+\begin{lambdustcode}
+;; Simple macro with syntax-rules
+(define-syntax when
+  (syntax-rules ()
+    ((when test body ...)
+     (if test (begin body ...)))))
+
+;; Pattern matching macro
+(define-syntax match
+  (syntax-rules ()
+    ((match expr 
+       (pattern body ...) ...)
+     (match-implementation expr 
+       (list (cons pattern (lambda () body ...)) ...)))))
+
+;; Usage
+(when (> x 0) 
+  (display "positive")
+  (newline))
+
+(match lst
+  (() 'empty)
+  ((x) 'singleton)
+  ((x y) 'pair)  
+  (other 'longer))
+\end{lambdustcode}
+\end{example}
+
+\section{Evaluation Order}
+\label{sec:evaluation}
+
+\indexentry{evaluation order}
+
+Lambdust follows R7RS evaluation order:
+
+\begin{itemize}
+\item Procedure calls evaluate operator first, then operands left to right
+\item Conditional test is evaluated before branches
+\item Assignment evaluates expression before storing
+\item Let bindings evaluate initializers left to right
+\item Lambda expressions are not evaluated (they create closures)
+\end{itemize}
+
+\section{Tail Calls}
+\label{sec:tail-calls}
+
+\indexentry{tail call}
+\indexentry{proper tail recursion}
+
+Lambdust provides proper tail recursion as required by R7RS:
+
+\begin{definition}[Tail Position]
+An expression is in tail position if its value is returned directly as the value of the enclosing procedure without further computation.
+\end{definition}
+
+\begin{example}[Tail Recursion]
+\begin{lambdustcode}
+;; Tail recursive factorial
+(define (factorial n acc)
+  (if (<= n 1) 
+      acc                           ; Tail position
+      (factorial (- n 1) (* n acc)))) ; Tail call
+
+;; Not tail recursive  
+(define (factorial-bad n)
+  (if (<= n 1)
+      1
+      (* n (factorial-bad (- n 1))))) ; Not in tail position
+\end{lambdustcode}
+\end{example}
+
+\section{Continuations}
+\label{sec:continuations}
+
+\indexentry{call/cc}
+\indexentry{continuation}
+
+Lambdust supports full continuations via \code{call-with-current-continuation}:
+
+\begin{procspec}{call-with-current-continuation}
+\textbf{call-with-current-continuation} \var{proc} \goesto{} \var{obj}
+
+Captures the current continuation and passes it as a procedure to \var{proc}. The continuation procedure, when called, abandons the current computation and returns its argument as the result of the \code{call-with-current-continuation} call.
+\end{procspec}
+
+\begin{example}[Continuations]
+\begin{lambdustcode}
+;; Early return from loop
+(define (find-positive lst)
+  (call/cc 
+    (lambda (return)
+      (for-each 
+        (lambda (x) 
+          (when (> x 0) (return x)))
+        lst)
+      #f)))
+
+;; Non-local exit
+(define (deep-computation x)
+  (call/cc
+    (lambda (escape)
+      (let ((result (complex-calculation x)))
+        (if (valid? result)
+            result
+            (escape 'error))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Multiple Values}
+\label{sec:multiple-values}
+
+\indexentry{values}
+\indexentry{call-with-values}
+
+Lambdust supports multiple value returns:
+
+\begin{procspec}{values \arbno{\var{obj}}}
+Returns multiple values.
+\end{procspec}
+
+\begin{procspec}{call-with-values \var{producer} \var{consumer}}
+Calls \var{producer} with no arguments and passes all returned values to \var{consumer}.
+\end{procspec}
+
+\begin{example}[Multiple Values]
+\begin{lambdustcode}
+;; Return multiple values
+(define (quotient-remainder x y)
+  (values (quotient x y) (remainder x y)))
+
+;; Consume multiple values  
+(call-with-values 
+  (lambda () (quotient-remainder 17 5))
+  (lambda (q r) 
+    (display "Quotient: ") (display q) (newline)
+    (display "Remainder: ") (display r) (newline)))
+
+;; Using let-values (derived form)
+(let-values (((q r) (quotient-remainder 17 5)))
+  (list q r))
+\end{lambdustcode}
+\end{example}
+
+\section{Compatibility Guarantees}
+\label{sec:compatibility}
+
+\begin{compatibility}[R7RS Semantic Compatibility]
+All R7RS-small expressions have identical semantics in Lambdust when run in Dynamic mode. This includes:
+\begin{itemize}
+\item Lexical scoping and variable binding
+\item Procedure call evaluation order  
+\item Proper tail recursion requirements
+\item Continuation semantics
+\item Multiple value protocols
+\item Numeric tower operations
+\end{itemize}
+\end{compatibility}
+
+The formal semantics in \chapref{ch:formal-semantics} provide mathematical precision for these compatibility guarantees.

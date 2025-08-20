@@ -198,6 +198,7 @@ impl TypeRepr for HMType {
             HMType::Pair(first, second) => {
                 first.is_well_formed(_context) && second.is_well_formed(_context)
             }
+            HMType::Unit => true,
         }
     }
     
@@ -281,6 +282,7 @@ impl HMType {
                 body.collect_free_vars(vars, &new_bound);
             }
             HMType::Base(_) => {} // No variables in base types
+            HMType::Unit => {} // No variables in unit type
         }
     }
     
@@ -313,6 +315,7 @@ impl HMType {
             HMType::Pair(first, second) => {
                 format!("({}, {})", first.display_type(), second.display_type())
             }
+            HMType::Unit => "Unit".to_string(),
         }
     }
     
@@ -690,10 +693,12 @@ impl InferenceEngine<HMType, HMContext> for HMInferenceEngine {
     
     fn infer_with_proof(&self, _expr: &impl ExpressionRepr, _context: &HMContext) 
         -> UnifiedResult<(HMType, impl ProofTerm)> {
-        Err(crate::diagnostics::UnifiedError::new(
-            TypeError,
-            "Proof terms not supported in Hindley-Milner".to_string()
-        ))
+        Err::<(HMType, crate::types::dependent_type_system::DepProofTerm), _>(
+            crate::diagnostics::UnifiedError::new(
+                TypeError,
+                "Proof terms not supported in Hindley-Milner".to_string()
+            )
+        )
     }
     
     fn supports_bidirectional(&self) -> bool {
@@ -798,5 +803,71 @@ mod tests {
             }
             _ => panic!("Expected function type"),
         }
+    }
+}
+
+/// Implementation of ConstraintRepr for MonadAwareType
+impl crate::types::generic_type_system::ConstraintRepr<crate::types::monad_aware_system::MonadAwareType> for HMConstraint {
+    fn apply_substitution(&self, _subst: &impl crate::types::generic_type_system::Substitution<crate::types::monad_aware_system::MonadAwareType>) -> Self {
+        self.clone() // Simplified
+    }
+    
+    fn variables(&self) -> HashSet<crate::types::generic_type_system::TypeVariable> {
+        HashSet::new() // Simplified
+    }
+    
+    fn simplify(&self) -> Option<Self> {
+        Some(self.clone())
+    }
+}
+
+/// Implementation of ConstraintSystem for MonadAwareType
+impl crate::types::generic_type_system::ConstraintSystem<crate::types::monad_aware_system::MonadAwareType> for HMConstraintSystem {
+    type Constraint = HMConstraint;
+    
+    fn add_constraint(&mut self, constraint: Self::Constraint) {
+        self.constraints.push(constraint);
+    }
+    
+    fn solve(&self) -> crate::diagnostics::UnifiedResult<Box<dyn crate::types::generic_type_system::Substitution<crate::types::monad_aware_system::MonadAwareType>>> {
+        // For now, return an empty substitution - would need to implement proper constraint solving
+        Ok(Box::new(crate::types::monad_aware_system::MonadAwareSubstitution::empty()))
+    }
+    
+    fn is_consistent(&self) -> bool {
+        // Simplified check for consistency
+        true
+    }
+    
+    fn add_proof_obligation(&mut self, _obligation: crate::types::generic_type_system::ProofObligation<crate::types::monad_aware_system::MonadAwareType>) {
+        // Not implemented yet
+    }
+}
+
+/// Implementation of InferenceEngine for MonadAwareType
+impl crate::types::generic_type_system::InferenceEngine<crate::types::monad_aware_system::MonadAwareType, crate::types::monad_aware_system::MonadAwareContext> for HMInferenceEngine {
+    fn infer(&self, _expr: &impl crate::types::generic_type_system::ExpressionRepr, _context: &crate::types::monad_aware_system::MonadAwareContext) -> crate::diagnostics::UnifiedResult<crate::types::monad_aware_system::MonadAwareType> {
+        // Simplified inference - would need full implementation
+        Ok(crate::types::monad_aware_system::MonadAwareType::HM(HMType::Base(BaseType::Number)))
+    }
+    
+    fn check(&self, _expr: &impl crate::types::generic_type_system::ExpressionRepr, expected_type: &crate::types::monad_aware_system::MonadAwareType, _context: &crate::types::monad_aware_system::MonadAwareContext) -> crate::diagnostics::UnifiedResult<()> {
+        // Simplified check - would verify that expression has the expected type
+        Ok(())
+    }
+    
+    
+    fn infer_with_proof(&self, _expr: &impl crate::types::generic_type_system::ExpressionRepr, _context: &crate::types::monad_aware_system::MonadAwareContext) -> crate::diagnostics::UnifiedResult<(crate::types::monad_aware_system::MonadAwareType, impl crate::types::generic_type_system::ProofTerm)> {
+        // Not supported for HM engine
+        Err::<(crate::types::monad_aware_system::MonadAwareType, crate::types::dependent_type_system::DepProofTerm), _>(
+            crate::diagnostics::UnifiedError::new(
+                crate::diagnostics::TypeError,
+                "Proof terms not supported in Hindley-Milner".to_string()
+            )
+        )
+    }
+    
+    fn supports_bidirectional(&self) -> bool {
+        true
     }
 }

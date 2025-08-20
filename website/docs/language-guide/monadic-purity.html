@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monadic Purity - Lambdust Documentation</title>
+    <meta name="description" content="Guide to Lambdust's monadic purity system enabling referential transparency with controlled side effects.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                <a href="index.html">Language Guide</a> → 
+                Monadic Purity
+            </div>
+
+            <h1>Monadic Purity</h1>
+            
+            <p>Lambdust maintains referential transparency through monadic purity, where side effects are explicitly tracked in the type system and managed through monadic composition. This approach provides the mathematical elegance of pure functional programming while enabling practical interaction with the real world.</p>
+
+            <div class="type-signature">
+                M(A) >>= (A → M(B)) → M(B)  — Monadic bind operation
+            </div>
+
+            <h2>Pure vs. Effectful Functions</h2>
+
+            <p>In Lambdust, functions are pure by default. Side effects must be explicitly declared in the type signature:</p>
+
+            <div class="example-box">
+                <h4>Pure vs. Effectful</h4>
+                <pre><code>;; Pure function - no side effects
+(define add : (Integer → Integer → Integer)
+  (lambda ((x : Integer) (y : Integer))
+    (+ x y)))
+
+;; Effectful function - I/O side effects
+(define greet : (String → IO Unit)
+  (lambda ((name : String))
+    (println (string-append "Hello, " name "!"))))
+
+;; Mixed - pure computation, effectful result
+(define compute-and-log : (Integer → IO Integer)
+  (lambda ((n : Integer))
+    (let ([result (* n n)])  ; Pure computation
+      (do-io
+        [_ ← (println (format "Computed: ~a" result))]  ; Effect
+        (return result)))))</code></pre>
+            </div>
+
+            <h2>The IO Monad</h2>
+
+            <p>Input/output operations are wrapped in the IO monad to maintain purity:</p>
+
+            <pre><code>;; Basic I/O operations
+(define read-line : (IO String))
+(define print : (String → IO Unit))
+(define read-file : (String → IO String))
+(define write-file : (String → String → IO Unit))
+
+;; Composing I/O operations
+(define interactive-greeting : (IO Unit)
+  (lambda ()
+    (do-io
+      [_ ← (print "What's your name? ")]
+      [name ← (read-line)]
+      [_ ← (print (string-append "Hello, " name "!"))]
+      (return unit))))</code></pre>
+
+            <h3>Do-notation for Monadic Composition</h3>
+
+            <p>The <code>do-io</code> syntax provides convenient monadic composition:</p>
+
+            <pre><code>;; File processing with error handling
+(define process-file : (String → String → IO (Either String Unit))
+  (lambda (input-file output-file)
+    (do-io
+      [content ← (read-file input-file)]
+      [processed ← (pure (string-upcase content))]
+      [_ ← (write-file output-file processed)]
+      [_ ← (println "File processed successfully")]
+      (return (Right unit)))))
+
+;; Desugars to:
+(define process-file-desugared : (String → String → IO (Either String Unit))
+  (lambda (input-file output-file)
+    (>>= (read-file input-file)
+         (lambda (content)
+           (>>= (pure (string-upcase content))
+                (lambda (processed)
+                  (>>= (write-file output-file processed)
+                       (lambda (_)
+                         (>>= (println "File processed successfully")
+                              (lambda (_)
+                                (return (Right unit))))))))))</code></pre>
+
+            <h2>State Monad</h2>
+
+            <p>Mutable state is handled through the State monad:</p>
+
+            <div class="example-box">
+                <h4>Stateful Computation</h4>
+                <pre><code>;; Define state type
+(define-type Counter Integer)
+
+;; State operations
+(define get-counter : (State Counter Counter)
+  (lambda () get-state))
+
+(define increment-counter : (State Counter Unit)
+  (lambda ()
+    (do-state
+      [current ← get-state]
+      [_ ← (put-state (+ current 1))]
+      (return unit))))
+
+;; Stateful computation
+(define count-items : (List α → State Counter Integer)
+  (lambda (items)
+    (do-state
+      [_ ← (put-state 0)]  ; Initialize counter
+      [_ ← (map-state (lambda (item)
+                        (do-state
+                          [_ ← increment-counter]
+                          (return unit)))
+                      items)]
+      [final ← get-state]
+      (return final))))
+
+;; Running stateful computation
+(define example : Integer
+  (run-state (count-items '(a b c d e)) 0))  ; Result: 5</code></pre>
+            </div>
+
+            <h2>Error Handling with Monads</h2>
+
+            <p>Error handling is integrated into the monadic system:</p>
+
+            <pre><code>;; Either monad for error handling
+(define safe-divide : (Real → Real → Either String Real)
+  (lambda (x y)
+    (if (= y 0)
+        (Left "Division by zero")
+        (Right (/ x y)))))
+
+;; Maybe monad for optional values
+(define safe-head : (∀ α. List α → Maybe α)
+  (lambda (lst)
+    (if (null? lst)
+        (None)
+        (Some (car lst)))))
+
+;; Combining with I/O
+(define safe-file-operation : (String → IO (Either String String))
+  (lambda (filename)
+    (with-handler
+      [(IOError msg) → (return (Left msg))]
+      (do-io
+        [content ← (read-file filename)]
+        [result ← (pure (process-content content))]
+        (return (Right result))))))</code></pre>
+
+            <h2>Effect Polymorphism</h2>
+
+            <p>Functions can be polymorphic over effects:</p>
+
+            <pre><code>;; Generic logging function
+(define log-message : (∀ (m : Monad). String → m Unit)
+  (lambda (msg)
+    (case (monad-type m)
+      [IO → (println msg)]
+      [State → (modify-state (lambda (s) (cons msg s)))]
+      [Writer → (tell msg)])))
+
+;; Effect-polymorphic map
+(define map-effect : (∀ α β (m : Monad). (α → m β) → List α → m (List β))
+  (lambda (f lst)
+    (match lst
+      [() → (return '())]
+      [(cons x xs) → 
+       (do-monad
+         [y ← (f x)]
+         [ys ← (map-effect f xs)]
+         (return (cons y ys)))])))
+
+;; Usage with different effects
+(map-effect (lambda (x) (println x)) '(1 2 3))     ; IO effect
+(map-effect (lambda (x) (increment-counter)) '(1 2 3))  ; State effect</code></pre>
+
+            <h2>Algebraic Effects</h2>
+
+            <p>Lambdust supports algebraic effects for more flexible effect handling:</p>
+
+            <div class="example-box">
+                <h4>Custom Effects</h4>
+                <pre><code>;; Define custom effects
+(define-effect Logging
+  (log : String → Unit))
+
+(define-effect Database  
+  (query : String → List Row)
+  (insert : Row → Unit))
+
+;; Function using multiple effects
+(define process-user : (UserId → Eff [Logging Database] User)
+  (lambda (user-id)
+    (do-eff
+      [_ ← (log (format "Processing user: ~a" user-id))]
+      [rows ← (query (format "SELECT * FROM users WHERE id = ~a" user-id))]
+      (match rows
+        [() → (throw (UserNotFound user-id))]
+        [(cons row _) → 
+         (do-eff
+           [user ← (pure (parse-user row))]
+           [_ ← (log (format "User loaded: ~a" (user-name user)))]
+           (return user))]))))
+
+;; Effect handlers
+(define with-console-logging : (∀ α. Eff [Logging] α → IO α)
+  (lambda (computation)
+    (handle computation
+      [(log msg) → (do-io
+                     [_ ← (println msg)]
+                     (resume unit))])))
+
+(define with-mock-database : (∀ α. Eff [Database] α → IO α)
+  (lambda (computation)
+    (handle computation
+      [(query sql) → (resume mock-data)]
+      [(insert row) → (do-io
+                        [_ ← (println "Mock insert")]
+                        (resume unit))])))</code></pre>
+            </div>
+
+            <h2>Monad Transformers</h2>
+
+            <p>Combine multiple monadic effects using monad transformers:</p>
+
+            <pre><code>;; ReaderT for configuration
+(define-type Config
+  (Config String Integer Boolean))
+
+;; StateT for mutable state  
+(define-type AppState
+  (AppState Integer (Map String String)))
+
+;; Combined effect stack
+(define-type App α
+  (ReaderT Config (StateT AppState IO) α))
+
+;; Function using the combined stack
+(define run-app-logic : (String → App String)
+  (lambda (input)
+    (do-app
+      [config ← ask]  ; From ReaderT
+      [state ← get]   ; From StateT
+      [_ ← (liftIO (println "Processing..."))]  ; From IO
+      [_ ← (modify (lambda (s) (update-app-state s input)))]
+      (return (process-with-config config input)))))
+
+;; Running the computation
+(define main : (IO Unit)
+  (lambda ()
+    (let ([config (Config "prod" 8080 #t)]
+          [initial-state (AppState 0 (empty-map))])
+      (do-io
+        [result ← (run-state-t (run-reader-t (run-app-logic "test") config) 
+                              initial-state)]
+        (println (format "Result: ~a" result))))))</code></pre>
+
+            <h2>Performance Considerations</h2>
+
+            <h3>Zero-Cost Abstractions</h3>
+
+            <ul>
+                <li><strong>Compile-time optimization</strong>: Monadic code is optimized away when possible</li>
+                <li><strong>Effect inference</strong>: The compiler can infer and eliminate unnecessary effect wrappers</li>
+                <li><strong>Specialization</strong>: Monomorphic instances are generated for performance</li>
+                <li><strong>Inlining</strong>: Small monadic functions are inlined automatically</li>
+            </ul>
+
+            <div class="warning-box">
+                <h4>Performance Tips</h4>
+                <ul>
+                    <li>Prefer specific monads (IO, State) over general effect systems when possible</li>
+                    <li>Use <code>pure</code> to lift pure computations rather than wrapping in effects</li>
+                    <li>Batch I/O operations to minimize effect overhead</li>
+                    <li>Consider using <code>unsafe-perform-io</code> for proven-pure computations</li>
+                </ul>
+            </div>
+
+            <h2>Integration with Type System</h2>
+
+            <p>Monadic purity works seamlessly with Lambdust's advanced type features:</p>
+
+            <pre><code>;; Dependent types with effects
+(define read-vector : (∀ (n : Nat) (T : Type). 
+                       String → IO (Vector n T))
+  (lambda (filename)
+    (do-io
+      [content ← (read-file filename)]
+      [values ← (parse-values content)]
+      (if (= (length values) n)
+          (return (list→vector values))
+          (throw (InvalidVectorSize n (length values)))))))
+
+;; Gradual typing with effects  
+(define process-data
+  (lambda (input)  ; Inferred: Dynamic → IO Dynamic
+    (do-io
+      [result ← (compute-something input)]
+      [_ ← (log-result result)]
+      (return result))))
+
+;; Gradually add types
+(define process-data-typed : (Config → IO Result)
+  (lambda ((config : Config))
+    (do-io
+      [result ← (compute-something-typed config)]
+      [_ ← (log-result result)]
+      (return result))))</code></pre>
+
+            <h2>Best Practices</h2>
+
+            <ol>
+                <li><strong>Keep pure code pure</strong>: Separate pure computations from effectful operations</li>
+                <li><strong>Use specific monads</strong>: Prefer IO, State, etc. over generic effect systems</li>
+                <li><strong>Minimize effect scope</strong>: Keep effectful regions as small as possible</li>
+                <li><strong>Handle errors explicitly</strong>: Use Either or exception handling for error cases</li>
+                <li><strong>Compose effects</strong>: Use do-notation for readable monadic composition</li>
+                <li><strong>Document effects</strong>: Make side effects clear in function types and documentation</li>
+            </ol>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="../type-system/gradual-typing.html">Gradual Typing</a> - Effect typing with gradual types</li>
+                <li><a href="ffi.html">Foreign Function Interface</a> - Effects with foreign functions</li>
+                <li><a href="../standard-library/io.html">I/O Library</a> - Standard I/O operations</li>
+                <li><a href="../examples/effects.html">Effect Examples</a> - Practical monadic programming patterns</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="syntax.html">← Syntax Guide</a>
+                <a href="ffi.html">FFI →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

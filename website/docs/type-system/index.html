@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Type System Overview - Lambdust Documentation</title>
+    <meta name="description" content="Overview of Lambdust's advanced type system featuring gradual typing, dependent types, and type inference.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                Type System Overview
+            </div>
+
+            <h1>Type System Overview</h1>
+            
+            <p>Lambdust features one of the most advanced type systems in functional programming, combining gradual typing, dependent types, and sophisticated type inference to provide both flexibility and safety.</p>
+
+            <h2>Core Type System Features</h2>
+
+            <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 2rem 0;">
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="gradual-typing.html">Gradual Typing</a></h3>
+                    <p>Seamlessly transition from dynamic to static typing as your code evolves.</p>
+                    <div class="type-signature">⊢ e : τ ∨ Dynamic</div>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="dependent-types.html">Dependent Types</a></h3>
+                    <p>Types that depend on values enable precise specifications and eliminate runtime errors.</p>
+                    <div class="type-signature">Π(x:A).B(x)</div>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="type-inference.html">Type Inference</a></h3>
+                    <p>Sophisticated inference algorithms minimize the need for explicit type annotations.</p>
+                    <div class="type-signature">Γ ⊢ e : τ</div>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="blame-tracking.html">Blame Tracking</a></h3>
+                    <p>Precise error attribution when static and dynamic code interact.</p>
+                    <div class="type-signature">blame(l, τ, v)</div>
+                </div>
+            </div>
+
+            <h2>Type Hierarchy</h2>
+
+            <p>Lambdust's type system is built on a hierarchy of increasingly powerful type constructs:</p>
+
+            <pre><code>;; Basic types
+Integer, Real, String, Boolean, Character
+
+;; Composite types  
+(List α), (Vector n α), (Maybe α), (Either α β)
+
+;; Function types
+(α → β), (α → β → γ)
+
+;; Polymorphic types
+(∀ α. α → α), (∀ (n : Nat). Vector n α → α)
+
+;; Dependent types
+(Π (n : Nat). Vector n α → Vector n α)
+{x : Integer | x > 0}  ;; Refinement types</code></pre>
+
+            <h2>Type Evolution Example</h2>
+
+            <p>See how a function can evolve from completely dynamic to fully dependent:</p>
+
+            <div class="example-box">
+                <h4>Function Evolution</h4>
+                <pre><code>;; Stage 1: Completely dynamic
+(define safe-head
+  (lambda (lst)
+    (if (null? lst) #f (car lst))))
+
+;; Stage 2: Gradual typing
+(define safe-head : (∀ α. List α → Maybe α)  
+  (lambda (lst)
+    (if (null? lst) (None) (Some (car lst)))))
+
+;; Stage 3: Dependent types
+(define safe-head : (∀ α (n : Nat). 
+                     Vector (+ n 1) α → α)
+  (lambda (vec)
+    (vector-ref vec 0)))  ;; Guaranteed safe!</code></pre>
+            </div>
+
+            <h2>Type Safety Guarantees</h2>
+
+            <p>Lambdust's type system provides several important safety guarantees:</p>
+
+            <ul>
+                <li><strong>Memory Safety</strong>: No buffer overflows or null pointer dereferences</li>
+                <li><strong>Type Safety</strong>: No runtime type errors in well-typed code</li>
+                <li><strong>Effect Safety</strong>: Side effects are tracked and controlled</li>
+                <li><strong>Termination</strong>: Dependent types can encode termination proofs</li>
+            </ul>
+
+            <h2>Integration with Effects</h2>
+
+            <p>The type system seamlessly integrates with Lambdust's effect system:</p>
+
+            <pre><code>;; Pure function
+(define pure-add : (Integer → Integer → Integer)
+  (lambda (x y) (+ x y)))
+
+;; Function with I/O effects
+(define interactive-add : (IO Integer)
+  (lambda ()
+    (do-io
+      [x ← (read-integer)]
+      [y ← (read-integer)]
+      (return (+ x y)))))
+
+;; Function with state effects
+(define stateful-counter : (State Integer Integer)
+  (lambda ()
+    (do-state
+      [current ← get-state]
+      [_ ← (put-state (+ current 1))]
+      (return current))))</code></pre>
+
+            <h2>Performance Implications</h2>
+
+            <p>Lambdust's type system is designed for zero-cost abstractions:</p>
+
+            <ul>
+                <li><strong>Compile-time verification</strong>: Most type checking happens at compile time</li>
+                <li><strong>Erasure</strong>: Type information is erased after compilation for performance</li>
+                <li><strong>Specialization</strong>: The compiler generates specialized code for different types</li>
+                <li><strong>Optimization</strong>: Type information enables aggressive optimizations</li>
+            </ul>
+
+            <h2>Comparison with Other Languages</h2>
+
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th>Lambdust</th>
+                        <th>Haskell</th>
+                        <th>TypeScript</th>
+                        <th>Idris</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Gradual Typing</td>
+                        <td>✅ Built-in</td>
+                        <td>❌ No</td>
+                        <td>✅ Yes</td>
+                        <td>❌ No</td>
+                    </tr>
+                    <tr>
+                        <td>Dependent Types</td>
+                        <td>✅ Full support</td>
+                        <td>🔶 Limited</td>
+                        <td>❌ No</td>
+                        <td>✅ Full support</td>
+                    </tr>
+                    <tr>
+                        <td>Type Inference</td>
+                        <td>✅ Advanced</td>
+                        <td>✅ Excellent</td>
+                        <td>🔶 Basic</td>
+                        <td>✅ Good</td>
+                    </tr>
+                    <tr>
+                        <td>Effect Tracking</td>
+                        <td>✅ Monadic</td>
+                        <td>✅ Monadic</td>
+                        <td>❌ No</td>
+                        <td>✅ Algebraic</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Getting Started with Types</h2>
+
+            <p>We recommend this learning path for mastering Lambdust's type system:</p>
+
+            <ol>
+                <li><strong><a href="gradual-typing.html">Start with Gradual Typing</a></strong> - Learn to transition from dynamic to static</li>
+                <li><strong>Master Basic Types</strong> - Understand primitives and composite types</li>
+                <li><strong>Explore Polymorphism</strong> - Generic programming with type variables</li>
+                <li><strong><a href="dependent-types.html">Advanced Dependent Types</a></strong> - Value-dependent typing</li>
+                <li><strong><a href="type-inference.html">Understand Inference</a></strong> - How the compiler deduces types</li>
+                <li><strong><a href="blame-tracking.html">Debug with Blame</a></strong> - Error attribution in mixed code</li>
+            </ol>
+
+            <div class="warning-box">
+                <h4>Learning Tip</h4>
+                <p>Don't try to learn all type system features at once. Start with gradual typing and basic polymorphism, then gradually explore more advanced features as your understanding deepens.</p>
+            </div>
+
+            <h2>Related Topics</h2>
+
+            <ul>
+                <li><a href="../language-guide/monadic-purity.html">Monadic Purity</a> - Effect systems and type safety</li>
+                <li><a href="../language-guide/ffi.html">Foreign Function Interface</a> - Type safety with foreign code</li>
+                <li><a href="../quickstart/index.html">Quick Start</a> - Basic type usage examples</li>
+                <li><a href="../examples/index.html">Examples</a> - Real-world type system usage</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="../index.html">← Documentation Home</a>
+                <a href="gradual-typing.html">Gradual Typing →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="index.html">Type System</a></li>
+                        <li><a href="../api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

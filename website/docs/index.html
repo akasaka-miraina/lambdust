@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentation - Lambdust</title>
+    <meta name="description" content="Complete documentation for Lambdust: pure functional programming language with gradual typing, dependent types, and algebraic effects.">
+    <link rel="stylesheet" href="../styles.css">
+    <link rel="stylesheet" href="docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../index.html#features">Features</a></li>
+                <li><a href="../index.html#examples">Examples</a></li>
+                <li><a href="../index.html#research">Research</a></li>
+                <li><a href="index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+        <article class="docs-content">
+            <h1>Lambdust Documentation</h1>
+            
+            <p>Welcome to the comprehensive documentation for Lambdust, a pure functional programming language that combines mathematical elegance with practical modern features including gradual typing, dependent types, and algebraic effects.</p>
+
+            <h2>Getting Started</h2>
+
+            <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin: 2rem 0;">
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="quickstart/index.html">Quick Start Guide</a></h3>
+                    <p>Get up and running with Lambdust in minutes. Installation, basic syntax, and your first programs.</p>
+                    <ul style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">
+                        <li>Installation instructions</li>
+                        <li>REPL introduction</li>
+                        <li>Basic syntax overview</li>
+                        <li>First programs</li>
+                    </ul>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="language-guide/index.html">Language Guide</a></h3>
+                    <p>Comprehensive guide to Lambdust's features, from basic concepts to advanced programming patterns.</p>
+                    <ul style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">
+                        <li>Core language features</li>
+                        <li>Monadic purity</li>
+                        <li>Foreign function interface</li>
+                        <li>Performance optimization</li>
+                    </ul>
+                </div>
+
+                <div class="feature" style="margin: 0;">
+                    <h3><a href="type-system/index.html">Type System</a></h3>
+                    <p>Deep dive into Lambdust's advanced type system with gradual typing and dependent types.</p>
+                    <ul style="margin-top: 1rem; color: #64748b; font-size: 0.875rem;">
+                        <li>Gradual typing</li>
+                        <li>Dependent types</li>
+                        <li>Type inference</li>
+                        <li>Blame tracking</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h2>Core Documentation</h2>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin: 2rem 0;">
+                <a href="standard-library/index.html" style="text-decoration: none; color: inherit;">
+                    <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; transition: all 0.2s; background: white;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Standard Library</h4>
+                        <p style="color: #64748b; margin: 0; font-size: 0.875rem;">Comprehensive built-in functions, data structures, and utilities.</p>
+                    </div>
+                </a>
+
+                <a href="api/index.html" style="text-decoration: none; color: inherit;">
+                    <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; transition: all 0.2s; background: white;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">API Reference</h4>
+                        <p style="color: #64748b; margin: 0; font-size: 0.875rem;">Complete reference for all functions, types, and modules.</p>
+                    </div>
+                </a>
+
+                <a href="examples/index.html" style="text-decoration: none; color: inherit;">
+                    <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; transition: all 0.2s; background: white;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Examples</h4>
+                        <p style="color: #64748b; margin: 0; font-size: 0.875rem;">Real-world code examples and programming patterns.</p>
+                    </div>
+                </a>
+            </div>
+
+            <h2>Key Features</h2>
+
+            <h3>🎯 Gradual Typing</h3>
+            <p>Start with dynamic types and add static type annotations incrementally. Perfect for both rapid prototyping and production systems.</p>
+            <pre><code>;; Evolution from dynamic to static
+(define factorial         ; Dynamic
+  (lambda (n) ...))
+
+(define factorial : (Integer → Integer)  ; Fully typed
+  (lambda ((n : Integer)) ...))</code></pre>
+
+            <h3>🔬 Dependent Types</h3>
+            <p>Types that depend on values enable precise specifications and eliminate runtime errors at compile time.</p>
+            <pre><code>;; Vector with length in type
+(define-type (Vector n T) ...)
+(define vector-append : (∀ (n m : Nat) (T : Type)
+                          → Vector n T → Vector m T → Vector (+ n m) T)</code></pre>
+
+            <h3>⚡ Monadic Purity</h3>
+            <p>Referential transparency with controlled side effects through algebraic effects and monadic composition.</p>
+            <pre><code>;; Effect tracking in types
+(define read-file : (String → IO (Either Error String))
+  (lambda (filename) ...))</code></pre>
+
+            <h3>🔗 Foreign Function Interface</h3>
+            <p>Seamless integration with C/C++, Rust, and system libraries while maintaining type safety.</p>
+            <pre><code>;; Safe foreign function binding
+(extern "C" strlen : (CString → CSize))
+(extern "Rust" vec_new : (Unit → RustVec α))</code></pre>
+
+            <h2>Language Philosophy</h2>
+
+            <blockquote style="border-left: 4px solid #3b82f6; background-color: #f0f9ff; padding: 1rem 1.5rem; margin: 2rem 0; border-radius: 0 0.5rem 0.5rem 0;">
+                <p style="color: #1e40af; margin: 0; font-style: italic;">
+                    "Lambdust aims to bridge the gap between mathematical elegance and practical programming, 
+                    providing the tools necessary for both rigorous theoretical exploration and robust 
+                    real-world applications."
+                </p>
+            </blockquote>
+
+            <h3>Design Principles</h3>
+            <ul>
+                <li><strong>Purity by Default</strong>: Referential transparency with explicit effect tracking</li>
+                <li><strong>Gradual Evolution</strong>: Start dynamic, evolve to static typing as code matures</li>
+                <li><strong>Mathematical Foundation</strong>: Built on solid type theory and category theory</li>
+                <li><strong>Practical Integration</strong>: Seamless interoperability with existing ecosystems</li>
+                <li><strong>Academic Rigor</strong>: Respect for foundational research while pushing boundaries</li>
+            </ul>
+
+            <h2>Learning Path</h2>
+
+            <p>We recommend following this path to master Lambdust:</p>
+
+            <ol>
+                <li><strong><a href="quickstart/index.html">Quick Start</a></strong> - Basic installation and syntax</li>
+                <li><strong><a href="language-guide/index.html">Language Fundamentals</a></strong> - Core concepts and features</li>
+                <li><strong><a href="type-system/gradual-typing.html">Gradual Typing</a></strong> - Understanding the type system</li>
+                <li><strong><a href="language-guide/monadic-purity.html">Effect Systems</a></strong> - Managing side effects</li>
+                <li><strong><a href="type-system/dependent-types.html">Dependent Types</a></strong> - Advanced type-level programming</li>
+                <li><strong><a href="language-guide/ffi.html">FFI Integration</a></strong> - Connecting with other languages</li>
+                <li><strong><a href="examples/index.html">Real-world Examples</a></strong> - Putting it all together</li>
+            </ol>
+
+            <h2>Version Information</h2>
+
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; margin: 2rem 0;">
+                <h4 style="color: #0f172a; margin-top: 0;">Current Version: 0.2.0</h4>
+                <p style="color: #64748b; margin-bottom: 1rem;">Active development release with core features stable.</p>
+                <ul style="color: #64748b; margin: 0;">
+                    <li>✅ R7RS-large compliance</li>
+                    <li>✅ Gradual typing system</li>
+                    <li>✅ Basic dependent types</li>
+                    <li>🚧 Advanced effect system (in progress)</li>
+                    <li>🚧 Full dependent type inference (in progress)</li>
+                    <li>📋 Foreign function interface (planned)</li>
+                </ul>
+            </div>
+
+            <h2>Contributing</h2>
+
+            <p>Lambdust is an open-source project welcoming contributions from the community:</p>
+
+            <ul>
+                <li><strong>Code Contributions</strong>: <a href="https://github.com/lambdust-lang/lambdust">GitHub Repository</a></li>
+                <li><strong>Documentation</strong>: Help improve these docs and add examples</li>
+                <li><strong>Research</strong>: Academic collaboration on type theory and language design</li>
+                <li><strong>Community</strong>: Join discussions and help other users</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="../index.html">← Main Site</a>
+                <a href="quickstart/index.html">Quick Start →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="quickstart/index.html">Quick Start</a></li>
+                        <li><a href="language-guide/index.html">Language Guide</a></li>
+                        <li><a href="type-system/index.html">Type System</a></li>
+                        <li><a href="api/index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>

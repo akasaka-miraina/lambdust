@@ -1,0 +1,468 @@
+%% Lexical Structure
+\chapter{Lexical Structure}
+\label{ch:lexical}
+
+The lexical structure of Lambdust extends R7RS-small with additional token types to support gradual dependent typing, effects, concurrency, and other advanced features while maintaining complete backward compatibility.
+
+\section{Lexical Elements}
+\label{sec:lexical-elements}
+
+A Lambdust program consists of a sequence of lexical elements:
+\begin{itemize}
+\item Whitespace and comments (ignored)
+\item Tokens (significant elements)
+\item End-of-file marker
+\end{itemize}
+
+\section{Character Set}
+\label{sec:charset}
+
+Lambdust source code uses Unicode UTF-8 encoding. All R7RS-small character classifications are preserved:
+
+\begin{itemize}
+\item \textbf{Whitespace}: Space, tab, newline, carriage return, form feed
+\item \textbf{Delimiters}: Whitespace, parentheses, brackets, braces, quotes, semicolon
+\item \textbf{Letters}: Unicode letter categories (Alphabetic property)  
+\item \textbf{Digits}: ASCII digits 0-9
+\item \textbf{Special Initial}: \code{! \$ \% \& * / : < = > ? \^ \_ \textasciitilde}
+\item \textbf{Special Subsequent}: \code{+ - . @}
+\end{itemize}
+
+\begin{compatibility}[Character Set Compatibility]
+All R7RS-small character classifications and identifier rules are preserved unchanged in Lambdust.
+\end{compatibility}
+
+\section{Comments}
+\label{sec:comments}
+
+Lambdust supports all R7RS comment forms plus nested block comments:
+
+\subsection{Line Comments}
+\label{subsec:line-comments}
+
+Line comments begin with semicolon and extend to end of line:
+\begin{lambdustcode}
+; This is a line comment
+(define x 42) ; Another comment
+\end{lambdustcode}
+
+\subsection{Block Comments}  
+\label{subsec:block-comments}
+
+Block comments are delimited by \code{\#|} and \code{|\#} and may be nested:
+\begin{lambdustcode}
+#| This is a block comment
+   #| with nested comments |#
+   that can span multiple lines |#
+(define y 17)
+\end{lambdustcode}
+
+\subsection{Expression Comments}
+\label{subsec:expr-comments}
+
+Expression comments use \code{\#;} to comment out the following expression:
+\begin{lambdustcode}
+(list 1 #;(* 2 3) 4)  ; Equivalent to (list 1 4)
+\end{lambdustcode}
+
+\section{Identifiers}
+\label{sec:identifiers}
+
+\indexentry{identifier}
+Identifiers follow R7RS rules with no extensions:
+
+\begin{grammar}
+\production{\var{identifier}}{\produces}{\var{initial} \arbno{\var{subsequent}}}{}
+\production{}{\alternative}{\var{vertical-line} \arbno{\var{symbol-element}} \var{vertical-line}}{}
+\production{}{\alternative}{\var{peculiar-identifier}}{}
+\\
+\production{\var{initial}}{\produces}{\var{letter}}{}
+\production{}{\alternative}{\var{special-initial}}{}
+\\
+\production{\var{letter}}{\produces}{a \alternative{} b \alternative{} c \alternative{} \ldots \alternative{} z}{}
+\production{}{\alternative}{A \alternative{} B \alternative{} C \alternative{} \ldots \alternative{} Z}{}
+\\
+\production{\var{special-initial}}{\produces}{! \alternative{} \$ \alternative{} \% \alternative{} \& \alternative{} *}{}
+\production{}{\alternative}{/ \alternative{} : \alternative{} < \alternative{} = \alternative{} >}{}
+\production{}{\alternative}{? \alternative{} \^ \alternative{} \_ \alternative{} \~}{}
+\\
+\production{\var{subsequent}}{\produces}{\var{initial} \alternative{} \var{digit}}{}
+\production{}{\alternative}{\var{special-subsequent}}{}
+\\
+\production{\var{special-subsequent}}{\produces}{+ \alternative{} - \alternative{} . \alternative{} @}{}
+\\
+\production{\var{peculiar-identifier}}{\produces}{+ \alternative{} - \alternative{} ... \alternative{} \goesto}{}
+\end{grammar}
+
+\begin{example}[Valid Identifiers]
+\begin{lambdustcode}
+lambda          ; Standard identifier
+list->vector    ; With special characters
+string-length   ; Hyphenated style
+camelCase       ; Camel case style  
+PascalCase      ; Pascal case style
++               ; Single character
+...             ; Ellipsis
+->              ; Arrow (peculiar identifier)
+\end{lambdustcode}
+\end{example}
+
+\section{Keywords}
+\label{sec:keywords}
+
+\indexentry{keyword}
+Lambdust extends R7RS with keyword literals for named parameters and metadata:
+
+\begin{grammar}
+\production{\var{keyword}}{\produces}{\#: \var{identifier}}{}
+\end{grammar}
+
+Keywords are self-evaluating and distinct from symbols:
+
+\begin{lambdustcode}
+#:type        ; Type annotation keyword
+#:inline      ; Optimization hint keyword  
+#:doc         ; Documentation keyword
+#:test        ; Test specification keyword
+\end{lambdustcode}
+
+\begin{example}[Keyword Usage]
+\begin{lambdustcode}
+(define (factorial n)
+  #:type (-> Natural Natural)
+  #:doc "Compute factorial of natural number"
+  (if (<= n 1) 1 (* n (factorial (- n 1)))))
+\end{lambdustcode}
+\end{example}
+
+\section{Numbers}
+\label{sec:numbers}
+
+\indexentry{number}
+Lambdust supports the complete R7RS numeric tower with all exactness and radix specifications:
+
+\begin{grammar}
+\production{\var{number}}{\produces}{\var{num-2} \alternative{} \var{num-8} \alternative{} \var{num-10} \alternative{} \var{num-16}}{}
+\end{grammar}
+
+\subsection{Integer Numbers}
+\label{subsec:integers}
+
+\begin{lambdustcode}
+42          ; Decimal integer
+#b1010      ; Binary integer (10)
+#o52        ; Octal integer (42)  
+#x2A        ; Hexadecimal integer (42)
+#e42        ; Exact integer
+#i42        ; Inexact integer
++42         ; Positive integer
+-42         ; Negative integer
+\end{lambdustcode}
+
+\subsection{Real Numbers}
+\label{subsec:reals}
+
+\begin{lambdustcode}
+3.14159     ; Decimal real
+1.23e10     ; Scientific notation
+1.23E-5     ; Scientific notation  
+#i3.14      ; Explicitly inexact
+#e1.5       ; Exact rational (3/2)
+.5          ; Leading decimal point
+5.          ; Trailing decimal point
+\end{lambdustcode}
+
+\subsection{Rational Numbers}
+\label{subsec:rationals}
+
+\begin{lambdustcode}
+1/2         ; One half
+-3/4        ; Negative three quarters
+#e22/7      ; Exact rational
+#i1/3       ; Inexact rational
+\end{lambdustcode}
+
+\subsection{Complex Numbers}
+\label{subsec:complex}
+
+\begin{lambdustcode}
+3+4i        ; Rectangular form
+3-4i        ; Rectangular form
++i          ; Pure imaginary unit
+-i          ; Negative imaginary unit
+3.0+0i      ; Real with imaginary zero
+0+1.5i      ; Pure imaginary
+\end{lambdustcode}
+
+\section{Strings}
+\label{sec:strings}
+
+\indexentry{string}
+String literals follow R7RS syntax with full escape sequence support:
+
+\begin{grammar}
+\production{\var{string}}{\produces}{" \arbno{\var{string-element}} "}{}
+\\
+\production{\var{string-element}}{\produces}{\var{any character other than " or \textbackslash}}{}
+\production{}{\alternative}{\textbackslash{} " \alternative{} \textbackslash{} \textbackslash}{}
+\production{}{\alternative}{\textbackslash{} n \alternative{} \textbackslash{} r \alternative{} \textbackslash{} t}{}
+\production{}{\alternative}{\textbackslash{} \var{intraline-whitespace} \var{newline} \var{intraline-whitespace}}{}
+\production{}{\alternative}{\textbackslash{} x \var{hex-digit} \arbno{\var{hex-digit}} ;}{}
+\end{grammar}
+
+\begin{example}[String Literals]
+\begin{lambdustcode}
+"Hello, World!"           ; Simple string
+"String with \"quotes\""  ; Escaped quotes
+"Line 1\nLine 2"         ; Newline escape
+"Unicode: \x03BB;"       ; Unicode lambda
+"Long string \
+can span lines"          ; Line continuation
+""                       ; Empty string
+\end{lambdustcode}
+\end{example}
+
+\section{Characters}
+\label{sec:characters}
+
+\indexentry{character}
+Character literals use R7RS syntax with named characters:
+
+\begin{grammar}
+\production{\var{character}}{\produces}{\#\textbackslash{} \var{any-character}}{}
+\production{}{\alternative}{\#\textbackslash{} \var{character-name}}{}
+\production{}{\alternative}{\#\textbackslash{} x \var{hex-scalar-value}}{}
+\end{grammar}
+
+\begin{example}[Character Literals]
+\begin{lambdustcode}
+#\a           ; Letter 'a'
+#\A           ; Letter 'A'  
+#\space       ; Space character
+#\newline     ; Newline character
+#\tab         ; Tab character
+#\return      ; Carriage return
+#\x03BB       ; Unicode lambda ($\lambda$)
+#\x0          ; Null character
+\end{lambdustcode}
+\end{example}
+
+\section{Booleans}
+\label{sec:booleans}
+
+\indexentry{boolean}
+Boolean literals follow R7RS with both short and long forms:
+
+\begin{grammar}
+\production{\var{boolean}}{\produces}{\#t \alternative{} \#f \alternative{} \#true \alternative{} \#false}{}
+\end{grammar}
+
+\begin{lambdustcode}
+#t      ; True (short form)
+#f      ; False (short form)
+#true   ; True (long form)  
+#false  ; False (long form)
+\end{lambdustcode}
+
+\section{Delimiters}
+\label{sec:delimiters}
+
+\indexentry{delimiter}
+Lambdust uses R7RS delimiters plus additional ones for type expressions:
+
+\subsection{Parentheses}
+\label{subsec:parens}
+
+\begin{lambdustcode}
+( )     ; Standard list delimiters
+\end{lambdustcode}
+
+\subsection{Brackets}
+\label{subsec:brackets}
+
+\begin{lambdustcode}
+[ ]     ; Alternative list delimiters (equivalent to parentheses)
+\end{lambdustcode}
+
+\subsection{Braces}
+\label{subsec:braces}
+
+\begin{lambdustcode}
+{ }     ; Set literals and type expressions
+\end{lambdustcode}
+
+\section{Quote and Unquote}
+\label{sec:quote}
+
+\indexentry{quote}
+\indexentry{quasiquote}
+\indexentry{unquote}
+All R7RS quote forms are supported:
+
+\begin{grammar}
+\production{\var{abbreviation}}{\produces}{\var{abbrev-prefix} \var{datum}}{}
+\\
+\production{\var{abbrev-prefix}}{\produces}{\textquotesingle{} \alternative{} \textasciigrave{} \alternative{} , \alternative{} ,@}{}
+\end{grammar}
+
+\begin{example}[Quote Forms]
+\begin{lambdustcode}
+'(a b c)        ; Quote
+`(list ,x ,@y)  ; Quasiquote with unquote and unquote-splicing
+\end{lambdustcode}
+\end{example}
+
+\section{Lambdust Extensions}
+\label{sec:extensions}
+
+\indexentry{type annotation}
+\indexentry{arrow}
+\indexentry{pipe}
+\indexentry{tilde}
+
+Lambdust adds several new token types for advanced features:
+
+\subsection{Type Annotation}
+\label{subsec:type-annotation}
+
+\begin{grammar}
+\production{\var{type-annotation}}{\produces}{::}{}
+\end{grammar}
+
+Used for explicit type ascription:
+\begin{lambdustcode}
+(:: expr Type)              ; Type ascription
+(define foo :: Type expr)   ; Definition with type
+\end{lambdustcode}
+
+\subsection{Arrow Types}
+\label{subsec:arrows}
+
+\begin{grammar}
+\production{\var{arrow}}{\produces}{\code{->}}{}
+\production{\var{fat-arrow}}{\produces}{=>}{}  
+\production{\var{tilde-arrow}}{\produces}{\~>}{}
+\end{grammar}
+
+Used in type expressions:
+\begin{lambdustcode}
+(-> A B)        ; Function type A to B
+(=> P Q)        ; Implication or constraint  
+(~> A B)        ; Effectful function type
+\end{lambdustcode}
+
+\subsection{Type Operators}
+\label{subsec:type-ops}
+
+\begin{grammar}
+\production{\var{colon}}{\produces}{:}{}
+\production{\var{pipe}}{\produces}{|}{}
+\production{\var{tilde}}{\produces}{~}{}
+\end{grammar}
+
+Used in type expressions:
+\begin{lambdustcode}
+(x : Type)      ; Parameter with type
+A | B           ; Union type or type alternative
+~Effect         ; Effect annotation
+\end{lambdustcode}
+
+\section{Token Classification}
+\label{sec:token-classification}
+
+The lexer recognizes the following token types:
+
+\onecolumn
+\begin{table}[H]
+\centering
+\caption{Lambdust Token Types}
+\label{tab:tokens}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Token Type} & \textbf{Examples} & \textbf{Usage} \\
+\hline
+LeftParen & \code{(} & List start, procedure calls \\
+RightParen & \code{)} & List end, procedure calls \\
+LeftBracket & \code{[} & Alternative list notation \\
+RightBracket & \code{]} & Alternative list notation \\
+LeftBrace & \code{\{} & Set literals, type expressions \\
+RightBrace & \code{\}} & Set literals, type expressions \\
+Quote & \code{'} & Quote abbreviation \\
+Quasiquote & \code{`} & Quasiquote abbreviation \\
+Unquote & \code{,} & Unquote abbreviation \\
+UnquoteSplicing & \code{,@} & Unquote-splicing abbreviation \\
+Dot & \code{.} & Pair notation, module access \\
+TypeAnnotation & \code{::} & Type ascription \\
+Colon & \code{:} & Parameter type annotation \\
+Arrow & \code{->} & Function types \\
+FatArrow & \code{=>} & Constraints, implications \\
+Pipe & \code{|} & Union types, alternatives \\
+Tilde & \texttt{\textasciitilde} & Effect annotations \\
+TildeArrow & \texttt{\textasciitilde>} & Effectful function types \\
+IntegerNumber & \code{42}, \code{\#x2A} & Integer literals \\
+RealNumber & \code{3.14}, \code{1e10} & Real number literals \\
+RationalNumber & \code{1/2}, \code{22/7} & Rational literals \\
+ComplexNumber & \code{3+4i}, \code{+i} & Complex number literals \\
+String & \code{"hello"} & String literals \\
+Character & \code{\#\textbackslash{}a}, \code{\#\textbackslash{}space} & Character literals \\
+Boolean & \code{\#t}, \code{\#false} & Boolean literals \\
+Keyword & \code{\#:type}, \code{\#:doc} & Keyword literals \\
+Identifier & \code{lambda}, \code{+}, \code{foo} & Variable names, operators \\
+LineComment & \code{; comment} & Documentation (ignored) \\
+BlockComment & \code{\#| comment |\#} & Documentation (ignored) \\
+Error & Invalid input & Lexical errors \\
+Eof & End of input & End of file marker \\
+\hline
+\end{tabular}
+\end{table}
+\twocolumn
+
+\section{Lexical Precedence}
+\label{sec:precedence}
+
+When multiple token patterns could match, the lexer uses longest-match with the following precedence:
+
+\begin{enumerate}
+\item Numbers (including complex forms)
+\item Keywords (\code{\#:identifier})
+\item Booleans (\code{\#t}, \code{\#f}, \code{\#true}, \code{\#false})
+\item Characters (\code{\#\textbackslash{}...})
+\item Multi-character operators (\code{::}, \code{->}, \code{=>}, \code{\~>}, \code{,@})
+\item Single-character tokens
+\item Identifiers
+\item Comments
+\end{enumerate}
+
+\section{Error Handling}
+\label{sec:lexical-errors}
+
+\indexentry{lexical error}
+The lexer reports errors for:
+
+\begin{itemize}
+\item Invalid character sequences
+\item Unterminated strings or comments
+\item Invalid numeric formats
+\item Invalid character literals
+\item Invalid Unicode escape sequences
+\end{itemize}
+
+Each error includes source location information (line, column, file) for precise error reporting.
+
+\section{Implementation Notes}
+\label{sec:lexical-implementation}
+
+\subsection{Performance Considerations}
+The lexer is optimized for:
+\begin{itemize}
+\item Single-pass tokenization
+\item Minimal backtracking
+\item Efficient Unicode handling
+\item Memory-efficient token storage
+\end{itemize}
+
+\subsection{Compatibility Mode}
+Implementations may provide a compatibility mode that accepts only R7RS tokens, rejecting Lambdust extensions for strict R7RS compliance checking.
+
+\subsection{Extensibility}
+The lexical structure is designed to allow future extensions without breaking existing code. Reserved token patterns may be allocated for future language features.

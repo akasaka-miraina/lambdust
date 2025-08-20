@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lambdust - Pure Functional Programming Language</title>
+    <meta name="description" content="Lambdust: A pure functional programming language with gradual typing, dependent types, and algebraic effects. R7RS-compliant Scheme with modern type systems.">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <span class="lambda">λ</span>
+                <span class="name">Lambdust</span>
+            </div>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#examples">Examples</a></li>
+                <li><a href="#research">Research</a></li>
+                <li><a href="#download">Download</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="container">
+                <h1>Pure Functional Programming<br><span class="highlight">Without Compromise</span></h1>
+                <p class="hero-description">
+                    Lambdust combines the mathematical elegance of pure functional programming 
+                    with gradual typing, dependent types, and algebraic effects. 
+                    R7RS-compliant with modern innovations.
+                </p>
+                <div class="hero-actions">
+                    <a href="#download" class="btn btn-primary">Get Started</a>
+                    <a href="#examples" class="btn btn-secondary">View Examples</a>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section id="features" class="features">
+            <div class="container">
+                <h2>Language Features</h2>
+                
+                <div class="feature-grid">
+                    <div class="feature">
+                        <h3><a href="docs/type-system/gradual-typing.html">Gradual Typing</a></h3>
+                        <p>Start with dynamic typing and add static types incrementally. Perfect for both rapid prototyping and production systems.</p>
+                        <code>⊢ e : τ ∨ Dynamic</code>
+                    </div>
+                    
+                    <div class="feature">
+                        <h3><a href="docs/type-system/dependent-types.html">Dependent Types</a></h3>
+                        <p>Types that depend on values enable precise specifications and eliminate entire classes of runtime errors.</p>
+                        <code>Π(x:A).B(x)</code>
+                    </div>
+                    
+                    <div class="feature">
+                        <h3><a href="docs/language-guide/monadic-purity.html">Monadic Purity</a></h3>
+                        <p>Referential transparency with controlled side effects through algebraic effects and monadic composition.</p>
+                        <code>M(A) >>= (A → M(B)) → M(B)</code>
+                    </div>
+                    
+                    <div class="feature">
+                        <h3><a href="docs/language-guide/r7rs-compliance.html">R7RS Compliant</a></h3>
+                        <p>Full compatibility with Scheme R7RS standard while adding modern type system innovations.</p>
+                        <code>R7RS ⊂ Lambdust</code>
+                    </div>
+                    
+                    <div class="feature">
+                        <h3><a href="docs/language-guide/performance.html">High Performance</a></h3>
+                        <p>JIT compilation, SIMD optimizations, and advanced memory management for production workloads.</p>
+                        <code>O(1) → O(n) optimized</code>
+                    </div>
+                    
+                    <div class="feature">
+                        <h3><a href="docs/language-guide/ffi.html">Foreign Function Interface</a></h3>
+                        <p>Seamless integration with C/C++, Rust, and system libraries while maintaining type safety and purity.</p>
+                        <code>extern "C" : (CInt → IO CInt)</code>
+                    </div>
+                    
+                    <div class="feature">
+                        <h3><a href="docs/standard-library/index.html">Rich Ecosystem</a></h3>
+                        <p>Comprehensive standard library with SRFI implementations and extensive documentation.</p>
+                        <code>∀ SRFI. supported(SRFI)</code>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Examples Section -->
+        <section id="examples" class="examples">
+            <div class="container">
+                <h2>Code Examples</h2>
+                
+                <div class="example-tabs">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" data-tab="gradual">Gradual Typing</button>
+                        <button class="tab-btn" data-tab="dependent">Dependent Types</button>
+                        <button class="tab-btn" data-tab="monadic">Monadic Purity</button>
+                    </div>
+                    
+                    <div class="tab-content">
+                        <div class="tab-panel active" id="gradual">
+                            <h3>Gradual Typing Evolution</h3>
+                            <pre><code>;; Start with dynamic typing
+(define fibonacci
+  (lambda (n)
+    (if (&lt;= n 1) n
+        (+ (fibonacci (- n 1)) 
+           (fibonacci (- n 2))))))
+
+;; Add type safety incrementally
+(define fibonacci-typed : (Integer -&gt; Integer)
+  (lambda ((n : Integer))
+    (if (&lt;= n 1) n
+        (+ (fibonacci-typed (- n 1))
+           (fibonacci-typed (- n 2))))))</code></pre>
+                            <p class="type-info">Type inference: <code>fibonacci-typed : Integer → Integer</code></p>
+                        </div>
+                        
+                        <div class="tab-panel" id="dependent">
+                            <h3>Dependent Types for Safety</h3>
+                            <pre><code>;; Vector with length tracked in type
+(define-type (Vec n a) 
+  (vector-of-length n a))
+
+;; Safe vector operations with length preservation
+(define vector-append : (∀ (a : Type) (n m : Nat)
+                          -&gt; Vec n a -&gt; Vec m a -&gt; Vec (+ n m) a)
+  (lambda (v1 v2)
+    (append-vectors v1 v2)))
+
+;; Matrix operations with dimension checking
+(define matrix-multiply : (∀ (a b c : Nat)
+                            -&gt; Matrix a b -&gt; Matrix b c -&gt; Matrix a c)
+  (lambda (m1 m2) ...))</code></pre>
+                            <p class="type-info">Dimension safety: ✓ Impossible to multiply incompatible matrices</p>
+                        </div>
+                        
+                        <div class="tab-panel" id="monadic">
+                            <h3>Monadic Purity with Effects</h3>
+                            <pre><code>;; Pure computation with effect tracking
+(define-effect IO)
+(define-effect State)
+
+(define pure-computation : (Integer -&gt; Integer)
+  (lambda (x) (* x x)))
+
+;; Effectful computation with explicit tracking
+(define effectful-computation : (Integer -&gt; (IO State Integer))
+  (lambda (x)
+    (do-monad
+      [y &lt;- (read-state)]
+      [_ &lt;- (write-state (+ y 1))]
+      [_ &lt;- (print (format "Processing: ~a" x))]
+      (return (* x y)))))</code></pre>
+                            <p class="type-info">Effect tracking: ✓ No hidden side effects</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Research Section -->
+        <section id="research" class="research">
+            <div class="container">
+                <h2>Research Foundation</h2>
+                
+                <div class="research-grid">
+                    <div class="research-area">
+                        <h3>Type Theory Foundations</h3>
+                        <p>Building upon Martin-Löf Type Theory and Homotopy Type Theory</p>
+                        <ul class="paper-list">
+                            <li>Intuitionistic Type Theory — Per Martin-Löf (1984)</li>
+                            <li>Homotopy Type Theory — Univalent Foundations Program (2013)</li>
+                        </ul>
+                        <div class="innovations">
+                            <h4>Lambdust Innovations:</h4>
+                            <ul>
+                                <li>Practical dependent types for systems programming</li>
+                                <li>Bidirectional type checking with inference</li>
+                                <li>Universe polymorphism with level inference</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="research-area">
+                        <h3>Gradual Typing Systems</h3>
+                        <p>Extending the seminal work on gradual typing for functional languages</p>
+                        <ul class="paper-list">
+                            <li>Gradual Typing for Functional Languages — Siek & Taha (2006)</li>
+                            <li>Blame for All — Wadler & Findler (2009)</li>
+                        </ul>
+                        <div class="innovations">
+                            <h4>Lambdust Innovations:</h4>
+                            <ul>
+                                <li>Monadic gradual typing with effect tracking</li>
+                                <li>Optimized runtime type checking</li>
+                                <li>Blame tracking for debugging type errors</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="research-area">
+                        <h3>Effect Systems & Monads</h3>
+                        <p>Algebraic effects and monadic programming for pure functional computation</p>
+                        <ul class="paper-list">
+                            <li>Algebraic Effects and Handlers — Plotkin & Pretnar (2013)</li>
+                            <li>Monads for Functional Programming — Philip Wadler (1995)</li>
+                        </ul>
+                        <div class="innovations">
+                            <h4>Lambdust Innovations:</h4>
+                            <ul>
+                                <li>Handler-based effect system</li>
+                                <li>Monad transformer optimization</li>
+                                <li>Referential transparency with controlled effects</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="collaboration">
+                    <h3>Academic Engagement</h3>
+                    <p>Lambdust is committed to advancing programming language research through:</p>
+                    <ul>
+                        <li>Active collaboration with programming language researchers</li>
+                        <li>Contributions to R7RS standards and SRFI development</li>
+                        <li>Peer-reviewed publications in type theory and functional programming</li>
+                        <li>Open-source development with academic transparency</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Download Section -->
+        <section id="download" class="download">
+            <div class="container">
+                <h2>Get Started</h2>
+                
+                <div class="download-options">
+                    <div class="download-option">
+                        <h3>Source Code</h3>
+                        <p>Build from source for the latest features</p>
+                        <pre><code>git clone https://github.com/lambdust-lang/lambdust.git
+cd lambdust
+cargo build --release</code></pre>
+                        <a href="https://github.com/lambdust-lang/lambdust" class="btn btn-primary">View on GitHub</a>
+                    </div>
+                    
+                    <div class="download-option">
+                        <h3>Quick Start</h3>
+                        <p>Run the REPL and start experimenting</p>
+                        <pre><code># Start the interactive REPL
+cargo run
+
+# Example: Factorial with gradual typing
+(define (factorial (n : Integer)) : Integer
+  (if (&lt;= n 1) 1
+      (* n (factorial (- n 1)))))</code></pre>
+                        <a href="docs/quickstart/index.html" class="btn btn-secondary">Quick Start Guide</a>
+                    </div>
+                </div>
+                
+                <div class="documentation">
+                    <h3>Documentation</h3>
+                    <ul class="doc-links">
+                        <li><a href="docs/language-guide/index.html">Language Guide</a></li>
+                        <li><a href="docs/type-system/index.html">Type System Reference</a></li>
+                        <li><a href="docs/standard-library/index.html">Standard Library</a></li>
+                        <li><a href="docs/api/index.html">API Documentation</a></li>
+                        <li><a href="docs/examples/index.html">More Examples</a></li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                    <p class="version">Version 0.2.0 - Active Development</p>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Resources</h4>
+                    <ul>
+                        <li><a href="docs/index.html">Documentation</a></li>
+                        <li><a href="docs/examples/index.html">Examples</a></li>
+                        <li><a href="docs/quickstart/index.html">Quick Start</a></li>
+                        <li><a href="docs/language-guide/index.html">Language Guide</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Community</h4>
+                    <ul>
+                        <li><a href="https://github.com/lambdust-lang/lambdust">GitHub</a></li>
+                        <li><a href="https://github.com/lambdust-lang/lambdust/discussions">Discussions</a></li>
+                        <li><a href="https://github.com/lambdust-lang/lambdust/issues">Issues</a></li>
+                        <li><a href="https://github.com/lambdust-lang/lambdust/blob/main/CONTRIBUTING.md">Contributing</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-section">
+                    <h4>Academic</h4>
+                    <ul>
+                        <li><a href="docs/type-system/index.html">Type Theory</a></li>
+                        <li><a href="https://github.com/lambdust-lang/lambdust#research">Research</a></li>
+                        <li><a href="https://github.com/lambdust-lang/lambdust#citations">Citations</a></li>
+                        <li><a href="https://github.com/lambdust-lang/lambdust/discussions/categories/research">Academic Discussion</a></li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+                <p>Made with ♥ for functional programming</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+</html>

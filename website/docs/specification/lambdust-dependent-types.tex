@@ -1,0 +1,614 @@
+%% Dependent Type System
+\chapter{Dependent Type System}
+\label{ch:dependent-types}
+
+Lambdust's dependent type system extends the gradual typing foundation with types that can depend on values, enabling precise specification of program properties and proof-carrying code through the Curry-Howard correspondence.
+
+\section{Dependent Types Overview}
+\label{sec:dependent-overview}
+
+Dependent types allow types to be parameterized by values, not just other types. This enables expressing precise invariants and specifications:
+
+\begin{itemize}
+\item \textbf{Pi Types}: Dependent function types $(x : A) \to B(x)$
+\item \textbf{Sigma Types}: Dependent pair types $(x : A) \times B(x)$  
+\item \textbf{Refinement Types}: Types with logical predicates $\{x : A | P(x)\}$
+\item \textbf{Indexed Types}: Types parameterized by values like $\text{Vector}(n, A)$
+\item \textbf{Equality Types}: Path equality types $a =_A b$
+\end{itemize}
+
+\section{Pi Types (Dependent Functions)}
+\label{sec:pi-types}
+
+\indexentry{Pi type}
+\indexentry{dependent function}
+
+Pi types generalize function types to allow the result type to depend on the parameter value:
+
+\begin{grammar}
+\production{\var{pi-type}}{\produces}{(Pi (\var{parameter} \var{type}) \var{body-type})}{}
+\production{}{\alternative}{((\var{parameter} : \var{type}) -> \var{body-type})}{}
+\end{grammar}
+
+\begin{example}[Pi Types]
+\begin{lambdustcode}
+;; Vector lookup with length-dependent result
+(define vector-ref :: (Pi (n : Natural) 
+                         (-> (Vector n Any) 
+                             (i : (Range 0 n)) 
+                             Any)))
+
+;; Type-level computation in return type  
+(define replicate :: (Pi (n : Natural) (A : Type) 
+                         (-> A (Vector n A))))
+
+;; Dependent elimination for natural numbers
+(define nat-elim :: (Pi (P : (-> Natural Type))
+                        (-> P(Zero)
+                            ((n : Natural) -> P(n) -> P(Succ(n)))
+                            (n : Natural) -> P(n))))
+\end{lambdustcode}
+\end{example}
+
+\section{Sigma Types (Dependent Pairs)}
+\label{sec:sigma-types}
+
+\indexentry{Sigma type}
+\indexentry{dependent pair}
+
+Sigma types generalize pair types where the second component's type depends on the first:
+
+\begin{grammar}
+\production{\var{sigma-type}}{\produces}{(Sigma (\var{parameter} \var{type}) \var{body-type})}{}
+\production{}{\alternative}{((\var{parameter} : \var{type}) $\times$ \var{body-type})}{}
+\end{grammar}
+
+\begin{example}[Sigma Types]
+\begin{lambdustcode}
+;; Dependent pair with length-indexed vector
+(define sized-vector :: (Sigma (n : Natural) (Vector n String)))
+
+;; Create a sized vector
+(define my-data :: sized-vector
+  (pair 3 #("hello" "world" "!")))
+
+;; Access components
+(define get-size :: (-> sized-vector Natural))
+(define (get-size sv) (proj1 sv))
+
+(define get-vector :: (Pi (sv : sized-vector) 
+                          (Vector (get-size sv) String)))
+(define (get-vector sv) (proj2 sv))
+
+;; Existential type (special case of Sigma)
+(define abstract-stack :: (Sigma (S : Type)
+                                 (& (-> Unit S)           ; empty
+                                    (-> S Any S)          ; push  
+                                    (-> S (Maybe Any S)))) ; pop
+\end{lambdustcode}
+\end{example}
+
+\section{Refinement Types}
+\label{sec:refinement-types}
+
+\indexentry{refinement type}
+\indexentry{predicate}
+
+Refinement types restrict base types with logical predicates:
+
+\begin{grammar}
+\production{\var{refinement-type}}{\produces}{(Refinement (\var{variable} \var{base-type}) \var{predicate})}{}
+\production{}{\alternative}{\{\var{variable} : \var{base-type} | \var{predicate}\}}{}
+\end{grammar}
+
+\begin{example}[Refinement Types]
+\begin{lambdustcode}
+;; Non-zero numbers
+(define NonZero (Refinement (x Number) (not (= x 0))))
+
+;; Safe division
+(define safe-divide :: (-> Number NonZero Number))
+(define (safe-divide x y) (/ x y))
+
+;; Sorted lists  
+(define SortedList 
+  (Refinement (lst (List Number)) 
+              (sorted? lst)))
+
+;; Insert maintains sortedness
+(define sorted-insert :: (-> Number SortedList SortedList))
+
+;; Even numbers
+(define Even (Refinement (n Integer) (= (modulo n 2) 0)))
+
+;; Odd numbers  
+(define Odd (Refinement (n Integer) (= (modulo n 2) 1)))
+
+;; Adding evens gives even
+(define add-even :: (-> Even Even Even))
+\end{lambdustcode}
+\end{example}
+
+\section{Indexed Types}
+\label{sec:indexed-types}
+
+\indexentry{indexed type}
+\indexentry{type family}
+
+Indexed types are parameterized by values at the type level:
+
+\begin{example}[Indexed Types]
+\begin{lambdustcode}
+;; Length-indexed vectors
+(define-indexed-type (Vector n A) 
+  (vector-data :: (RawVector A))
+  (vector-length :: n))
+
+;; Type-safe vector operations
+(define make-vector :: (Pi (n : Natural) (A : Type) (-> A (Vector n A))))
+
+(define vector-append :: (Pi (m n : Natural) (A : Type)
+                             (-> (Vector m A) (Vector n A) 
+                                 (Vector (+ m n) A))))
+
+;; Finite sets indexed by size  
+(define-indexed-type (FinSet n)
+  (elements :: (Vector n Natural)))
+
+;; Matrix with dimensions
+(define-indexed-type (Matrix rows cols A)
+  (data :: (Vector (* rows cols) A)))
+
+;; Type-safe matrix multiplication
+(define matrix-multiply :: (Pi (m n p : Natural) (A : Type)
+                              (=> (Ring A)
+                                  (-> (Matrix m n A) (Matrix n p A) 
+                                      (Matrix m p A))))
+\end{lambdustcode}
+\end{example}
+
+\section{Equality Types}
+\label{sec:equality-types}
+
+\indexentry{equality type}
+\indexentry{path equality}
+
+Equality types represent proofs that two values are equal:
+
+\begin{grammar}
+\production{\var{equality-type}}{\produces}{(\var{term1} = \var{term2})}{}
+\production{}{\alternative}{(\var{term1} = $_{\var{type}}$ \var{term2})}{}
+\end{grammar}
+
+\begin{example}[Equality Types]
+\begin{lambdustcode}
+;; Reflexivity proof
+(define refl :: (Pi (A : Type) (x : A) (x = x)))
+(define (refl A x) (equal-refl x))
+
+;; Symmetry proof  
+(define sym :: (Pi (A : Type) (x y : A) (-> (x = y) (y = x))))
+(define (sym A x y prf) (equal-sym prf))
+
+;; Transitivity proof
+(define trans :: (Pi (A : Type) (x y z : A) 
+                     (-> (x = y) (y = z) (x = z))))
+(define (trans A x y z prf1 prf2) (equal-trans prf1 prf2))
+
+;; Substitution (congruence)  
+(define subst :: (Pi (A B : Type) (f : (-> A B)) (x y : A)
+                     (-> (x = y) ((f x) = (f y)))))
+(define (subst A B f x y prf) (equal-cong f prf))
+
+;; Arithmetic equality proofs
+(define plus-zero :: (Pi (n : Natural) ((+ n 0) = n)))
+(define plus-succ :: (Pi (n m : Natural) ((+ n (Succ m)) = (Succ (+ n m)))))
+\end{lambdustcode}
+\end{example}
+
+\section{Universe Hierarchy}
+\label{sec:universes}
+
+\indexentry{universe}
+\indexentry{type of types}
+
+To avoid Russell's paradox, types are organized in a hierarchy of universes:
+
+\begin{example}[Universe Hierarchy]
+\begin{lambdustcode}
+;; Universe levels
+Type0 :: Type1      ; Base types live in Type0
+Type1 :: Type2      ; Type0 itself has type Type1  
+Type2 :: Type3      ; And so on...
+
+;; Base types
+Number :: Type0
+String :: Type0  
+Boolean :: Type0
+
+;; Type constructors
+List :: (-> Type0 Type0)
+Vector :: (-> Natural Type0 Type0)
+
+;; Polymorphic types
+(All (A : Type0) (-> A A)) :: Type0     ; Monomorphic polymorphism
+(All (A : Type1) (-> A A)) :: Type1     ; Type-polymorphic
+
+;; Universe polymorphism
+(define id :: (Pi (l : Level) (A : Type l) (-> A A)))
+(define (id l A x) x)
+\end{lambdustcode}
+\end{example}
+
+\section{Proof Terms and Tactics}
+\label{sec:proof-terms}
+
+\indexentry{proof term}
+\indexentry{tactic}
+
+Dependent types enable proof-carrying code through the Curry-Howard correspondence:
+
+\section{Basic Proof Construction}
+\label{sec:basic-proofs}
+
+\begin{example}[Basic Proofs]
+\begin{lambdustcode}
+;; Theorem: addition is associative
+(define plus-assoc :: (Pi (m n p : Natural) 
+                          (((+ (+ m n) p) = (+ m (+ n p))))))
+
+;; Proof by induction on m
+(define (plus-assoc m n p)
+  (induction m
+    ;; Base case: m = 0
+    (base-case 
+      (trans (+ (+ 0 n) p)          ; Start with goal
+             (+ n p)                 ; Simplify (+ 0 n) = n  
+             (+ 0 (+ n p))           ; Target form
+             (plus-zero n)           ; (+ 0 n) = n
+             (sym (plus-zero (+ n p))))) ; (+ 0 (+ n p)) = (+ n p)
+    
+    ;; Inductive case: m = (Succ k)
+    (inductive-step k ih
+      (trans (+ (+ (Succ k) n) p)   ; Start
+             (+ (Succ (+ k n)) p)    ; Definition of + 
+             (Succ (+ (+ k n) p))    ; Definition of +
+             (Succ (+ k (+ n p)))    ; Induction hypothesis  
+             (+ (Succ k) (+ n p))    ; Definition of +
+             (plus-succ-left k n)    ; Lemma
+             (plus-succ k (+ n p))   ; Another lemma
+             ih))))                  ; Use IH
+\end{lambdustcode}
+\end{example}
+
+\section{Proof Tactics}
+\label{sec:tactics}
+
+High-level tactics automate common proof patterns:
+
+\begin{example}[Proof Tactics]
+\begin{lambdustcode}
+;; Define a theorem with tactic proof
+(theorem plus-comm :: (Pi (m n : Natural) ((+ m n) = (+ n m)))
+  (proof-by-induction m
+    (base-case 
+      (by-simplification))
+    (inductive-case k ih
+      (by-rewriting 
+        (plus-succ-right n k)
+        ih
+        (plus-succ-left k n)))))
+
+;; Automated tactics
+(theorem list-length-app :: (Pi (A : Type) (xs ys : (List A))
+                                ((length (append xs ys)) = 
+                                 (+ (length xs) (length ys))))
+  (auto-induction xs))      ; Automatic induction
+
+;; Interactive proof development
+(theorem insertion-sort-correct :: (Pi (xs : (List Natural))
+                                      (sorted? (insertion-sort xs)))
+  (interactive-proof
+    ;; Proof script will be filled in interactively
+    ))
+\end{lambdustcode}
+\end{example}
+
+\section{Program Extraction}
+\label{sec:extraction}
+
+\indexentry{program extraction}
+\indexentry{Curry-Howard}
+
+Constructive proofs can be automatically extracted to executable programs:
+
+\begin{example}[Program Extraction]
+\begin{lambdustcode}
+;; Theorem with computational content
+(theorem exists-sqrt :: (Pi (x : Positive) 
+                           (Exists (y : Positive) ((* y y) = x)))
+  (proof
+    ;; Constructive proof using Newton's method
+    (let ((y (newton-sqrt x)))
+      (pair y (newton-sqrt-correct x)))))
+
+;; Extract the computational part
+(define sqrt-function (extract exists-sqrt))
+;; sqrt-function :: (-> Positive Positive)
+
+;; Theorem: every list can be sorted  
+(theorem sort-exists :: (Pi (A : Type) (ord : (Order A)) (xs : (List A))
+                           (Exists (ys : (List A)) 
+                             (& (sorted? ys) (permutation? xs ys))))
+  (proof
+    ;; Constructive proof using merge sort
+    (let ((ys (merge-sort xs)))
+      (pair ys (merge-sort-correct xs)))))
+
+;; Extract sorting algorithm
+(define sort-algorithm (extract sort-exists))
+;; sort-algorithm :: (Pi (A : Type) (-> (Order A) (List A) (List A)))
+
+;; Verified compiler optimization
+(theorem beta-reduce-correct :: 
+  (Pi (A B : Type) (f : (-> A B)) (x : A)
+      (((lambda (y) (f y)) x) = (f x)))
+  (proof (refl (f x))))
+
+(define beta-reduce (extract beta-reduce-correct))
+;; beta-reduce :: (Pi (A B : Type) (-> (-> A B) A B))
+\end{lambdustcode}
+\end{example}
+
+\section{Type-Level Programming}
+\label{sec:type-level-programming}
+
+\indexentry{type-level programming}
+\indexentry{type family}
+
+Dependent types enable computation at the type level:
+
+\begin{example}[Type-Level Programming]
+\begin{lambdustcode}
+;; Type-level natural numbers  
+(define-type Nat
+  Zero :: Nat
+  (Succ Nat) :: Nat)
+
+;; Type-level addition
+(define-type-function (Plus m n)
+  (Plus Zero n) = n
+  (Plus (Succ m) n) = (Succ (Plus m n)))
+
+;; Type-level comparison
+(define-type-function (Less-Than m n)  
+  (Less-Than Zero (Succ n)) = True
+  (Less-Than (Succ m) Zero) = False
+  (Less-Than (Succ m) (Succ n)) = (Less-Than m n)
+  (Less-Than m m) = False)
+
+;; Statically sized data structures
+(define-indexed-type (Array n A)
+  (data :: (RawArray A))
+  (size :: n)
+  (constraint :: (= (raw-array-size data) n)))
+
+;; Type-safe array operations
+(define array-get :: (Pi (n : Nat) (A : Type) 
+                         (-> (Array n A) 
+                             (i : Nat) 
+                             (constraint :: (Less-Than i n) = True)
+                             A))
+
+;; Type-level lists
+(define-type (TypeList k)
+  TypeNil :: (TypeList k)  
+  (TypeCons k (TypeList k)) :: (TypeList k))
+
+;; Heterogeneous lists with type-level schema
+(define HList :: (-> (TypeList Type) Type)
+(define-type-function HList
+  (HList TypeNil) = Unit
+  (HList (TypeCons A As)) = (Pair A (HList As)))
+
+;; Example usage
+(define schema :: (TypeList Type) 
+  (TypeCons String (TypeCons Natural (TypeCons Boolean TypeNil))))
+
+(define person :: (HList schema)  
+  (pair "Alice" (pair 30 (pair #t unit))))
+\end{lambdustcode}
+\end{example}
+
+\section{Totality and Termination}
+\label{sec:totality}
+
+\indexentry{totality}
+\indexentry{termination}
+
+The dependent type system ensures all functions are total:
+
+\section{Structural Recursion}
+\label{sec:structural-recursion}
+
+\begin{example}[Structural Recursion]
+\begin{lambdustcode}
+;; Structural recursion on natural numbers (always terminates)
+(define plus :: (-> Natural Natural Natural))
+(define (plus m n)
+  (match m
+    (Zero n)
+    ((Succ k) (Succ (plus k n)))))    ; Recursive call on smaller argument
+
+;; Structural recursion on lists
+(define length :: (Pi (A : Type) (-> (List A) Natural)))  
+(define (length A lst)
+  (match lst
+    (() Zero)
+    ((cons x xs) (Succ (length A xs)))))   ; Recursive call on tail
+\end{lambdustcode}
+\end{example}
+
+\section{Well-Founded Recursion}
+\label{sec:well-founded}
+
+\begin{example}[Well-Founded Recursion]
+\begin{lambdustcode}
+;; Division using well-founded recursion on decreasing measure
+(define div :: (-> Natural Natural Natural))
+(define (div m n)
+  (termination-proof (measure m))      ; Prove m decreases
+  (if (< m n) 
+      Zero
+      (Succ (div (- m n) n))))         ; m - n < m when n > 0
+
+;; Ackermann function with lexicographic ordering
+(define ack :: (-> Natural Natural Natural))
+(define (ack m n)  
+  (termination-proof (lex-measure m n))  ; (m,n) decreases lexicographically
+  (match m
+    (Zero (Succ n))
+    ((Succ k) (match n
+                (Zero (ack k (Succ Zero)))
+                ((Succ j) (ack k (ack (Succ k) j)))))))
+\end{lambdustcode}
+\end{example}
+
+\section{Coinduction and Corecursion}
+\label{sec:coinduction}
+
+For infinite data structures, Lambdust supports coinduction:
+
+\begin{example}[Coinductive Types]
+\begin{lambdustcode}
+;; Coinductive streams  
+(define-coinductive-type (Stream A)
+  (stream-head :: A)
+  (stream-tail :: (Stream A)))
+
+;; Corecursive stream generation
+(define nats :: (Stream Natural)
+  (corecursion 0 
+    (lambda (n) 
+      (stream n (+ n 1)))))
+
+;; Stream map (productive corecursion)
+(define stream-map :: (Pi (A B : Type) (-> (-> A B) (Stream A) (Stream B)))
+(define (stream-map A B f s)
+  (corecursion s
+    (lambda (s)
+      (stream (f (stream-head s)) 
+              (stream-tail s)))))
+\end{lambdustcode}
+\end{example}
+
+\section{Integration with Gradual Typing}
+\label{sec:dependent-gradual}
+
+\indexentry{gradual dependent types}
+
+Dependent types integrate smoothly with the gradual type system:
+
+\begin{example}[Gradual Dependent Types]
+\begin{lambdustcode}
+;; Gradual refinement from dynamic to dependent
+;; Level 1: Dynamic  
+(define vector-get 
+  (lambda (vec i) (vector-ref vec i)))
+
+;; Level 2: Simple types
+(define vector-get :: (-> (Vector Any) Natural Any)
+  (lambda (vec i) (vector-ref vec i)))
+
+;; Level 3: Bounded index
+(define vector-get :: (-> (vec : (Vector Any)) 
+                          (i : Natural)  
+                          (constraint :: (< i (vector-length vec)))
+                          Any)
+  (lambda (vec i) (vector-ref vec i)))
+
+;; Level 4: Full dependent types
+(define vector-get :: (Pi (n : Natural) (A : Type) 
+                          (-> (Vector n A) (Fin n) A))
+  (lambda (n A vec i) (vector-ref vec i)))
+
+;; Automatic contract generation at boundaries
+(define untyped-caller
+  ;; This automatically gets contract checking
+  (vector-get some-vector some-index))
+\end{lambdustcode}
+\end{example}
+
+\section{Standard Dependent Types}
+\label{sec:standard-dependent}
+
+Lambdust provides a standard library of dependent types:
+
+\begin{example}[Standard Dependent Types]
+\begin{lambdustcode}
+;; Finite sets
+(define Fin :: (-> Natural Type))
+(define-indexed-type (Fin n)
+  (value :: Natural)
+  (constraint :: (< value n)))
+
+;; Bounded natural numbers  
+(define (Range lower upper) 
+  (Refinement (x Natural) (and (<= lower x) (<= x upper))))
+
+;; Non-empty lists
+(define (NonEmptyList A)
+  (Refinement (xs (List A)) (not (null? xs))))
+
+;; Sorted vectors
+(define (SortedVector n A)
+  (Refinement (v (Vector n A)) (sorted-vector? v)))
+
+;; Matrices with matching dimensions
+(define matrix-multiply :: (Pi (m n p : Natural) 
+                              (-> (Matrix m n Number) 
+                                  (Matrix n p Number) 
+                                  (Matrix m p Number)))
+
+;; Red-black trees with color invariants
+(define-indexed-type (RBTree A color height)
+  (node-data :: A)  
+  (left :: (Maybe (RBTree A black-or-red height)))
+  (right :: (Maybe (RBTree A black-or-red height)))
+  (color-invariant :: (valid-rb-coloring? color left right))
+  (height-invariant :: (valid-rb-height? height left right)))
+\end{lambdustcode}
+\end{example}
+
+\section{Error Messages and Inference}
+\label{sec:dependent-errors}
+
+The dependent type checker provides informative error messages:
+
+\begin{example}[Dependent Type Errors]
+\begin{lambdustcode}
+;; Index out of bounds
+(vector-get #(1 2 3) 5)
+;; Error: Index out of bounds
+;; Expected: (Fin 3)  
+;; Actual: 5
+;; Note: Vector has length 3, but index 5 >= 3
+
+;; Refinement violation
+(define positive-only :: (-> Positive Natural))
+(positive-only -5)
+;; Error: Refinement type violation
+;; Expected: Positive (x > 0)
+;; Actual: -5  
+;; Constraint violated: -5 > 0 is false
+
+;; Proof obligation not discharged
+(define (unsafe-div :: (-> Natural Natural Natural))
+  (lambda (x y) (/ x y)))
+;; Error: Missing proof obligation
+;; Need to prove: y is not equal 0
+;; Suggestion: Use (y : NonZero) instead of (y : Natural)
+\end{lambdustcode}
+\end{example}
+
+The dependent type system provides powerful tools for program verification while maintaining integration with Lambdust's gradual typing approach, allowing developers to choose their level of specification precision.

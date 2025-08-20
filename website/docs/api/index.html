@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Reference - Lambdust Documentation</title>
+    <meta name="description" content="Complete API reference for Lambdust programming language functions, types, and modules.">
+    <link rel="stylesheet" href="../../styles.css">
+    <link rel="stylesheet" href="../docs.css">
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">
+                <a href="../../index.html">
+                    <span class="lambda">λ</span>
+                    <span class="name">Lambdust</span>
+                </a>
+            </div>
+            <ul class="nav-links">
+                <li><a href="../../index.html#features">Features</a></li>
+                <li><a href="../../index.html#examples">Examples</a></li>
+                <li><a href="../../index.html#research">Research</a></li>
+                <li><a href="../index.html">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <main class="docs-main">
+
+        <article class="docs-content">
+            <div class="breadcrumb">
+                <a href="../index.html">Documentation</a> → 
+                API Reference
+            </div>
+
+            <h1>API Reference</h1>
+            
+            <p>Complete reference documentation for all Lambdust functions, types, and modules. This reference includes precise type signatures, effect annotations, and usage examples.</p>
+
+            <h2>Organization</h2>
+
+            <p>The API is organized into logical groups for easy navigation:</p>
+
+            <div class="feature-grid" style="grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin: 2rem 0;">
+                <a href="core.html" style="text-decoration: none; color: inherit;">
+                    <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; transition: all 0.2s; background: white;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Core Functions</h4>
+                        <p style="color: #64748b; margin: 0; font-size: 0.875rem;">Essential functions for basic computation and data manipulation.</p>
+                    </div>
+                </a>
+
+                <a href="types.html" style="text-decoration: none; color: inherit;">
+                    <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; transition: all 0.2s; background: white;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Type Definitions</h4>
+                        <p style="color: #64748b; margin: 0; font-size: 0.875rem;">Built-in types, type constructors, and type classes.</p>
+                    </div>
+                </a>
+
+                <a href="modules.html" style="text-decoration: none; color: inherit;">
+                    <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; transition: all 0.2s; background: white;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Module System</h4>
+                        <p style="color: #64748b; margin: 0; font-size: 0.875rem;">Module definition, import/export, and namespace management.</p>
+                    </div>
+                </a>
+
+                <a href="effects.html" style="text-decoration: none; color: inherit;">
+                    <div style="border: 1px solid #e2e8f0; border-radius: 0.5rem; padding: 1.5rem; transition: all 0.2s; background: white;">
+                        <h4 style="color: #0f172a; margin-bottom: 0.5rem;">Effect System</h4>
+                        <p style="color: #64748b; margin: 0; font-size: 0.875rem;">Monads, effect handlers, and algebraic effects.</p>
+                    </div>
+                </a>
+            </div>
+
+            <h2>Quick Reference</h2>
+
+            <h3>Most Commonly Used Functions</h3>
+
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th style="width: 25%;">Function</th>
+                        <th style="width: 45%;">Type Signature</th>
+                        <th style="width: 30%;">Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>map</code></td>
+                        <td><code>∀ α β. (α → β) → List α → List β</code></td>
+                        <td>Apply function to each list element</td>
+                    </tr>
+                    <tr>
+                        <td><code>filter</code></td>
+                        <td><code>∀ α. (α → Boolean) → List α → List α</code></td>
+                        <td>Select elements matching predicate</td>
+                    </tr>
+                    <tr>
+                        <td><code>fold-left</code></td>
+                        <td><code>∀ α β. (β → α → β) → β → List α → β</code></td>
+                        <td>Reduce list from left to right</td>
+                    </tr>
+                    <tr>
+                        <td><code>cons</code></td>
+                        <td><code>∀ α. α → List α → List α</code></td>
+                        <td>Prepend element to list</td>
+                    </tr>
+                    <tr>
+                        <td><code>car</code></td>
+                        <td><code>∀ α. List α → α</code></td>
+                        <td>Get first element of list</td>
+                    </tr>
+                    <tr>
+                        <td><code>cdr</code></td>
+                        <td><code>∀ α. List α → List α</code></td>
+                        <td>Get rest of list after first element</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Type Notation</h3>
+
+            <p>Type signatures use the following notation:</p>
+
+            <ul>
+                <li><code>α, β, γ</code> - Type variables (polymorphic types)</li>
+                <li><code>→</code> - Function type constructor</li>
+                <li><code>∀</code> - Universal quantification</li>
+                <li><code>Π</code> - Dependent function types</li>
+                <li><code>Σ</code> - Dependent pair types</li>
+                <li><code>IO, State, Error</code> - Effect annotations</li>
+            </ul>
+
+            <h2>Function Documentation Format</h2>
+
+            <p>Each function in the API reference follows this format:</p>
+
+            <div class="example-box">
+                <h4>Example Function Documentation</h4>
+                
+                <h4><code>function-name</code></h4>
+                
+                <div class="type-signature">
+                    Type: (signature here)
+                </div>
+                
+                <p><strong>Description:</strong> Brief description of what the function does.</p>
+                
+                <p><strong>Parameters:</strong></p>
+                <ul>
+                    <li><code>param1</code> - Description of first parameter</li>
+                    <li><code>param2</code> - Description of second parameter</li>
+                </ul>
+                
+                <p><strong>Returns:</strong> Description of return value</p>
+                
+                <p><strong>Effects:</strong> Any side effects (IO, State, etc.)</p>
+                
+                <p><strong>Examples:</strong></p>
+                <pre><code>(function-name arg1 arg2)  ; Expected result</code></pre>
+                
+                <p><strong>See also:</strong> Related functions</p>
+            </div>
+
+            <h2>Core Language Constructs</h2>
+
+            <h3>Basic Data Types</h3>
+
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Description</th>
+                        <th>Literal Syntax</th>
+                        <th>Examples</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>Integer</code></td>
+                        <td>Arbitrary precision integers</td>
+                        <td>Decimal digits</td>
+                        <td><code>42, -17, 0</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Real</code></td>
+                        <td>Floating point numbers</td>
+                        <td>Decimal with point</td>
+                        <td><code>3.14, -2.5, 1e6</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Rational</code></td>
+                        <td>Exact fractions</td>
+                        <td>numerator/denominator</td>
+                        <td><code>1/3, 22/7, -5/2</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Complex</code></td>
+                        <td>Complex numbers</td>
+                        <td>real+imaginaryi</td>
+                        <td><code>3+4i, -2-5i</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>String</code></td>
+                        <td>Unicode text</td>
+                        <td>Double quotes</td>
+                        <td><code>"hello", "λ"</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Character</code></td>
+                        <td>Single Unicode character</td>
+                        <td>#\ prefix</td>
+                        <td><code>#\a, #\λ, #\space</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Boolean</code></td>
+                        <td>Truth values</td>
+                        <td>#t, #f</td>
+                        <td><code>#t, #f</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>Composite Types</h3>
+
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th>Type Constructor</th>
+                        <th>Description</th>
+                        <th>Type Signature</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>List α</code></td>
+                        <td>Linked list of elements of type α</td>
+                        <td><code>Type → Type</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Vector n α</code></td>
+                        <td>Array of n elements of type α</td>
+                        <td><code>Nat → Type → Type</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Maybe α</code></td>
+                        <td>Optional value (Some α | None)</td>
+                        <td><code>Type → Type</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Either α β</code></td>
+                        <td>Sum type (Left α | Right β)</td>
+                        <td><code>Type → Type → Type</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Pair α β</code></td>
+                        <td>Product of two types</td>
+                        <td><code>Type → Type → Type</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Effect System Reference</h2>
+
+            <h3>Built-in Effects</h3>
+
+            <table style="width: 100%; margin: 2rem 0;">
+                <thead>
+                    <tr>
+                        <th>Effect</th>
+                        <th>Description</th>
+                        <th>Operations</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>IO</code></td>
+                        <td>Input/output operations</td>
+                        <td><code>read-file, write-file, println</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>State σ</code></td>
+                        <td>Mutable state of type σ</td>
+                        <td><code>get-state, put-state, modify-state</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Error ε</code></td>
+                        <td>Exceptions of type ε</td>
+                        <td><code>throw, catch, try</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Random</code></td>
+                        <td>Random number generation</td>
+                        <td><code>random, random-integer, random-real</code></td>
+                    </tr>
+                    <tr>
+                        <td><code>Time</code></td>
+                        <td>Time and timing operations</td>
+                        <td><code>current-time, sleep, timeout</code></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h2>Searching the API</h2>
+
+            <p>To find specific functions or types:</p>
+
+            <ol>
+                <li><strong>Browse by Category</strong>: Use the sidebar navigation to explore by functionality</li>
+                <li><strong>Type-based Search</strong>: Look for functions by their type signatures</li>
+                <li><strong>REPL Help</strong>: Use <code>:doc function-name</code> for instant help</li>
+                <li><strong>Source Navigation</strong>: Follow "See also" links for related functions</li>
+            </ol>
+
+            <div class="warning-box">
+                <h4>API Stability</h4>
+                <p>Lambdust is under active development. While core language features are stable, some advanced APIs may change between versions. Check the changelog when upgrading.</p>
+            </div>
+
+            <h2>Contributing to Documentation</h2>
+
+            <p>Help improve the API documentation:</p>
+
+            <ul>
+                <li><strong>Report Issues</strong>: Found unclear or incorrect documentation? Report it on GitHub</li>
+                <li><strong>Add Examples</strong>: Contribute usage examples for complex functions</li>
+                <li><strong>Improve Type Signatures</strong>: Help make type annotations more precise</li>
+                <li><strong>Cross-references</strong>: Add links between related functions</li>
+            </ul>
+
+            <div class="page-nav">
+                <a href="../index.html">← Documentation Home</a>
+                <a href="core.html">Core Functions →</a>
+            </div>
+        </article>
+    </main>
+
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h4>Lambdust</h4>
+                    <p>Pure functional programming language with gradual typing, dependent types, and algebraic effects.</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Documentation</h4>
+                    <ul>
+                        <li><a href="../quickstart/index.html">Quick Start</a></li>
+                        <li><a href="../language-guide/index.html">Language Guide</a></li>
+                        <li><a href="../type-system/index.html">Type System</a></li>
+                        <li><a href="index.html">API Reference</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Lambdust Project. Licensed under MIT and Apache 2.0.</p>
+            </div>
+        </div>
+    </footer>
+</body>
+</html>
